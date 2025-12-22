@@ -1,0 +1,1 @@
+build_test(old_infer_req_res ut "old_infer_req_res;" "${PROJECT_SOURCE_DIR}/src/include/")

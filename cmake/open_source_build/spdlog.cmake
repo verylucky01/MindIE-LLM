@@ -1,0 +1,13 @@
+set(SPDLOG_DIR "${THIRD_PARTY_SRC_DIR}/spdlog")
+set(SPDLOG_INSTALL_DIR "${THIRD_PARTY_OUTPUT_DIR}/spdlog")
+
+if(EXISTS "${SPDLOG_INSTALL_DIR}/include")
+    message(STATUS "Spdlog already exists, skipping download and extract.")
+    return()
+else()
+    message(STATUS "Spdlog not found, downloading and extracting...")
+    if(NOT EXISTS "${SPDLOG_DIR}")
+        download_open_source(spdlog)
+    endif()
+    file(COPY ${SPDLOG_DIR}/include DESTINATION ${SPDLOG_INSTALL_DIR})
+endif()

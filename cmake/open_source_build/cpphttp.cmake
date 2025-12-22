@@ -1,0 +1,20 @@
+set(OPENSOURCE_COMPONENT_NAME "http")
+set(OPENSOURCE_COMPONENT_DIR "${THIRD_PARTY_SRC_DIR}/${OPENSOURCE_COMPONENT_NAME}")
+set(HTTP_OUTPUT_DIR "${THIRD_PARTY_OUTPUT_DIR}/${OPENSOURCE_COMPONENT_NAME}")
+set(HTTPLIB_DEST_DIR "${HTTP_OUTPUT_DIR}/include")
+
+if(EXISTS "${HTTPLIB_DEST_DIR}/httplib.h")
+    message(STATUS "${OPENSOURCE_COMPONENT_NAME} already installed, skipping build and install.")
+    return()
+endif()
+
+if(NOT EXISTS "${OPENSOURCE_COMPONENT_DIR}/httplib.h")
+    message(STATUS "${OPENSOURCE_COMPONENT_NAME} not installed, building and installing...")
+    download_open_source(${OPENSOURCE_COMPONENT_NAME})
+else()
+    message(STATUS "${OPENSOURCE_COMPONENT_NAME} already installed, skipping build and install.")
+endif()
+
+file(COPY "${OPENSOURCE_COMPONENT_DIR}/" DESTINATION "${HTTP_OUTPUT_DIR}")
+execute_process(COMMAND mkdir -p ${HTTPLIB_DEST_DIR})
+execute_process(COMMAND cp "${OPENSOURCE_COMPONENT_DIR}/httplib.h" ${HTTPLIB_DEST_DIR})
