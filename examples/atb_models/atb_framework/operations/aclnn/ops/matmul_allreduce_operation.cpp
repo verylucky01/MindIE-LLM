@@ -16,6 +16,7 @@
 #include <sstream>
 #include <unistd.h>
 #include "acl/acl.h"
+#include "hccl/hccl.h"
 #include "aclnnop/aclnn_matmul_all_reduce.h"
 #include "atb_speed/log.h"
 #include "operations/aclnn/utils/utils.h"
