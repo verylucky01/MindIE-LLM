@@ -56,6 +56,7 @@ function fn_run_cpptest()
 function fn_run_pythontest()
 {
     cd $OUTPUT_DIR
+    export PYTHONPATH=$PROJECT_DIR/../..:$PYTHONPATH
     export PYTHONPATH=$PROJECT_DIR:$PYTHONPATH
     MINDIE_LOG_DIR_RELATIVE="${PROJECT_DIR}/../../src/utils/log"
     MINDIE_LOG_DIR=$(readlink -f "${MINDIE_LOG_DIR_RELATIVE}")

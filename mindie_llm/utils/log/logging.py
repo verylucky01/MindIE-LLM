@@ -23,6 +23,7 @@ from logging.handlers import RotatingFileHandler
 from ..env import ENV
 from .. import file_utils
 from .error_code import ErrorCode 
+from .utils import update_log_file_param
 
 
 MAX_LOG_DIR_PERM = 0o750
@@ -264,8 +265,11 @@ def init_logger(logger_ins: CustomLogger, file_name: str, stream=None):
     if log_to_file.upper() not in log_to_file_list:
         log_to_file = "1"
             
-    if str(log_to_file).upper() in ["1", TRUE] and \
-        ENV.log_file_maxsize > 0 and ENV.log_file_maxnum > 0:
+    log_file_rotate = ENV.log_file_rotate
+    log_file_rotate = standard_env(log_file_rotate)
+    log_file_maxsize, log_file_maxnum = update_log_file_param(log_file_rotate)
+
+    if str(log_to_file).upper() in ["1", TRUE]:
         makedir_and_change_permissions(log_file_path)
         log_file_path = file_utils.standardize_path(log_file_path)
         file_utils.check_path_permission(log_file_path) 
@@ -274,8 +278,8 @@ def init_logger(logger_ins: CustomLogger, file_name: str, stream=None):
         # 创建日志记录器，指明日志保存路径,每个日志的大小，保存日志的上限
         file_handle = SafeRotatingFileHandler(
             filename=llm_log_file_path,
-            maxBytes=ENV.log_file_maxsize,
-            backupCount=ENV.log_file_maxnum,
+            maxBytes=log_file_maxsize,
+            backupCount=log_file_maxnum,
             delay=True)
 
         # 将日志记录器指定日志的格式
@@ -309,8 +313,7 @@ def prepare_log_path(input_path):
     file_path = file_utils.standardize_path(input_path)
     if os.path.isdir(file_path):
         raise argparse.ArgumentTypeError(
-            "'MIES_PYTHON_LOG_PATH' or 'MINDIE_LLM_PYTHON_LOG_PATH'"
-            "only supports paths that end with a file."
+            "'MINDIE_LOG_PATH' only supports paths that end with a file."
         )
     dirs = os.path.dirname(file_path)
     try:

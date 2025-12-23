@@ -22,7 +22,6 @@
 
 import json
 from typing import Optional, List, Tuple
-import math
 import torch
 from torch import nn
 import torch_npu
@@ -92,31 +91,6 @@ class Glm41vTextDecoderLayer(FlashLayer):
                                           weights=weights, eps=config.rms_norm_eps)
 
 
-class Glm41vTextRotaryEmbedding(nn.Module):
-    inv_freq: torch.Tensor
-
-    def __init__(self, config, device=None):
-        super().__init__()
-        self.max_seq_len_cached = config.max_position_embeddings
-        self.original_max_seq_len = config.max_position_embeddings
-        self.config = config
-        base = getattr(config, "rope_theta", 10000)
-        partial_rotary_factor = getattr(config, "partial_rotary_factor", 1.0)
-        head_dim = config.hidden_size // config.num_attention_heads
-        dim = int(head_dim * partial_rotary_factor)
-        inv_freq = 1.0 / (base ** (torch.arange(0, dim, 2, device=device, dtype=torch.double) / dim)).to(torch.float)
-        self.register_buffer("inv_freq", inv_freq, persistent=False)
-
-    @torch.no_grad()
-    def forward(self, max_seq_len):
-        seq_idx = torch.arange(max_seq_len, dtype=self.inv_freq.dtype, device=self.inv_freq.device)
-        freqs = torch.outer(seq_idx, self.inv_freq)
-        emb = torch.cat((freqs, freqs), dim=-1)
-        cos = emb.cos()
-        sin = emb.sin()
-        return cos, sin
-
-
 class Glm41vWeightWrapper(WeightWrapper):
     def register_layer(self, layer: Glm41vTextDecoderLayer, quantize_type):
         self.layer_linear_type.clear()
@@ -144,8 +118,6 @@ class FlashGlm41vTextModelForCausalLM(FlashForCausalLM):
             prefix = "language_model"
         else:
             prefix = "model.language_model"
-        self.padding_idx = self.config.pad_token_id
-        self.vocab_size = self.config.vocab_size
         self.enable_rope_quant_kvcache = self.config.quantization_config.kv_quant_type is not None
         self.multi_query_group_num = self.config.num_key_value_heads
 
@@ -237,7 +209,6 @@ class FlashGlm41vTextModelForCausalLM(FlashForCausalLM):
         linear_quant_type = weight_wrapper.linear_type
         pack_quant_type = weight_wrapper.pack_quant_type
         linear_transpose_types = weight_wrapper.linear_transpose_types
-        self.soc_info
         coder_param = {
             "enableAddNorm": False,
             "normEps": self.config.rms_norm_eps,

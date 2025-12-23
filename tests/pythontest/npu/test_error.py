@@ -195,7 +195,7 @@ class TestError(unittest.TestCase):
 
 if __name__ == '__main__':
     # If you need to check the error information, please use this command:
-    # MINDIE_LLM_PYTHON_LOG_TO_STDOUT=1 python tests/pythontest/npu/test_error.py
+    # MINDIE_LOG_TO_STDOUT=1 python tests/pythontest/npu/test_error.py
     # Otherwise, use this command directly:
     # python tests/pythontest/npu/test_error.py
     unittest.main()

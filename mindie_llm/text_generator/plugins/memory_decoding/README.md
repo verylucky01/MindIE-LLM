@@ -24,19 +24,10 @@
     export ATB_CONVERT_NCHW_TO_ND=1
     export LCCL_DETERMINISTIC=1
 
-    # LOG开关按需设置（推荐使用）
+    # LOG开关按需设置（可按需调整）
     export MINDIE_LOG_LEVEL=INFO
     export MINDIE_LOG_TO_FILE=1
-    export MINDIE_LOG_TO_STDOUT=0
-
-    # LOG开关按需打开, 若需要打印memory_decoding优化效果数据，LOG_LEVEL可设置为DEBUG（下方环境变量支持到2025.06）
-    export ATB_LOG_LEVEL=0
-    export LOG_LEVEL=INFO
-    export ATB_LOG_TO_FILE=0
-    export ASDOPS_LOG_LEVEL=0
-    export ASDOPS_LOG_TO_FILE=0
-    export MINDIE_LLM_PYTHON_LOG_TO_STDOUT=1
-    export MINDIE_LLM_PYTHON_LOG_LEVEL=INFO
+    export MINDIE_LOG_TO_STDOUT=1
 
     # 1表示执行的NPU数目，16表示最大batchsize，可按需调整
     torchrun \

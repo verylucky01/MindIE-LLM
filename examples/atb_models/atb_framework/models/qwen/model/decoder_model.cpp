@@ -89,11 +89,6 @@ void QwenDecoderModel::ConstructInTensorMap()
         atb_speed::common::AssignTensorIdx(this->inTensorCandidates, "long_seq", this->inTensorMap);
     }
 
-    // 添加边云协同复用embed table的Tensor
-    if (this->ReuseEmbedTable()) {
-        atb_speed::common::AssignTensorIdx(this->inTensorCandidates, "reuse_embed_table", this->inTensorMap);
-    }
-
     // 添加并行解码特性或SplitFuse的Tensor
     if (this->param.enableSpeculate || this->param.enableSplitFuse) {
         atb_speed::common::AssignTensorIdx(this->inTensorCandidates, "q_len", this->inTensorMap);
@@ -127,6 +122,11 @@ void QwenDecoderModel::ConstructInTensorMap()
     // Add flashcomm intensor
     if (this->param.enableFlashComm) {
         atb_speed::common::AssignTensorIdx(this->inTensorCandidates, "flash_comm", this->inTensorMap);
+    }
+
+    // 添加边云协同复用embed table的Tensor
+    if (this->ReuseEmbedTable()) {
+        atb_speed::common::AssignTensorIdx(this->inTensorCandidates, "reuse_embed_table", this->inTensorMap);
     }
 }
 

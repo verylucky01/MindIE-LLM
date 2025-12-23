@@ -22,14 +22,10 @@ llama3.1-70B
     export ATB_MATMUL_SHUFFLE_K_ENABLE=1
     export ATB_LLM_LCOC_ENABLE=1
     
-    # 打屏开关打开，可看到推理结果打印
-    export MINDIE_LLM_PYTHON_LOG_TO_STDOUT=1
-
-    # LOG开关按需打开,
-    export ATB_LOG_LEVEL=0
-    export ATB_LOG_TO_FILE=0
-    export ASDOPS_LOG_LEVEL=0
-    export ASDOPS_LOG_TO_FILE=0
+    # LOG开关按需设置（可按需调整）
+    export MINDIE_LOG_LEVEL=INFO
+    export MINDIE_LOG_TO_FILE=1
+    export MINDIE_LOG_TO_STDOUT=1
 
     # 1表示执行的NPU数目，可按需调整
     torchrun \

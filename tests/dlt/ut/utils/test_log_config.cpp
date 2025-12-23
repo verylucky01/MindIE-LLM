@@ -54,12 +54,12 @@ TEST_F(TestLogConfig, TestInitLogToFileWithMINDIELLMLOGTOFILESuccess)
 {
     // Setup
     logConfig.logToFile_ = 0;
-    setenv("MINDIE_LLM_LOG_TO_FILE", "1", 1);
+    setenv("MINDIE_LOG_TO_FILE", "1", 1);
 
     // Exercise
     logConfig.Init(LoggerType::MINDIE_LLM);
 
-    unsetenv("MINDIE_LLM_LOG_TO_FILE");
+    unsetenv("MINDIE_LOG_TO_FILE");
     // Verify
     ASSERT_TRUE(logConfig.logToFile_);
 }
@@ -68,12 +68,12 @@ TEST_F(TestLogConfig, TestInitLogToFileWithMINDIELLMLOGTOFILEFail)
 {
     // Setup
     logConfig.logToFile_ = 1;
-    setenv("MINDIE_LLM_LOG_TO_FILE", "0", 1);
+    setenv("MINDIE_LOG_TO_FILE", "0", 1);
 
     // Exercise
     logConfig.Init(LoggerType::MINDIE_LLM);
 
-    unsetenv("MINDIE_LLM_LOG_TO_FILE");
+    unsetenv("MINDIE_LOG_TO_FILE");
     // Verify
     ASSERT_FALSE(logConfig.logToFile_);
 }
@@ -118,10 +118,10 @@ TEST_F(TestLogConfig, TestInitLogToStdoutWithMINDIELLMLOGTOSTDOUTSuccess)
 {
     // Setup
     logConfig.logToStdOut_ = 0;
-    setenv("MINDIE_LLM_LOG_TO_STDOUT", "1", 1);
+    setenv("MINDIE_LOG_TO_STDOUT", "1", 1);
     // Exercise
     logConfig.Init(LoggerType::MINDIE_LLM);
-    unsetenv("MINDIE_LLM_LOG_TO_STDOUT");
+    unsetenv("MINDIE_LOG_TO_STDOUT");
     // Verify
     ASSERT_TRUE(logConfig.logToStdOut_);
 }
@@ -130,10 +130,10 @@ TEST_F(TestLogConfig, TestInitLogToStdoutWithMINDIELOGLLMTOSTDOUTFail)
 {
     // Setup
     logConfig.logToStdOut_ = 1;
-    setenv("MINDIE_LLM_LOG_TO_STDOUT", "0", 1);
+    setenv("MINDIE_LOG_TO_STDOUT", "0", 1);
     // Exercise
     logConfig.Init(LoggerType::MINDIE_LLM);
-    unsetenv("MINDIE_LLM_LOG_TO_STDOUT");
+    unsetenv("MINDIE_LOG_TO_STDOUT");
     // Verify
     ASSERT_FALSE(logConfig.logToStdOut_);
 }
@@ -166,10 +166,10 @@ TEST_F(TestLogConfig, TestInitLogLevelWithMINDIELLMLOGLEVELSuccess)
 {
     // Setup
     logConfig.logLevel_ = LogLevel::info;
-    setenv("MINDIE_LLM_LOG_LEVEL", "debug", 1);
+    setenv("MINDIE_LOG_LEVEL", "debug", 1);
     // Exercise
     logConfig.Init(LoggerType::MINDIE_LLM);
-    unsetenv("MINDIE_LLM_LOG_LEVEL");
+    unsetenv("MINDIE_LOG_LEVEL");
     // Verify
     ASSERT_EQ(LogLevel::debug, logConfig.logLevel_);
 }

@@ -25,10 +25,7 @@ if [[ -f "$path" ]] && [[ "$path" =~ set_env.sh ]];then
     chmod 750 "${py_logs_path}"
     rm -rf /dev/shm/* #对于共享内存小的测试场景，每次启动前都清一下
     export MINDIE_LLM_HOME_PATH="${mindie_llm_path}"
-    export MINDIE_LLM_PYTHON_LOG_LEVEL=INFO
-    export MINDIE_LLM_PYTHON_LOG_TO_STDOUT=1
-    export MINDIE_LLM_PYTHON_LOG_TO_FILE=0
-    export MINDIE_LLM_PYTHON_LOG_PATH="${py_logs_path}"
+    export MINDIE_LOG_PATH="${py_logs_path}"
 
     export MINDIE_LLM_RECOMPUTE_THRESHOLD=0.5
     export LD_LIBRARY_PATH=$MINDIE_LLM_HOME_PATH/lib:$LD_LIBRARY_PATH
@@ -40,9 +37,9 @@ if [[ -f "$path" ]] && [[ "$path" =~ set_env.sh ]];then
     export PYTHONPATH=$MINDIE_LLM_HOME_PATH:$PYTHONPATH
     export PYTHONPATH=$MINDIE_LLM_HOME_PATH/lib:$PYTHONPATH
 
-    export MINDIE_LLM_LOG_LEVEL=INFO
-    export MINDIE_LLM_LOG_TO_STDOUT=0
-    export MINDIE_LLM_LOG_TO_FILE=1
+    export MINDIE_LOG_LEVEL=INFO
+    export MINDIE_LOG_TO_STDOUT=0
+    export MINDIE_LOG_TO_FILE=1
     export GRPC_POLL_STRATEGY=poll
     if [[ -z "$1" ]]; then
         MINDIE_LLM_BACKEND=("atb" "pt" "ms")

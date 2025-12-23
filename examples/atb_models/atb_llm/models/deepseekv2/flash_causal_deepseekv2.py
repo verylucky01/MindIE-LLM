@@ -2741,6 +2741,8 @@ class FlashDeepseekv2ForCausalLM(FlashForCausalLM):
 
         acl_inputs = self.add_local_tp_mtp_inputs(acl_inputs)
         logits, hidden_states = self.execute_ascend_operator(acl_inputs, acl_param, is_prefill)
+        if not (ENV.enable_dp_partition_up or bool(self.distributed_enable)):
+            hidden_states = hidden_states[lm_head_indices]
         if self.mapping.has_attn_cp():
             logits = logits[:logits.size(0) // self.mapping.attn_cp.group_size]
             hidden_states = hidden_states[:hidden_states.size(0) // self.mapping.attn_cp.group_size]

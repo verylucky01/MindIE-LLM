@@ -399,7 +399,6 @@ int main(int argc, char *argv[])
     mindie_llm::Log::CreateAllLoggers();
     constexpr int kDynamicLogCheckIntervalMs = 5000;
     LogLevelDynamicHandler::Init(kDynamicLogCheckIntervalMs, true); // 每5秒检查动态日志配置
-    mindie_llm::CheckLogEnv();
     std::unordered_map<std::string, std::string> commandLineArgsMap;
     if (setpgrp() == -1) {
         ULOG_ERROR(SUBMODLE_NAME_DAEMON, GenerateDaemonErrCode(ERROR, SUBMODLE_FEATURE_INIT, INIT_ERROR),

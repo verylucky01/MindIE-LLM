@@ -11,8 +11,12 @@
 # See the Mulan PSL v2 for more details.
 
 import os
+import re
 from dataclasses import dataclass, field
 import pathlib
+
+MB = 1024 * 1024
+MAX_LOG_FILE_SIZE = 500 * MB
 
 
 def get_benchmark_filepath():
@@ -34,21 +38,13 @@ def get_benchmark_reserving_ratio():
 
 def get_log_file_level():
     return str(
-        os.getenv(
-            "MINDIE_LOG_LEVEL", os.getenv(
-                "MIES_PYTHON_LOG_LEVEL", os.getenv("MINDIE_LLM_PYTHON_LOG_LEVEL", "INFO")
-            )
-        )
+        os.getenv("MINDIE_LOG_LEVEL", "INFO")
     )
 
 
 def get_log_to_file():
     return str(
-        os.getenv(
-            "MINDIE_LOG_TO_FILE", os.getenv(
-                "MIES_PYTHON_LOG_TO_FILE", os.getenv("MINDIE_LLM_PYTHON_LOG_TO_FILE", "1")
-            )
-        )
+        os.getenv("MINDIE_LOG_TO_FILE", "1")
     )
 
 
@@ -63,18 +59,8 @@ def get_log_file_path():
 def get_log_to_stdout():
     return str(
         os.getenv(
-            "MINDIE_LOG_TO_STDOUT",
-            os.getenv(
-                "MIES_PYTHON_LOG_TO_STDOUT",
-                os.getenv("MINDIE_LLM_PYTHON_LOG_TO_STDOUT", "1")
-            )
+            "MINDIE_LOG_TO_STDOUT", "0"
         )
-    )
-
-
-def get_log_file_maxsize():
-    return int(
-        os.getenv('MINDIE_LLM_PYTHON_LOG_MAXSIZE', "20971520")
     )
 
 
@@ -135,10 +121,8 @@ class EnvVar:
     log_file_path: str = field(default_factory=get_log_file_path)
     # 日志是否输出到命令行
     log_to_stdout: str = field(default_factory=get_log_to_stdout)
-    # 日志最大大小
-    log_file_maxsize: int = field(default_factory=get_log_file_maxsize)
-    # 日志最大数量
-    log_file_maxnum: int = field(default_factory=lambda: _parse_int_env('MINDIE_LLM_PYTHON_LOG_MAXNUM', 10))
+    # 日志轮转最大大小、最大数量
+    log_file_rotate: str = os.getenv("MINDIE_LOG_ROTATE", "")
     # 日志可选内容
     log_verbose: str = field(default_factory=lambda: str(os.getenv("MINDIE_LOG_VERBOSE", "1")))
 
@@ -164,13 +148,6 @@ class EnvVar:
 
     def __post_init__(self):
         # 校验
-        if self.log_file_maxsize < 0 or self.log_file_maxsize > 524288000:
-            raise ValueError("MINDIE_LLM_PYTHON_LOG_MAXSIZE should between 0 and 524288000 (500MB), "
-                                f"but get {self.log_file_maxsize}.")
-        if self.log_file_maxnum < 0 or self.log_file_maxnum > 64:
-            raise ValueError("MINDIE_LLM_PYTHON_LOG_MAXNUM should between 0 and 64, "
-                                f"but get {self.log_file_maxnum}.")
-
         if self.reserved_memory_gb >= 64 or self.reserved_memory_gb < 0:
             raise ValueError("RESERVED_MEMORY_GB should be in the range of 0 to 64, 64 is not inclusive.")
      

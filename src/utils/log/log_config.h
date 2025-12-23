@@ -71,7 +71,6 @@ const std::unordered_map<LoggerType, std::string> MODULE_NAME_MAP{{LoggerType::M
                                                                   {LoggerType::ATB, COMPONENT_NAME_ATB},
                                                                   {LoggerType::SECURITY, COMPONENT_NAME_SERVER},
                                                                   {LoggerType::DEBUG, COMPONENT_NAME_SERVER}};
-void CheckLogEnv();
 class LogConfig {
 public:
     LogConfig() = default;
