@@ -170,10 +170,10 @@ pip install torch*_aarch64.whl
 | Internvl                 | [requirements_internvl.txt](./requirements/models/requirements_internvl.txt) |
 | Llama3                   | [requirements_llama3.txt](./requirements/models/requirements_llama3.txt) |
 | Llava                    | [requirements_llava.txt](./requirements/models/requirements_llava.txt) |
-| Qwen2_audio                  | [requirements_qwen2_audio.txt](./requirements/models/requirements_qwen2_audio.txt) |
-| Qwen2_vl                  | [requirements_qwen2_vl.txt](./requirements/models/requirements_qwen2_vl.txt) |
+| Qwen2_audio              | [requirements_qwen2_audio.txt](./requirements/models/requirements_qwen2_audio.txt) |
+| Qwen2_vl                 | [requirements_qwen2_vl.txt](./requirements/models/requirements_qwen2_vl.txt) |
 | Qwen2.5                  | [requirements_qwen2.5.txt](./requirements/models/requirements_qwen2.5.txt) |
-| Qwen2                  | [requirements_qwen2.txt](./requirements/models/requirements_qwen2.txt) |
+| Qwen2                    | [requirements_qwen2.txt](./requirements/models/requirements_qwen2.txt) |
 | Yi                       | [requirements_yi.txt](./requirements/models/requirements_yi.txt)           |
 
 
@@ -190,11 +190,19 @@ pip install torch*_aarch64.whl
   - 下载编译好的包
     - [下载链接](https://www.hiascend.com/developer/download/community/result?module=ie+pt+cann)
     
-    | 包名                                   |
+    | 包名 （其中`${version}`为实际版本）       |
     | -------------------------------------- |
-    | Ascend-mindie_1.0.RC2_linux-x86_64.run |
-    | Ascend-mindie_1.0.RC2_linux-aarch64.run |
-  
+    | Ascend-mindie_${version}_linux-x86_64_abi{0}.run |
+    | Ascend-mindie_${version}_linux-aarch64_abi{0}.run |
+    | Ascend-mindie_${version}_linux-x86_64_abi{1}.run |
+    | Ascend-mindie_${version}_linux-aarch64_abi{1}.run |
+
+    - 可以使用`uname -m`指令查看服务器是x86还是aarch架构
+    - 可以使用以下指令查看abi是0还是1
+        ```shell
+        python -c "import torch; print(torch.compiled_with_cxx11_abi())"
+        ```
+        - 若输出结果为True表示abi1，False表示abi0
   - 安装
     ```shell
     chmod +x Ascend-mindie*.run
@@ -216,17 +224,12 @@ pip install torch*_aarch64.whl
   - 下载编译好的包
     - [下载链接](https://www.hiascend.com/developer/download/community/result?module=ie+pt+cann)
 
-    | 包名                                                         |
+    | 包名  （其中`${version}`为实际版本）                           |
     | ------------------------------------------------------------ |
-    | Ascend-mindie-atb-models_2.3.0_linux-aarch64_py310_torch2.1.0-abi0.tar.gz |
-    | Ascend-mindie-atb-models_2.3.0_linux-aarch64_py310_torch2.1.0-abi1.tar.gz |
+    | Ascend-mindie-atb-models_${version}_linux-aarch64_py310_torch2.1.0-abi0.tar.gz |
+    | Ascend-mindie-atb-models_${version}_linux-aarch64_py310_torch2.1.0-abi1.tar.gz |
     | ...                                                          |
-    - 可以使用`uname -m`指令查看服务器是x86还是aarch架构
-    - 可以使用以下指令查看abi是0还是1
-        ```shell
-        python -c "import torch; print(torch.compiled_with_cxx11_abi())"
-        ```
-        - 若输出结果为True表示abi1，False表示abi0
+
   - 将文件放置在/usr/local/Ascend/路径下
   - 解压
     ```shell
