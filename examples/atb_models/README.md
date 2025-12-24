@@ -88,11 +88,9 @@
 
 - 下载
 
-| 包名（其中`${version}`为实际版本，`${cpu}`为实际cpu架构  | 硬件型号   |
-| ----------------------------------------------------- | ---------- |
-| Ascend-cann-310p-ops_${version}_linux-${cpu}.run      | Atlas 300I DUO     |
-| Ascend-cann-910b-ops_${version}_linux-${cpu}.run      | Atlas 800I A2      |
-| Ascend-cann-910c-ops_${version}_linux-${cpu}.run      | Atlas 800I A3      |
+| 包名（其中`${version}`为实际版本，`${cpu}`为实际cpu架构  |
+| ----------------------------------------------------- |
+| Ascend-cann-{芯片型号}-ops_${version}_linux-${cpu}.run      |
 
   - 根据芯片型号选择对应的安装包
 
