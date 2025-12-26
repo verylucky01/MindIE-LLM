@@ -18,14 +18,8 @@ path="${BASH_SOURCE[0]}"
 if [[ -f "$path" ]] && [[ "$path" =~ set_env.sh ]];then
     mindie_llm_path=$(cd $(dirname $path); pwd)
     chmod u+w "${mindie_llm_path}"
-    py_logs_path=${mindie_llm_path}/logs
-    if [ ! -d "${py_logs_path}" ]; then
-        mkdir "${py_logs_path}"
-    fi
-    chmod 750 "${py_logs_path}"
     rm -rf /dev/shm/* #对于共享内存小的测试场景，每次启动前都清一下
     export MINDIE_LLM_HOME_PATH="${mindie_llm_path}"
-    export MINDIE_LOG_PATH="${py_logs_path}"
 
     export MINDIE_LLM_RECOMPUTE_THRESHOLD=0.5
     export LD_LIBRARY_PATH=$MINDIE_LLM_HOME_PATH/lib:$LD_LIBRARY_PATH
