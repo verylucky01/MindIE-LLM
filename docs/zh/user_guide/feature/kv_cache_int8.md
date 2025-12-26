@@ -26,7 +26,7 @@ KV Cache int8搭配W8A8量化后权重目录结构：
 
 以下展示了量化后权重描述文件quant\_model\_description.json中的部分内容：
 
-```
+```json
 {
   "model_quant_type": "W8A8",
   "kv_cache_type": "C8",
@@ -66,7 +66,7 @@ KV Cache int8搭配W8A8量化后权重目录结构：
 
 以LLaMA3.1-70B为例，您可以使用以下指令生成W8A8 + KV Cache int8量化权重。
 
-```
+```bash
 export ASCEND_RT_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
 cd ${ATB_SPEED_HOME_PATH}
 python examples/models/llama3/convert_quant_weights.py --model_path {模型权重路径} 
@@ -82,5 +82,5 @@ python examples/models/llama3/convert_quant_weights.py --model_path {模型权�
 
 ## 执行推理
 
-和W8A8量化权重执行推理的方式相同，请参考[W8A8](w8a8.md。
+和W8A8量化权重执行推理的方式相同，请参考[W8A8](w8a8.md)。
 

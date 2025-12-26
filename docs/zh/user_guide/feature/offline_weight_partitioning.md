@@ -14,7 +14,7 @@ MindIE在权重加载过程中，默认实现为首先完整加载safetensor格�
 
 以Atlas 800I A3 超节点服务器单机为例，您可以使用以下脚本完成权重切分。
 
-```
+```bash
 # 如在线服务化运行场景使能MTP权重，请设置以下环境变量
 export DEEPSEEK_MTP=1
 # 权重切分
@@ -23,7 +23,7 @@ torchrun --nproc_per_node 16 --master_port 20030 -m examples.convert.weight_shar
 
 以Atlas 800I A2 推理服务器双机为例，您可以使用以下脚本完成权重切分。
 
-```
+```bash
 # 如在线服务化运行场景使能MTP权重，请设置以下环境变量
 export DEEPSEEK_MTP=1
 export RANK_TABLE_FILE={ranktable文件路径}
@@ -85,14 +85,14 @@ torchrun --nnodes=2 --nproc_per_node 8 --node_rank=1 --master_addr="主节点IP"
 
 1. 打开Server的config.json文件。
 
-    ```
+    ```bash
     cd {MindIE安装目录}/latest/mindie-service/
     vi conf/config.json
     ```
 
 2. 配置服务化参数。将模型权重路径修改为切分后的权重文件保存路径，服务化参数说明请参见[配置参数说明（服务化）](../user_manual/service_parameter_configuration.md)章节，参数配置示例如下。
 
-    ```
+    ```json
     "ModelDeployConfig" :
     {
        "maxSeqLen" : 2560,

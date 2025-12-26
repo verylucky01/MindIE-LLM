@@ -15,9 +15,9 @@ MoE类模型支持Expert Parallel（EP，专家并行），通过将专家分别
 
 ## 参数说明
 
-开启Expert Parallel特性，需要配置的服务化参数如**表1**所示。
+开启Expert Parallel特性，需要配置的服务化参数如[表1](#table1)所示。
 
-**表 1**  Expert Parallel特性补充参数：**ModelConfig中的models参数**
+**表 1**  Expert Parallel特性补充参数：**ModelConfig中的models参数** <a id="table1"></a>
 
 |配置项|取值类型|取值范围|配置说明|
 |--|--|--|--|
@@ -32,7 +32,7 @@ MoE类模型支持Expert Parallel（EP，专家并行），通过将专家分别
 
 “ep\_level”=“2”时使用样例：
 
-```
+```json
 "ModelDeployConfig" :
 {
    "maxSeqLen" : 2560,
@@ -65,7 +65,7 @@ MoE类模型支持Expert Parallel（EP，专家并行），通过将专家分别
 
 “ep\_level”=“1”时长序列场景使用样例：
 
-```
+```json
 "ModelDeployConfig" :
 {
    "maxSeqLen" : 66000,
@@ -96,6 +96,6 @@ MoE类模型支持Expert Parallel（EP，专家并行），通过将专家分别
 
 ## 执行推理<a name="section1271638122016"></a>
 
-1. 配置服务化参数。该特性需配合MindIE Motor使用，按照[参数说明](#参数说明)在服务化的config.json文件中添加相应参数。config.json文件路径的详细说明请参考_《MindIE安装指南》中的“配置MindIE \> 配置Server \> 多机推理”章节_中的软件包文件清单。
-2. 启动服务。具体请参考《MindIE Motor开发指南》中的“快速入门 \> 启动服务”章节。
+1. 配置服务化参数。该特性需配合MindIE Motor使用，按照[参数说明](#参数说明)在服务化的config.json文件中添加相应参数。服务化参数说明请参见[配置参数说明（服务化）](../user_manual/service_parameter_configuration.md)章节。
+2. 启动服务。具体请参考《MindIE Motor开发指南》中的“快速入门 \> [启动服务](https://gitcode.com/Ascend/MindIE-Motor/blob/master/docs/zh/User_Guide/quick_start.md)”章节。
 

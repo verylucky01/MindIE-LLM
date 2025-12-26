@@ -6,9 +6,9 @@ MoE结构的典型代表模型有Mixtral 8\*7B，Mixtral 8\*22B，DeepSeek-16B-M
 
 ## 限制与约束
 
-能力支持特征矩阵见**表1**所示。
+能力支持特征矩阵见[表1](#table1)所示。
 
-**表 1** **能力支持特征矩阵**
+**表 1** **能力支持特征矩阵**  <a id="table1"></a>
 
 |已支持模型|数据格式|量化|并行方式|硬件平台|多机多卡推理|
 |--|--|--|--|--|--|
@@ -32,7 +32,7 @@ MoE类模型执行推理的方式与其他模型一致，在执行推理时您�
 
 以DeepSeek-16B-MoE为例，您可以使用以下指令执行对话测试，推理内容为"What's deep learning"。
 
-```
+```bash
 cd ${ATB_SPEED_HOME_PATH}
 bash examples/models/deepseek/run_pa_deepseek_moe.sh {模型权重路径}
 ```

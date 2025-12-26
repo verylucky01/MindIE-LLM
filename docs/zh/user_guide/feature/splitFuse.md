@@ -34,17 +34,17 @@ SplitFuse特性的目的是将长prompt request分解成更小的块，并在多
 
 ## 参数说明
 
-**开启SplitFuse特性，需要配置的补充参数如**表1**及**表2**所示。
+**开启SplitFuse特性，需要配置的补充参数如[表1](#table1)及[表2](#table2)所示。
 
-**表 1**  SplitFuse特性补充参数1：**ModelDeployConfig中的ModelConfig参数**
-<a id="table1"></a>
+**表 1**  SplitFuse特性补充参数1：**ModelDeployConfig中的ModelConfig参数** <a id="table1"></a>
+
 |配置项|取值类型|取值范围|配置说明|
 |--|--|--|--|
 |plugin_params|std::string|"{\"plugin_type\":\"splitfuse\"}"|设置为"{\"plugin_type\":\"splitfuse\"}"，表示执行splitfuse。不需要生效任何插件功能时，请删除该配置项字段。**约束**：**若enableSplit开启或templateType为"Mix"，则此处必须开启为splitfuse（特性不开启时非必填项）**。|
 
 
-**表 2**  SplitFuse特性补充参数2：**ScheduleConfig的参数**
-<a id="table2"></a>
+**表 2**  SplitFuse特性补充参数2：**ScheduleConfig的参数**  <a id="table2"></a>
+
 |配置项|取值类型|取值范围|配置说明|
 |--|--|--|--|
 |templateType|std::string|"Standard"或"Mix"|"Mix"：混部推理场景；Prefill和Decode可同时进行批处理。"Standard"：默认值（特性不开启时为必填项），表示prefill和decode各自分别组batch。|
@@ -56,7 +56,7 @@ SplitFuse特性的目的是将长prompt request分解成更小的块，并在多
 
 1.  打开Server的config.json文件。
 
-    ```
+    ```bash
     cd {MindIE安装目录}/latest/mindie-service/
     vi conf/config.json
     ```
@@ -65,7 +65,7 @@ SplitFuse特性的目的是将长prompt request分解成更小的块，并在多
 
     SplitFuse的相关配置已加粗显示，SplitFuse参数请参见[表1](#table1)及[表2](#table2)，服务化参数说明请参见[配置参数说明（服务化）](../user_manual/service_parameter_configuration.md)章节，参数配置示例如下。
 
-    ```
+    ```json
             "ModelDeployConfig":
             {
                 "maxSeqLen" : 65536,
@@ -111,7 +111,7 @@ SplitFuse特性的目的是将长prompt request分解成更小的块，并在多
 
 3.  启动服务。
 
-    ```
+    ```bash
     ./bin/mindieservice_daemon
     ```
 

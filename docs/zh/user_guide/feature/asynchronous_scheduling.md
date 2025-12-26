@@ -18,7 +18,7 @@ MindIE推理的过程是同步执行，一次推理的过程按照在CPU/NPU上�
 
 1. 设置环境变量，打开异步调度功能。
 
-    ```
+    ```bash
     export MINDIE_ASYNC_SCHEDULING_ENABLE=1
     ```
 
@@ -27,7 +27,7 @@ MindIE推理的过程是同步执行，一次推理的过程按照在CPU/NPU上�
 
 2. 打开Server的config.json文件。
 
-    ```
+    ```bash
     cd {MindIE安装目录}/latest/mindie-service/
     vi conf/config.json
     ```
@@ -35,27 +35,10 @@ MindIE推理的过程是同步执行，一次推理的过程按照在CPU/NPU上�
 3. 配置服务化参数。服务化参数说明请参见[配置参数说明（服务化）](../user_manual/service_parameter_configuration.md)章节。
 4. 启动服务。
 
-    ```
+    ```bash
     ./bin/mindieservice_daemon
     ```
 
-5. 执行如下命令，使用MindIE Benchmark工具开始调优，MindIE Benchmark参数详细说明请参见《MindIE Motor开发指南》中的“MindIE Benchmark \> 输入参数”章节。
+5. 使用AISBench工具开始调优，AISBench工具详细说明请参见《MindIE Motor开发指南》中的“配套工具 > 性能/精度测试工具”章节。
 
-    ```
-    benchmark \
-    --DatasetPath "/{数据集路径}/GSM8K" \
-    --DatasetType "gsm8k" \
-    --ModelName "llama3-8b" \
-    --ModelPath "/{模型权重路径}/Meta-Llama-3-8B" \
-    --TestType client \
-    --Http https://{ipAddress}:{port} \
-    --ManagementHttp https://{managementIpAddress}:{managementPort} \
-    --Tokenizer True \
-    --MaxOutputLen 512 \
-    --TaskKind stream \
-    --WarmupSize 1 \
-    --DoSampling False  \
-    --Concurrency 200 \
-    --TestAccuracy True\
-    ```
 

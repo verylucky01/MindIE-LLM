@@ -8,7 +8,7 @@
 
 > [!NOTE]说明 
 >本次样例参考以下安装路径进行：
->安装ATB Models并初始化ATB Models环境变量。模型仓set\_env.sh脚本中有初始化“$\{ATB\_SPEED\_HOME\_PATH\}”环境变量的操作，所以source模型仓中set\_env.sh脚本时会同时初始化“$\{ATB\_SPEED\_HOME\_PATH\}”环境变量。
+>安装ATB Models并初始化ATB Models环境变量。模型仓set\_env.sh脚本中有初始化“\$\{ATB\_SPEED\_HOME\_PATH\}”环境变量的操作，所以source模型仓中set\_env.sh脚本时会同时初始化“\$\{ATB\_SPEED\_HOME\_PATH\}”环境变量。
 
 ### 约束
 
@@ -26,9 +26,9 @@
 
 |文档名称|作用|内容|
 |--|--|--|
-|${ATB_SPEED_HOME_PATH}/README.md|为ATB Models所有文档的总入口。|运行ATB Models依赖的硬件和软件版本。每个模型所依赖的软件版本不同，请根据对应的${ATB_MODELS_HOME_PATH}/requirements进行安装，详细信息见${ATB_SPEED_HOME_PATH}/README.md文档。基本调测和问题定位手段：算子库、加速库和模型仓日志开启方式；性能分析方法；精度分析方法。预置模型列表：此处会链接至模型的README文档。|
-|${ATB_SPEED_HOME_PATH}/examples/models/{模型名称}/README.md|为ATB Models每个模型各自的文档，例如：${ATB_SPEED_HOME_PATH}/examples/models/llama/README.md中为LLaMA模型的文档，其中涵盖了LLaMA系列和LLaMA2系列模型的介绍和运行指导。|模型特性支持矩阵，即不同参数量的模型对各类硬件，各种量化方式，各种特性的支持情况。模型开源权重下载地址。模型量化权重生成介绍。对话测试、精度测试和性能测试脚本执行方式。|
-|${ATB_SPEED_HOME_PATH}/examples/README.md|汇总了对于公共能力和接口的介绍。|bin格式的权重转safetensor格式脚本的介绍。量化权重生成脚本的介绍。Flash Attention和Paged Attention启动脚本参数介绍。可选择性配置的环境变量介绍。特殊场景注意事项。|
+|${ATB_SPEED_HOME_PATH}/README.md|为ATB Models所有文档的总入口。|<ul><li>运行ATB Models依赖的硬件和软件版本。每个模型所依赖的软件版本不同，请根据对应的\$\{ATB_MODELS_HOME_PATH\}/requirements进行安装，详细信息见\$\{ATB_SPEED_HOME_PATH\}/README.md文档。</li><li>基本调测和问题定位手段：<br>算子库、加速库和模型仓日志开启方式；<br>性能分析方法；<br>精度分析方法。</li><li>预置模型列表：<br>此处会链接至模型的README文档。</li></ul>|
+|${ATB_SPEED_HOME_PATH}/examples/models/{模型名称}/README.md|为ATB Models每个模型各自的文档，<br>例如：${ATB_SPEED_HOME_PATH}/examples/models/llama/README.md中为LLaMA模型的文档，其中涵盖了LLaMA系列和LLaMA2系列模型的介绍和运行指导。|<ul><li>模型特性支持矩阵，即不同参数量的模型对各类硬件，各种量化方式，各种特性的支持情况。</li><li>模型开源权重下载地址。</li><li>模型量化权重生成介绍。</li><li>对话测试、精度测试和性能测试脚本执行方式。</li></ul>|
+|${ATB_SPEED_HOME_PATH}/examples/README.md|汇总了对于公共能力和接口的介绍。|<ul><li>bin格式的权重转safetensor格式脚本的介绍。</li><li>量化权重生成脚本的介绍。</li><li>Flash Attention和Paged Attention启动脚本参数介绍。</li><li>可选择性配置的环境变量介绍。</li><li>特殊场景注意事项。</li></ul>|
 
 
 ### 使用示例
@@ -37,7 +37,7 @@
 
 1.  配置环境变量。
 
-    ```
+    ```bash
     # 配置CANN环境，默认安装在/usr/local目录下
     source /usr/local/Ascend/ascend-toolkit/set_env.sh
     # 配置加速库环境
@@ -49,13 +49,13 @@
 2.  准备模型权重：可从Hugging Face官网直接下载，将下载的权重保存在“/data/Llama-3-8b“。
 3.  执行如下命令，修改权重文件权限。
 
-    ```
+    ```bash
     chmod -R 755 /data/Llama-3-8b
     ```
 
 4.  （可选）当前ATB Models推理仅支持加载safetensor格式的权重文件。若下载的权重文件是safetensor格式文件，则无需进行权重转换，若下载的权重文件是bin格式文件，则需要按照如下方式进行转换。
 
-    ```
+    ```bash
     # 进入ATB Models 所在路径
     cd ${ATB_SPEED_HOME_PATH}
     # 执行脚本生成safetensor格式的权重
@@ -66,7 +66,7 @@
 
 5.  测试对话推理。
 
-    ```
+    ```bash
     cd ${ATB_SPEED_HOME_PATH}
     bash examples/models/llama/run_pa.sh /data/Llama-3-8b
     ```
@@ -118,8 +118,8 @@
         torchrun --nproc_per_node 8 --master_port 20030 -m examples.run_pa --model_path /data/Llama-3-8b --input_ids 1,15043,2787 1,306,626,2691 --max_batch_size 2
         ```
 
-    **表 2**  run\_pa.py脚本参数说明
-<a id="table2"></a>
+    **表 2**  run\_pa.py脚本参数说明  <a id="table2"></a>
+
 |参数名称|是否为必选|类型|默认值|描述|
 |--|--|--|--|--|
 |--model_path|是|string|""|模型权重路径。该路径会进行安全校验，必须使用绝对路径，且和执行推理用户的属组和权限保持一致。|
@@ -189,7 +189,7 @@
 
     若安装路径为默认路径，可以运行以下命令初始化各组件环境变量。
 
-    ```
+    ```bash
     # 配置CANN环境，默认安装在/usr/local目录下
     source /usr/local/Ascend/ascend-toolkit/set_env.sh
     # 配置加速库环境
@@ -203,7 +203,7 @@
 
 2.  启动服务化并发送请求。
 
-    MindIE服务化使用方法请参考《MindIE Motor开发指南》中的“快速入门 \> 启动服务”章节。服务化参数配置请参考[配置参数说明（服务化）](service_parameter_configuration.md)。
+    MindIE服务化使用方法请参考《MindIE Motor开发指南》中的“快速入门 \> [启动服务](https://gitcode.com/Ascend/MindIE-Motor/blob/master/docs/zh/User_Guide/quick_start.md)”章节。服务化参数配置请参考[配置参数说明（服务化）](service_parameter_configuration.md)。
 
     服务化配置中默认使用ATB Models作为模型后端。
 
@@ -217,7 +217,7 @@
 
     用户可使用HTTPS客户端（Linux curl命令，Postman工具等）发送HTTPS请求，此处以Linux curl命令为例进行说明。重开一个窗口，使用以下命令发送请求。
 
-    ```
+    ```bash
     curl -H "Accept: application/json" -H "Content-type: application/json" -X POST --cacert {Server服务端证书的验签证书/根证书路径} --cert {客户端证书文件路径} --key {客户端证书私钥路径} -d '{"inputs": "hi","stream":false}' https://{ip}:{port}/generate
     ```
 
@@ -300,7 +300,7 @@ model_config.save_pretrained(save_directory="./json/qwen2_5_72b/", save_json=Tru
 
 2.  启动服务化并发送请求。
 
-    MindIE服务化使用方法请参考《MindIE Motor开发指南》中的“快速入门 \> 启动服务”章节，服务化参数配置请参考[配置参数说明（服务化）](service_parameter_configuration.md)。
+    MindIE服务化使用方法请参考《MindIE Motor开发指南》中的“快速入门 \> [启动服务](https://gitcode.com/Ascend/MindIE-Motor/blob/master/docs/zh/User_Guide/quick_start.md)”章节，服务化参数配置请参考[配置参数说明（服务化）](service_parameter_configuration.md)。
 
     若要启用MindSpore Models作为模型后端，服务化配置中需将ModelDeployConfig.ModelConfig.backendType字段设置为"ms"。
 
@@ -310,7 +310,7 @@ model_config.save_pretrained(save_directory="./json/qwen2_5_72b/", save_json=Tru
     "backendType": "ms"
     ```
 
-    服务化API接口请参考《MindIE Motor开发指南》中的“服务化接口”章节。
+    服务化API接口请参考《MindIE Motor开发指南》中的[服务化接口](https://gitcode.com/Ascend/MindIE-Motor/blob/master/docs/zh/User_Guide/SERVICE_ORIENTED_INTERFACE/optical_user_to_network_interface.md)章节。
 
     用户可使用HTTPS客户端（Linux curl命令，Postman工具等）发送HTTPS请求，此处以Linux curl命令为例进行说明。重开一个窗口，使用以下命令发送请求。
 

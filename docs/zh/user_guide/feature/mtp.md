@@ -12,10 +12,10 @@ MTP（Multi-Token Prediction，多Token预测）是DeepSeek中提出的一种用
 
 ## 参数说明
 
-开启MTP特性，需要配置的参数如**表1**所示。
+开启MTP特性，需要配置的参数如[表1](#table1)所示。
 
-**表 1**  MTP特性补充参数：**ModelDeployConfig中的ModelConfig参数**
-<a id="table1"></a>
+**表 1**  MTP特性补充参数：**ModelDeployConfig中的ModelConfig参数**  <a id="table1"></a>
+
 |配置项|取值类型|取值范围|配置说明|
 |--|--|--|--|
 |plugin_params|std::string|plugin_type: mtpnum_speculative_tokens: [1]|**plugin_type**设置为“mtp”，表示选择mtp特性。**num_speculative_tokens**表示MTP的层数，可设置为1或2。不需要生效任何插件功能时，请删除该配置项字段。配置示例：{\"plugin_type\":\"mtp\",\"num_speculative_tokens\": 1}【注】num_speculative_tokens配置建议：对于低时延场景，可配置使用1或2，对于高吞吐场景，建议配置不超过1|
@@ -25,14 +25,14 @@ MTP（Multi-Token Prediction，多Token预测）是DeepSeek中提出的一种用
 
 1. 打开Server的config.json文件。
 
-    ```
+    ```bash
     cd {MindIE安装目录}/latest/mindie-service/
     vi conf/config.json
     ```
 
 2. 配置服务化参数。在Server的config.json文件添加“plugin\_params“字段（以下加粗部分），参数字段解释请参见[表1](#table1)，服务化参数说明请参见[配置参数说明（服务化）](../user_manual/service_parameter_configuration.md)章节，参数配置示例如下。
 
-    ```
+    ```json
     "ModelDeployConfig" :
     {
        "maxSeqLen" : 2560,

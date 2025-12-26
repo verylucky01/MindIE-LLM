@@ -9,7 +9,7 @@
 
 以下展示了W8A8 + Anti-Outlier量化后权重描述文件quant\_model\_description.json中的部分内容：
 
-```
+```json
 {
   "model_quant_type": "W8A8",
   "model.embed_tokens.weight": "FLOAT",
@@ -36,7 +36,7 @@
 
 以LLaMA3.1-8B为例，您可以使用以下指令生成W8A8量化权重。
 
-```
+```bash
 cd ${ATB_SPEED_HOME_PATH}
 python examples/convert/model_slim/quantifier.py --model_path {浮点权重路径} --save_directory {W8A8量化权重路径} --calib_file $ATB_SPEED_HOME_PATH/examples/convert/model_slim/boolq.jsonl --disable_names $disable_names --device_type npu --disable_level L0 --anti_method m1 --act_method 1 --tokenizer_args {\"padding_side\":\"left\",\"pad_token\":\"<unk>\"}
 ```
@@ -48,7 +48,7 @@ python examples/convert/model_slim/quantifier.py --model_path {浮点权重路�
 
 以LLaMA3.1-8B为例，您可以使用以下指令执行对话测试，推理内容为"What's deep learning?"。
 
-```
+```bash
 cd ${ATB_SPEED_HOME_PATH}
 bash examples/models/llama/run_pa.sh {W8A8量化权重路径}
 ```

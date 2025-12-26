@@ -4,9 +4,9 @@ LoRA（Low-Rank Adaptation）是一种高效的参数微调方法。将大模型
 
 Multi-LoRA指基于一个基础模型，使用多个不同的LoRA权重进行推理。每个请求带有指定的LoRA ID，推理时动态匹配对应的LoRA权重。部署服务时，LoRA权重和基础模型权重预先加载至显存中。一个推理请求至多使用一个LoRA权重，兼容推理请求不使用LoRA权重的情况。对于大参数量的模型，若模型参数量过大，无法单卡加载时，可进行Tensor Parallel并行。
 
-LoRA权重中需包含"adapter\_config.json"和"adapter\_model.safetensors"文件，文件描述如**表1**所示。
+LoRA权重中需包含"adapter\_config.json"和"adapter\_model.safetensors"文件，文件描述如[表1](#table1)所示。
 
-**表 1**  LoRA权重的文件说明
+**表 1**  LoRA权重的文件说明  <a id="table1"></a>
 
 |文件名称|文件描述|示例|
 |--|--|--|
@@ -27,10 +27,10 @@ LoRA权重中需包含"adapter\_config.json"和"adapter\_model.safetensors"文�
 
 ## 参数说明
 
-开启Multi-LoRA特性，需要配置的服务化参数如**表2**所示。
+开启Multi-LoRA特性，需要配置的服务化参数如[表2](#table2)所示。
 
-**表 2**  Multi-LoRA特性补充参数：**ModelDeployConfig中的参数**
-<a id="table2"></a>
+**表 2**  Multi-LoRA特性补充参数：**ModelDeployConfig中的参数**  <a id="table2"></a>
+
 |配置项|取值类型|取值范围|配置说明|
 |--|--|--|--|
 |maxLoras|uint32_t|上限根据显存和用户需求来决定，最小值需大于0。|最大可加载的LoRA数量。选填，开启LoRA权重动态加载和卸载时需配置。默认值为0。|
@@ -58,7 +58,7 @@ LoRA权重中需包含"adapter\_config.json"和"adapter\_model.safetensors"文�
     -  权重名称为权重的别名，长度不能超过256个字符，在后续请求中用于指定Lora权重进行推理。
     -  支持配置多个LoRA权重。
 
-    ```
+    ```bash
     cd ${ATB_SPEED_HOME_PATH}
     torchrun --nproc_per_node 8 --master_port 20030 -m examples.run_pa --model_path {基础模型权重} --max_output_length 20 --max_batch_size 3 --input_dict '[{"prompt": "A robe takes 2 bolts of blue fiber and half that much white fiber.  How many bolts in total does it take?", "adapter": "{Lora权重1的名称}"}, {"prompt": "A robe takes 2 bolts of blue fiber and half that much white fiber.  How many bolts in total does it take?", "adapter": "{Lora权重2的名称}"}, {"prompt": "What is deep learning?", "adapter": "base"}]' --lora_modules '{"{Lora权重1的名称}": "{Lora权重1的路径}", "{Lora权重2的名称}": "{Lora权重2路径}"}'
     ```
@@ -72,14 +72,14 @@ LoRA权重中需包含"adapter\_config.json"和"adapter\_model.safetensors"文�
 
     1. 打开Server的config.json文件。
 
-        ```
+        ```bash
         cd {MindIE安装目录}/latest/mindie-service/
         vi conf/config.json
         ```
 
     2. 配置服务化参数。在Server的config.json文件添加maxLoras、maxLoraRank以及LoraModules字段（以下加粗部分），参数字段说明请参见[表2](#table2)，服务化参数说明请参见[配置参数说明（服务化）](../user_manual/service_parameter_configuration.md)章节，参数配置示例如下。
 
-        ```
+        ```json
         {    
             "ServerConfig" :
             {
@@ -136,7 +136,7 @@ LoRA权重中需包含"adapter\_config.json"和"adapter\_model.safetensors"文�
 
     3. 启动服务。
 
-        ```
+        ```bash
         ./bin/mindieservice_daemon
         ```
 
@@ -144,7 +144,7 @@ LoRA权重中需包含"adapter\_config.json"和"adapter\_model.safetensors"文�
 
         加载请求：
 
-        ```
+        ```bash
         curl -X POST http://127.0.0.2:1026/v1/load_lora_adapter \
         -H "Content-Type: application/json" \
         -d '{
@@ -155,7 +155,7 @@ LoRA权重中需包含"adapter\_config.json"和"adapter\_model.safetensors"文�
 
         卸载请求：
 
-        ```
+        ```bash
         curl -X POST 127.0.0.2:1026/v1/unload_lora_adapter -d '{
         "lora_name": "adapter2"
         }'
@@ -163,7 +163,7 @@ LoRA权重中需包含"adapter\_config.json"和"adapter\_model.safetensors"文�
 
         查询请求：
 
-        ```
+        ```bash
         curl http://127.0.0.1:1025/v1/models
         ```
 
@@ -171,7 +171,7 @@ LoRA权重中需包含"adapter\_config.json"和"adapter\_model.safetensors"文�
 
         其中"model"参数可以设置为基础模型名称（config.json配置文件中"ModelConfig"字段下的"modelName"参数的值）或LoRA ID（config.json配置文件中"LoraModules"字段下"name"参数的值）。当"model"参数为基础模型名称时，不使用Lora权重进行推理。当"model"参数为LoRA ID时，启用基础模型权重和指定的LoRA权重进行推理。
 
-        ```
+        ```bash
         curl https://127.0.0.1:1025/generate \
         -H "Content-Type: application/json" \
         --cacert ca.pem --cert client.pem  --key client.key.pem \

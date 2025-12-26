@@ -12,7 +12,7 @@
 
 Attention量化搭配W8A8量化后权重目录结构：
 
-```
+```text
 ├─ config.json
 ├─ quant_model_weight_w8a8.safetensors
 ├─ quant_model_description.json
@@ -26,7 +26,7 @@ Attention量化搭配W8A8量化后权重目录结构：
 
 以下展示了量化后权重描述文件quant\_model\_description.json中的部分内容：
 
-```
+```json
 {
   "model_quant_type": "W8A8",
   "fa_quant_type": "FAQuant",
@@ -91,7 +91,7 @@ Attention量化搭配W8A8量化后权重目录结构：
 
 修改后的config文件为：
 
-```
+```json
 {
     "architectures": ["LlamaForCausalLM"],     
     // 新增配置     
@@ -107,7 +107,7 @@ Attention量化搭配W8A8量化后权重目录结构：
 
 您可以使用以下指令生成W8A8 +Attention量化权重。
 
-```
+```bash
 export ASCEND_RT_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
 cd ${ATB_SPEED_HOME_PATH}
 python examples/models/llama3/convert_quant_weights.py --model_path {模型权重路径} 

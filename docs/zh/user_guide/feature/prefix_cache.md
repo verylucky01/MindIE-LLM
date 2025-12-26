@@ -27,24 +27,24 @@ Prefix Cache通过哈希表保留session结束后的KV Cache，新的session请�
 
 ## 参数说明
 
-开启Prefix Cache特性需要配置的补充参数如**表1**~**表3**所示。
+开启Prefix Cache特性需要配置的补充参数如[表1](#table1)~[表3](#table3)所示。
 
-**表 1**  Prefix Cache特性补充参数1：**ModelDeployConfig中的ModelConfig参数**
-<a id="table1"></a>
+**表 1**  Prefix Cache特性补充参数1：**ModelDeployConfig中的ModelConfig参数**  <a id="table1"></a>
+
 |配置项|取值类型|取值范围|配置说明|
 |--|--|--|--|
 |plugin_params|std::string|"{\"plugin_type\":\"prefix_cache\"}"|设置为"{\"plugin_type\":\"prefix_cache\"}"，表示执行Prefix Cache。不需要生效任何插件功能时，请删除该配置项字段。|
 
 
-**表 2**  Prefix Cache特性补充参数2：**ScheduleConfig的参数**
-<a id="table2"></a>
+**表 2**  Prefix Cache特性补充参数2：**ScheduleConfig的参数**  <a id="table2"></a>
+
 |配置项|取值类型|取值范围|配置说明|
 |--|--|--|--|
 |enablePrefixCache|-|-|该字段已无需配置，目前版本按老版本方式配置无影响。该字段预计日落时间：2026年Q1版本。|
 
 
-**表 3**  Prefix Cache特性补充参数3：**ModelConfig中的models参数**
-<a id="table3"></a>
+**表 3**  Prefix Cache特性补充参数3：**ModelConfig中的models参数**  <a id="table3"></a>
+
 |配置项|取值类型|取值范围|配置说明|
 |--|--|--|--|
 |deepseekv2|
@@ -58,7 +58,7 @@ Prefix Cache通过哈希表保留session结束后的KV Cache，新的session请�
 
 1. 打开Server的config.json文件。
 
-    ```
+    ```bash
     cd {MindIE安装目录}/latest/mindie-service/
     vi conf/config.json
     ```
@@ -67,7 +67,7 @@ Prefix Cache通过哈希表保留session结束后的KV Cache，新的session请�
 
     下面以DeepSeek-R1模型，只开启Prefix Cache特性为例。
 
-    ```
+    ```json
     "ModelDeployConfig" :
     {
        "maxSeqLen" : 2560,
@@ -101,7 +101,7 @@ Prefix Cache通过哈希表保留session结束后的KV Cache，新的session请�
 
 3. 启动服务。
 
-    ```
+    ```bash
     ./bin/mindieservice_daemon
     ```
 
@@ -109,7 +109,7 @@ Prefix Cache通过哈希表保留session结束后的KV Cache，新的session请�
 
     如需使用到Prefix Cache特性，第二次请求的prompt需要与第一次的prompt有一定长度的公共前缀，常见使用场景有多轮对话和few-shot学习等。
 
-    ```
+    ```bash
     curl https://127.0.0.1:1025/generate \
     -H "Content-Type: application/json" \
     --cacert ca.pem --cert client.pem  --key client.key.pem \
@@ -122,7 +122,7 @@ Prefix Cache通过哈希表保留session结束后的KV Cache，新的session请�
 
 5. 第二次发送请求，prompt为：第一轮问题+第一轮答案+第二轮问题，此时第一轮问题为可复用的公共前缀（实际复用部分可能不是第一轮问题的完整prompt；由于cache实现以block为单位，Prefix Cache以blocksize的倍数储存，如第一轮问题prompt的token数量为164，当blocksize为128时，实际复用部分只有前128token）。
 
-    ```
+    ```bash
     curl https://127.0.0.1:1025/generate \
     -H "Content-Type: application/json" \
     --cacert ca.pem --cert client.pem  --key client.key.pem \

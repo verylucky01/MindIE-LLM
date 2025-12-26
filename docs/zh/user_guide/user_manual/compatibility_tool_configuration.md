@@ -25,7 +25,7 @@
 
 1.  进入\{mindie-service\_install\_path\}/scripts/utils目录。
 
-    ```
+    ```bash
     cd {mindie-service_install_path}/scripts/utils
     ```
 
@@ -33,13 +33,13 @@
 
     命令格式：
 
-    ```
+    ```bash
     python upgrade_server.py --old_config_path OLD_CONFIG_PATH --old_version OLD_VERSION --new_config_path NEW_CONFIG_PATH --new_version NEW_VERSION --upgrade_info_path UPGRADE_INFO_PATH [--save_path SAVE_PATH]
     ```
 
     以2.0.RC1版本配置更新为2.1.RC1版本配置为例，使用样例如下：
 
-    ```
+    ```python
     python upgrade_server.py --old_config_path ~/old/conf/config.json --old_version 2.0.RC1 --new_config_path ~/new/conf/config.json --new_version 2.1.RC1 --upgrade_info_path upgrade_info.json --save_path ~/new/conf/config.json
     ```
 

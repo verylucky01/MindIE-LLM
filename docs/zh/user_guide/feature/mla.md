@@ -15,7 +15,7 @@ MLA（Multi-head Latent Attention），利用低秩键值联合压缩来消除�
 
 以DeepSeek-V2-Chat为例，您可以使用以下指令执行对话测试，推理内容为"What's deep learning"。
 
-```
+```bash
 cd ${ATB_SPEED_HOME_PATH}
 bash examples/models/deepseekv2/run_pa.sh {模型权重路径}
 ```

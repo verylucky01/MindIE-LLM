@@ -12,9 +12,9 @@
 2.  有较长的输入作为猜测token的初步来源。
 3.  并行解码主要通过减少推理步数获取增益，因此需要一定长度的输出才有性能提升效果。
 
-目前支持两种并行解码算法，差异主要在于候选token生成的方式不同。如**表1**所示。
+目前支持两种并行解码算法，差异主要在于候选token生成的方式不同。如[表1](#table1)所示。
 
-**表 1**  并行解码算法
+**表 1**  并行解码算法  <a id="table1"></a>
 
 |并行解码算法|候选token生成方式|适用场景|
 |--|--|--|
@@ -35,9 +35,9 @@
 
 ## 参数说明
 
-开启并行解码特性，需要配置的参数如**表2**~**表6**所示：
+开启并行解码特性，需要配置的参数如[表2](#table2)~[表6](#table6)所示：
 
-**表 2**  memory\_decoding补充参数1：**ModelDeployConfig中的ModelConfig参数**
+**表 2**  memory\_decoding补充参数1：**ModelDeployConfig中的ModelConfig参数**  <a id="table2"></a>
 
 |配置项|取值类型|取值范围|配置说明|
 |--|--|--|--|
@@ -65,7 +65,7 @@
 |plugin_params|std::string|plugin_type：lalevel ：[3, 16]window ：[1, 16]guess_set_size ：[1, 16]|plugin_type配置la，表示当前选择lookahead并行解码。level/window/guess_set_size为lookahead算法中的N/W/G参数，默认值为4/5/5，且每个参数可配置的上限不超过16。配置示例："{\"plugin_type\":\"la\",\"level\": 4,\"window\": 5,\"guess_set_size\": 5}"|
 
 
-**表 6**  lookahead补充参数2：**ModelDeployConfig的参数**
+**表 6**  lookahead补充参数2：**ModelDeployConfig的参数**  <a id="table6"></a>
 
 |配置项|取值类型|取值范围|配置说明|
 |--|--|--|--|
@@ -85,7 +85,7 @@
 
     memory\_decoding算法的并行解码配置样例：
 
-    ```
+    ```json
     "ModelDeployConfig" :
     {
         "maxSeqLen" : 2560,
@@ -110,7 +110,7 @@
 
     lookahead算法的并行解码配置样例：
 
-    ```
+    ```json
     "ModelDeployConfig" :
     {
         "maxSeqLen" : 2560,
@@ -135,7 +135,7 @@
 
 3. 启动服务。
 
-    ```
+    ```bash
     ./bin/mindieservice_daemon
     ```
 

@@ -27,9 +27,9 @@
 
 ## 参数说明
 
-使用Function Call特性时，可配置的参数如**表1**所示。
+使用Function Call特性时，可配置的参数如[表1](#table1)所示。
 
-**表 1**  Function Call特性补充参数：**ModelConfig中的models参数**
+**表 1**  Function Call特性补充参数：**ModelConfig中的models参数** <a id="table1"></a>
 
 |配置项|取值类型|取值范围|配置说明|
 |--|--|--|--|
@@ -38,8 +38,8 @@
 |tool_call_parser|string|表2 已注册ToolsCallProcessor中的“可选注册名称”""|使能Function Call时，选择工具的解析方式。默认值：""当未配置或配置错误值时，将使用当前模型所对应的默认工具解析方式。DeepSeek-V3.1模型使用Function Call时，必须配置为"deepseek_v31"，其余模型使用默认值。与chat_template配合使用，根据chat_template中指定的Function Call调用格式选择相应的ToolsCallProcessor。|
 
 
-**表 2**  已注册ToolsCallProcessor
-<a id="table1"></a>
+**表 2**  已注册ToolsCallProcessor   <a id="table2"></a>
+
 |工具解析模块|可选注册名称|说明|
 |--|--|--|
 |ToolsCallProcessorChatglmV2|chatglm2_6b，chatglm_v2_6b，chatglm_v2，chatglm2|不进行工具解析，直接返回content。|
@@ -59,7 +59,7 @@
 
 1. 打开Server的config.json文件。
 
-    ```
+    ```json
     cd {MindIE安装目录}/latest/mindie-service/
     vi conf/config.json
     ```
@@ -68,7 +68,7 @@
 
     按照[参数说明](#参数说明)在Server的config.json文件中添加“tool\_call\_parser”和“chat\_template”字段，服务化参数说明请参见[配置参数说明（服务化）](../user_manual/service_parameter_configuration.md)章节，参数配置示例如下。
 
-    ```
+    ```json
      "ModelDeployConfig" :
             {
                 "maxSeqLen" : 2560,
@@ -116,7 +116,7 @@
 
     **请求样例：**
 
-    ```
+    ```bash
     curl -H "Accept: application/json" -H "Content-type: application/json" --cacert ca.pem --cert client.pem  --key client.key.pem -X POST -d '{
         "model": "dsv31",
         "messages": [
@@ -196,7 +196,7 @@
 
     根据模型返回的tool\_calls调用相关的本地工具，使用assistant角色关联[4](#step4)中接口返回的tool\_calls和id，并使用tool角色关联工具执行的结果和[4](#step4)中接口返回的id，向大模型发送请求。
 
-    ```
+    ```bash
     curl -H "Accept: application/json" -H "Content-type: application/json" --cacert ca.pem --cert client.pem  --key client.key.pem -X POST -d '{
         "model": "dsv31",
         "messages": [

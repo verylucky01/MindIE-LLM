@@ -73,7 +73,7 @@ MindIE当前支持两种负载均衡特性：静态冗余负载均衡和强制�
 
 2. 显示如下回显信息，表示安装成功。
 
-```
+```text
 2025-07-16 15:08:58,383 - 36266 - msit_llm_logger - INFO - msit-surgeon
 2025-07-16 15:08:58,395 - 36266 - msit_llm_logger - INFO -   not install yet.
 2025-07-16 15:08:58,395 - 36266 - msit_llm_logger - INFO - msit-analyze
@@ -112,7 +112,7 @@ MindIE当前支持两种负载均衡特性：静态冗余负载均衡和强制�
 
 负载均衡参数，可通过修改atb-models安装目录下的_“\{ATB安装路径\}/atb-models/atb\_llm/conf/config.json”_进行配置。修改“models/deepseekv2/eplb”字段里的“level”、“expert\_map\_file”、“rep\_per\_rank”、"aggregate\_threshold"、"buffer\_expert\_layer\_num"、"num\_expert\_update\_ready\_countdown"参数，默认配置为不开启负载均衡。典型配置如下：
 
-```
+```json
 {
     "models": {
         "deepseekv2": {

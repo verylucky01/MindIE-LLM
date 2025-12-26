@@ -25,7 +25,7 @@
     1.  请参见[冗余专家部署表生成](./load_balancing.md#冗余专家部署表生成)，生成专家部署表。
     2.  在配置文件中修改如下参数。
 
-        ```
+        ```json
                 "models": {
                   "deepseekv2": {
                     "ep_level": 2,
@@ -41,7 +41,7 @@
 
     在配置文件中修改如下参数。
 
-    ```
+    ```json
             "models": {
               "deepseekv2": {
                 "ep_level": 2,
@@ -53,5 +53,5 @@
 ## 执行推理
 
 1. 配置服务化参数。服务化的config.json文件路径的详细说明请参考[配置参数说明（服务化）](../user_manual/service_parameter_configuration.md)。具体参数配置请参见[使用样例](#使用样例)(#section1668254245511)。
-2. 启动服务。具体请参考《MindIE Motor开发指南》中的“快速入门 \> 启动服务”章节。
+2. 启动服务。具体请参考《MindIE Motor开发指南》中的“快速入门 \> [启动服务](https://gitcode.com/Ascend/MindIE-Motor/blob/master/docs/zh/User_Guide/quick_start.md)”章节。
 

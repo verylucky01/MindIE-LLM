@@ -17,10 +17,10 @@ Micro Batch即在批处理过程中，将数据切分为更小粒度的多个bat
 
 ## 参数说明
 
-开启Micro Batch特性，需要配置的参数如**表1**所示。
+开启Micro Batch特性，需要配置的参数如[表1](#table1)所示。
 
-**表 1**  Micro Batch特性补充参数：**ModelConfig中的models参数**
-<a id="table1"></a>
+**表 1**  Micro Batch特性补充参数：**ModelConfig中的models参数**  <a id="table1"></a>
+
 |配置项|取值类型|取值范围|配置说明|
 |--|--|--|--|
 |stream_options|
@@ -31,14 +31,14 @@ Micro Batch即在批处理过程中，将数据切分为更小粒度的多个bat
 
 1. 打开Server的config.json文件。
 
-    ```
+    ```bash
     cd {MindIE安装目录}/latest/mindie-service/
     vi conf/config.json
     ```
 
 2. 配置服务化参数。在Server的config.json文件添加“micro\_batch”字段（以下加粗部分），参数字段说明请参见[表1](#table1)，服务化参数说明请参见[配置参数说明（服务化）](../user_manual/service_parameter_configuration.md)章节，参数配置示例如下。
 
-    ```
+    ```json
     "ModelDeployConfig" :
     {
        "maxSeqLen" : 2560,
