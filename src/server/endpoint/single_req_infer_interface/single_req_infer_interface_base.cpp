@@ -481,6 +481,7 @@ bool SingleReqInferInterfaceBase::GenerateInferRequest(std::string &msg) noexcep
     request_->requestId = requestId_;
     singleLLMReqHandlerBase_->UpdateInferRequest(inferTokens, oriReqTokenLen_, request_);
     singleLLMReqHandlerBase_->UpdateInferParam(request_, inputParam);
+    singleLLMReqHandlerBase_->DumpInferParam(request_);
     if (inputParam->maxNewTokens > 0) {
         int maxOutputLen = inputParam->maxNewTokens - static_cast<int>(outputLenOffset);
         if (maxOutputLen < 0) {
@@ -512,6 +513,7 @@ bool SingleReqInferInterfaceBase::SimulateGenerateInferRequest(RequestSPtr reque
 
     singleLLMReqHandlerBase_->UpdateInferRequest(reqTokens_, oriReqTokenLen_, request);
     singleLLMReqHandlerBase_->UpdateInferParam(request, inputParam);
+    singleLLMReqHandlerBase_->DumpInferParam(request);
 
     request->maxOutputLen = 1;
     return true;
