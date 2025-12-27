@@ -15,7 +15,6 @@ from pathlib import Path
 import unittest
 from unittest.mock import patch, MagicMock
 import torch
-
 import numpy as np
 
 from atb_llm.utils.dist import FakeGroup
@@ -304,5 +303,44 @@ class TestPlugin(unittest.TestCase):
                     break
             self.assertTrue(is_greedy)
 
+    def test_forward_loop_exit_on_sample_exception(self):
+        def side_effect_initialize_distributed(rank, npu_id, world_size):
+            return FakeGroup(rank, world_size), torch.device("cpu")
+        
+        with patch.object(GeneratorTorch, 'forward') as _, \
+             patch('atb_llm.utils.dist.initialize_distributed') as mock_initialize_distributed, \
+             patch('atb_llm.runner.model_runner.ModelRunner', return_value=FakeModelRunner()) as _, \
+             patch('mindie_llm.text_generator.utils.kvcache_settings.NPUSocInfo.support_nz', return_value=True) as _, \
+             patch('mindie_llm.text_generator.utils.kvcache_settings.KVCacheSettings') as mock_kvcache_settings_class, \
+             patch('torch.npu.synchronize', return_value=None) as _, \
+             patch('mindie_llm.utils.env.ENV.async_inference', return_value=True) as _, \
+             patch('mindie_llm.text_generator.adapter.generator_torch.GeneratorTorch._get_obfuscation_func', \
+                    return_value=None) as _:
+        
+            mock_initialize_distributed.side_effect = side_effect_initialize_distributed
+            mock_kvcache_settings = MagicMock(dtype=None)
+            mock_kvcache_settings_class.return_value = mock_kvcache_settings
+            generator = Generator(self.model_config)
+
+            plugin_manager = generator.plugin
+            plugin_manager.generator_backend.sample = MagicMock(side_effect=RuntimeError("mock sample error"))
+            sample_dtype = generator.infer_context._batch_context.default_sampling_params.dtype
+            greedy_param = np.array([(1.0, 0., 0., 0.7, 3., 0.92, False, 0)], dtype=sample_dtype)
+            input1 = [5159, 636, 374, 31346, 323, 358]
+            block_tables = np.array([[0, 1, 2, 3, 4, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1]])
+            
+            gen_len = 2
+            req = Request.request_from_token(input1, 
+                                            sampling_params=greedy_param, 
+                                            generation_params=GenerationParams(max_new_tokens=gen_len))
+
+            meta_data = InputMetadata.from_requests([req], block_tables, True)
+            meta_data.batch_block_tables = block_tables
+
+            with patch("os._exit") as mock_exit:
+                plugin_manager.generate_token_async(meta_data)
+                plugin_manager.forward_thread.join(timeout=5)
+                self.assertTrue(mock_exit.called)
+                mock_exit.assert_called_with(1)
 if __name__ == "__main__":
     unittest.main()

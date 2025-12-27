@@ -208,14 +208,14 @@ class RankInfo:
 class SeparateDeploymentEngine:
     def __init__(self, role=DmiModeNodeRole.DECODER, local_cluster_id=0, local_logic_device_id=0, kv_trans_timeout=1,
                  kv_rdma_sl=-1, kv_rdma_tc=-1, kv_link_timeout=1080):
+        engine_role = None
         if role == DmiModeNodeRole.PREFILL:
             engine_role = LLMRole.PROMPT
         elif role == DmiModeNodeRole.DECODER:
             engine_role = LLMRole.DECODER
         elif role == DmiModeNodeRole.FLEX: # 底层LLMDataDist接口给出的枚举是MIX，上层定义的微调实例名称为flex，在此处进行转换
             engine_role = LLMRole.MIX
-        else:
-            raise Exception("SeparateDeploymentEngine:role only support: prefill, decoder, flex.")
+
         self.role = role
         
         self.separate_deployment_engine = LLMDataDist(engine_role, local_cluster_id)

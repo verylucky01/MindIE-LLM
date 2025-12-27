@@ -14,7 +14,7 @@ from typing import Iterable, Optional
 
 import numpy as np
 import numpy.typing as npt
-
+from mindie_llm.utils.status import CoreThread
 from .plugin_data_param import PluginDataParam
 from ..utils.generation_output import GenerationOutput
 from ..utils.input_metadata import InputMetadata
@@ -26,6 +26,7 @@ from ...utils.decorators.time_decorator import timer
 from ...utils.env import ENV
 from ...utils.prof.profiler import span_start, span_end, span_req, span_attr, count_block
 from ...utils.log.logging import logger
+
 
 SPECULATIVE_PLUGIN_LIST = ["la", "memory_decoding"]
 LAUNCH_DONE_TIMEOUT = 1
@@ -64,7 +65,7 @@ class PluginManager:
             self.input_queue = queue.Queue()
             self.output_queue = queue.Queue()
             self.output_queue.put(ModelOutputWrapper.make_empty())
-            self.forward_thread = threading.Thread(target=self.forward_loop, daemon=True)
+            self.forward_thread = CoreThread(target=self.forward_loop, daemon=True, name="async_forward")
             self.forward_thread.start()
         self.last_sequence_ids = None
         self.previous_batch_is_prefill = False
@@ -172,7 +173,7 @@ class PluginManager:
                 f"Unrecoverable error in generate_token (trace_ids={trace_ids}). "
                 f"Terminating inference thread. Error: {e}"
             )
-            raise
+            raise e
 
     def generate_token_async(self, input_metadata: InputMetadata) -> GenerationOutput:
         with self.generator_backend.get_new_stream():
@@ -488,7 +489,7 @@ class PluginManager:
                     f"Unrecoverable error in forward loop (trace_ids={trace_ids}). "
                     f"Terminating inference thread. Error: {e}"
                 )
-                raise
+                raise e
             self.output_queue.put(model_output_wrapper)
 
     def _prepare_masks_for_filling(self, model_inputs, current_dp_sequence_ids, input_metadata):

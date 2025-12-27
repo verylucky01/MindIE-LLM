@@ -12,6 +12,7 @@ import time
 import gc
 from collections import deque
 from mindie_llm.utils.log.logging import logger
+from mindie_llm.utils.status import CoreThread
 
 
 class AdaptiveGarbageCollector:
@@ -50,7 +51,7 @@ class AdaptiveGarbageCollector:
         if self.running:
             return
         self.running = True
-        self.thread = threading.Thread(target=self._monitor_loop, daemon=True, name="adaptive_garbage_collector")
+        self.thread = CoreThread(target=self._monitor_loop, daemon=True, name="adaptive_garbage_collector")
         self.thread.start()
         logger.info("Adaptive GC started")
 

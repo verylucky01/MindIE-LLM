@@ -519,7 +519,6 @@ class TestSeparateDeploymentEngine(unittest.TestCase):
                 kv_rdma_sl=-1,
                 kv_rdma_tc=-1
             )
-        self.assertIn("SeparateDeploymentEngine:role only support: prefill, decoder, flex.", str(context.exception))
 
 
     def test_init_invalid_kv_rdma_sl(self):

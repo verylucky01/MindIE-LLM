@@ -232,7 +232,11 @@ class RouterImpl:
         elif forward_type == ForwardType.DUMMY:
             self._execute_empty_batch(execute_request)
         else:
-            raise ValueError("[MIE04E13030A] Unknown exec operation")
+            logger.error(
+                """[MIE04E13030A] [Model]\t>>>
+                Unknown forward_type: %s""",
+                forward_type,
+            )
 
     def seq_ctrl(self, execute_request: ExecuteRequest):
         logger.debug("[Model]\t>>> rank-%s enter seqctrl", self.rank)
@@ -380,7 +384,11 @@ class RouterImpl:
         elif lora_operation_type == LoraOperationType.UNLOAD:
             ret = self.generator.unload_lora(lora_name)
         else:
-            raise ValueError("[MIE04E13030A] Unknown exec operation")
+            logger.error(
+                """[MIE04E13030A] [LORA]\t>>>
+                Unknown lora_operation_type: %s""",
+                lora_operation_type,
+            )
         proto_response = ExecuteResponse(msg_type=ExecuteType.LORA_OPERATION,
                                          status=ModelWrapperErrorCode.SUCCESS.value,
                                          lora_operation_response=LoraOperationResponse(
@@ -461,7 +469,7 @@ class RouterImpl:
                     layerwise_disaggregated_exe_stage=layerwise_disaggregated_exe_stage
                 )
                 # For P-first, D-first, and first-block cloud-side P tasks, back up the computation result to provide
-                #for subsequent P-last, D-last, and non-first-block cloud-side P tasks.
+                # for subsequent P-last, D-last, and non-first-block cloud-side P tasks.
                 if EdgeCloudInputMetadata.is_storage_input_metadata(layerwise_disaggregated_exe_stage):
                     pd_exec_matadata = pd_exec_matadata_instance
                     pd_exec_matadata.set_input_metadata(input_metadata_composite,

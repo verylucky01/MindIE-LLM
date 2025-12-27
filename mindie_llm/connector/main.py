@@ -131,7 +131,7 @@ def main() -> int:
 
 def register_signal(request_listener):
     def handler_signal(signum, frame):
-        logger.info(f"get signal:{signum}")
+        logger.info(f"Python process get signal:{signum}")
         if signum == signal.SIGINT or signum == signal.SIGTERM:
             request_listener.stop()
 
