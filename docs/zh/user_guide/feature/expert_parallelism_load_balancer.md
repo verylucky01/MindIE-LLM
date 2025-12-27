@@ -12,8 +12,8 @@ MindIE当前支持两种负载均衡特性：静态冗余负载均衡和强制�
 
 ## 限制与约束
 
-- Atlas 800I A2 推理服务器支持此特性。
-- DeepSeek R1/V3模型支持此特性。
+- Atlas 800I A2/A3 推理服务器支持此特性。
+- DeepSeek R1/V3、Qwen-moe模型支持此特性。
 - 当前只支持在MOE为All2All集合通信场景下使用（模型配置文件中的“ep\_level”参数为“2”）。PD分离场景，由于Prefill和Decode通常采用不同的集合通信方式，负载均衡的配置参数需分别设置。
 - 强制负载均衡只能作为负载均衡的理论上限，不能在正式业务中使用。
 - 静态冗余负载均衡采用在路由专家的NPU卡额外部署冗余专家方案，每卡多部署一个冗余专家，需额外占用2.4GB显存。
@@ -34,7 +34,7 @@ MindIE当前支持两种负载均衡特性：静态冗余负载均衡和强制�
 
     设置方法如下：
 
-    分别在“examples/kubernetes\_deploy\_scripts/conf/mindie\_env.json”文件的“mindie\_server\_prefill\_env”和“mindie\_server\_decode\_env”字段中，增加环境变量如下:
+    分别在“examples/kubernetes\_deploy\_scripts/conf/mindie\_env(_a3).json”文件的“mindie\_server\_prefill\_env”和“mindie\_server\_decode\_env”字段中，增加环境变量如下:
 
     - "MINDIE\_ENABLE\_EXPERT\_HOTPOT\_GATHER": 1,
     - "MINDIE\_EXPERT\_HOTPOT\_DUMP\_PATH": "单个实例可选择共享盘路径，否则必须存储在非共享盘"
@@ -58,7 +58,7 @@ MindIE当前支持两种负载均衡特性：静态冗余负载均衡和强制�
 
     ```
     # 1.git clone
-    git clone https://gitee.com/ascend/msit.git
+    git clone https://gitcode.com/Ascend/msit.git
     cd msit/msit
     
     # 2.安装msit
@@ -67,31 +67,13 @@ MindIE当前支持两种负载均衡特性：静态冗余负载均衡和强制�
     # 3.通过msit install命令，安装所需组件elb组件
     msit install elb
      
-    # 4.安装之后可以使用msit check命令检查安装是否成功
-    msit check all
+    # 4.安装之后可以使用msit check elb命令检查安装是否成功
+    msit check elb
     ```
 
 2. 显示如下回显信息，表示安装成功。
 
 ```text
-2025-07-16 15:08:58,383 - 36266 - msit_llm_logger - INFO - msit-surgeon
-2025-07-16 15:08:58,395 - 36266 - msit_llm_logger - INFO -   not install yet.
-2025-07-16 15:08:58,395 - 36266 - msit_llm_logger - INFO - msit-analyze
-2025-07-16 15:08:58,407 - 36266 - msit_llm_logger - INFO -   not install yet.
-2025-07-16 15:08:58,407 - 36266 - msit_llm_logger - INFO - msit-convert
-2025-07-16 15:08:58,419 - 36266 - msit_llm_logger - INFO -   not install yet.
-2025-07-16 15:08:58,419 - 36266 - msit_llm_logger - INFO - msit-profile
-2025-07-16 15:08:58,431 - 36266 - msit_llm_logger - INFO -   not install yet.
-2025-07-16 15:08:58,431 - 36266 - msit_llm_logger - INFO - msit-tensor-view
-2025-07-16 15:08:58,443 - 36266 - msit_llm_logger - INFO -   not install yet.
-2025-07-16 15:08:58,443 - 36266 - msit_llm_logger - INFO - msit-benchmark
-2025-07-16 15:08:58,454 - 36266 - msit_llm_logger - INFO -   not install yet.
-2025-07-16 15:08:58,454 - 36266 - msit_llm_logger - INFO - msit-compare
-2025-07-16 15:08:58,465 - 36266 - msit_llm_logger - INFO -   not install yet.
-2025-07-16 15:08:58,465 - 36266 - msit_llm_logger - INFO - msit-opcheck
-2025-07-16 15:08:58,476 - 36266 - msit_llm_logger - INFO -   not install yet.
-2025-07-16 15:08:58,476 - 36266 - msit_llm_logger - INFO - msit-graph
-2025-07-16 15:08:58,488 - 36266 - msit_llm_logger - INFO -   not install yet.
 2025-07-16 15:08:58,488 - 36266 - msit_llm_logger - INFO - msit-elb
 2025-07-16 15:08:58,632 - 36266 - msit_llm_logger - INFO -   OK
 ```
@@ -102,7 +84,7 @@ MindIE当前支持两种负载均衡特性：静态冗余负载均衡和强制�
     msit elb -icp input_dir_path -o output_file_path -nre 0 -nd 8 -nn 64 -al 5 -dt a2
     ```
 
-    msit工具提供两种负载均衡算法：计算通信负载均衡算法（C2LB）和speculative-moe interface algorithm。当前speculative-moe level 2 混置算法（al 5）在Atlas 800I A2 推理服务器中取得最优，speculative-moe level 2算法（al 3）在Atlas 800I A3 超节点服务器中取得最优。
+    msit工具提供两种负载均衡算法：计算通信负载均衡算法（C2LB）和speculative-moe interface algorithm。当前speculative-moe level 2 混置算法（al 5）取得最优.
 
 > [!NOTE]说明 
 >- PD分离场景，可分别单独生成Prefill和Decode的冗余专家部署表。
@@ -118,11 +100,7 @@ MindIE当前支持两种负载均衡特性：静态冗余负载均衡和强制�
         "deepseekv2": {
             "eplb": {
                 "level": 1,
-                "expert_map_file": "xxxx.json",
-                "num_redundant_experts": 0,
-                 "aggregate_threshold": 2048, 
-                 "buffer_expert_layer_num": 58, 
-                 "num_expert_update_ready_countdown": 50
+                "expert_map_file": "xxxx.json"
             }
         }
     }
@@ -133,11 +111,7 @@ MindIE当前支持两种负载均衡特性：静态冗余负载均衡和强制�
 
 |配置项|取值类型|取值范围|配置说明|
 |--|--|--|--|
-|level|int|[0, 3]|0 : 不开启负载均衡1 : 开启静态冗余负载均衡2 : 开启动态冗余负载均衡（暂不支持）3 : 开启强制负载均衡默认值：0|
-|expert_map_file|string|该文件路径存在|静态冗余负载专家部署表路径。默认值：""|
-|num_redundant_experts|int|[0, n_routed_experts]|**当前版本暂不支持该参数。**表示冗余专家的个数。默认值：0|
-|aggregate_threshold|int|≥1|**当前版本暂不支持该参数。**表示动态EPLB算法触发的频率，单位是decode次数。例如：50表示50次decode，触发一次动态EPLB算法，若算法认为热度超过一定阈值时，则调整路由表来降低算法热度。|
-|buffer_expert_layer_num|int|[1, num_moe_layers]|**当前版本暂不支持该参数。**表示动态EPLB每次搬运的layer个数。由于权重搬运为异步搬运，在不影响原decode情况下，需要一个额外的buffer内存来存放被搬运中的新权重，配置为1层时，则为一次只搬运一层，然后刷新掉一层layer的权重和路由表。影响的内存公式为：buffer_expert_layer_num*local_experts_num*44M (44M为一个int8的专家大小)|
-|num_expert_update_ready_countdown|int|≥1|**当前版本暂不支持该参数。**表示检查host->device搬运是否结束的频率，单位为decode次数。因为搬运权重为异步搬运，必须所有ep卡搬运完毕后才能刷新权重和路由表，这里引入了通信，在搬运层较多的情况下，可以降低该频率，从而减少EPLB框架侧开销。|
+|level|int|[0, 3]|0 : 不开启负载均衡<br>1 : 开启静态冗余负载均衡<br>2 : 开启动态冗余负载均衡（暂不支持<br>3 : 开启强制负载均衡<br>默认值：0|
+|expert_map_file|string|该文件路径存在|静态冗余负载专家部署表路径。<br>默认值：""|
 
 
