@@ -2,11 +2,6 @@
 
 MLA（Multi-head Latent Attention），利用低秩键值联合压缩来消除推理时键值缓存的瓶颈，从而支持高效推理。当前MindIE支持单Cache的MLA机制，可以将Attention的head压缩为1，实现存储和访存友好的推理机制。相比MHA实现，MLA在DeepSeek V2模型上可以压缩96.5%的KV Cache，极大节省显存占用量。
 
-## 限制与约束
-
--  Atlas 800I A2 推理服务器支持此特性。
--  DeepSeek V2模型支持对接此特性。
-
 ## 执行推理
 
 已在环境上安装CANN和ATB Models详情请参见《MindIE安装指南》。
