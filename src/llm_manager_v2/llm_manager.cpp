@@ -12,6 +12,7 @@
 
 #include "llm_manager_v2.h"
 #include "llm_manager_impl.h"
+#include "infer_instances.h"
 
 namespace mindie_llm {
 constexpr uint32_t MAX_MODEL_INSTANCE_ID = 10;
@@ -134,6 +135,10 @@ Status LlmManagerV2::AddRequest(RequestSPtr request)
 
 Status LlmManagerV2::ControlRequest(const RequestIdNew &requestId, OperationV2 operation)
 {
+    std::optional<SendResponsesCallbackV2> serverResponseCallback = InferInstance::GetCallbackMap().Get(requestId);
+    if (operation == OperationV2::STOP && !serverResponseCallback.has_value()) {
+        return Status(Error::Code::ERROR, "Invalid RequestId");
+    }
     impl_->ControlRequest(requestId, operation);
     return Status(Error::Code::OK, "Success");
 }
