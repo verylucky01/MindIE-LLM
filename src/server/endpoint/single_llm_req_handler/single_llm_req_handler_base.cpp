@@ -359,4 +359,36 @@ void SingleLLMReqHandlerBase::ProcessFailedResponsePrometheusMetrics() const
     PrometheusMetrics::GetInstance()->FailedResponseNumberCount();
     PrometheusMetrics::GetInstance()->FailedRequestRateGaugeCollect();
 }
+
+void SingleLLMReqHandlerBase::DumpInferParam(const RequestSPtr request)
+{
+    OrderedJson paramJson;
+
+    auto setParam = [&paramJson](const std::string &key, const auto &param) {
+        if (param.has_value()) {
+            paramJson[key] = param.value();
+        } else {
+            paramJson[key] = nullptr;
+        }
+    };
+
+    setParam("temperature", request->temperature);
+    setParam("top_k", request->topK);
+    setParam("top_p", request->topP);
+    setParam("typical_p", request->typicalP);
+    setParam("do_sample", request->doSample);
+    setParam("seed", request->seed);
+    setParam("repetition_penalty", request->repetitionPenalty);
+    setParam("watermark", request->watermark);
+    setParam("frequency_penalty", request->frequencyPenalty);
+    setParam("presence_penalty", request->presencyPenalty);
+    setParam("stop_token_ids", request->stopTokenIds);
+    setParam("stop", request->stopStrings);
+    setParam("skip_special_tokens", request->skipSpecialTokens);
+    setParam("include_stop_str_in_output", request->includeStopStrInOutput);
+    setParam("ignore_eos", request->ignoreEos);
+
+    std::string msg = "Sampling parameters for request id: " + request->requestId + "\n" + paramJson.dump(4);
+    ULOG_DEBUG(SUBMODLE_NAME_ENDPOINT, msg);
+}
 } // namespace mindie_llm

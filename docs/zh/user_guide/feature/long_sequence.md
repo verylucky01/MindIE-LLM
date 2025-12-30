@@ -18,7 +18,7 @@
 
 请兼顾硬件规格、模型参数及模型支持的最大有效推理长度来确定合适的序列长度，具体规格请参考对应模型的官方介绍文档。相较于普通推理，部分支持长序列特性的模型需要修改配置文件来支持长序列特性。以Qwen2-72B-Instruct为例，使能长序列特性需要修改其权重文件中的“config.json”，增加“rope\_scaling”字段（若不需要使能长序列特性，请勿添加）：
 
-```
+```json
 {
   "architectures": [
     "Qwen2ForCausalLM"
@@ -41,7 +41,7 @@
 
 添加完长序列特性配置后，可正常执行推理。可自定义设置输入文本长度，如大于“original\_max\_position\_embeddings”的值时，可进行长序列推理。具体推理执行方式可参考以下指令：
 
-```
+```bash
 cd ${ATB_SPEED_HOME_PATH}
 torchrun --nproc_per_node [运行卡数] --master_port 20030 -m examples.run_pa --model_path [模型权重路径] --max_output_length [最大输出长度] --max_input_length [最大输入长度] --input_texts [输入文本，可支持文件或字符串]
 ```

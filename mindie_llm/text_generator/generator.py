@@ -914,13 +914,14 @@ class Generator(PDInterface):
                 if kvcache_settings.kvcache_quant_layers:
                     num_quant_layers = kvcache_settings.kvcache_quant_layers.count(True)
                 if kvcache_settings.k_head_size > 0:
-                    self.separate_deployment_worker.build(
-                        model_id=0,
-                        num_tensors=kvcache_settings.num_layers - num_quant_layers,
-                        num_blocks=kvcache_settings.num_npu_blocks,
-                        blockshape=kvcache_settings.k_block_shape,
-                        dtype=kvcache_settings.dtype_str,
-                    )
+                    if kvcache_settings.num_layers - num_quant_layers > 0:
+                        self.separate_deployment_worker.build(
+                            model_id=0,
+                            num_tensors=kvcache_settings.num_layers - num_quant_layers,
+                            num_blocks=kvcache_settings.num_npu_blocks,
+                            blockshape=kvcache_settings.k_block_shape,
+                            dtype=kvcache_settings.dtype_str,
+                        )
                     if num_quant_layers > 0:
                         self.separate_deployment_worker.build(
                             model_id=2,

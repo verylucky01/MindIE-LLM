@@ -55,6 +55,8 @@ public:
     void ProcessFailedResponsePrometheusMetrics() const;
     void InsertStopRequest(std::string stopReqId) const;
 
+    void DumpInferParam(const RequestSPtr request);
+
     virtual void Process(RequestSPtr request, const std::string &inputId, const uint64_t &timestamp = 0) = 0;
     virtual void ProcessGrpcReq([[maybe_unused]] RequestSPtr request, [[maybe_unused]] const std::string &inputId,
                                 [[maybe_unused]] prefillAndDecodeCommunication::DecodeRequestResponse &response){};

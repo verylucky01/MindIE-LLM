@@ -50,6 +50,7 @@ namespace atb_speed {
                     "in_position_id", "in_cos_emb", "in_sin_emb", "in_seq_len", "in_place_holder", "in_past_key",
                     "in_past_value"}
                 },
+                {"qk_norm", {"in_q_norm_weight", "in_k_norm_weight"}}
             };
             return attnInTensorCandidates;
         }

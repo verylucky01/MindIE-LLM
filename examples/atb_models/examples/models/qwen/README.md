@@ -72,7 +72,6 @@
 ## 推理须知：
 - Qwen模型权重所在路径中的config.json文件需添加字段`torch_dtype`，例如`"torch_dtype": "float16"`
 - 执行量化推理时，须在量化权重所在路径的config.json文件中添加字段`quantize`，值为当前量化权重的量化方式，例如`"quantize": "w8a8"`、`"quantize": "w8a16"`
-- Qwen-14B执行[2k,32k]（QWen-7B为[8k,32k]）长序列推理时需增加环境变量`LONG_SEQ_ENABLE=1`。长序列推理过程具有更多计算节点，因此相比于短序列，推理性能将有下降。
 - Qwen2-7B建议采用`bf16`格式，即其权重所在路径中的config.json文件字段`torch_dtype`保持为`bfloat16`
 - 300I DUO只支持`"torch_dtype": "float16"`
 - 稀疏量化w8a8sc仅支持在300I DUO上使用
@@ -165,7 +164,7 @@ pip install transformers_stream_generator==0.0.4
     - 注意：若权重生成时以TP=4进行切分，则运行时也需以TP=4运行
     - 示例
       ```shell
-      torchrun --nproc_per_node 2 -m examples.convert.model_slim.sparse_compressor --model_path /data1/weights/model_slim/Qwen-14b_w8a8s --save_directory /data1/weights/model_slim/Qwen-14b_w8a8sc
+      torchrun --nproc_per_node 2 -m examples.convert.model_slim.sparse_compressor --model_path /data1/weights/model_slim/Qwen2-14b_w8a8s --save_directory /data1/weights/model_slim/Qwen2-14b_w8a8sc
       ```
 
 #### Qwen2-72B W8A16量化
@@ -229,7 +228,7 @@ bash examples/models/qwen/convert_quant_weight.sh -src ${浮点权重路径} -ds
     - multiprocess_num必须设置为4以减小机器压力
     - 示例
     ```shell
-    torchrun --nproc_per_node 2 -m examples.convert.model_slim.sparse_compressor --model_path /data1/weights/model_slim/Qwen-14b_w8a8s --save_directory /data1/weights/model_slim/Qwen-14b_w8a8sc --multiprocess_num 4
+    torchrun --nproc_per_node 2 -m examples.convert.model_slim.sparse_compressor --model_path /data1/weights/model_slim/Qwen2-72b_w8a8s --save_directory /data1/weights/model_slim/Qwen2-72b_w8a8sc --multiprocess_num 4
     ```
   - 与Qwen2-72B W8A16量化不同，量化脚本已经替用户按要求修改了config.json，用户只需要将config.json中的quant_type字段修改为"w8a8s"即可。
 
@@ -393,9 +392,7 @@ bash examples/models/qwen/run_pa.sh -m ${weight_path} --trust_remote_code true
 
 2.--trust_remote_code为可选参数代表是否信任本地的可执行文件，默认false。传入true，则代表信任本地可执行文件，-r为其缩写
 
-3.同时支持Qwen和Qwen1.5模型推理，若启动Qwen模型推理时在`${weight_path}`中传入Qwen权重路径，若启动Qwen1.5模型推理时则在`${weight_path}`中传入Qwen1.5权重路径
-
-4.Qwen系列chat模型需要开启chat模式才能正常输出。
+3.Qwen系列chat模型需要开启chat模式才能正常输出。
 执行：
 
 ```shell
@@ -417,15 +414,15 @@ pip install tiktoken
 - 在基础模型的权重文件夹中，新增`lora_adapter.json`文件，内容为需要预加载的Lora权重，例如：
     ```json
     {
-      "qwen_lora1": "/home/data/lora/Qwen1.5-14b-chat/adapter1",
-      "qwen_lora2": "/home/data/lora/Qwen1.5-14b-chat/adapter2"
+      "qwen_lora1": "/home/data/lora/Qwen2.5-14b-chat/adapter1",
+      "qwen_lora2": "/home/data/lora/Qwen2.5-14b-chat/adapter2"
     }
     ```
 - 进行推理时需指定每个请求所使用的adapter权重，默认仅使用基础模型权重
 - 运行示例
     ```shell
     export ASCEND_RT_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
-    torchrun --nproc_per_node 8 --master_port 20030 -m examples.run_pa --model_path /data1/models/qwen2/Qwen1.5-14b-chat --is_chat_model --max_output_length 256 --max_batch_size 2 --input_dict '[{"prompt": "What is deep learning?", "adapter": "qwen_lora1"}, {"prompt": "What is deep learning?"}]'
+    torchrun --nproc_per_node 8 --master_port 20030 -m examples.run_pa --model_path /data1/models/qwen2/Qwen2.5-14b-chat --is_chat_model --max_output_length 256 --max_batch_size 2 --input_dict '[{"prompt": "What is deep learning?", "adapter": "qwen_lora1"}, {"prompt": "What is deep learning?"}]'
     ```
 - 约束与限制
     - 仅支持在Atlas 800I A2上运行
@@ -460,19 +457,7 @@ pip install tiktoken
 
 ```shell
 bash run.sh pa_fp16 full_BoolQ 1 qwen /data1/models/qwen2/qwen_quant_test/ 8
-bash run.sh pa_fp16 full_BoolQ 1 qwen ${Qwen-7b权重路径} 8
-bash run.sh pa_fp16 full_BoolQ 1 qwen ${Qwen-14b权重路径} 8
-bash run.sh pa_fp16 full_BoolQ 1 qwen ${Qwen-72b权重路径} 8
-bash run.sh pa_fp16 full_BoolQ 1 qwen ${Qwen1.5-14b权重路径} 8
-bash run.sh pa_fp16 full_BoolQ 1 qwen ${Qwen-14b-chat权重路径} 8
-bash run.sh pa_fp16 full_BoolQ 1 qwen ${Qwen-72b-chat权重路径} 8
-bash run.sh pa_fp16 full_BoolQ 1 qwen ${Qwen1.5-0.5b-chat权重路径} 8
-bash run.sh pa_fp16 full_BoolQ 1 qwen ${Qwen1.5-4b-chat权重路径} 4
-bash run.sh pa_fp16 full_BoolQ 1 qwen ${Qwen1.5-7b权重路径} 8
-bash run.sh pa_fp16 full_BoolQ 1 qwen ${Qwen1.5-14b-chat权重路径} 8
-bash run.sh pa_fp16 full_BoolQ 1 qwen ${Qwen1.5-32b-chat权重路径} 8
-bash run.sh pa_fp16 full_BoolQ 1 qwen ${Qwen1.5-72b权重路径} 8
-bash run.sh pa_fp16 full_BoolQ 1 qwen ${Qwen1.5-MoE-A2.7B-Chat权重路径} 8
+bash run.sh pa_fp16 full_BoolQ 1 qwen ${权重路径} 8
 bash run.sh pa_fp16 full_HumanEval_X 1 qwen ${Qwen2.5-Coder-7B权重路径} 8
 ```
 
@@ -501,21 +486,12 @@ bash run.sh pa_fp16 full_HumanEval_X 1 qwen ${Qwen2.5-Coder-7B权重路径} 8
 示例：
 
   ```shell
-  HCCL_DETERMINISTIC=false LCCL_DETERMINISTIC=0 HCCL_BUFFSIZE=120 bash run.sh pa_fp16 performance　[[2048,2048],[1024,1024],[512,512],[256,256]] 1 qwen ${Qwen-7b权重路径} 8
-  HCCL_DETERMINISTIC=false LCCL_DETERMINISTIC=0 HCCL_BUFFSIZE=120 bash run.sh pa_fp16 performance　[[2048,2048],[1024,1024],[512,512],[256,256]] 1 qwen ${Qwen-14b权重路径} 8
-  HCCL_DETERMINISTIC=false LCCL_DETERMINISTIC=0 HCCL_BUFFSIZE=120 bash run.sh pa_fp16 performance　[[2048,2048],[1024,1024],[512,512],[256,256]] 1 qwen ${Qwen-72b权重路径} 8
-  HCCL_DETERMINISTIC=false LCCL_DETERMINISTIC=0 HCCL_BUFFSIZE=120 bash run.sh pa_fp16 performance　[[2048,2048],[1024,1024],[512,512],[256,256]] 1 qwen ${Qwen1.5-14b权重路径} 8
-  HCCL_DETERMINISTIC=false LCCL_DETERMINISTIC=0 HCCL_BUFFSIZE=120 bash run.sh pa_fp16 performance　[[2048,2048],[1024,1024],[512,512],[256,256]] 1 qwen ${Qwen-14b-chat权重路径} 8
-  HCCL_DETERMINISTIC=false LCCL_DETERMINISTIC=0 HCCL_BUFFSIZE=120 bash run.sh pa_fp16 performance　[[2048,2048],[1024,1024],[512,512],[256,256]] 1 qwen ${Qwen-72b-chat权重路径} 8
+  HCCL_DETERMINISTIC=false LCCL_DETERMINISTIC=0 HCCL_BUFFSIZE=120 bash run.sh pa_fp16 performance　[[2048,2048],[1024,1024],[512,512],[256,256]] 1 qwen ${权重路径} 8
   HCCL_DETERMINISTIC=0 LCCL_DETERMINISTIC=0 HCCL_BUFFSIZE=120 
-  bash run.sh pa_fp16 performance　[[2048,2048],[1024,1024],[512,512],[256,256]] 1 qwen ${Qwen1.5-0.5b-chat权重路径} 8
+  bash run.sh pa_fp16 performance　[[2048,2048],[1024,1024],[512,512],[256,256]] 1 qwen ${权重路径} 8
   HCCL_DETERMINISTIC=false LCCL_DETERMINISTIC=0 HCCL_BUFFSIZE=120
-  bash run.sh pa_fp16 performance　[[2048,2048],[1024,1024],[512,512],[256,256]] 1 qwen ${Qwen1.5-4b-chat权重路径} 8
-  HCCL_DETERMINISTIC=false LCCL_DETERMINISTIC=0 HCCL_BUFFSIZE=120 bash run.sh pa_fp16 performance　[[2048,2048],[1024,1024],[512,512],[256,256]] 1 qwen ${Qwen1.5-7b权重路径} 8
-  HCCL_DETERMINISTIC=false LCCL_DETERMINISTIC=0 HCCL_BUFFSIZE=120 bash run.sh pa_fp16 performance　[[2048,2048],[1024,1024],[512,512],[256,256]] 1 qwen ${Qwen1.5-14b-chat权重路径} 8
-  HCCL_DETERMINISTIC=false LCCL_DETERMINISTIC=0 HCCL_BUFFSIZE=120 bash run.sh pa_fp16 performance　[[2048,2048],[1024,1024],[512,512],[256,256]] 1 qwen ${Qwen1.5-32b-chat权重路径} 8
-  HCCL_DETERMINISTIC=false LCCL_DETERMINISTIC=0 HCCL_BUFFSIZE=120 bash run.sh pa_fp16 performance　[[2048,2048],[1024,1024],[512,512],[256,256]] 1 qwen ${Qwen1.5-72b权重路径} 8
-  HCCL_DETERMINISTIC=false LCCL_DETERMINISTIC=0 HCCL_BUFFSIZE=120 bash run.sh pa_fp16 performance　[[2048,2048],[1024,1024],[512,512],[256,256]] 1 qwen ${Qwen1.5-MoE-A2.7B-Chat权重路径} 8
+  bash run.sh pa_fp16 performance　[[2048,2048],[1024,1024],[512,512],[256,256]] 1 qwen ${权重路径} 8
+  HCCL_DETERMINISTIC=false LCCL_DETERMINISTIC=0 HCCL_BUFFSIZE=120 bash run.sh pa_fp16 performance　[[2048,2048],[1024,1024],[512,512],[256,256]] 1 qwen ${权重路径} 8
   ```
 
 - 参考[此README文件](../../../tests/modeltest/README.md)
@@ -537,21 +513,6 @@ bash examples/models/qwen/run_fa.sh -m ${weight_path}
 ```
 
 # Qwen长序列推理
-Qwen长序列推理需要在Qwen权重(config.json)中将use_dynamic_ntk参数与use_logn_attn同时设置成True。如Qwen-14B-Chat：
-注意：如果不使用长序列推理，请将use_dynamic_ntk与use_logn_attn参数同时设置成False。
-
-```json
-{
-  "architectures": [
-    "QwenLMHeadModel"
-  ],
-  // ...
-  "use_dynamic_ntk": true,
-  // ...
-  "use_logn_attn": true,
-  // ...
-}
-```
 Qwen2长序列推理需要在Qwen2权重(config.json)中新增rope_scaling参数。如Qwen2-72B-Instruct：
 注意：如果不使用长序列推理，请不要添加。
 ```json
@@ -571,8 +532,5 @@ Qwen2长序列推理需要在Qwen2权重(config.json)中新增rope_scaling参数
 }
 注：
 - 除启动命令外，其他操作与执行PA相同
-- Qwen1.5暂不支持bf16格式，请将权重路径下config.json文件的`torch_dtype`字段修改为`float16`
-- 暂不支持chat模式。部分chat模型输出可能存在异常，如Qwen1.5-32b-chat，若出现上述情况，请优先使用PA
 - 长序列推理过程具有更多计算节点，因此相比于短序列，推理性能将有下降。
-- Qwen1.5部分Chat模型(4B、32B)fa暂不支持chat推理，请优先使用pa。如需使用fa请将输入改造成续写的样式，如：`What's deep learning?`改写成`Deep learning is`
 - Qwen2 Qwen2.5系列模型当前800I A2采用bf16， 300I DUO使用fp16 

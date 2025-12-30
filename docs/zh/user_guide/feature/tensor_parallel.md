@@ -12,10 +12,10 @@ TP（Tensor Parallel，张量并行）是一种模型并行的策略，它通过
 
 ## 参数说明
 
-开启“Lmhead矩阵local tp切分”，需要配置的参数如**表1**所示。
+开启“Lmhead矩阵local tp切分”，需要配置的参数如[表1](#table1)所示。
 
-**表 1**  Lmhead矩阵local tp切分补充参数：**ModelConfig中的models参数**
-<a id="table1"></a>
+**表 1**  Lmhead矩阵local tp切分补充参数：**ModelConfig中的models参数** <a id="table1"></a>
+
 |配置项|取值类型|取值范围|配置说明|
 |--|--|--|--|
 |deepseekv2 | 
@@ -23,7 +23,7 @@ TP（Tensor Parallel，张量并行）是一种模型并行的策略，它通过
 |lm_head_local_tp|int|[1，worldSize / 节点数]|表示LmHead张量并行切分数。仅DeepSeek-R1、DeepSeek-V3和DeepSeek-V3.1模型支持此特性。默认值：-1。表示不开启切分|
 
 
-开启“O project矩阵local tp切分”，需要配置的参数如*表2**所示。
+开启“O project矩阵local tp切分”，需要配置的参数如[表2](#table2)所示。
 
 **表 2**  O project矩阵local tp切分补充参数：**ModelConfig中的models参数**
 <a id="table2"></a>
@@ -38,7 +38,7 @@ TP（Tensor Parallel，张量并行）是一种模型并行的策略，它通过
 
 1.  打开Server的config.json文件。
 
-    ```
+    ```bash
     cd {MindIE安装目录}/latest/mindie-service/
     vi conf/config.json
     ```
@@ -47,7 +47,7 @@ TP（Tensor Parallel，张量并行）是一种模型并行的策略，它通过
 
     下面以DeepSeek-R1模型为例。下方以开启tp切分，关闭Lmhead矩阵local tp切分和O project矩阵local tp切分为例示意。
 
-    ```
+    ```json
     "ModelDeployConfig" :
     {
        "maxSeqLen" : 2560,
@@ -79,7 +79,7 @@ TP（Tensor Parallel，张量并行）是一种模型并行的策略，它通过
 
 3.  启动服务。
 
-    ```
+    ```bash
     ./bin/mindieservice_daemon
     ```
 

@@ -220,26 +220,26 @@ class TestSharedMemCommunication(unittest.TestCase):
         self.assertFalse(comm._is_running)
         self.assertEqual(comm._threads, [])
 
-    @patch("mindie_llm.connector.request_listener.shared_mem_communication.posix_ipc.Semaphore")
-    @patch("mindie_llm.connector.request_listener.shared_mem_communication.shm.SharedMemory")
-    @patch("mindie_llm.connector.request_listener.shared_mem_communication.threading.Thread")
-    @patch("mindie_llm.connector.request_listener.shared_mem_communication.check_owner_and_permission")
-    def test_start(self, mock_check_owner_and_permission, mock_thread, mock_shm, mock_sem):
-        mock_sem.return_value = MagicMock()
-        mock_shm.return_value = MagicMock()
-        mock_check_owner_and_permission.return_value = None
-        comm = SharedMemCommunication(self.mock_config)
-        mock_thread_instance = MagicMock()
-        mock_thread.return_value = mock_thread_instance
+    @patch("mindie_llm.connector.request_listener.shared_mem_communication.CoreThread")
+    @patch("mindie_llm.connector.request_listener.shared_mem_communication.SharedMemoryChannel")
+    def test_start(self, mock_channel_cls, mock_core_thread):
+        mock_request_channel = MagicMock()
+        mock_response_channel = MagicMock()
+        mock_channel_cls.side_effect = [mock_request_channel, mock_response_channel] * 3
 
+        mock_thread_instance = MagicMock()
+        mock_core_thread.return_value = mock_thread_instance
+
+        comm = SharedMemCommunication(self.mock_config)
         comm.start()
 
-        self.assertEqual(mock_thread.call_count, 3)
+        self.assertEqual(mock_core_thread.call_count, 3)
         for channel_name in SharedMemCommunication.CHANNEL_NAMES:
-            mock_thread.assert_any_call(
+            mock_core_thread.assert_any_call(
                 target=comm._process_incoming_requests,
                 args=(channel_name,),
                 daemon=True,
+                name=channel_name
             )
         self.assertEqual(mock_thread_instance.start.call_count, 3)
         self.assertEqual(mock_thread_instance.join.call_count, 3)

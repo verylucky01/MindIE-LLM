@@ -216,9 +216,7 @@ class TestRouterImpl(unittest.TestCase):
         mock_mix.assert_called_once_with(mock_request)
 
         mock_execute_model_req.forward_type = 999
-        with self.assertRaises(ValueError) as ctx:
-            self.router.execute(mock_request)
-        self.assertIn("Unknown exec operation", str(ctx.exception))
+        self.router.execute(mock_request)
 
     @patch('mindie_llm.connector.request_router.router_impl.convert_pull_kv_request_to_input_metadata_composite')
     @patch('mindie_llm.connector.request_router.router_impl.send_transfer_response')

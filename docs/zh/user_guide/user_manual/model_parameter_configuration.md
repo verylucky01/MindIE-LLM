@@ -4,7 +4,7 @@
 
 模型的配置文件config.json格式如下：
 
-```
+```json
 {
   "llm": {
     "ccl": {

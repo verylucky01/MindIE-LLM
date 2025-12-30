@@ -39,6 +39,16 @@ max_input_length长度设置可参考模型权重路径下config.json里的max_p
 -注意：
 开源权重于2025-10-25日更新了config.json格式，需使用2025-10-25日后的权重版本。
 
+**权重量化**
+- 参考[msit](https://gitcode.com/Ascend/msit/blob/master/msmodelslim/example/multimodal_vlm/GLM-4.1V/README.md)
+- 800I A2支持w8a8量化，命令如下  
+    python quant_glm4_1v.py --model_path {浮点权重路径} --save_directory {量化权重保存路径} --calib_images {校准图片路径} --w_bit 8 --a_bit 8 --device_type npu --anti_method m2 --torch_dtype bf16 --trust_remote_code True  
+- 300I DUO支持w8a8sc量化，命令如下
+  - 权重稀疏：  
+  python quant_glm41v.py --model_path {浮点权重路径} --save_directory {W8A8S量化权重路径} --calib_images {校准集图片路径} --w_bit 4 --a_bit 8 --device_type npu --anti_method m2 --is_lowbit True --fraction 0.01 --use_sigma True --torch_dtype fp16 --trust_remote_code True
+  - 权重压缩：  
+  torchrun --nproc_per_node {TP数} -m examples.convert.model_slim.sparse_compressor --model_path {W8A8S量化权重路径} --save_directory {W8A8SC量化权重路径} --multiprocess_num 4  
+  权重压缩后，需手动将浮点权重路径下的chat_template.jinja，preprocessor_config.json，video_preprocessor_config.json三个文件拷贝至W8A8SC量化权重路径下。
 
 **基础环境变量**
 
@@ -182,8 +192,8 @@ curl 127.0.0.1:1040/v1/chat/completions -d ' {
 ## Aisbench精度测试
 - 首先按照[服务化推理](#服务化推理)，启动服务端进程
 
-- 参考[Aisbench/benchmark](https://gitee.com/aisbench/benchmark)安装精度性能评测工具
-- 参考[开源数据集](https://gitee.com/aisbench/benchmark/blob/master/ais_bench/benchmark/configs/datasets/textvqa/README.md)下载Textvqa数据集
+- 参考[Aisbench/benchmark](https://github.com/AISBench/benchmark/)安装精度性能评测工具
+- 参考[开源数据集](https://github.com/AISBench/benchmark/blob/master/ais_bench/benchmark/configs/datasets/textvqa/README.md)下载Textvqa数据集
 - 配置测试任务
 ```python
 ...
@@ -194,10 +204,13 @@ models = [
         abbr='vllm-api-general-chat',
         path="/data_mm/weights/GLM-4.1V-9B-Thinking", # 自定义本地权重路径
         model="glm4v", # 模型名称配置为glm4v
+        stream=False,
         request_rate=0,
         retry=2,
+        api_key="",
         host_ip="localhost", # 服务IP地址
         host_port=8080, # 服务业务面端口号
+        url="",
         max_out_len=2048,
         batch_size=32,
         trust_remote_code=False,
@@ -209,14 +222,51 @@ models = [
 ```
 执行命令开始精度测试
 ```shell
-ais_bench --models vllm_api_general_chat --datasets textvqa_gen_base64 --mode all --debug
+ais_bench --models vllm_api_general_chat --datasets glm4v_textvqa_gen_base64 --mode all --debug
 ```
 
 ## Aisbench性能测试
 - 首先按照[服务化推理](#服务化推理)，启动服务端进程
+- 配置测试任务(mm_custom_gen)
+```python
+...
+mm_custom_reader_cfg = dict(
+    input_columns=['question', 'image'],
+    output_column='answer'
+)
 
+
+mm_custom_infer_cfg = dict(
+    prompt_template=dict(
+        type=MMPromptTemplate,
+        template=dict(
+            round=[
+                dict(role="HUMAN", prompt_mm={
+                    "text": {"type": "text", "text": "{question}"},
+                    "image": {"type": "image_url", "image_url": {"url": "file://{image}"}}
+                })
+            ]
+            )
+    ),
+    retriever=dict(type=ZeroRetriever),
+    inferencer=dict(type=GenInferencer)
+)
+
+...
+mm_custom_datasets = [
+    dict(
+        abbr='mm_custom',
+        type=MMCustomDataset,
+        path='/data_mm/dataset.jsonl', # 自定义本地数据集路径
+        mm_type="path",
+        num_frames=5,
+        reader_cfg=mm_custom_reader_cfg,
+        infer_cfg=mm_custom_infer_cfg,
+        eval_cfg=mm_custom_eval_cfg
+    )
+]
 ```
 执行命令开始性能测试
 ```shell
-ais_bench --models vllm_api_stream_chat --datasets textvqa_gen_base64 --mode perf --debug
+ais_bench --models vllm_api_stream_chat --datasets mm_custom_gen --mode perf --debug
 ```

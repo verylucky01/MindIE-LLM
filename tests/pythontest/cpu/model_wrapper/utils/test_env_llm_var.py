@@ -30,8 +30,6 @@ class TestEnvLLMVar(unittest.TestCase):
             "MINDIE_LLM_HOME_PATH": "/home", 
             "MINDIE_LLM_BENCHMARK_FILEPATH": "/tmp/benchmark.jsonl",
             "MINDIE_LOG_LEVEL": "DEBUG",
-            "MINDIE_LLM_PYTHON_LOG_MAXSIZE": "20971520",
-            "MINDIE_LLM_PYTHON_LOG_MAXNUM": "10",
             "MINDIE_LLM_USE_MB_SWAPPER": "1",
             "POST_PROCESSING_SPEED_MODE_TYPE": "1",
             "RANK": "0",
@@ -47,8 +45,6 @@ class TestEnvLLMVar(unittest.TestCase):
         self.assertAlmostEqual(env_var.memory_fraction, 0.8)
         self.assertTrue(env_var.benchmark_enable)
         self.assertEqual(env_var.benchmark_filepath, "/tmp/benchmark.jsonl")
-        self.assertEqual(env_var.log_file_maxsize, 20971520)
-        self.assertEqual(env_var.log_file_maxnum, 10)
         self.assertTrue(env_var.use_mb_swapper)
         self.assertEqual(env_var.speed_mode_type, 1)
         self.assertEqual(env_var.rank, 0)
@@ -75,16 +71,6 @@ class TestEnvLLMVar(unittest.TestCase):
                 EnvLLMVar()
 
         with patch.dict(os.environ, {"NPU_MEMORY_FRACTION": "0"}):
-            with self.assertRaises(ValueError):
-                EnvLLMVar()
-
-    def test_invalid_log_file_maxsize(self):
-        with patch.dict(os.environ, {"MINDIE_LLM_PYTHON_LOG_MAXSIZE": "524288001"}):
-            with self.assertRaises(ValueError):
-                EnvLLMVar()
-
-    def test_invalid_log_file_maxnum(self):
-        with patch.dict(os.environ, {"MINDIE_LLM_PYTHON_LOG_MAXNUM": "65"}):
             with self.assertRaises(ValueError):
                 EnvLLMVar()
 

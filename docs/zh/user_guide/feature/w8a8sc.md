@@ -115,13 +115,13 @@
 
 2.  使用以下指令设置msModelSlim工具所在的Python路径环境变量，\{Python Lib Path\}为安装msmodelslim时编译步骤中所在的Python路径。
 
-    ```
+    ```bash
     export LD_LIBRARY_PATH={Python Lib Path}/lib:$LD_LIBRARY_PATH
     ```
 
 3.  使用以下指令对量化权重进行压缩，生成W8A8SC量化权重。
 
-    ```
+    ```bash
     torchrun --nproc_per_node {TP数} -m examples.convert.model_slim.sparse_compressor --model_path {W8A8S量化权重路径} --save_directory {W8A8SC量化权重路径}
     ```
 
@@ -131,7 +131,7 @@
 
 以Qwen3-8B为例，您可以使用以下指令执行对话测试，推理内容为"What's deep learning?"。
 
-```
+```bash
 cd ${ATB_SPEED_HOME_PATH}
 bash examples/models/qwen/run_pa.sh -m {W8A8SC量化权重路径} --trust_remote_code true
 ```

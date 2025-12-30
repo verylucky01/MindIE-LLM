@@ -28,7 +28,7 @@
     >    lscpu
     >    ```
     >    CPU相关配置回显信息如下所示：
-    >    ```
+    >    ```text
     >    NUMA:                   
     >      NUMA node(s):         8
     >      NUMA node0 CPU(s):    0-23

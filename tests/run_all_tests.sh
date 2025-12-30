@@ -107,7 +107,7 @@ function fn_run_pythontest()
     cd $OUTPUT_DIR
     export PYTHONPATH=$PROJECT_DIR:$PYTHONPATH
     export PYTHONPATH=$PROJECT_DIR/src/server/tokenizer:$PYTHONPATH
-    export MINDIE_LLM_PYTHON_LOG_TO_FILE=1
+    export MINDIE_LOG_TO_FILE=1
     export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
     export LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1:$LD_PRELOAD
     export LD_LIBRARY_PATH=${PROJECT_DIR}/third_party/output/grpc/lib:${LD_LIBRARY_PATH}

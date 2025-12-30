@@ -11,13 +11,13 @@
 # See the Mulan PSL v2 for more details.
 
 import multiprocessing.shared_memory as shm
-import threading
 import os
 import posix_ipc
 from mindie_llm.connector.request_router.request_router import RequestRouter
 from mindie_llm.connector.request_router.layerwise.request_router_edge import RequestRouterEdge
 from mindie_llm.connector.request_router.layerwise.request_router_cloud import RequestRouterCloud
 from mindie_llm.utils.log.logging import logger
+from mindie_llm.utils.status import CoreThread
 from mindie_llm.connector.common.model_execute_data_pb2 import (
     ExecuteRequest,
     ExecuteModelResponse,
@@ -43,7 +43,7 @@ def check_owner_and_permission(path: str, current_uid: int) -> None:
         raise PermissionError(
             f"'{path}' permission is {oct(stat_info.st_mode & 0o777)}, expected 0o600."
         )
-    
+
 
 class SharedMemoryChannel:
     # Default size of shared memory buffer (8 MB) - must match C++ implementation
@@ -213,7 +213,9 @@ class SharedMemCommunication:
     def start(self):
         self._is_running = True
         for channel_name in self.CHANNEL_NAMES:
-            thread = threading.Thread(target=self._process_incoming_requests, args=(channel_name,), daemon=True)
+            thread = CoreThread(
+                target=self._process_incoming_requests, args=(channel_name,), daemon=True, name=channel_name
+            )
             self._threads.append(thread)
             thread.start()
         for thread in self._threads:
@@ -233,7 +235,7 @@ class SharedMemCommunication:
             offset = (self.config.local_rank % self.config.npu_num_per_dp) * SharedMemoryChannel.MODEL_INIT_RESP_SIZE
             execute_channel.send_message(response, buffer_offset=offset)
             return
-        
+
         # Recover commands reuse the shared_sync_link channel.
         if is_recover_command:
             response_channel = self._channels[shared_sync_link_key][response_key]

@@ -31,7 +31,7 @@ PDMIX量化是指在模型推理的Prefill阶段和Decode阶段使用不同的�
 
 以下展示了量化后权重描述文件quant\_model\_description.json中的部分内容：
 
-```
+```json
 {
 "model_quant_type": "W8A8_MIX",
   "model.embed_tokens.weight": "FLOAT",
@@ -77,7 +77,7 @@ PDMIX量化是指在模型推理的Prefill阶段和Decode阶段使用不同的�
 
 2. 使用以下指令生成W8A8量化权重。
 
-    ```
+    ```bash
     msmodelslim quant --model_path {浮点权重路径} --save_path {pdmix量化权重路径} --device npu --model_type Qwen3-32B --config_path ./msmodelslim/practice_lab/Qwen/qwen3-dense-w8a8.yaml --trust_remote_code True
     ```
 
@@ -87,7 +87,7 @@ PDMIX量化是指在模型推理的Prefill阶段和Decode阶段使用不同的�
 
 以Qwen3-32B为例，您可以使用以下指令执行对话测试，推理内容为"What's deep learning?"，最长输出20个token。
 
-```
+```bash
 cd ${ATB_SPEED_HOME_PATH}
 torchrun --nproc_per_node 2 --master_port 12350 -m examples.run_pa --model_path {pdmix量化权重路径}
 ```

@@ -773,8 +773,8 @@ export ASDOPS_LOG_TO_FILE = 1
 ```
 - 加速库日志|默认输出路径为"~/mindie/log/debug"
 ```
-export ATB_LOG_LEVEL = INFO
-export ATB_LOG_TO_FILE = 1
+export MINDIE_LOG_LEVEL = INFO
+export MINDIE_LOG_TO_FILE = 1
 ```
 - MindIE Service日志|默认输出路径为"~/mindie/log/debug"
 ```

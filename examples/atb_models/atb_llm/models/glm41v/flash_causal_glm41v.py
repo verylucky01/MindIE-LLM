@@ -78,39 +78,45 @@ class FlashGlm41vForCausalLM(MultiModalLLm):
                 image_grid_thw, video_grid_thw = None, None
                 input_ids = total_input_ids[seqlen_offset: seqlen_offset + input_length]
                 inputs_embeds = self.language_model.embed_tokens(input_ids)
-                boi_pos = torch.where(torch.eq(input_ids, self.image_start_token_id))[0][0].item()
-                pixel_values_shm_name = input_ids[boi_pos + 1]
-                pixel_values_shape_value = input_ids[boi_pos + 2]
-                image_grid_thw_shm_name = input_ids[boi_pos + 3]
-                image_grid_thw_shape_value = input_ids[boi_pos + 4]
-                pixel_values_videos_shm_name = input_ids[boi_pos + 5]
-                pixel_values_videos_shape_value = input_ids[boi_pos + 6]
-                video_grid_thw_shm_name = input_ids[boi_pos + 7]
-                video_grid_thw_shape_value = input_ids[boi_pos + 8]
-                if pixel_values_shm_name != -1:
-                    input_image = get_data_from_shm(
-                        pixel_values_shm_name, pixel_values_shape_value, np.float32, self.device
-                    ).to(dtype=inputs_embeds.dtype).to(total_input_ids.device)
-                    image_grid_thw = get_data_from_shm(
-                        image_grid_thw_shm_name, image_grid_thw_shape_value, np.int32, self.device
-                    ).to(dtype=torch.int64).to(total_input_ids.device)
-                    image_embeds = self._get_image_features(input_image, image_grid_thw)
-                if pixel_values_videos_shm_name != -1:
-                    input_video = get_data_from_shm(
-                        pixel_values_videos_shm_name, pixel_values_videos_shape_value, np.float32, self.device
-                    ).to(dtype=inputs_embeds.dtype).to(total_input_ids.device)
-                    video_grid_thw = get_data_from_shm(
-                        video_grid_thw_shm_name, video_grid_thw_shape_value, np.int32, self.device
-                    ).to(dtype=torch.int64).to(total_input_ids.device)
-                    image_embeds = self._get_video_features(input_video, video_grid_thw)
-                image_embeds = torch.cat(image_embeds, dim=0)
-                input_ids[boi_pos + 1: boi_pos + 1 + _SHM_TOKEN_LEN].copy_(
-                    torch.tensor([self.image_token_id] * _SHM_TOKEN_LEN, dtype=input_ids.dtype))
-                image_mask = input_ids == self.image_token_id
-                inputs_embeds[image_mask] = image_embeds
-                position_ids_thw = self._generate_position_ids(input_ids, image_grid_thw, video_grid_thw)
-                inputs_embeds_list.append(inputs_embeds)
-                position_ids_thw_list.append(position_ids_thw)
+                if not torch.any(torch.eq(input_ids, self.image_token_id)):
+                    inputs_embeds_list.append(inputs_embeds)
+                    position_id = position_ids[seqlen_offset: seqlen_offset + input_length]
+                    position_ids_thw = position_id.view(1, -1).expand(3, -1)
+                    position_ids_thw_list.append(position_ids_thw)
+                else:
+                    boi_pos = torch.where(torch.eq(input_ids, self.image_start_token_id))[0][0].item()
+                    pixel_values_shm_name = input_ids[boi_pos + 1]
+                    pixel_values_shape_value = input_ids[boi_pos + 2]
+                    image_grid_thw_shm_name = input_ids[boi_pos + 3]
+                    image_grid_thw_shape_value = input_ids[boi_pos + 4]
+                    pixel_values_videos_shm_name = input_ids[boi_pos + 5]
+                    pixel_values_videos_shape_value = input_ids[boi_pos + 6]
+                    video_grid_thw_shm_name = input_ids[boi_pos + 7]
+                    video_grid_thw_shape_value = input_ids[boi_pos + 8]
+                    if pixel_values_shm_name != -1:
+                        input_image = get_data_from_shm(
+                            pixel_values_shm_name, pixel_values_shape_value, np.float32, self.device
+                        ).to(dtype=inputs_embeds.dtype).to(total_input_ids.device)
+                        image_grid_thw = get_data_from_shm(
+                            image_grid_thw_shm_name, image_grid_thw_shape_value, np.int32, self.device
+                        ).to(dtype=torch.int64).to(total_input_ids.device)
+                        image_embeds = self._get_image_features(input_image, image_grid_thw)
+                    if pixel_values_videos_shm_name != -1:
+                        input_video = get_data_from_shm(
+                            pixel_values_videos_shm_name, pixel_values_videos_shape_value, np.float32, self.device
+                        ).to(dtype=inputs_embeds.dtype).to(total_input_ids.device)
+                        video_grid_thw = get_data_from_shm(
+                            video_grid_thw_shm_name, video_grid_thw_shape_value, np.int32, self.device
+                        ).to(dtype=torch.int64).to(total_input_ids.device)
+                        image_embeds = self._get_video_features(input_video, video_grid_thw)
+                    image_embeds = torch.cat(image_embeds, dim=0)
+                    input_ids[boi_pos + 1: boi_pos + 1 + _SHM_TOKEN_LEN].copy_(
+                        torch.tensor([self.image_token_id] * _SHM_TOKEN_LEN, dtype=input_ids.dtype))
+                    image_mask = input_ids == self.image_token_id
+                    inputs_embeds[image_mask] = image_embeds
+                    position_ids_thw = self._generate_position_ids(input_ids, image_grid_thw, video_grid_thw)
+                    inputs_embeds_list.append(inputs_embeds)
+                    position_ids_thw_list.append(position_ids_thw)
                 seqlen_offset += input_length
             inputs_embeds = torch.cat(inputs_embeds_list, dim=0)
             position_ids_thw = torch.cat(position_ids_thw_list, dim=-1)

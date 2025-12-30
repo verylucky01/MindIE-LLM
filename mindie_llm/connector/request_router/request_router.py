@@ -11,9 +11,6 @@
 # See the Mulan PSL v2 for more details.
 
 import queue
-import threading
-import traceback
-import os
 
 from mindie_llm.connector.common import send_model_execute_response
 from mindie_llm.connector.common.response_builder import ExecuteResponseBuilder
@@ -21,24 +18,13 @@ from mindie_llm.connector.common.model_execute_data_pb2 import ExecuteRequest, E
 from mindie_llm.connector.request_router.router_impl import RouterImpl
 from mindie_llm.model_wrapper.utils.config import BaseConfig, DmiConfig
 from mindie_llm.utils.log.logging import logger
+from mindie_llm.utils.status import CoreThread
 try:
     from ms_service_profiler.profiler import prof_step
 except ImportError:
     def default_prof_step(stop_check=False):
         pass
     prof_step = default_prof_step
-
-
-#核心线程异常后后会退出进程
-class CoreThread(threading.Thread):
-    def run(self):
-        try:
-            #调用父类的 run 方法，执行目标函数
-            if self._target:
-                self._target(*self._args, **self._kwargs)
-        except Exception:
-            traceback.print_exc()
-            os._exit(1)
 
 
 class RequestRouter:
@@ -96,7 +82,6 @@ class RequestRouter:
                 infer mode %s is not supported""",
                 infer_mode,
             )
-            raise ValueError("unexpected role")
         return config
 
     def initialize_impl(self, config):
@@ -138,7 +123,6 @@ class RequestRouter:
                     self.router_impl.is_inference_pause = False
                 else:
                     logger.error(f"[MIE04E13030A] Unknown execute_type {execute_type}")
-                    raise RuntimeError("python doing an unknown execute inference type")
                 prof_step()
             except queue.Empty:
                 prof_step(stop_check=True)
@@ -153,7 +137,6 @@ class RequestRouter:
             else:
                 logger.error(f"[MIE04E13030A] Unknown link type {execute_type}, \
                     Expected PD_LINK type is {ExecuteType.PD_LINK}.")
-                raise RuntimeError("python doing an unknown link type")
 
     def do_transfer(self):
         while True:
@@ -166,7 +149,6 @@ class RequestRouter:
             else:
                 logger.error(f"[MIE04E13030A] Unknown transfer type {execute_type}, \
                     Expected transfer_data type is {ExecuteType.KV_TRANSFER}")
-                raise RuntimeError("python doing an unknown transfer type")
             
     def do_command(self):
         """
@@ -184,7 +166,6 @@ class RequestRouter:
             else:
                 logger.error(f"[MIE04E13030A] Unknown command type {execute_type}, \
                     Expected command type is {ExecuteType.LORA_OPERATION}")
-                raise RuntimeError("python doing an unknown command type")
 
     def accept(self, execute_request: ExecuteRequest):
         if execute_request.execute_type == ExecuteType.MODEL_INFER or \

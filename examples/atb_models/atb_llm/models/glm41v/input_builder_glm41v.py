@@ -156,7 +156,7 @@ class Glm41vInputBuilder(InputBuilder):
                         IMAGE: img
                     })
                     if shm_name_save_path is None:
-                        shm_name_save_path = self._get_shm_name_save_path(img_fname)
+                        shm_name_save_path = self.get_shm_name_save_path(img_fname)
                 if item.get(VIDEO, None):
                     video_path = check_video_path(item[VIDEO])
                     message_list.append({
@@ -164,7 +164,7 @@ class Glm41vInputBuilder(InputBuilder):
                         URL: video_path
                     })
                     if shm_name_save_path is None:
-                        shm_name_save_path = self._get_shm_name_save_path(video_path)
+                        shm_name_save_path = self.get_shm_name_save_path(video_path)
                 if item.get(TEXT, None):
                     text = item[TEXT]
                     message_list.append({

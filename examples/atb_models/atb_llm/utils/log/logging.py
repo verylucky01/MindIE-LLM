@@ -23,6 +23,7 @@ from logging import StreamHandler
 from logging.handlers import RotatingFileHandler
 from datetime import datetime, timezone, timedelta
 
+from mindie_llm.utils.log.utils import update_log_file_param
 from .. import file_utils
 from ..env import ENV
 from .error_code import ErrorCode
@@ -202,6 +203,41 @@ def makedir_and_change_permissions(path, mode=MAX_LOG_DIR_PERM):
             os.makedirs(current_path, mode, exist_ok=True)
 
 
+def get_log_rotate_config() -> tuple[int, int]:
+    """获取日志配置参数
+    
+    Returns:
+        tuple[int, int]: (最大文件大小, 最大文件数量)
+    """
+    # 1. 获取并处理日志轮转配置
+    log_rotate_config = standard_env(ENV.log_file_rotate)
+    max_size, max_files = update_log_file_param(log_rotate_config)
+    
+    # 2. 处理旧版环境变量
+    if ENV.atb_llm_log_maxsize:
+        log_deprecation_warning()
+        if ENV.atb_llm_log_maxsize < 0 or ENV.atb_llm_log_maxsize > 524288000:   # 500MB
+            raise ValueError(
+                "PYTHON_LOG_MAXSIZE should be a number in the range of 0 to 524288000 (500MB).\n"
+            )
+        
+        max_size = ENV.atb_llm_log_maxsize
+    
+    return max_size, max_files
+
+
+def log_deprecation_warning() -> None:
+    """记录环境变量弃用警告"""
+    logging.warning(
+        "Note: The old environment variable PYTHON_LOG_MAXSIZE will be deprecated on 2026/12/31.\n"
+        "Please use the new environment variable MINDIE_LOG_ROTATE instead.\n"
+        "Usage: export MINDIE_LOG_ROTATE=\"-fs 20 -r 10\"\n"
+        "Where:\n"
+        "  -fs: maximum size of each log file in MB (range: [1, 500])\n"
+        "  -r : maximum number of log files per process (range: [1, 64])"
+    )
+
+
 def init_logger(logger_ins: CustomLogger, file_name: str, stream=None):
     """
     日志初始化
@@ -268,11 +304,15 @@ def init_logger(logger_ins: CustomLogger, file_name: str, stream=None):
         file_utils.check_path_permission(log_file_path)
 
         prepare_log_path(llm_log_file_path)
+
+        # 获取日志轮转配置
+        log_file_maxsize, log_file_maxnum = get_log_rotate_config()
+
         # 创建日志记录器，指明日志保存路径,每个日志的大小，保存日志的上限
         file_handle = SafeRotatingFileHandler(
             filename=llm_log_file_path,
-            maxBytes=ENV.atb_llm_log_maxsize,
-            backupCount=10,
+            maxBytes=log_file_maxsize,
+            backupCount=log_file_maxnum,
             delay=True)
         
         # 为全局的日志工具对象添加日志记录器

@@ -3,7 +3,7 @@
 
 ## 🔥Latest News
 
-- [2025/12] MindIE LLM启动开源。
+- [2025/12] MindIE LLM 正式宣布开源并面向公众开放！
 
 ## 🚀简介
 
@@ -41,18 +41,54 @@ MindIE LLM总体架构分为四层：Server、LLM Manager、Text Generator和Mod
 
 ## 🔍目录结构
 
+```
+├── mindie_llm                                     # Python 推理框架主模块
+│   ├── connector                                  # 请求接入层
+│   ├── text_generator                             # 核心推理引擎
+│   │   ├── adapter                                # 后端适配 
+│   │   ├── plugins                                # 高阶特性插件
+│   │   │   ├── prefix_cache                       # Prefix Cahce (KV缓存复用)
+│   │   │   ├── splitfuse                          # SplitFuse 
+│   │   │   ├── memory_decoding                    # Memory Decoding
+│   │   │   ├── la                                 # Lookahead 
+│   │   ├── cpp                                    # C++ 扩展（Sampler/Prefix Tree/Memory Bridge）
+│   ├── modeling                                   # 模型封装抽象
+│   │   ├── model_wrapper/atb                      # ATB 模型后端支持
+│   ├── utils                                      # 工具模块：日志/张量/profilling/验证等
+├── examples                                       # 示例代码
+│   ├── atb_models                                 # ATB 模型集成与打包入口
+│   │   ├── atb_framework                          # ATB 底层框架
+│   │   ├── atb_llm                                # 面向 LLM 的 ATB 封装
+│   │   ├── examples                               # 运行示例
+│   │   ├── scripts                                # 构建脚本
+│   │   ├── tests                                  # 单元/集成测试
+│   │   ├── setup.py                               # Python 包构建入口
+│   │   ├── CMakeLists.txt                         # CMake 构建配置
+│   ├── ms_models                                  # MindSpore 模型示例
+│   ├── pt_models                                  # PyTorch 模型示例
+├── docs                                           # 项目文档介绍
+├── src                                            # C++ 核心引擎
+│   ├── engine                                     # LLM 引擎主逻辑（调度/执行）
+│   ├── scheduler                                  # 调度器（FCFS/PDDS/Layerwise）
+│   ├── block_manager                              # KV Cache 块管理（LRU/Prefix Chche/CoW）
+│   ├── llm_manager                                # Python/C++ 桥接API 
+│   ├── server                                     # 服务端 （gRPC/HTTP接入点）
+│   ├── utils                                      # 基础工具（共享内存/加密/日志/ID 生成等）
+│   ├── include                                    # 对外头文件接口
+├── scripts                                        # 构建与部署脚本
+├── tools                                          # 辅助工具
+│   ├── llm_manager_python_api_demo                # Python API 使用示例
+├── tests                                          # 测试
+├── ...                                            
+├── CMakeLists.txt                                 #  CMake 构建配置                         
+├── README.md   
+├── requirements.txt                               # Python 安装依赖                               
+```
+## ⚡️版本说明
 
-
-
-
-
-
-## 版本说明
-
-|MindIE软件版本|CANN版本兼容性|MindCluster|Ascend Extension for Pytorch|CCAE|
-|:---|:---|:---|:---|:---|
-|2.3.0|8.5.0|7.2.RC1.SPC1|7.3.0|iMaster CCAE V100R025C20SPC011|
-
+|MindIE软件版本&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;|CANN版本兼容性&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;|
+|:----------------------------|:----------------------------|
+|2.2.RC1|8.3.RC2|
 ## ⚡️环境部署
 
 MindIE LLM安装前的相关软硬件环境准备，以及安装步骤，请参见[安装指南](./docs/zh/user_guide/installation_guide.md)。
@@ -62,11 +98,13 @@ MindIE LLM安装前的相关软硬件环境准备，以及安装步骤，请参�
 
   快速体验使用MindIE进行大模型推理的全流程，请参见[快速入门](docs/zh/user_guide/quick_start.md)。
 
-## 📝学习教程
+## 📝学习文档
 
 - [LLM使用指南](./docs/zh/user_guide/user_manual/README.md)：MindIE LLM使用指南，包括推理参数配置、在线和离线推理、参数调优等。
 - [特性介绍](./docs/zh/user_guide/feature/README.md)：介绍MindIE LLM支持的相关特性。
 - [模型支持列表](./docs/zh/user_guide/model_support_list.md)：MindIE LLM支持的模型。
+
+## 贡献声明
 
 ## 📝免责声明
 

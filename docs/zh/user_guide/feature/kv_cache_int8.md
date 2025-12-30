@@ -7,7 +7,7 @@
 > [!NOTE]说明 
 >-  仅Atlas 800I A2 推理服务器支持KV Cache int8量化。
 >-  仅支持搭配W8A8使用。
->-  仅支持LLaMA3.1-70B，LLaMA3.1-8B，Qwen2-72B、Qwen2-7B。
+>-  仅支持LLaMA3.1-70B，Qwen2-72B，Qwen2.5-72B-Instruct。
 >-  仅支持float16数据类型。
 
 KV Cache int8搭配W8A8量化后权重目录结构：
@@ -26,7 +26,7 @@ KV Cache int8搭配W8A8量化后权重目录结构：
 
 以下展示了量化后权重描述文件quant\_model\_description.json中的部分内容：
 
-```
+```json
 {
   "model_quant_type": "W8A8",
   "kv_cache_type": "C8",
@@ -60,27 +60,4 @@ KV Cache int8搭配W8A8量化后权重目录结构：
 |--|--|--|
 |dtype|bfloat16|bfloat16|
 |shape|[kv_head_num * kv_head_dim]|[kv_head_num * kv_head_dim]|
-
-
-## 生成权重
-
-以LLaMA3.1-70B为例，您可以使用以下指令生成W8A8 + KV Cache int8量化权重。
-
-```
-export ASCEND_RT_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
-cd ${ATB_SPEED_HOME_PATH}
-python examples/models/llama3/convert_quant_weights.py --model_path {模型权重路径} 
---save_directory {量化模型保存路径} --w_bit 8 --a_bit 8 --device_type npu 
---act_method 3 
---anti_method m3 --disable_level L0 
---calib_file {boolq.jsonl路径}
---use_kvcache_quant True 
-```
-
--  相比于W8A8的量化方式，需要新增use\_kvcache\_quant参数。
--  KV Cache int8量化权重的quant\_model\_description.json中应包含"kv\_quant\_type": "C8"键值对。
-
-## 执行推理
-
-和W8A8量化权重执行推理的方式相同，请参考[W8A8](w8a8.md。
 

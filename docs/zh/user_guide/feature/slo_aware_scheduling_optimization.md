@@ -19,10 +19,10 @@ SLO（Service Level Objective，服务级别目标）指在设定时间段内为
 
 ## 参数说明
 
-开启SLO调度优化特性，需要配置的参数如**表1**所示。
+开启SLO调度优化特性，需要配置的参数如*[表1](#table1)所示。
 
-**表 1**  SLO调度优化特性参数说明
-<a id="table1"></a>
+**表 1**  SLO调度优化特性参数说明  <a id="table1"></a>
+
 |配置项|取值类型|取值范围|配置说明|
 |--|--|--|--|
 |stageSelectPolicy|uint32_t|[0,2]|Prefill和Decode选择策略。0：prefill优先1：吞吐优先2：基于TTFT/TPOT时延预测和LLF算法的PD阶段选择算法选填，默认值：0。|
@@ -37,14 +37,14 @@ SLO（Service Level Objective，服务级别目标）指在设定时间段内为
 
 1. 打开MindIE Motor的config.json文件。
 
-    ```
+    ```bash
     cd {MindIE安装目录}/latest/mindie-service/
     vi conf/config.json
     ```
 
 2. 配置服务化参数。在Server的config.json文件添加“stageSelectPolicy”、“dynamicBatchSizeEnable” 、“prefillExpectedTime”、“decodeExpectedTime”字段（以下加粗部分）， 参数字段解释请参见[表1](#table1)，服务化参数说明请参见[配置参数说明（服务化）](../user_manual/service_parameter_configuration.md)章节，参数配置示例如下。
 
-    ```
+    ```json
     "stageSelectPolicy" : 2,
     "dynamicBatchSizeEnable" : true,
     "prefillExpectedTime" : 1000,
@@ -53,7 +53,7 @@ SLO（Service Level Objective，服务级别目标）指在设定时间段内为
 
 3. 启动服务。
 
-    ```
+    ```bash
     ./bin/mindieservice_daemon
     ```
 

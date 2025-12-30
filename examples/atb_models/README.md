@@ -10,6 +10,7 @@
 ## 环境准备
 ### 依赖版本
 - 模型仓代码配套可运行的硬件型号
+  - Atlas 800I A3（64GB显存）
   - Atlas 800I A2（32GB/64GB显存）
   - Atlas 300I DUO（96GB显存）
 - 模型仓代码运行相关配套软件
@@ -20,11 +21,11 @@
   - PTA
   - 开源软件依赖
 - 版本配套关系
-  - 当前模型仓需基于CANN包8.0版本及以上，Python 3.10，torch 2.1.0进行环境部署与运行
+  - 当前模型仓需基于CANN包8.0版本及以上，Python 3.10/3.11，torch 2.1.0/2.6.0进行环境部署与运行
 
 ### 1.1 安装HDK
 
-- 详细信息可参见[昇腾社区驱动与固件](https://www.hiascend.com/document/detail/zh/canncommercial/63RC2/envdeployment/instg/instg_000018.html)
+- 详细信息可参见昇腾社区驱动与固件
 - 第一次安装时：先安装driver，再安装firmwire，最后执行`reboot`指令重启服务器生效
 - 若服务器上已安装驱动固件，进行版本升级时：先安装firmwire，再安装driver，最后执行`reboot`指令重启服务器生效
 
@@ -32,9 +33,10 @@
 
 - 下载
 
-| 包名                                     |
-| ---------------------------------------- |
-| Ascend-hdk-*-npu-firmware_${version}.run |
+| 包名                                     | 硬件型号     |
+| ---------------------------------------- | ------------ |
+| Ascend-hdk-*-npu-firmware_${version}.run | Atlas 800I A2 |
+| Ascend-A3-hdk-npu-firmware_${version}.run | Atlas 800I A3 |
 
   - 根据芯片型号下载对应的安装包
 
@@ -79,16 +81,16 @@
   # 安装toolkit  以arm为例
   chmod +x Ascend-cann-toolkit_${version}_linux-aarch64.run
   ./Ascend-cann-toolkit_${version}_linux-aarch64.run --install
-  source /usr/local/Ascend/ascend-toolkit/set_env.sh
+  source /usr/local/Ascend/cann/set_env.sh
   ```
 
-#### 1.2.2 安装kernel
+#### 1.2.2 安装ops
 
 - 下载
 
-| 包名                                       |
-| ------------------------------------------ |
-| Ascend-cann-kernels-*_${version}_linux.run |
+| 包名（其中`${version}`为实际版本，`${cpu}`为实际cpu架构  |
+| ----------------------------------------------------- |
+| Ascend-cann-{芯片型号}-ops_${version}_linux-${cpu}.run      |
 
   - 根据芯片型号选择对应的安装包
 
@@ -96,11 +98,11 @@
   ```bash
   chmod +x Ascend-cann-kernels-*_${version}_linux.run
   ./Ascend-cann-kernels-*_${version}_linux.run --install
+  source /usr/local/Ascend/cann/set_env.sh
   ```
 
 #### 1.2.3 安装加速库
 - 下载加速库
-  - [下载链接](https://support.huawei.com/enterprise/zh/ascend-computing/cann-pid-251168373/software/261918053?idAbsPath=fixnode01%7C23710424%7C251366513%7C22892968%7C251168373)。
 
   | 包名（其中`${version}`为实际版本）            |
   | -------------------------------------------- |
@@ -108,20 +110,14 @@
   | Ascend-cann-nnal_${version}_linux-x86_64.run  |
   | ...                                          |
 
-  - 将文件放置在\${working_dir}路径下
 
 - 安装
     ```shell
     chmod +x Ascend-cann-nnal_*_linux-*.run
-    ./Ascend-cann-nnal_*_linux-*.run --install --install-path=${working_dir}
-    source ${working_dir}/nnal/atb/set_env.sh
+    ./Ascend-cann-nnal_*_linux-*.run -h # （可选）查看参数说明
+    ./Ascend-cann-nnal_*_linux-*.run --install
+    source /usr/local/Ascend/nnal/atb/set_env.sh
     ```
-- 可以使用`uname -m`指令查看服务器是x86还是aarch架构
-- 可以使用以下指令查看abi是0还是1
-    ```shell
-    python -c "import torch; print(torch.compiled_with_cxx11_abi())"
-    ```
-    - 若输出结果为True表示abi1，False表示abi0
 
 ### 1.3 安装PytorchAdapter
 
@@ -131,10 +127,10 @@
 
 - 下载
 
-  | 包名                                         |
+  | 包名 （其中`${version}`为实际版本）                   |
   | -------------------------------------------- |
-  | torch-2.1.0+cpu-cp310-cp310-linux_x86_64.whl |
-  | torch-2.1.0-cp310-cp10-linux_aarch64.whl     |
+  | torch-${version}+cpu-cp310-cp310-linux_x86_64.whl |
+  | torch-${version}-cp310-cp10-linux_aarch64.whl     |
   | ...                                          |
 
   - 根据所使用的环境中的python版本以及cpu类型，选择对应版本的torch安装包。
@@ -147,13 +143,12 @@
 
 #### 1.3.2 安装torch_npu
 
-[下载PyTorch Adapter](https://www.hiascend.com/developer/download/community/result?module=pt)，安装方法：
+安装方法：
 
-| 包名                        |
+| 包名 （其中`${version}`为实际版本）  |
 | --------------------------- |
-| pytorch_v2.1.0_py38.tar.gz |
-| pytorch_v2.1.0_py39.tar.gz |
-| pytorch_v2.1.0_py310.tar.gz |
+| pytorch_v${version}_py311.tar.gz |
+| pytorch_v${version}_py310.tar.gz |
 | ...                         |
 
 - 安装选择与torch版本以及python版本一致的npu_torch版本
@@ -170,28 +165,15 @@ pip install torch*_aarch64.whl
 | 默认依赖                 | [requirements.txt](./requirements/requirements.txt)           |
 | Baichuan                 | [requirements_baichuan.txt](./requirements/models/requirements_baichuan.txt) |
 | Bloom                    | [requirements_bloom.txt](./requirements/models/requirements_bloom.txt)      |
-| Clip                     | [requirements_clip.txt](./requirements/models/requirements_clip.txt)           |
-| Cogvlm2_llama3_chinese_chat_19B          | [requirements_cogvlm2_llama3_chinese_chat_19B.txt](./requirements/models/requirements_cogvlm2_llama3_chinese_chat_19B.txt)           |
-| Cogvlm2_video_llama3_chat                     | [requirements_cogvlm2_video_llama3_chat.txt](./requirements/models/requirements_cogvlm2_video_llama3_chat.txt)           |
 | Deepseek-Moe             | [requirements_deepseek_moe.txt](./requirements/models/requirements_deepseek_moe.txt) |
 | Deepseek-vl              | [requirements_deepseek_vl.txt](./requirements/models/requirements_deepseek_vl.txt)      |
-| Glm4v                    | [requirements_glm4v.txt](./requirements/models/requirements_glm4v.txt)      |
-| Internlm                 | [requirements_internlm.txt](./requirements/models/requirements_internlm.txt) |
-| Internlmxcomposer2                 | [requirements_Internlmxcomposer2.txt](./requirements/models/requirements_internlmxcomposer2.txt) |
 | Internvl                 | [requirements_internvl.txt](./requirements/models/requirements_internvl.txt) |
-| Llama                    | [requirements_llama.txt](./requirements/models/requirements_llama.txt) |
-| Llama1-33B               | [requirements_llama1_33b.txt](./requirements/models/requirements_llama1_33b.txt) |
 | Llama3                   | [requirements_llama3.txt](./requirements/models/requirements_llama3.txt) |
 | Llava                    | [requirements_llava.txt](./requirements/models/requirements_llava.txt) |
-| Minicpm_llama3_v2                    | [requirements_minicpm_llama3_v2.txt](./requirements/models/requirements_minicpm_llama3_v2.txt) |
-| Minicpm_qwen2_v2                    | [requirements_minicpm_qwen2_v2.txt](./requirements/models/requirements_minicpm_qwen2_v2.txt) |
-| Mixtral-8x7B             | [requirements_mixtral_8x7b.txt](./requirements/models/requirements_mixtral_8x7b.txt)|
-| Mixtral-8x22B            | [requirements_mixtral_8x22b.txt](./requirements/models/requirements_mixtral_8x22b.txt)|
-| Qwen2_audio                  | [requirements_qwen2_audio.txt](./requirements/models/requirements_qwen2_audio.txt) |
-| Qwen2_vl                  | [requirements_qwen2_vl.txt](./requirements/models/requirements_qwen2_vl.txt) |
+| Qwen2_audio              | [requirements_qwen2_audio.txt](./requirements/models/requirements_qwen2_audio.txt) |
+| Qwen2_vl                 | [requirements_qwen2_vl.txt](./requirements/models/requirements_qwen2_vl.txt) |
 | Qwen2.5                  | [requirements_qwen2.5.txt](./requirements/models/requirements_qwen2.5.txt) |
-| Qwen2                  | [requirements_qwen2.txt](./requirements/models/requirements_qwen2.txt) |
-| Vita                  | [requirements_vita.txt](./requirements/models/requirements_vita.txt) |
+| Qwen2                    | [requirements_qwen2.txt](./requirements/models/requirements_qwen2.txt) |
 | Yi                       | [requirements_yi.txt](./requirements/models/requirements_yi.txt)           |
 
 
@@ -203,34 +185,57 @@ pip install torch*_aarch64.whl
   ```
 - 各个模型开源软件依赖请使用上述表格各模型依赖的requirement_{模型}.txt进行安装，若模型未指定开源软件依赖，请使用默认开源软件依赖。
 
-### 1.5 安装模型仓
+### 1.5 安装MindIE LLM
+- 场景一：获取MindIE的整包进行安装
+  - 下载编译好的包
+    - [下载链接](https://www.hiascend.com/developer/download/community/result?module=ie+pt+cann)
+    
+    | 包名 （其中`${version}`为实际版本）       |
+    | -------------------------------------- |
+    | Ascend-mindie_${version}_linux-x86_64_abi{0}.run |
+    | Ascend-mindie_${version}_linux-aarch64_abi{0}.run |
+    | Ascend-mindie_${version}_linux-x86_64_abi{1}.run |
+    | Ascend-mindie_${version}_linux-aarch64_abi{1}.run |
+
+    - 可以使用`uname -m`指令查看服务器是x86还是aarch架构
+    - 可以使用以下指令查看abi是0还是1
+        ```shell
+        python -c "import torch; print(torch.compiled_with_cxx11_abi())"
+        ```
+        - 若输出结果为True表示abi1，False表示abi0
+  - 安装
+    ```shell
+    chmod +x Ascend-mindie*.run
+    ./Ascend-mindie-{version}_linux-{arch}.run --install
+    source /usr/local/Ascend/mindie/set_env.sh
+    ```
+- 场景二：手动编译MindIE LLM
+  - 代码编译
+  见MindIE_LLM开发指导
+  - MindIE LLM安装
+  ```shell
+  cd output/${ARCH} # 其中ARCH为系统架构
+  ./Ascend-mindie-llm_${VERSION}_linux-${ARCH}.run --install
+  source /usr/local/Ascend/mindie_llm/set_env.sh
+  ```
+
+### 1.6 安装模型仓
 - 场景一：使用编译好的包进行安装
   - 下载编译好的包
     - [下载链接](https://www.hiascend.com/developer/download/community/result?module=ie+pt+cann)
 
-    | 包名                                                         |
+    | 包名  （其中`${version}`为实际版本）                           |
     | ------------------------------------------------------------ |
-    | Ascend-mindie-atb-models_1.0.RC1_linux-aarch64_torch1.11.0-abi0.tar.gz |
-    | Ascend-mindie-atb-models_1.0.RC1_linux-aarch64_torch2.1.0-abi1.tar.gz |
-    | Ascend-mindie-atb-models_1.0.RC1_linux-x86_64_torch1.11.0-abi1.tar.gz |
-    | Ascend-mindie-atb-models_1.0.RC1_linux-x86_64_torch2.1.0-abi1.tar.gz |
+    | Ascend-mindie-atb-models_${version}_linux-aarch64_py310_torch2.1.0-abi0.tar.gz |
+    | Ascend-mindie-atb-models_${version}_linux-aarch64_py310_torch2.1.0-abi1.tar.gz |
     | ...                                                          |
 
-  - 将文件放置在\${working_dir}路径下
+  - 将文件放置在/usr/local/Ascend/路径下
   - 解压
     ```shell
-    cd ${working_dir}
-    mkdir MindIE-LLM
-    cd MindIE-LLM
+    mkdir /usr/local/Ascend/atb-models
+    cd /usr/local/Ascend/atb-models
     tar -zxvf ../Ascend-mindie-atb-models_*_linux-*_torch*-abi*.tar.gz
-    ```
-  - 安装atb_llm whl包
-    ```
-    cd ${working_dir}/MindIE-LLM
-    # 首次安装
-    pip install atb_llm-0.0.1-py3-none-any.whl
-    # 更新
-    pip install atb_llm-0.0.1-py3-none-any.whl --force-reinstall
     ```
 - 场景二：手动编译模型仓
   - 获取模型仓代码
@@ -255,27 +260,37 @@ pip install torch*_aarch64.whl
   - 量化权重需使用该工具生成，具体生成方式详见各模型README文件
   - 工具下载及安装方式见[README](https://gitcode.com/ascend/msit/blob/master/msmodelslim/README.md)
 
-### 2.1 开启CPU Performance模式
-- 开启CPU Performance模式以提高模型推理性能（首次开启时，根据提示安装依赖）
-  ```
-  cpupower -c all frequency-set -g performance
-  ```
-- 备注：
-  - 仅ARM服务器适用
-  - 指令请在裸机上执行
-
 ## 环境变量参考
 
 ### CANN、加速库、模型仓的环境变量
 ```shell
-source /usr/local/Ascend/ascend-toolkit/set_env.sh
-source ${working_dir}/nnal/atb/set_env.sh
+source /usr/local/Ascend/cann/set_env.sh
+source /usr/local/Ascend/nnal/atb/set_env.sh
 # 若使用编译好的包（即1.5章节的场景一），则执行以下指令
-source ${working_dir}/MindIE-LLM/set_env.sh
-# 若使用gitcode上的源码进行编译（即1.5章节的场景二），则执行以下指令
-source ${working_dir}/MindIE-LLM/examples/atb_models/output/atb_models/set_env.sh
+source /usr/local/Ascend/mindie/set_env.sh
+source /usr/local/Ascend/atb-models/set_env.sh
 ```
 
+
+### 多机推理
+- 在性能测试时开启"AIV"提升性能，若有确定性计算需求时建议关闭"AIV"
+```shell
+   export HCCL_OP_EXPANSION_MODE="AIV"
+```
+- 若要在运行时中断进程，ctrl+C无效，需要使用pkill结束进程
+
+### 显存分析
+- 开启虚拟内存，提高内存碎片利用率
+```shell
+   export PYTORCH_NPU_ALLOC_CONF="expandable_segments:True"
+```
+
+## 问题定位
+- 若遇到推理执行报错，优先打开日志环境变量，并查看算子库和加速库的日志中是否有error级别的告警，基于error信息进一步定位
+- 开启日志环境变量后，日志仍没有保存，定位排查点：
+  - 1. 确认脚本中没有覆盖日志相关的环境变量
+  - 2. 确认服务器内存充足
+### 日志开关
 - 模型仓日志
   - 打开模型仓日志
     - 推荐使用
@@ -300,59 +315,72 @@ source ${working_dir}/MindIE-LLM/examples/atb_models/output/atb_models/set_env.s
       ```shell
       export MINDIE_LOG_TO_STDOUT=0
       export MINDIE_LOG_TO_FILE=0
+      export ATB_STREAM_SYNC_EVERY_KERNEL_ENABLE=0
       ```
   - 日志存放在~/mindie/log/debug下
 
-- 加速库日志
-  - 打开加速库日志
+- CANN日志
+  - 打开CANN日志
     ```shell
-    export ASCEND_SLOG_PRINT_TO_STDOUT=1 #加速库日志是否输出到控制台 
-    export ASCEND_GLOBAL_LOG_LEVEL=3 #加速库日志级别
+    export ASCEND_SLOG_PRINT_TO_STDOUT=1 #CANN日志是否输出到控制台 
+    export ASCEND_GLOBAL_LOG_LEVEL=1 #CANN日志级别
+    export ASCEND_MODULE_LOG_LEVEL=OP=1 #加速库日志级别
+    # 0：对应DEBUG级别。
+    # 1：对应INFO级别。
+    # 2：对应WARNING级别。
+    # 3：对应ERROR级别。
+    # 4：对应NULL级别，不输出日志
     ```
   - 关闭加速库日志
     ```shell
     export ASCEND_SLOG_PRINT_TO_STDOUT=0
+    export ASCEND_GLOBAL_LOG_LEVEL=3
     ```
   - 日志存放在~/ascend/log下
+  - 加速库日志存放在~/ascend/log/atb下
+  - plog日志存放在~/ascend/log/debug/plog下
 
 - 注意：
     1、开启日志后会影响推理性能，建议默认关闭；当推理执行报错时，开启日志定位原因
     2、INFO级别日志和ASCEND_SLOG_PRINT_TO_STDOUT开关同时打开时，会让控制台输出大量打印，请根据需要打开。
 
-### 确定性计算（可选）
+### 精度问题定位
+
+#### 确定性计算（可选）
 - NPU支持确定性计算，即多次运行同样的数据集，结果一致
   - 确定性计算需设置以下环境变量
     ```shell
     export LCCL_DETERMINISTIC=1
     export HCCL_DETERMINISTIC=true
     export ATB_MATMUL_SHUFFLE_K_ENABLE=0
+    export CLOSE_MATMUL_K_SHIFT=1
     ```
   - 关闭确定性计算
     ```shell
     export LCCL_DETERMINISTIC=0
     export HCCL_DETERMINISTIC=false
-    export ATB_MATMUL_SHUFFLE_K_ENABLE=1
+    export ATB_MATMUL_SHUFFLE_K_ENABLE=0
     ```
-- 注意：开启确定性计算会影响性能
+- 注意：开启确定性计算会影响性能；服务化场景下，动态batchsize无法保证精度是确定的。
 - 若使用相同的Prompt构造不同Batch size进行推理时，为了保证结果一致，除了开启以上环境变量外，需关闭通信计算掩盖功能
   ```shell
   export ATB_LLM_LCOC_ENABLE=0
   ```
 
-### 多机推理
-- 在性能测试时开启"AIV"提升性能，若有确定性计算需求时建议关闭"AIV"
-```shell
-   export HCCL_OP_EXPANSION_MODE="AIV"
-```
-- 若要在运行时中断进程，ctrl+C无效，需要使用pkill结束进程
+#### Dump Tensor
+- 适用于定位精度问题
+- msit推理工具提供dump tensor以及精度对比的能力
+  - 工具下载方式见[README](https://gitcode.com/ascend/msit/blob/master/msit/docs/install/README.md)
+  - 工具使用方式见[README](https://gitcode.com/ascend/msit/blob/master/msit/docs/llm/%E5%B7%A5%E5%85%B7-DUMP%E5%8A%A0%E9%80%9F%E5%BA%93%E6%95%B0%E6%8D%AE%E4%BD%BF%E7%94%A8%E8%AF%B4%E6%98%8E.md)
 
-### 显存分析
-- 开启虚拟内存，提高内存碎片利用率
+#### 溢出检查
+- 可以开启以下环境变量，开启后若出现溢出，溢出值会被置为NaN；若不开启此变量，则会对溢出值进行截断
 ```shell
-   export PYTORCH_NPU_ALLOC_CONF="expandable_segments:True"
+export INF_NAN_MODE_ENABLE=1
 ```
+- 注意：Atlas 800I A2服务器若需要强制对溢出值进行截断（即`export INF_NAN_MODE_ENABLE=0`），需要额外将`INF_NAN_MODE_FORCE_DISABLE`环境变量设置为1。
 
-### 性能分析
+### 性能调优
 #### Profiling
 - 适用于性能分析（例如：查看单token耗时前三的算子）及定位性能问题（例如：算子间有空泡，单算子耗时过长）
 - Step 1：开启Profiling环境变量
@@ -369,7 +397,7 @@ source ${working_dir}/MindIE-LLM/examples/atb_models/output/atb_models/set_env.s
     - 多卡运行时${cur_dir}/profiling目录下会有多个文件夹
   - 单卡Profiling文件在${cur_dir}/profiling/\*/PROF\*/mindstudio_profiler_output路径下，名称为msprof_\*.json
 - Step 4：查看Profiling文件
-  - 将msprof_\*.json文件拖拽入`chrome://tracing`网页中即可查看Profiling文件
+  - 将msprof_\*.json文件拖拽入[Mind-Studio-Insight](https://www.hiascend.com/developer/download/community/result?module=pt+sto+cann)中即可查看Profiling文件
 - ${cur_dir}/profiling/\*/PROF\*/mindstudio_profiler_output路径下名为op_summary_\*.csv的文件中有单算子更加详细的性能数据
   - 开启`export ATB_PROFILING_TENSOR_ENABLE=1`环境变量后可以在此文件中查看算子执行时的shape信息（注意：开启此环境变量会导致CPU耗时增加，影响整体流水，但对单算子分析影响不大）
   - 获取shape信息需将Profiler Level设置为Level1，可以通过以下环境变量设置
@@ -392,108 +420,15 @@ source ${working_dir}/MindIE-LLM/examples/atb_models/output/atb_models/set_env.s
   - 仅ARM服务器适用
   - 指令请在裸机上执行
 
-### 精度分析
-#### Dump Tensor
-- 适用于定位精度问题
-- msit推理工具提供dump tensor以及精度对比的能力
-  - 工具下载方式见[README](https://gitcode.com/ascend/msit/blob/master/msit/docs/install/README.md)
-  - 工具使用方式见[README](https://gitcode.com/ascend/msit/blob/master/msit/docs/llm/%E5%B7%A5%E5%85%B7-DUMP%E5%8A%A0%E9%80%9F%E5%BA%93%E6%95%B0%E6%8D%AE%E4%BD%BF%E7%94%A8%E8%AF%B4%E6%98%8E.md)
 
-#### 溢出检查
-- 可以开启以下环境变量，开启后若出现溢出，溢出值会被置为NaN；若不开启此变量，则会对溢出值进行截断
-```shell
-export INF_NAN_MODE_ENABLE=1
-```
-- 注意：Atlas 800I A2服务器若需要强制对溢出值进行截断（即`export INF_NAN_MODE_ENABLE=0`），需要额外将`INF_NAN_MODE_FORCE_DISABLE`环境变量设置为1。
-
-## 特性支持矩阵
-- 浮点特性
-
-  MindIE LLM 主打高性能推理，考虑到内存开销，当前仅支持 float16 和 bfloat16 的浮点格式。可通过配置模型 config.json 中的 'torch_dtype' 字段进行类型修改。
-
-  | 浮点特性 | 浮点能力 |
-  | -------- | -------- |
-  | float16 | √ |
-  | bfloat16 | √ (仅Atlas 800I A2支持) |
-
-- 量化特性
-
-  MindIE LLM 提供多种量化选择进行推理加速，用户可根据自己的需要进行选择。
-
-  | 量化特性 | per channel | per token | per group |
-  | -------- | ----------- | --------- | --------- |
-  | w8a8 | √ | × | × |
-  | w8a16 | √ | × | × |
-  | kv cache int8 | √ | × | × |
-  | w8a8 稀疏量化 | √ | × | × |
-
-  | 量化特性 | Atlas 800I A2 | Atlas 300I DUO |
-  | -------- | ----------- | --------- |
-  | w8a8 | √ | √ |
-  | w8a16 | √ | × |
-  | kv cache int8 | √ | × |
-  | w8a8 稀疏量化 | × | √ |
-
-- 并行特性
-
-  MindIE LLM 提供 TP（Tensor Parallelism）和 EP（Expert Parallelism）两种并行策略。
-
-  | 并行特性 | 并行能力 |
-  | ------- | -------- |
-  | TP | √ |
-  | DP | × |
-  | PP | × |
-  | EP | √ |
-
-- 长序列特性
-
-  长序列特性的主要要求是对输入文本超长的场景下，模型回答的效果及性能也可以同时得到保障，其中输入的序列长度大多长于 32K，甚至可到达 1M 的级别。其主要的技术难点是对 attention 部分以及 kv cache 的使用方面的优化。在长序列场景下，由 attention 和 kv cache 部分造成的显存消耗会快速的成倍增长。因此对这部分现存的优化便是长序列特性的关键技术点。其中涉及到诸如 kv cache 量化，kv 多头压缩，训短推长等关键算法技术。
-
-  最大序列长度的支持往往受限于多种因素，诸如机器的显存规格，模型的参数量等。若想在长序列场景下兼顾模型的回答效果，请兼顾模型支持的最大有效推理长度，以 llama1-65B 为例，其模型有效推理最大长度为 2048tokens，而部分经过训长推长的模型或训短推长的模型则可以保证在不使用额外算法优化的前提下获得长序列下保持推理精度的能力。具体规格请参考对应模型的官方介绍文档。长序列推理的使能方式与普通模型推理方式一致，仅需要将长序列文本按照正常推理流程传入模型即可。
-
-- 多机特性
-
-  针对于模型参数特别大的场景（如 175B 以上参数量模型）以及长序列场景，用户可选择使用多台服务器组合进行推理以达到较优效果，多机通信目前有两种硬件连接方式，PCIE 建联以及 RDMA 建联。使用多机推理时，需要将包含设备 ip，进程号信息，服务器 ip信息的 json 文件地址传递给底层通信算子。
-
-  多机通信有多种并行策略可以结合，目前主流的并行测类包括 Tensor Parallel（TP，张量并行），Pipeline Parallel（PP，流水并行），Sequence Parallel（SP，序列并行）以及 MoE（Mixture of Experts）类模型特有的 Expert Parallel（EP，专家并行）。通过不同的并行策略的结合，可以最大化整体吞吐量，获得最优性能表现，目前模型默认使用纯TP并行方式执行推理，部分开源模型已经完成多机多卡推理能力构建，其中包括 llama 系列模型（包括基于 llama 实现的模型），deepseek-moe 以及 mixtral-moe。
-
-## 预置模型列表
-- [BaiChuan](./examples/models/baichuan/README.md)
-- [bge-large](./examples/models/bge/large-zh-v1.5/README.md)
-- [bge-reranker](./examples/models/bge/reranker-large/README.md)
-- [BLOOM](./examples/models/bloom/README.md)
-- [Bunny](./examples/models/bunny/README.md)
-- [ChatGLM2](./examples/models/chatglm/v2_6b/README.md)
-- [ChatGLM3](./examples/models/chatglm/v3_6b/README.md)
-- [GLM4](./examples/models/chatglm/v4_9b/README.md)
-- [DeepSeek Coder](./examples/models/deepseek/README_DeepSeek_Coder.md)
-- [DeepSeek V2](./examples/models/deepseekv2/README.md)
-- [DeepSeek LLM](./examples/models/deepseek/README_deepseek_llm.md)
-- [DeepSeek MOE](./examples/models/deepseek/README_deepseek_moe.md)
-- [GLM4V](./examples/models/glm4v/README.md)
-- [InternLM](./examples/models/internlm/README.md)
-- [InternLM-XComposer2](./examples/models/internlmxcomposer2/README.md)
-- [Internvl](./examples/models/internvl/README.md)
-- [LLaMa3](./examples/models/llama3/README.md)
-- [LLava](./examples/models/llava/README.md)
-- [MiniCPM](./examples/models/minicpm/README.md)
-- [MiniCPMV2](./examples/models/minicpmv2/README.md)
-- [MiniGPT4](./examples/models/minigpt4/README.md)
-- [Mixtral](./examples/models/mixtral/README.md)
-- [Phi3](./examples/models/phi3/README.md)
-- [Qwen VL](./examples/models/qwen_vl/README.md)
-- [Telechat](./examples/models/telechat/README.md)
-- [Vlmo](./examples/models/vlmo/README.md)
-- [Yi-VL](./examples/models/yivl/README.md)
-
-
-## 问题定位
-- 若遇到推理执行报错，优先打开日志环境变量，并查看算子库和加速库的日志中是否有error级别的告警，基于error信息进一步定位
-- 开启日志环境变量后，日志仍没有保存，定位排查点：
-  - 1. 确认脚本中没有覆盖日志相关的环境变量
-  - 2. 确认服务器内存充足
-  - 3. 报错退出有可能导致日志来不及写入文件，可以尝试打开此环境变量`export ASCEND_LOG_SYNC_SAVE=1`
-- 若遇到精度问题，可以dump tensor后进行定位
+#### 开启CPU Performance模式
+- 开启CPU Performance模式以提高模型推理性能（首次开启时，根据提示安装依赖）
+  ```
+  cpupower -c all frequency-set -g performance
+  ```
+- 备注：
+  - 仅ARM服务器适用
+  - 指令请在裸机上执行
 
 ## 公网地址说明
 - 代码涉及公网地址参考[此README文档](./public_address_statement.md)

@@ -12,13 +12,11 @@
 
 import os
 import math
-import itertools
 from functools import wraps
 import time
 import torch
 import torch.nn.functional as F
 import torch_npu
-import numpy as np
 from transformers import AutoProcessor
 from atb_llm.utils import argument_utils
 from atb_llm.utils.env import ENV
@@ -26,7 +24,7 @@ from atb_llm.utils.cpu_binding import NpuHbmInfo
 from atb_llm.utils.log import logger, print_log
 from atb_llm.utils.file_utils import safe_listdir, standardize_path, check_file_safety, is_path_exists
 from atb_llm.utils.multimodal_utils import is_image, is_video
-from atb_llm.utils.shm_utils import get_data_from_shm, release_shared_memory
+from atb_llm.utils.shm_utils import release_shared_memory
 from atb_llm.runner.tokenizer_wrapper import TokenizerWrapper
 from atb_llm.models.base.model_utils import safe_from_pretrained
 from examples.multimodal_runner import MultimodalPARunner, parser
@@ -36,7 +34,6 @@ from examples.server.generate import decode_token, generate_req
 from examples.server.request import MultiModalRequest
 
 
-_SHM_TOKEN_LEN = 8
 _SHM_PATH = "./shm_name.txt"
 IMAGE = "image"
 VIDEO = "video"
@@ -83,12 +80,6 @@ class Glm41vPARunner(MultimodalPARunner):
         super().__init__(**kwargs)
         self.processor = None
         self.tokenizer_wrapper = TokenizerWrapper(self.model_path)
-        self.image_token_id = self.model.config.image_token_id
-        self.spatial_merge_size = self.model.config.vision_config.spatial_merge_size
-        self.image_start_token_id = self.model.config.image_start_token_id
-        self.image_end_token_id = self.model.config.image_end_token_id
-        self.video_start_token_id = self.model.config.video_start_token_id
-        self.video_end_token_id = self.model.config.video_end_token_id
     
     def init_processor(self):
         try:
@@ -180,85 +171,13 @@ class Glm41vPARunner(MultimodalPARunner):
         e2e_end = time.time()
         e2e_time = e2e_end - e2e_start
         return generate_text_list, token_num_list, e2e_time
-    
-    def _get_token_type(self, input_tokens):
-        input_token_type = np.full(len(input_tokens), TEXT, dtype=object)
-        if not np.any(np.equal(input_tokens, self.image_token_id)):
-            return input_token_type.tolist()
-        img_mask = np.equal(input_tokens, self.image_token_id)
-        input_token_type[img_mask] = IMAGE
-        if np.any(np.equal(input_tokens, self.video_start_token_id)):
-            video_starts = np.where(input_tokens == self.video_start_token_id)[0]
-            video_stops = np.where(input_tokens == self.video_end_token_id)[0]
-            for start, stop in zip(video_starts, video_stops):
-                video_mask = np.equal(input_tokens[start: stop + 1], self.image_token_id)
-                input_token_type[start: stop + 1][video_mask] = VIDEO
-        input_token_type = input_token_type.tolist()
-        input_type_group = []
-        for key, group in itertools.groupby(enumerate(input_token_type), lambda x: x[1]):
-            group = list(group)
-            start_index = group[0][0]
-            end_index = group[-1][0] + 1
-            input_type_group.append((key, start_index, end_index))
-        return input_type_group
-
-    def _get_position_delta(self, input_type_group, image_grid_thw, video_grid_thw):
-        llm_pos_ids_list = []
-        image_index, video_index = 0, 0
-        video_frame_num = 1
-        video_group_index = 0
-        delta = 0
-        for modality_type, start_idx, end_idx in input_type_group:
-            delta = llm_pos_ids_list[-1].max() + 1 if len(llm_pos_ids_list) > 0 else 0
-            if modality_type == "image":
-                llm_grid_t, llm_grid_h, llm_grid_w = (
-                    image_grid_thw[image_index][0].item(),
-                    image_grid_thw[image_index][1].item() // self.spatial_merge_size,
-                    image_grid_thw[image_index][2].item() // self.spatial_merge_size,
-                )
-                delta += max(llm_grid_t, llm_grid_h, llm_grid_w)
-                image_index += 1
-                video_frame_num = 1
-            elif modality_type == "video":
-                llm_grid_t, llm_grid_h, llm_grid_w = (
-                    video_frame_num,
-                    video_grid_thw[video_index][1].item() // self.spatial_merge_size,
-                    video_grid_thw[video_index][2].item() // self.spatial_merge_size,
-                )
-                delta += max(llm_grid_t, llm_grid_h, llm_grid_w)
-                video_group_index += 1
-                if video_group_index >= video_grid_thw[video_index][0]:
-                    video_index += 1
-                    video_group_index = 0
-                video_frame_num += 1
-            else:
-                text_len = end_idx - start_idx
-                delta += text_len
-                video_frame_num = 1
-        return delta
 
     def _request_from_token_glm4_1v(self, input_ids, max_out_length, block_size, req_idx=0):
         if not isinstance(input_ids, torch.Tensor):
             input_ids = torch.tensor(input_ids, dtype=torch.int64)
-        position_ids = torch.arange(len(input_ids), dtype=torch.int64)
-        if torch.any(torch.eq(input_ids, self.image_start_token_id)):
-            boi_pos = torch.where(torch.eq(input_ids, self.image_start_token_id))[0][0]
-            image_grid_thw_shm_name = input_ids[boi_pos + 3]
-            image_grid_thw_shape_value = input_ids[boi_pos + 4]
-            video_grid_thw_shm_name = input_ids[boi_pos + 7]
-            video_grid_thw_shape_value = input_ids[boi_pos + 8]
-            image_grid_thw = get_data_from_shm(
-                image_grid_thw_shm_name, image_grid_thw_shape_value, np.int32) \
-                    if image_grid_thw_shm_name != -1 else None
-            video_grid_thw = get_data_from_shm(
-                video_grid_thw_shm_name, video_grid_thw_shape_value, np.int32) \
-                    if video_grid_thw_shm_name != -1 else None
-            input_tokens = input_ids.clone().numpy()
-            for i in range(_SHM_TOKEN_LEN):
-                input_tokens[boi_pos + i + 1] = self.image_token_id
-            input_type_group = self._get_token_type(input_tokens)
-            position_delta = self._get_position_delta(input_type_group, image_grid_thw, video_grid_thw)
-            position_ids[-1] = position_ids[-1] - position_delta
+        input_tokens = input_ids.numpy()
+        position_ids = self.tokenizer_wrapper.input_builder.generate_position_ids(input_tokens)
+        position_ids = torch.tensor(position_ids, dtype=torch.int64)
         request = MultiModalRequest(
             max_out_length,
             block_size,

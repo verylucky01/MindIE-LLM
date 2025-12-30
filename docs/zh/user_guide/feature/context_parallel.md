@@ -23,9 +23,9 @@ Context Parallel（CP，上下文并行）主要针对Self-attention模块在seq
 
 ## 参数说明
 
-开启CP特性，需要配置的服务化参数如**表1**。
+开启CP特性，需要配置的服务化参数如[表1](#ModelConfig参数)。
 
-**表 1**  补充参数：**ModelDeployConfig中的ModelConfig参数**
+**表 1**  补充参数：**ModelDeployConfig中的ModelConfig参数** <a id="ModelConfig参数"></a>
 
 |配置项|取值类型|取值范围|配置说明|
 |--|--|--|--|
@@ -36,14 +36,14 @@ Context Parallel（CP，上下文并行）主要针对Self-attention模块在seq
 
 1. 打开Server的config.json文件。
 
-    ```
+    ```bash
     cd {MindIE安装目录}/latest/mindie-service/
     vi conf/config.json
     ```
 
-2. 配置服务化参数。在Server的config.json文件添加“cp“字段（以下加粗部分），参数字段解释请参见[参数说明](#参数说明)。config.json文件的详细配置说明，PD分离场景请参考《MindIE Motor开发指南》中的“集群服务部署 \> PD分离服务部署”章节；PD混部场景请参考_《MindIE安装指南》中的“配置MindIE \> 配置Server \> 多机推理”章节_。
+2. 配置服务化参数。在Server的config.json文件添加“cp“字段（以下加粗部分），参数字段解释请参见[参数说明](#参数说明)。服务化参数说明请参见[配置参数说明（服务化）](../user_manual/service_parameter_configuration.md)章节，参数配置示例如下。
 
-    ```
+    ```json
     "ModelDeployConfig" :
     {
         "maxSeqLen" : 2560,

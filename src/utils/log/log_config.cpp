@@ -50,21 +50,6 @@ void LogConfig::InitLogToStdoutFlag(LoggerType loggerType)
         LogUtils::SetMindieLogParamBool(loggerType, logToStdOut_, mindieLogToStdout);
         return;
     }
-    std::string envToStdout;
-    if (loggerType == LoggerType::ATB) {
-        if (const char *env = std::getenv("ATB_LOG_TO_STDOUT")) {
-            envToStdout = env;
-        }
-    } else if (loggerType == LoggerType::MINDIE_LLM) {
-        if (const char *env = std::getenv("MINDIE_LLM_LOG_TO_STDOUT")) {
-            envToStdout = env;
-        }
-    }
-    // Avoid race conditions:
-    if (!envToStdout.empty()) {
-        logToStdOut_ = (envToStdout == "1");
-        return;
-    }
 }
 
 void LogConfig::InitLogToFileFlag(LoggerType loggerType)
@@ -72,21 +57,6 @@ void LogConfig::InitLogToFileFlag(LoggerType loggerType)
     const char *mindieLogToFile = std::getenv("MINDIE_LOG_TO_FILE");
     if (mindieLogToFile != nullptr) {
         LogUtils::SetMindieLogParamBool(loggerType, logToFile_, mindieLogToFile);
-        return;
-    }
-    std::string envToFile;
-    if (loggerType == LoggerType::ATB) {
-        if (const char *env = std::getenv("ATB_LOG_TO_FILE")) {
-            envToFile = env;
-        }
-    } else if (loggerType == LoggerType::MINDIE_LLM) {
-        if (const char *env = std::getenv("MINDIE_LLM_LOG_TO_FILE")) {
-            envToFile = env;
-        }
-    }
-    // Avoid race conditions:
-    if (!envToFile.empty()) {
-        logToFile_ = (envToFile == "1");
         return;
     }
 }
@@ -97,24 +67,6 @@ void LogConfig::InitLogLevel(LoggerType loggerType)
     if (mindieLogLevel != nullptr) {
         LogUtils::SetMindieLogParamLevel(loggerType, logLevel_, mindieLogLevel);
         return;
-    }
-    std::string envLevel;
-    if (loggerType == LoggerType::ATB) {
-        if (const char *env = std::getenv("ATB_LOG_LEVEL")) {
-            envLevel = env;
-        }
-    } else if (loggerType == LoggerType::MINDIE_LLM) {
-        if (const char *env = std::getenv("MINDIE_LLM_LOG_LEVEL")) {
-            envLevel = env;
-        }
-    }
-    if (!envLevel.empty()) {
-        std::transform(envLevel.begin(), envLevel.end(), envLevel.begin(), ::toupper);
-        auto iter = LOG_LEVEL_MAP.find(envLevel);
-        if (iter != LOG_LEVEL_MAP.end()) {
-            logLevel_ = iter->second;
-            return;
-        }
     }
     logLevel_ = DEFAULT_LOG_LEVEL;
 }
@@ -155,35 +107,6 @@ void LogConfig::InitLogRotationParam(LoggerType loggerType)
         LogUtils::SetMindieLogParamString(loggerType, logRotateConfig_, mindieLogRotate);
         LogUtils::UpdateLogFileParam(logRotateConfig_, logFileSize_, logFileCount_);
         return;
-    }
-}
-
-void CheckLogEnv()
-{
-    std::unordered_map<std::string, std::string> deprecatedEnv = {
-        {"OCK_LOG_TO_STDOUT", "MINDIE_LOG_TO_STDOUT"},
-        {"OCK_LOG_LEVEL", "MINDIE_LOG_LEVEL"},
-        {"MINDIE_LLM_PYTHON_LOG_TO_FILE", "MINDIE_LOG_TO_FILE"},
-        {"MINDIE_LLM_PYTHON_LOG_LEVEL", "MINDIE_LOG_LEVEL"},
-        {"MINDIE_LLM_PYTHON_LOG_PATH", "MINDIE_LOG_PATH"},
-        {"MINDIE_LLM_PYTHON_LOG_TO_STDOUT", "MINDIE_LOG_TO_STDOUT"},
-        {"MINDIE_LLM_LOG_TO_FILE", "MINDIE_LOG_TO_FILE"},
-        {"MINDIE_LLM_LOG_LEVEL", "MINDIE_LOG_LEVEL"},
-        {"MINDIE_LLM_LOG_TO_STDOUT", "MINDIE_LOG_TO_STDOUT"},
-        {"ATB_LOG_LEVEL", "MINDIE_LOG_LEVEL"},
-        {"ATB_LOG_TO_FILE", "MINDIE_LOG_TO_FILE"},
-        {"ATB_LOG_TO_STDOUT", "MINDIE_LOG_TO_STDOUT"},
-        {"LOG_LEVEL", "MINDIE_LOG_LEVEL"},
-        {"LOG_TO_FILE", "MINDIE_LOG_TO_FILE"},
-        {"MINDIE_LLM_PYTHON_LOG_MAXNUM", "MINDIE_LOG_ROTATE"},
-        {"MINDIE_LLM_PYTHON_LOG_MAXSIZE", "MINDIE_LOG_ROTATE"}};
-    for (auto it = deprecatedEnv.begin(); it != deprecatedEnv.end(); ++it) {
-        const char *env = std::getenv(it->first.c_str());
-        if (env != nullptr) {
-            std::cout << "The old environment variable " << it->first
-                      << " will be deprecated on 2025/12/31. Please use the new environment variable " << it->second
-                      << " as soon as possible." << std::endl;
-        }
     }
 }
 

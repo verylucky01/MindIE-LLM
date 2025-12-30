@@ -99,7 +99,7 @@
 
     新建一个ranktablefile.json文件，将样例的内容复制粘贴到json文件里，得到RankTableFile接下来需手动将样例中的加粗内容替换为查询到的机器实际ip等配置信息。
 
-    ```
+    ```json
     {
         "server_count":"2", 
         "server_list":
@@ -163,7 +163,7 @@
 
 若需要实现多机推理，在基础单机推理的启动脚本基础上，需要做出以下适配修改，首先应声明以下额外的环境变量，以双机16卡为例：
 
-```
+```bash
 export ATB_LLM_HCCL_ENABLE=1
 export WORLD_SIZE=16
 export RANK_TABLE_FILE="RankTableFile的绝对路径"
@@ -174,7 +174,7 @@ export RANK_TABLE_FILE="RankTableFile的绝对路径"
 
 将torchrun进行进程拉起的部分替换为如下使用python的方式进行拉起：
 
-```
+```bash
 cd ${ATB_SPEED_HOME_PATH}
 RANK_ID_START=0  #主节点该值为0，副节点此值应为（WORLD_SIZE / 2）
 WORLD_SIZE_LOCAL=8

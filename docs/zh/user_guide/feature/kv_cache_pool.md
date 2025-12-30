@@ -15,10 +15,9 @@
 
 ## 参数说明
 
-开启KV Cache池化特性需要配置的补充参数如**表1**所示。
+开启KV Cache池化特性需要配置的补充参数如[表1](#table1)所示。
 
-<a id="table1"></a>
-**表 1**  KV Cache池化特性补充参数：**BackendConfig中的参数**
+**表 1**  KV Cache池化特性补充参数：**BackendConfig中的参数**  <a id="table1"></a>
 
 |配置项|取值类型|取值范围|配置说明|
 |--|--|--|--|
@@ -29,7 +28,7 @@
 
 1. 打开Server的config.json文件。
 
-    ```
+    ```bash
     cd {MindIE安装目录}/latest/mindie-service/
     vi conf/config.json
     ```
@@ -40,7 +39,7 @@
 
     下面以DeepSeek-R1模型, 开启Prefix Cache+KV Cache池化为例：
 
-    ```
+    ```json
     "BackendConfig" : {
             "backendName" : "mindieservice_llm_engine",
             "modelInstanceNumber" : 1,
@@ -96,10 +95,10 @@
             },
     ```
 
-3. 拉起池化后端对应的中心化服务Master Service，具体拉起命令，请参考使用的池化后端对应的Readme文档。
+3. 拉起池化后端对应的中心化服务Master Service，具体安装和拉起命令，请参考[KV Cache池化使用指导](../../../../mindie_llm/text_generator/mempool/README.md)。
 4. 启动服务。
 
-    ```
+    ```bash
     ./bin/mindieservice_daemon
     ```
 

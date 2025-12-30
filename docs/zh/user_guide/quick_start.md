@@ -14,15 +14,15 @@
     npu-smi info
     ```
 
-    **图 1**  回显信息
-    <a id="figure1"></a>
+    **图 1**  回显信息  <a id="figure1"></a>
+    
     ![](../figures/command_output.png "回显信息")
 
-    **表 1** Atlas A2 推理系列产品
-    <a id="table1"></a>
-|产品型号|参考文档|
-|--|--|
-|Atlas 800I A2|《Atlas A2 中心推理和训练硬件 24.1.0 NPU驱动和固件安装指南》中的“物理机安装与卸载”章节|
+    **表 1** Atlas A2 推理系列产品 <a id="table1"></a>
+    
+    |产品型号       |参考文档|
+    |------------|------------|
+    |Atlas 800I A2|《Atlas A2 中心推理和训练硬件 24.1.0 NPU驱动和固件安装指南》中的“物理机安装与卸载”章节|
 
 
 -   执行以下命令查看Docker是否已安装并启动。
@@ -92,13 +92,13 @@
 
     **表 1**  参数说明
 
-|参数|参数说明|
-|--|--|
-|--name|设置容器名称。|
-|--device|表示映射的设备，可以挂载一个或者多个设备。需要挂载的设备如下：/dev/davinci*X*：NPU设备，X是ID号，如：davinci0。/dev/davinci_manager：davinci相关的管理设备。/dev/hisi_hdc：hdc相关管理设备。/dev/devmm_svm：内存管理相关设备。可根据以下命令查询device个数及名称方式，根据需要绑定设备，修改上面命令中的"--device=****"。ll /dev/ | grep davinci|
-|-v /usr/local/Ascend/driver:/usr/local/Ascend/driver:ro|将宿主机目录“/usr/local/Ascend/driver”挂载到容器，请根据驱动所在实际路径修改。|
-|-v /usr/local/sbin:/usr/local/sbin:ro|将宿主机工具“/usr/local/sbin/”以只读模式挂载到容器中，请根据实际情况修改。|
-|-v /path-to-weights:/path-to-weights:ro|设定权重挂载的路径，需要根据用户的情况修改。请将权重文件和数据集文件同时放置于该路径下。|
+    |参数|参数说明|
+    |--|--|
+    |--name|设置容器名称。|
+    |--device|表示映射的设备，可以挂载一个或者多个设备。需要挂载的设备如下：/dev/davinci*X*：NPU设备，X是ID号，如：davinci0。/dev/davinci_manager：davinci相关的管理设备。/dev/hisi_hdc：hdc相关管理设备。/dev/devmm_svm：内存管理相关设备。可根据以下命令查询device个数及名称方式，根据需要绑定设备，修改上面命令中的"--device=****"。ll /dev/ | grep davinci|
+    |-v /usr/local/Ascend/driver:/usr/local/Ascend/driver:ro|将宿主机目录“/usr/local/Ascend/driver”挂载到容器，请根据驱动所在实际路径修改。|
+    |-v /usr/local/sbin:/usr/local/sbin:ro|将宿主机工具“/usr/local/sbin/”以只读模式挂载到容器中，请根据实际情况修改。|
+    |-v /path-to-weights:/path-to-weights:ro|设定权重挂载的路径，需要根据用户的情况修改。请将权重文件和数据集文件同时放置于该路径下。|
 
 
 2. 执行以下命令进入容器。
@@ -114,13 +114,13 @@
 
 1. 若安装路径为默认路径，执行如下命令，进入MindIE安装目录。
 
-    ```
+    ```bash
     cd /usr/local/Ascend/mindie/latest
     ```
 
 2. 确认目录文件权限是否如下所示，若存在不匹配项，则参考以下命令修改权限。
 
-    ```
+    ```bash
     chmod 750 mindie-service
     chmod -R 550 mindie-service/bin
     chmod 550 mindie-service/lib
@@ -158,16 +158,16 @@
     ```
 
 4. 配置服务化参数。
-    1. 进入conf目录，打开“config.json“文件。
+    a. 进入conf目录，打开“config.json“文件。
 
         ```
         cd mindie-service/conf
         vim config.json
         ```
 
-    2. 按“i”进入编辑模式，根据实际情况修改“config.json“中的配置参数。（以下已Qwen2-7B为例，需要修改的配置参数已加粗）
+    b. 按“i”进入编辑模式，根据实际情况修改“config.json“中的配置参数。（以下已Qwen2-7B为例，需要修改的配置参数已加粗）
 
-        ```
+        ```json
         {
             "ServerConfig" : 
              {
@@ -189,31 +189,33 @@
                 },
                 }
         }
+
         ```
 
-        如上的参数说明如下，更多“config.json“的参数说明请参考《MindIE LLM开发指南》中的“核心概念与配置 \> 配置参数说明（服务化）”章节。
+    如上的参数说明如下，更多“config.json“的参数说明请参考[配置参数说明（服务化）](../user_guide/user_manual/service_parameter_configuration.md)。
 
-|配置项|取值类型|取值范围|配置说明|
-|--|--|--|--|
-|httpsEnabled|bool|true（开启）false（关闭）|是否开启HTTPS通信安全认证。true：开启HTTPS通信。false：关闭HTTPS通信。如果网络环境不安全，不开启HTTPS通信，即“httpsEnabled”=“false”时，会存在较高的网络安全风险。|
-|npuDeviceIds|std::vector<std::set<size_t>>|根据模型和环境的实际情况来决定。|表示启用哪几张卡。对于每个模型实例分配的npuIds，使用芯片逻辑ID表示。在未配置ASCEND_RT_VISIBLE_DEVICES环境变量时，每张卡对应的逻辑ID可使用"npu-smi info -m"指令进行查询。若配置ASCEND_RT_VISIBLE_DEVICES环境变量时，可见芯片的逻辑ID按照ASCEND_RT_VISIBLE_DEVICES中配置的顺序从0开始计数。例如：ASCEND_RT_VISIBLE_DEVICES=1,2,3,4则以上可见芯片的逻辑ID按顺序依次为0,1,2,3。多机推理场景下该值无效，每个节点上使用的npuDeviceIds根据ranktable计算获得。必填，默认值：[[0,1,2,3]]。|
-|modelName|string|由大写字母、小写字母、数字、中划线、点和下划线组成，且不以中划线、点和下划线作为开头和结尾，字符串长度小于或等于256。|模型名称。必填，默认值："llama_65b"。|
-|modelWeightPath|std::string|文件绝对路径长度的上限与操作系统的设置（Linux为PATH_MAX）有关，最小值为1。|模型权重路径。程序会读取该路径下的config.json中torch_dtype和vocab_size字段的值，需保证路径和相关字段存在。必填，默认值："/data/atb_testdata/weights/llama1-65b-safetensors"。该路径会进行安全校验，需要和执行用户的属组和权限保持一致。|
-|worldSize|uint32_t|根据模型实际情况来决定。每一套模型参数中worldSize必须与使用的NPU数量相等。|启用几张卡推理。必填，默认值：4。|
-|trustRemoteCode|bool|truefalse|是否信任远程代码。false：不信任远程代码。true：信任远程代码。选填，默认值：false。如果设置为true，会存在信任远程代码行为，可能会导致恶意代码注入风险，请自行保障代码注入安全风险。|
+    |配置项|取值类型|取值范围|配置说明|
+    |--|--|--|--|
+    |httpsEnabled|bool|true（开启）false（关闭）|是否开启HTTPS通信安全认证。true：开启HTTPS通信。false：关闭HTTPS通信。如果网络环境不安全，不开启HTTPS通信，即“httpsEnabled”=“false”时，会存在较高的网络安全风险。|
+    |npuDeviceIds|std::vector<std::set<size_t>>|根据模型和环境的实际情况来决定。|表示启用哪几张卡。对于每个模型实例分配的npuIds，使用芯片逻辑ID表示。在未配置ASCEND_RT_VISIBLE_DEVICES环境变量时，每张卡对应的逻辑ID可使用"npu-smi info -m"指令进行查询。若配置ASCEND_RT_VISIBLE_DEVICES环境变量时，可见芯片的逻辑ID按照ASCEND_RT_VISIBLE_DEVICES中配置的顺序从0开始计数。例如：ASCEND_RT_VISIBLE_DEVICES=1,2,3,4则以上可见芯片的逻辑ID按顺序依次为0,1,2,3。多机推理场景下该值无效，每个节点上使用的npuDeviceIds根据ranktable计算获得。必填，默认值：[[0,1,2,3]]。|
+    |modelName|string|由大写字母、小写字母、数字、中划线、点和下划线组成，且不以中划线、点和下划线作为开头和结尾，字符串长度小于或等于256。|模型名称。必填，默认值："llama_65b"。|
+    |modelWeightPath|std::string|文件绝对路径长度的上限与操作系统的设置（Linux为PATH_MAX）有关，最小值为1。|模型权重路径。程序会读取该路径下的config.json中torch_dtype和vocab_size字段的值，需保证路径和相关字段存在。必填，默认值："/data/atb_testdata/weights/llama1-65b-safetensors"。该路径会进行安全校验，需要和执行用户的属组和权限保持一致。|
+    |worldSize|uint32_t|根据模型实际情况来决定。每一套模型参数中worldSize必须与使用的NPU数量相等。|启用几张卡推理。必填，默认值：4。|
+    |trustRemoteCode|bool|truefalse|是否信任远程代码。false：不信任远程代码。true：信任远程代码。选填，默认值：false。如果设置为true，会存在信任远程代码行为，可能会导致恶意代码注入风险，请自行保障代码注入安全风险。|
 
 
-    3.  按“Esc”键，输入**:wq!**，按“Enter”保存并退出编辑。
+    c. 按“Esc”，输入`:wq!`，按“Enter”保存并退出编辑。
+
 
 5.  启动服务。
 
-    1.  执行如下命令，进入安装目录。
+    a.  执行如下命令，进入安装目录。
 
         ```
         cd /usr/local/Ascend/mindie/latest/mindie-service
         ```
 
-    2.  两种启动服务方法如下所示。
+    b.  两种启动服务方法如下所示。
         -   方式一（推荐）：使用后台进程方式启动服务。后台进程方式启动服务后，关闭窗口时进程也会保留。
 
             ```
@@ -246,7 +248,7 @@
 
 6.  发送请求。
 
-    服务化API接口请参考《MindIE Motor开发指南》中的“服务化接口”章节。
+    服务化API接口请参考《MindIE Motor开发指南》中的[服务化接口](https://gitcode.com/Ascend/MindIE-Motor/blob/master/docs/zh/User_Guide/SERVICE_ORIENTED_INTERFACE/optical_user_to_network_interface.md)章节。
 
     用户可使用HTTPS客户端（Linux curl命令，Postman工具等）发送HTTPS请求，此处以Linux curl命令为例进行说明。
 
