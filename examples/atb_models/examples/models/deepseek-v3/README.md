@@ -265,7 +265,7 @@ docker exec -it {容器名称} bash
 
 #### 设置基础环境变量
 ```
-source /usr/local/Ascend/ascend-toolkit/set_env.sh
+source /usr/local/Ascend/cann/set_env.sh
 source /usr/local/Ascend/nnal/atb/set_env.sh
 source /usr/local/Ascend/atb-models/set_env.sh
 source /usr/local/Ascend/mindie/set_env.sh

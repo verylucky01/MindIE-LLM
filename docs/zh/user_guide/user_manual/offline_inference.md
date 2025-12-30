@@ -39,7 +39,7 @@
 
     ```bash
     # 配置CANN环境，默认安装在/usr/local目录下
-    source /usr/local/Ascend/ascend-toolkit/set_env.sh
+    source /usr/local/Ascend/cann/set_env.sh
     # 配置加速库环境
     source /usr/local/Ascend/nnal/atb/set_env.sh
     # 配置模型仓环境变量
@@ -191,7 +191,7 @@
 
     ```bash
     # 配置CANN环境，默认安装在/usr/local目录下
-    source /usr/local/Ascend/ascend-toolkit/set_env.sh
+    source /usr/local/Ascend/cann/set_env.sh
     # 配置加速库环境
     source /usr/local/Ascend/nnal/atb/set_env.sh
     # 配置模型仓环境变量
@@ -284,7 +284,7 @@ model_config.save_pretrained(save_directory="./json/qwen2_5_72b/", save_json=Tru
 
     ```
     # Ascend
-    source /usr/local/Ascend/ascend-toolkit/set_env.sh
+    source /usr/local/Ascend/cann/set_env.sh
     # MindIE
     source /usr/local/Ascend/mindie/latest/mindie-llm/set_env.sh
     source /usr/local/Ascend/mindie/latest/mindie-service/set_env.sh

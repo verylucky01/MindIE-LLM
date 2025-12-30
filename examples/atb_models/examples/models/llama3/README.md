@@ -64,7 +64,7 @@
   - 执行量化脚本
     ```shell
     # 设置CANN包的环境变量
-    source /usr/local/Ascend/ascend-toolkit/set_env.sh
+    source /usr/local/Ascend/cann/set_env.sh
     # 设置卡数
     export ASCEND_RT_VISIBLE_DEVICES=[卡数]
     # 关闭虚拟内存
@@ -83,7 +83,7 @@
   - 相比于W8A8量化，需额外设置`use_kvcache_quant`参数为True
     ```shell
     # 设置CANN包的环境变量
-    source /usr/local/Ascend/ascend-toolkit/set_env.sh
+    source /usr/local/Ascend/cann/set_env.sh
     cd ${llm_path}
     # 执行kvcache int8量化，注意除了`use_kvcache_quant`参数，其余参数设置以具体模型为准
     bash examples/models/llama3/generate_quant_weight.sh -src {浮点权重路径} -dst {W8A8量化权重路径} -type llama3.1_70b_instruct_bf16_w8a8 -use_kvcache_quant True
@@ -96,7 +96,7 @@
   - 相比于W8A8量化，需额外设置`use_fa_quant`参数为True, 需增加参数`-trust_remote_code`
     ```shell
     # 设置CANN包的环境变量
-    source /usr/local/Ascend/ascend-toolkit/set_env.sh
+    source /usr/local/Ascend/cann/set_env.sh
     cd ${llm_path}
     # 执行Attention量化，注意除了`use_fa_quant`参数，其余参数设置以具体模型为准
     bash examples/models/llama3/generate_quant_weight.sh -src {浮点权重路径} -dst {W8A8量化权重路径} -type llama3.1_70b_instruct_bf16_w8a8 -use_fa_quant True -trust_remote_code
@@ -107,7 +107,7 @@
   - 当前仅LLaMa3-70B支持W8A16量化
     ```shell
     # 设置CANN包的环境变量
-    source /usr/local/Ascend/ascend-toolkit/set_env.sh
+    source /usr/local/Ascend/cann/set_env.sh
     cd ${llm_path}
     bash examples/models/llama3/generate_quant_weight.sh -src {浮点权重路径} -dst {W8A16量化权重路径} -type llama3_70b_w8a16
     ```
@@ -118,7 +118,7 @@
   - 该量化权重需要使用多卡npu生成
     ```shell
     # 设置CANN包的环境变量
-    source /usr/local/Ascend/ascend-toolkit/set_env.sh
+    source /usr/local/Ascend/cann/set_env.sh
     # 设置卡数
     export ASCEND_RT_VISIBLE_DEVICES=0,1,2,3 
     # 关闭虚拟内存
@@ -133,7 +133,7 @@
   - 当前仅LLaMa3.1-70B支持W8A8C8 pdmix量化，`trust_remote_code`为可选参数代表是否信任本地的可执行文件，传入该参数代表信任本地可执行文件
     ```shell
     # 设置CANN包的环境变量
-    source /usr/local/Ascend/ascend-toolkit/set_env.sh
+    source /usr/local/Ascend/cann/set_env.sh
     cd ${llm_path}
     python examples/models/llama3/convert_quant_weights_pdmix.py --model_path {浮点权重路径} --save_path {量化权重路径}  --auto_layer --trust_remote_code
     ```

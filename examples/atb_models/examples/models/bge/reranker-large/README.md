@@ -120,7 +120,7 @@ git checkout master
 
 1. 【共通】安装 `atb_llm` 和 `atb_speed`
 
-    说明：需要source `ascend-toolkit` 及 `nnal` 环境变量
+    说明：需要source `cann` 及 `nnal` 环境变量
 
     如果尝试导入 `atb_llm` 时出现 `ImportError`，则需要参考[【加速版本】编译模型仓](#加速版本编译模型仓)编译模型仓
 

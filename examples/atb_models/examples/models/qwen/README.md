@@ -92,7 +92,7 @@ Paged Attention 场景需要.safetensors格式的权重，如果没有，参考[
 注：huggingface官网给出的QWen模型权重为.safetensors格式
 
 ## 量化
-量化权重可通过msmodelslim（昇腾压缩加速工具）实现。
+量化权重可通过msmodelslim（昇腾模型压缩工具）实现。
 
 ### 环境准备
 环境配置可参考[此README文件](../../../README.md)
@@ -101,7 +101,7 @@ Paged Attention 场景需要.safetensors格式的权重，如果没有，参考[
 
 ```shell
 # 设置CANN包的环境变量
-source /usr/local/Ascend/ascend-toolkit/set_env.sh
+source /usr/local/Ascend/cann/set_env.sh
 ```
 
 需要安装 CANN（已包含msmodelslim工具） 以及 pytorch 和 pytorch-npu
@@ -147,7 +147,7 @@ pip install transformers_stream_generator==0.0.4
     # 执行"jq --version"查看是否安装jq，若返回"bash：jq：command not found"，则依次执行"apt-get update"和"apt install jq"
     jq --version
     # 设置CANN包的环境变量
-    source /usr/local/Ascend/ascend-toolkit/set_env.sh
+    source /usr/local/Ascend/cann/set_env.sh
     cd ${llm_path}
     # 指定当前机器上可用的逻辑NPU核心 通过修改convert_quant_weight.sh文件中export ASCEND_RT_VISIBLE_DEVICES值 指定使用卡号及数量 
     # 7b系列使用单卡 14b 32b使用4卡 eg: ASCEND_RT_VISIBLE_DEVICES=4,5,6,7
@@ -293,7 +293,7 @@ bash examples/models/qwen/convert_quant_weight.sh -src ${浮点权重路径} -ds
     # 执行"jq --version"查看是否安装jq，若返回"bash：jq：command not found"，则依次执行"apt-get update"和"apt install jq"
     jq --version
     # 设置CANN包的环境变量
-    source /usr/local/Ascend/ascend-toolkit/set_env.sh
+    source /usr/local/Ascend/cann/set_env.sh
     cd ${llm_path}
     # Qwen2.5-Coder-7B加载到cpu上生成量化权重 注释掉convert_quant_weight.sh里export ASCEND_RT_VISIBLE_DEVICES这一行
     vi examples/models/qwen/convert_quant_weight.sh

@@ -58,7 +58,7 @@ uname -m && cat /etc/*release
   ```sh
   ./Ascend-cann-toolkit_<version>_linux-aarch64.run --install --install-path=${HOME}
   ./Atlas-A3-cann-kernels_<version>_linux-aarch64.run --install --install-path=${HOME}
-  source ${HOME}/Ascend/ascend-toolkit/set_env.sh
+  source ${HOME}/Ascend/cann/set_env.sh
   ```
 
 <sup>*3</sup>: **Pytorch** 安装请参见[ 安装Pytorch](https://gitcode.com/Ascend/pytorch/releases)。

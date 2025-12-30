@@ -170,7 +170,7 @@ max_input_length长度设置可参考模型权重路径下config.json里的max_p
   - 数据集下载 [vocalsound](https://huggingface.co/datasets/maoxx241/audio_vocalsound_16k_subset)  
 - 设置环境变量
   ```shell
-  source /usr/local/Ascend/ascend-toolkit/set_env.sh
+  source /usr/local/Ascend/cann/set_env.sh
   source /usr/local/Ascend/nnal/atb/set_env.sh 
   source ${llm_path}/set_env.sh 
   ```

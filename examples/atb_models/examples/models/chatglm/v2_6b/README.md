@@ -33,10 +33,10 @@ ChatGLM2-6B模型需使用[默认依赖](../../../../requirements/requirements.t
 - 参考[此README文件](../../../README.md)
 
 ## 量化权重导出
-量化权重可通过msmodelslim（昇腾压缩加速工具）实现。
+量化权重可通过msmodelslim（昇腾模型压缩工具）实现。
 
 ### 环境准备
-环境配置可参考msmodelslim官网：https://www.hiascend.com/document/detail/zh/canncommercial/70RC1/devtools/auxiliarydevtool/modelslim_0002.html
+环境配置可参考msmodelslim官网：https://gitcode.com/Ascend/msit/blob/master/msmodelslim/README.md
 
 ### 导出w8a8量化权重
 通过`${llm_path}/examples/models/chatglm/v2_6b/quant_chatglm_w8a8.sh`文件导出模型的量化权重（注意量化权重不要和浮点权重放在同一个目录下）：
@@ -60,15 +60,11 @@ bash quant_chatglm_w8a8.sh -src ${浮点权重路径} -dst ${量化权重保存�
 
 ### 导出稀疏量化权重
 > 运行前需要确保压缩工具编译过
->
-> `cd /usr/local/Ascend/ascend-toolkit/latest/python/site-packages/msmodelslim/pytorch/weight_compression/compress_graph`
->
-> `bash build.sh /usr/local/Ascend/ascend-toolkit/latest`
+请参考[msmodelslim](https://gitcode.com/Ascend/msit/blob/master/msmodelslim/docs/%E5%AE%89%E8%A3%85%E6%8C%87%E5%8D%97.md)安装msModelSlim量化工具
 
 执行generate_sparse.sh导出稀疏量化权重（注意量化权重不要和浮点权重放在同一个目录下）：
 ```shell
-# 设置CANN包的环境变量
-source /usr/local/Ascend/ascend-toolkit/set_env.sh
+cd examples/atb_models/examples/models/chatglm/v2_6b/
 # 导出稀疏量化权重
 bash generate_sparse.sh ${浮点权重路径} ${稀疏量化权重保存路径} ${llm_path}/examples/models/chatglm/v2_6b/calib_data.jsonl ${Tensor并行数} -trust_remote_code
 ```

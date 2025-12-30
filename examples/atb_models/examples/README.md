@@ -175,11 +175,8 @@
 ### 稀疏量化权重多卡切分及压缩脚本
 - 脚本：`${llm_path}/examples/convert/model_slim/sparse_compressor.py`
 - 功能：加载权重并进行多卡切分，在切分后的权重上执行压缩算法
-- 运行前需要确保压缩工具编译过，{$msModelSlim安装路径}为msModelSlim所在的python-package路径，例如`/usr/local/pyython3.10.2/lib/python3.10/site-packages/msmodelslim`
-  ```shell
-  cd {$msModelSlim安装路径}/pytorch/weight_compression/compress_graph
-  bash build.sh /usr/local/Ascend/ascend-toolkit/latest
-  ```
+- 运行前请参考[msmodelslim](https://gitcode.com/Ascend/msit/blob/master/msmodelslim/docs/%E5%AE%89%E8%A3%85%E6%8C%87%E5%8D%97.md)安装msModelSlim量化工具
+
 - 调用方法
   ```shell
   torchrun --nproc_per_node {TP数} -m examples.convert.model_slim.sparse_compressor --model_path ${w8a8s_weight_path} --save_directory ${w8a8sc_weight_path}

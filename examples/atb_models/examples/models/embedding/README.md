@@ -66,7 +66,7 @@
 - 参考[atb_models的README文件](../../../README.md)配置好推理环境
 - 设置环境变量
     ```shell
-    source /usr/local/Ascend/ascend-toolkit/set_env.sh
+    source /usr/local/Ascend/cann/set_env.sh
     ```
 - 安装相关Python库
     ```shell
