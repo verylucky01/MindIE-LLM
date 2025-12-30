@@ -33,4 +33,3 @@ PR描述模板更新日期：20251225
 - [ ] 若涉及多线程场景，考虑了并发场景，不存在死锁问题
 - [ ] 按照[代码仓中提供的格式模板](https://gitcode.com/Ascend/MindIE-LLM/blob/master/.clang-format)，使用clang-format工具格式化代码
 - [ ] 符合Ascend社区的编码规范。[C++ 语言编程指导](https://gitcode.com/Ascend/community/blob/master/docs/contributor/Ascend-cpp-coding-style-guide.md) | [C++ 语言安全编程指导](https://gitcode.com/Ascend/community/blob/master/docs/contributor/Ascend-cpp-secure-coding-guide.md)
-
