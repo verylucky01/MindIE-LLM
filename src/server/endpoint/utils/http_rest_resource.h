@@ -58,6 +58,7 @@ public:
     const std::string &MsgBody() const noexcept;
     const httplib::Request &Req() const noexcept;
     httplib::Response &Res() noexcept;
+    bool IsConnectionClosed() const noexcept;
     std::string ToString() const
     {
         std::ostringstream oss;
@@ -86,6 +87,7 @@ private:
     httplib::Response &res_;
 
     std::function<void()> disconnectHandler_;
+    std::function<bool()> isConnectionClosed_ = []() { return true; };
     mutable std::mutex streamMutex;
 };
 

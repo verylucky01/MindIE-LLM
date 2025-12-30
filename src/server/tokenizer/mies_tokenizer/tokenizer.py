@@ -113,11 +113,10 @@ class IbisTokenizer:
         try:
             prompt_obj = json.loads(prompt)
         except ValueError as value_error:
-            logger.info(f"Abnormal non-multimodal inputs value: {value_error}")
+            # the prompt is not multimodal format.
             return False
         except Exception as e:
             # adapt to the old input format.
-            logger.info(f"Non-multimodal inputs. {e}")
             return False
         if isinstance(prompt_obj, list):
             for single_msg in prompt_obj:

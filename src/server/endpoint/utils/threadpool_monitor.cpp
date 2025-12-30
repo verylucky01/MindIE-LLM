@@ -90,8 +90,7 @@ void ThreadPoolMonitor::CheckAndRemoveClosedConnections()
         }
         bool connection_closed = false;
         try {
-            connection_closed =
-                reqContext->Req().is_connection_closed == nullptr || reqContext->Req().is_connection_closed();
+            connection_closed = reqContext->IsConnectionClosed();
         } catch (const std::exception &e) {
             // 捕获所有 std::exception 派生的异常，包括 std::bad_function_call
             ULOG_ERROR(SUBMODLE_NAME_ENDPOINT,
