@@ -128,6 +128,7 @@ class PluginManagerLwd(PluginManager):
             if input_metadata.is_prefill else self.prefill_total_seq_len
         cloud_cut_instance = self.model_wrapper.model_runner.time_counter
         if ENV.framework_backend == BackendType.ATB:
+            self.model_wrapper.model_runner.clear_internal_tensors()
             if (self.plugin_list and "mtp" not in self.plugin_list) or self.is_mix_model:
                 result = self.generator_backend.forward(model_inputs, q_lens=self.plugin_data_param.q_len,
                                                         attn_mask=self.plugin_data_param.mask)  # q_len spec_mask
@@ -153,9 +154,14 @@ class PluginManagerLwd(PluginManager):
         span_end(prof, True)
 
         prof = span_start("sample")
-        draft_filtered_logits = self.sample_preprocess_manager(logits, result, sampling_metadata, input_metadata)
-        sampling_output = self.generator_backend.sample(draft_filtered_logits, sampling_metadata)
-        span_end(prof)
+        if self.role_type == RoleType.EDGE:
+            draft_filtered_logits = self.sample_preprocess_manager(logits, result, sampling_metadata, input_metadata)
+            sampling_output = self.generator_backend.sample(draft_filtered_logits, sampling_metadata)
+        else:
+            sampling_output = self.lwd_sampling_output(input_metadata)
+            
+        if ENV.framework_backend == BackendType.ATB:
+            self.model_wrapper.model_runner.clear_internal_tensors()
 
         prof = span_start("postprocess")
         self.put_prefix_kvcache_to_mempool(input_metadata, cache_ids)

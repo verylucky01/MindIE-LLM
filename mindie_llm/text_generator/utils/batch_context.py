@@ -307,6 +307,8 @@ class NdarrayContext:
         return self.pool.pop()
 
     def _free_slot(self, slot_idx: int) -> None:
+        if self.context_params.layerwise_disaggregated and slot_idx == 0:
+            return
         self.pool.append(slot_idx)
 
     def _grow_capacity(self):
