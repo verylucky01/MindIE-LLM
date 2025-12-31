@@ -2,12 +2,6 @@ cmake_minimum_required(VERSION 3.19.0)
 project("MindIE-LLM")
 set(CMAKE_CXX_STANDARD 17)
 
-if(USE_CXX11_ABI)
-    add_definitions(-U_GLIBCXX_USE_CXX11_ABI -D_GLIBCXX_USE_CXX11_ABI=1)
-else()
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_GLIBCXX_USE_CXX11_ABI=0")
-endif()
-
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_BINARY_DIR)
     message(FATAL_ERROR "In-source build is forbidden!\n"
         "Please delete created:['CMakeFiles', 'CMakeCache.txt'] and create a new dir for build, such as: \n"
@@ -16,72 +10,46 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_BINARY_DIR)
     )
 endif()
 
+include(${PROJECT_SOURCE_DIR}/cmake/utils.cmake)
 include(${PROJECT_SOURCE_DIR}/cmake/default_config.cmake)
 include(${PROJECT_SOURCE_DIR}/cmake/compile_options.cmake)
-include(${PROJECT_SOURCE_DIR}/cmake/build_open_source.cmake)
 
-if(ONLY_BUILD_OPENSOURCE)
-    return()
-endif()
+ensure_aslr_level(2)
 
-execute_process(
-    COMMAND sudo sh -c "echo 2 > /proc/sys/kernel/randomize_va_space"
-    RESULT_VARIABLE result
-)
-if(NOT result EQUAL 0)
-    message(WARNING "Failed to set ASLR level.")
-endif()
+set(prometheus-cpp_DIR         "${THIRD_PARTY_OUTPUT_DIR}/prometheus-cpp/lib/cmake/prometheus-cpp")
+set(Boost_DIR                  "${THIRD_PARTY_OUTPUT_DIR}/boost/lib/cmake/Boost-1.87.0")
+set(OPENSSL_ROOT_DIR           "${THIRD_PARTY_OUTPUT_DIR}/openssl")
+set(gRPC_DIR                   "${THIRD_PARTY_OUTPUT_DIR}/grpc/lib/cmake/grpc")
+set(absl_DIR                   "${THIRD_PARTY_OUTPUT_DIR}/abseil-cpp/lib/cmake/absl")
+set(ZLIB_ROOT                  "${THIRD_PARTY_OUTPUT_DIR}/zlib")
+set(c-ares_DIR                 "${THIRD_PARTY_OUTPUT_DIR}/cares/lib/cmake/c-ares")
+set(utf8_range_DIR             "${THIRD_PARTY_OUTPUT_DIR}/protobuf/lib/cmake/utf8_range")
+set(Protobuf_DIR               "${THIRD_PARTY_OUTPUT_DIR}/protobuf/lib/cmake/protobuf")
+set(re2_DIR                    "${THIRD_PARTY_OUTPUT_DIR}/re2/lib/cmake/re2")
 
-if(USE_FUZZ_TEST)
-    add_definitions(-DFUZZ_TEST)
-endif()
-
-file(GLOB PROTOBUF_SO_FILES "${THIRD_PARTY_OUTPUT_DIR}/grpc/lib/*.so")
-set(Protobuf_INCLUDE_DIRS "${THIRD_PARTY_OUTPUT_DIR}/grpc/include")
-set(PROTOBUF_PROTOC_EXECUTABLE "${THIRD_PARTY_OUTPUT_DIR}/grpc/bin/protoc")
-set(GRPC_CPP_PLUGIN "${THIRD_PARTY_OUTPUT_DIR}/grpc/bin/grpc_cpp_plugin")
-
-execute_process(
-    COMMAND python3 -c "import torch, os; print(os.path.dirname(os.path.abspath(torch.__file__)))"
-    OUTPUT_VARIABLE PYTORCH_INSTALL_PATH
-    ERROR_VARIABLE PYTHON_ERROR
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-)
-set(PYTORCH_EXTRA_LIB_SO "${PYTORCH_INSTALL_PATH}/../torch.libs")
-string(FIND "${PYTHON_ERROR}" "ModuleNotFoundError: No module named 'torch'" TORCH_ERROR)
-if(NOT TORCH_ERROR EQUAL -1)
-    message(WARNING "未找到Python torch, 可以使用[pip3 install torch==2.1.0 --index-url https://download.pytorch.org/whl/cpu]下载x86_64版本的abi=0的torch")
-    return()
-    # download_build_torch()
-endif()
-
-set(OPENSSL_ROOT_DIR ${THIRD_PARTY_OUTPUT_DIR}/openssl)
-set(gRPC_DIR ${THIRD_PARTY_OUTPUT_DIR}/grpc/lib/cmake/grpc)
-set(utf8_range_DIR ${THIRD_PARTY_OUTPUT_DIR}/grpc/lib/cmake/utf8_range)
-set(Protobuf_DIR ${THIRD_PARTY_OUTPUT_DIR}/grpc/lib/cmake/protobuf)
-set(absl_DIR  ${THIRD_PARTY_OUTPUT_DIR}/grpc/lib/cmake/absl)
-set(prometheus-cpp_DIR ${THIRD_PARTY_OUTPUT_DIR}/prometheus-cpp/lib/cmake/prometheus-cpp)
-set(Boost_DIR "${THIRD_PARTY_OUTPUT_DIR}/boost/lib/cmake/Boost-1.87.0")
-
+find_package(ZLIB REQUIRED)
 find_package(prometheus-cpp REQUIRED)
 find_package(Boost REQUIRED COMPONENTS thread chrono)
+find_package(absl REQUIRED CONFIG)
+find_package(re2 REQUIRED CONFIG)
 find_package(OpenSSL REQUIRED)
-find_package(Threads REQUIRED)
 find_package(Protobuf REQUIRED CONFIG) # protobuf和libtorch有先后关系
-find_package(gRPC CONFIG REQUIRED)
+find_package(gRPC REQUIRED CONFIG)
 
+find_pytorch(PYTORCH_INSTALL_PATH)
+set(PYTORCH_EXTRA_LIB_SO "${PYTORCH_INSTALL_PATH}/../torch.libs")
 find_package(Torch REQUIRED PATHS "${PYTORCH_INSTALL_PATH}/share/cmake/Torch")
 
-message(STATUS "TORCH_INCLUDE_DIRS: ${TORCH_INCLUDE_DIRS}")
 execute_process(
     COMMAND bash -c "python3 -m pybind11 --cmakedir"
-    OUTPUT_VARIABLE command_output
+    OUTPUT_VARIABLE pybind11_cmake_dir
     OUTPUT_STRIP_TRAILING_WHITESPACE
 )
-set(pybind11_DIR "${command_output}")
+set(pybind11_DIR "${pybind11_cmake_dir}")
 
 find_package(Python COMPONENTS Interpreter Development)
 find_package(pybind11 CONFIG)
+find_package(Threads REQUIRED)
 
 # 项目自身的头文件目录（不使用SYSTEM标记，保持警告）
 include_directories(
@@ -117,14 +85,19 @@ include_directories(
 
 # 第三方库头文件使用SYSTEM标记来抑制警告
 include_directories(SYSTEM
-    ${THIRD_PARTY_OUTPUT_DIR}/nlohmann/include
+    ${THIRD_PARTY_OUTPUT_DIR}/abseil-cpp/include
     ${THIRD_PARTY_OUTPUT_DIR}/boost/include
-    ${THIRD_PARTY_OUTPUT_DIR}/nlohmannJson/include
-    ${THIRD_PARTY_OUTPUT_DIR}/spdlog/include
-    ${THIRD_PARTY_OUTPUT_DIR}/googletest/include
+    ${THIRD_PARTY_OUTPUT_DIR}/cares/include
+    ${THIRD_PARTY_OUTPUT_DIR}/gloo
+    ${THIRD_PARTY_OUTPUT_DIR}/grpc/include
+    ${THIRD_PARTY_OUTPUT_DIR}/gtest/include
+    ${THIRD_PARTY_OUTPUT_DIR}/http
     ${THIRD_PARTY_OUTPUT_DIR}/libboundscheck/include
-    ${THIRD_PARTY_OUTPUT_DIR}/http/include
-    ${Protobuf_INCLUDE_DIRS}
+    ${THIRD_PARTY_OUTPUT_DIR}/mockcpp/include
+    ${THIRD_PARTY_OUTPUT_DIR}/nlohmannJson/include
+    ${THIRD_PARTY_OUTPUT_DIR}/protobuf/include
+    ${THIRD_PARTY_OUTPUT_DIR}/re2/include
+    ${THIRD_PARTY_OUTPUT_DIR}/spdlog/include
     ${pybind11_INCLUDE_DIRS}
     ${TORCH_INCLUDE_DIRS}
     ${Python_INCLUDE_DIRS}
@@ -133,12 +106,12 @@ include_directories(SYSTEM
     $ENV{ASCEND_HOME_PATH}/lib64
     $ENV{ASCEND_HOME_PATH}/runtime/include
     ${PROJECT_SOURCE_DIR}/src/include/msServiceProfiler/include
-    ${PROJECT_SOURCE_DIR}/third_party/output/gloo
 )
 
 link_directories(
     $ENV{ASCEND_HOME_PATH}/lib64
-    ${THIRD_PARTY_OUTPUT_DIR}/libboundscheck/lib)
+    ${THIRD_PARTY_OUTPUT_DIR}/libboundscheck/lib
+)
 
 add_subdirectory(proto)
 add_subdirectory(src)
@@ -152,10 +125,3 @@ endif()
 if(USE_PYTHONTEST_TEST OR USE_FUZZ_TEST OR DOMAIN_LAYERED_TEST)
     add_subdirectory(tests)
 endif()
-
-add_custom_target(
-    custom_clean
-    COMMENT "Begin to clean up the cache file" # 提示信息
-    COMMAND ${CMAKE_COMMAND} -E remove_directory ${CMAKE_BINARY_DIR} # 删除目录
-    COMMAND ${CMAKE_MAKE_PROGRAM} clean
-)

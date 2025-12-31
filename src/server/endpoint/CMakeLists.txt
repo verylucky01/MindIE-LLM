@@ -51,7 +51,6 @@ add_compile_options(-fPIC)
 
 include_directories(
         ${THIRD_PARTY_OUTPUT_DIR}/prometheus-cpp/include
-        ${THIRD_PARTY_OUTPUT_DIR}/nlohmann-json/include/nlohmann
         ${THIRD_PARTY_OUTPUT_DIR}/http/include
         ${THIRD_PARTY_OUTPUT_DIR}/grpc/include
         ${THIRD_PARTY_OUTPUT_DIR}/grpc
@@ -62,7 +61,6 @@ include_directories(
         ${CMAKE_CURRENT_SOURCE_DIR}/grpc_proto
         ${CMAKE_CURRENT_SOURCE_DIR}/grpc_wrapper
         ${CMAKE_CURRENT_SOURCE_DIR}/single_req_infer_interface
-        ${CMAKE_CURRENT_SOURCE_DIR}/../MindIE_LLM_Backend/include/backend
         ${CMAKE_CURRENT_SOURCE_DIR}/health_checker
 )
 

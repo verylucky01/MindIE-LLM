@@ -281,7 +281,6 @@ function copy_files() {
     mkdir -p $install_dir/lib
     mkdir -p $install_dir/bin
     mkdir -p $install_dir/include
-    mkdir -p $install_dir/lib/grpc
     mkdir -p $install_dir/conf
     mkdir -p $install_dir/server/scripts
     cp -r ${sourcedir}/bin/mindieservice_daemon $install_dir/bin
@@ -290,8 +289,7 @@ function copy_files() {
     cp -r ${sourcedir}/include/* $install_dir/include
     cp -r ${sourcedir}/conf $install_dir
     cp -r ${sourcedir}/server/scripts/* $install_dir/server/scripts
-    cp ${sourcedir}/lib/*.so* $install_dir/lib
-    cp ${sourcedir}/lib/grpc/*.so* $install_dir/lib/grpc
+    cp -r ${sourcedir}/lib/* ${install_dir}/lib
     print "INFO" "debug install ${sourcedir}, install to ${install_dir}"
     cp ${sourcedir}/install.sh $install_dir
     cp ${sourcedir}/version.info $install_dir

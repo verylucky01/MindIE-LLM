@@ -34,16 +34,14 @@ class BuildPyCommand(build_py):
         # 获取当前环境变量
         env = os.environ.copy()
         # 添加protoc所需的动态库路径到LD_LIBRARY_PATH
-        # 假设protoc依赖的库在./third_party/grpc/lib目录下
-        grpc_lib_path = os.path.abspath("./third_party/output/grpc/lib")
-        
-        # 如果LD_LIBRARY_PATH已存在，追加路径；否则创建新的
+        protobuf_lib_path = os.path.abspath("./third_party/output/protobuf/lib")
+        absl_lib_path = os.path.abspath("./third_party/output/abseil-cpp/lib")
         if 'LD_LIBRARY_PATH' in env:
-            env['LD_LIBRARY_PATH'] = f"{grpc_lib_path}:{env['LD_LIBRARY_PATH']}"
+            env['LD_LIBRARY_PATH'] = f"{protobuf_lib_path}:{absl_lib_path}:{env['LD_LIBRARY_PATH']}"
         else:
-            env['LD_LIBRARY_PATH'] = grpc_lib_path
+            env['LD_LIBRARY_PATH'] = f"{protobuf_lib_path}:{absl_lib_path}"
         subprocess.run([
-            "./third_party/output/grpc/bin/protoc",  # 使用相对路径调用protoc
+            "./third_party/output/protobuf/bin/protoc",  # 使用相对路径调用protoc
             "--experimental_allow_proto3_optional",
             "--python_out=./mindie_llm/connector/common/",
             "--proto_path=./proto/",
@@ -52,6 +50,7 @@ class BuildPyCommand(build_py):
 
         # 继续执行默认的build_py逻辑
         super().run()
+
 
 setup(
     name="mindie_llm",

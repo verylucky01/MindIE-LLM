@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-set -ex
 export CODE_ROOT=$(cd $(dirname -- $0); pwd)
 SCRIPT_DIR=$CODE_ROOT/scripts
 
@@ -22,7 +21,7 @@ source $SCRIPT_DIR/build_version_info.sh
 source $SCRIPT_DIR/make_run_package.sh
 source $SCRIPT_DIR/extract_debug_symbols.sh
 source $SCRIPT_DIR/build_src.sh
-source $SCRIPT_DIR/build_3rd.sh
+source $SCRIPT_DIR/build_third_party.sh
 source $SCRIPT_DIR/build_dlt.sh
 
 function fn_build()
@@ -46,6 +45,7 @@ function fn_build()
     fi
 
     fn_build_version_info
+    fn_build_third_party
     fn_build_src
     if [ "$build_type" = "release" ]; then
         fn_extract_debug_symbols $OUTPUT_DIR "$CODE_ROOT/llm_debug_symbols"
@@ -128,20 +128,21 @@ function fn_main()
     COMPILE_OPTIONS="${COMPILE_OPTIONS} -DCMAKE_INSTALL_PREFIX='$OUTPUT_DIR'"
     case "${arg1}" in
         "debug")
-            COMPILE_OPTIONS="${COMPILE_OPTIONS} -DCMAKE_BUILD_TYPE=Debug -DONLY_BUILD_OPENSOURCE=OFF -DDOMAIN_LAYERED_TEST=OFF"
+            COMPILE_OPTIONS="${COMPILE_OPTIONS} -DCMAKE_BUILD_TYPE=Debug -DDOMAIN_LAYERED_TEST=OFF"
+            set -ex
             fn_build
             fn_make_run_package
             ;;
         "master")
-            COMPILE_OPTIONS="${COMPILE_OPTIONS} -DCMAKE_BUILD_TYPE=RelWithDebInfo -DONLY_BUILD_OPENSOURCE=OFF -DDOMAIN_LAYERED_TEST=OFF"
+            COMPILE_OPTIONS="${COMPILE_OPTIONS} -DCMAKE_BUILD_TYPE=RelWithDebInfo -DDOMAIN_LAYERED_TEST=OFF"
             fn_build
             ;;
         "3rd")
-            COMPILE_OPTIONS="${COMPILE_OPTIONS} -DCMAKE_BUILD_TYPE=Release -DONLY_BUILD_OPENSOURCE=ON -DDOMAIN_LAYERED_TEST=ON"
-            fn_build_3rd
+            COMPILE_OPTIONS="${COMPILE_OPTIONS} -DCMAKE_BUILD_TYPE=Release -DDOMAIN_LAYERED_TEST=ON"
+            fn_build_third_party
             ;;
         "release")
-            COMPILE_OPTIONS="${COMPILE_OPTIONS} -DCMAKE_BUILD_TYPE=RelWithDebInfo -DONLY_BUILD_OPENSOURCE=OFF -DDOMAIN_LAYERED_TEST=OFF"
+            COMPILE_OPTIONS="${COMPILE_OPTIONS} -DCMAKE_BUILD_TYPE=RelWithDebInfo -DDOMAIN_LAYERED_TEST=OFF"
             build_type="release"
             fn_build
             fn_make_run_package
@@ -151,7 +152,7 @@ function fn_main()
             fn_clean
             ;;
         "unittest")
-            COMPILE_OPTIONS="${COMPILE_OPTIONS:-} -DCMAKE_BUILD_TYPE=Debug -DDOMAIN_LAYERED_TEST=ON -DONLY_BUILD_OPENSOURCE=OFF"
+            COMPILE_OPTIONS="${COMPILE_OPTIONS:-} -DCMAKE_BUILD_TYPE=Debug -DDOMAIN_LAYERED_TEST=ON"
             echo "COMPILE_OPTIONS:$COMPILE_OPTIONS"
             export COVERAGE_TYPE="unittest"
             export MINDIE_LLM_HOME_PATH="$OUTPUT_DIR"
@@ -159,8 +160,9 @@ function fn_main()
             fn_build
             ;;
         "dlt")
-            COMPILE_OPTIONS="${COMPILE_OPTIONS} -DCMAKE_BUILD_TYPE=Debug -DDOMAIN_LAYERED_TEST=ON -DENABLE_COVERAGE=$enable_coverage -DONLY_BUILD_OPENSOURCE=OFF"
+            COMPILE_OPTIONS="${COMPILE_OPTIONS} -DCMAKE_BUILD_TYPE=Debug -DDOMAIN_LAYERED_TEST=ON -DENABLE_COVERAGE=$enable_coverage"
             cd $CODE_ROOT
+            fn_build_third_party
             fn_dlt
             ;;
         "help")

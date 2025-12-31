@@ -1,7 +1,7 @@
 set(PROTO_PATH "${CMAKE_CURRENT_SOURCE_DIR}")
 set(PROTO_FILE "${PROTO_PATH}/model_execute_data.proto")
-set(ENV{LD_LIBRARY_PATH} ${THIRD_PARTY_OUTPUT_DIR}/grpc/lib:$ENV{LD_LIBRARY_PATH})
-set(ENV{PATH} ${THIRD_PARTY_OUTPUT_DIR}/grpc/bin:$ENV{PATH})
+set(ENV{LD_LIBRARY_PATH} ${THIRD_PARTY_OUTPUT_DIR}/protobuf/lib:${THIRD_PARTY_OUTPUT_DIR}/abseil-cpp/lib:${THIRD_PARTY_OUTPUT_DIR}/grpc/lib:$ENV{LD_LIBRARY_PATH})
+set(ENV{PATH} ${THIRD_PARTY_OUTPUT_DIR}/protobuf/bin:$ENV{PATH})
 find_program(GRPC_CPP_PLUGIN NAMES grpc_cpp_plugin REQUIRED)
 
 set(PROTO_SRCS "${PROTO_PATH}/model_execute_data.pb.cc")

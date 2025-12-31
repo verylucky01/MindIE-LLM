@@ -107,9 +107,15 @@ function fn_run_pythontest()
     cd $OUTPUT_DIR
     export PYTHONPATH=$PROJECT_DIR:$PYTHONPATH
     export PYTHONPATH=$PROJECT_DIR/src/server/tokenizer:$PYTHONPATH
+    export PYTHONPATH=$PROJECT_DIR/build/mindie_llm/connector/cpp::$PYTHONPATH
+    export PYTHONPATH=$PROJECT_DIR/build/mindie_llm/text_generator/cpp/memory_bridge:$PYTHONPATH
+    export PYTHONPATH=$PROJECT_DIR/build/mindie_llm/text_generator/cpp/prefix_tree:$PYTHONPATH
+    export PYTHONPATH=$PROJECT_DIR/build/mindie_llm/text_generator/cpp/sampler/cpu_logits_handler:$PYTHONPATH
     export MINDIE_LOG_TO_FILE=1
     export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
     export LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1:$LD_PRELOAD
+    export LD_LIBRARY_PATH=${PROJECT_DIR}/third_party/output/abseil-cpp/lib:${LD_LIBRARY_PATH}
+    export LD_LIBRARY_PATH=${PROJECT_DIR}/third_party/output/protobuf/lib:${LD_LIBRARY_PATH}
     export LD_LIBRARY_PATH=${PROJECT_DIR}/third_party/output/grpc/lib:${LD_LIBRARY_PATH}
     export LD_LIBRARY_PATH=${PROJECT_DIR}/third_party/output/boost/lib:${LD_LIBRARY_PATH}
     export LD_LIBRARY_PATH=${PROJECT_DIR}/third_party/output/libboundscheck/lib:${LD_LIBRARY_PATH}

@@ -2,7 +2,6 @@ CMAKE_MINIMUM_REQUIRED(VERSION 3.18)
 
 include_directories(
         ${THIRD_PARTY_OUTPUT_DIR}/prometheus-cpp/include
-        ${THIRD_PARTY_OUTPUT_DIR}/nlohmann-json/include/nlohmann
         ${THIRD_PARTY_OUTPUT_DIR}/http/include
         ${THIRD_PARTY_OUTPUT_DIR}/grpc/include
 )
