@@ -198,7 +198,6 @@ TEST_F(ServerConfigManagerTest, InitHttpsBusinessConfigFromJson_HandlesEmptyJson
     EXPECT_TRUE(manager.serverConfig_.tlsCrlFiles.empty());
     EXPECT_TRUE(manager.serverConfig_.tlsCaFile.empty());
     EXPECT_TRUE(manager.serverConfig_.tlsPk.empty());
-    EXPECT_TRUE(manager.serverConfig_.tlsPkPwd.empty());
     EXPECT_TRUE(manager.jsonDecodeSuccess_);
 }
 
@@ -211,7 +210,6 @@ TEST_F(ServerConfigManagerTest, InitHttpsBusinessConfigFromJson_SetsAllValidFiel
         {"tlsCrlFiles", {"crl1.pem", "crl2.pem"}},
         {"tlsCaFile", {"ca1.pem", "ca2.pem"}},
         {"tlsPk", "private.key"},
-        {"tlsPkPwd", "secret123"}
     };
     
     manager.InitHttpsBusinessConfigFromJson(json);
@@ -223,7 +221,6 @@ TEST_F(ServerConfigManagerTest, InitHttpsBusinessConfigFromJson_SetsAllValidFiel
     EXPECT_EQ(manager.serverConfig_.tlsCaFile,
               (std::set<std::string>{"ca1.pem", "ca2.pem"}));
     EXPECT_EQ(manager.serverConfig_.tlsPk, "private.key");
-    EXPECT_EQ(manager.serverConfig_.tlsPkPwd, "secret123");
     EXPECT_TRUE(manager.jsonDecodeSuccess_);
 }
 
@@ -247,13 +244,11 @@ TEST_F(ServerConfigManagerTest, InitHttpsBusinessConfigFromJson_HandlesInvalidTl
     ServerConfigManager manager(jsonPath);
     Json json = {
         {"tlsCaFile", true}, // 布尔值，应为数组
-        {"tlsPkPwd", "should-not-be-set"}
     };
     
     manager.InitHttpsBusinessConfigFromJson(json);
     
     EXPECT_TRUE(manager.serverConfig_.tlsCaFile.empty());
-    EXPECT_TRUE(manager.serverConfig_.tlsPkPwd.empty()); // 后续字段不应处理
     EXPECT_FALSE(manager.jsonDecodeSuccess_);
 }
 
@@ -301,7 +296,6 @@ TEST_F(ServerConfigManagerTest, InitHttpsManagementConfigFromJson_HandlesEmptyJs
     EXPECT_TRUE(manager.serverConfig_.managementTlsCrlFiles.empty());
     EXPECT_TRUE(manager.serverConfig_.managementTlsCaFile.empty());
     EXPECT_TRUE(manager.serverConfig_.managementTlsPk.empty());
-    EXPECT_TRUE(manager.serverConfig_.managementTlsPkPwd.empty());
     EXPECT_TRUE(manager.jsonDecodeSuccess_);
 }
 
@@ -314,7 +308,6 @@ TEST_F(ServerConfigManagerTest, InitHttpsManagementConfigFromJson_SetsAllValidFi
         {"managementTlsCrlFiles", {"mgmt_crl1.pem", "mgmt_crl2.pem"}},
         {"managementTlsCaFile", {"mgmt_ca1.pem", "mgmt_ca2.pem"}},
         {"managementTlsPk", "mgmt_private.key"},
-        {"managementTlsPkPwd", "mgmt_secret123"}
     };
     
     manager.InitHttpsManagementConfigFromJson(json);
@@ -326,7 +319,6 @@ TEST_F(ServerConfigManagerTest, InitHttpsManagementConfigFromJson_SetsAllValidFi
     EXPECT_EQ(manager.serverConfig_.managementTlsCaFile,
               (std::set<std::string>{"mgmt_ca1.pem", "mgmt_ca2.pem"}));
     EXPECT_EQ(manager.serverConfig_.managementTlsPk, "mgmt_private.key");
-    EXPECT_EQ(manager.serverConfig_.managementTlsPkPwd, "mgmt_secret123");
     EXPECT_TRUE(manager.jsonDecodeSuccess_);
 }
 
@@ -350,13 +342,11 @@ TEST_F(ServerConfigManagerTest, HandlesInvalidManagementTlsCaFileType)
     ServerConfigManager manager(jsonPath);
     Json json = {
         {"managementTlsCaFile", true}, // 布尔值，应为数组
-        {"managementTlsPkPwd", "should-not-be-set"}
     };
     
     manager.InitHttpsManagementConfigFromJson(json);
     
     EXPECT_TRUE(manager.serverConfig_.managementTlsCaFile.empty());
-    EXPECT_TRUE(manager.serverConfig_.managementTlsPkPwd.empty()); // 后续字段不应处理
     EXPECT_FALSE(manager.jsonDecodeSuccess_);
 }
 

@@ -71,9 +71,6 @@ GRPCCommunicator::GRPCCommunicator(const std::unordered_map<std::string, std::st
         interNodeTlsPk_ = fs::path(homePath) / modelConfig.at("interNodeTlsPk");
         interNodeTlsCrlPath_ = fs::path(homePath) / modelConfig.at("interNodeTlsCrlPath");
         mindie_llm::Split(modelConfig.at("interNodeTlsCrlFiles"), ",", interNodeTlsCrlFiles_);
-        interNodeTlsPkPwd_ = fs::path(homePath) / modelConfig.at("interNodeTlsPkPwd");
-        interNodeKmcKsfMaster_ = fs::path(homePath) / modelConfig.at("interNodeKmcKsfMaster");
-        interNodeKmcKsfStandby_ = fs::path(homePath) / modelConfig.at("interNodeKmcKsfStandby");
         if (!LoadCertificates()) {
             MINDIE_LLM_LOG_ERROR("Failed to load TLS certificates. Shutting down.");
             throw std::runtime_error("Failed to load TLS certificates");
@@ -555,23 +552,6 @@ ConcurrentMap<int, std::shared_ptr<ExecRespBlockingQueue>> &MasterServiceImpl::D
     return dpRankIdxToSyncResp_;
 }
 
-bool EraseWhenKeyDecryptFail(const std::string &errMsg, std::pair<char *, int> &keyPass, BIO *bioIn, BIO *bioOut,
-                             EVP_PKEY *pkey)
-{
-    MINDIE_LLM_LOG_ERROR(errMsg);
-    if (bioIn) {
-        BIO_free(bioIn);
-    }
-    if (pkey) {
-        EVP_PKEY_free(pkey);
-    }
-    if (bioOut) {
-        BIO_free(bioOut);
-    }
-    HseCryptorHelper::EraseDecryptData(keyPass);
-    return false;
-}
-
 bool GRPCCommunicator::LoadCertificates()
 {
     MINDIE_LLM_LOG_INFO("Loading TLS certificates for mutual authentication...");
@@ -590,51 +570,14 @@ bool GRPCCommunicator::LoadCertificates()
     fs::path certPath = interNodeTlsCert_;
     ReadFileToString(certPath, tlsCert_);
     MINDIE_LLM_LOG_INFO("Loaded server/client certificate: " + certPath.string());
-
-    // 3. 加载并解密私钥
-    // 1. 解密私钥密码
-    fs::path kfsMasterPath = interNodeKmcKsfMaster_;
-    fs::path kfsStandbyPath = interNodeKmcKsfStandby_;
-    std::string tlsPkPwd = interNodeTlsPkPwd_;
-    std::pair<char *, int> keyPass = {nullptr, 0};
-    HseCryptorHelper hseCryptorHelper(kfsMasterPath.string(), kfsStandbyPath.string());
-    int decryptRet = hseCryptorHelper.Decrypt(1, tlsPkPwd, homePath, keyPass);
-    if (decryptRet != 0) {
-        MINDIE_LLM_LOG_ERROR("Failed to decrypt password with HseCryptorHelper");
-        HseCryptorHelper::EraseDecryptData(keyPass);
-        return false;
-    }
-    // 2. 读取本端证书的加密私钥
+  
+    // 2. 读取本端证书的私钥
     fs::path keyPath = fs::path(interNodeTlsPk_);
-    std::string encryptKeyContent;
-    ReadFileToString(keyPath, encryptKeyContent);
-    // 3. 用OpenSSL解密私钥
-    BIO *bioIn = BIO_new_mem_buf(encryptKeyContent.data(), static_cast<int>(encryptKeyContent.size()));
-    if (!bioIn) {
-        return EraseWhenKeyDecryptFail("Failed to create BIO for private key", keyPass, nullptr, nullptr, nullptr);
-    }
-    EVP_PKEY *pkey = PEM_read_bio_PrivateKey(bioIn, nullptr, nullptr, keyPass.first);
-    if (!pkey) {
-        return EraseWhenKeyDecryptFail("Failed to decrypt private key with OpenSSL", keyPass, bioIn, nullptr, nullptr);
-    }
-    BIO *bioOut = BIO_new(BIO_s_mem());
-    if (!bioOut) {
-        return EraseWhenKeyDecryptFail("Failed to create output BIO", keyPass, bioIn, nullptr, pkey);
-    }
-    if (PEM_write_bio_PrivateKey(bioOut, pkey, nullptr, nullptr, 0, nullptr, nullptr) == 0) {
-        return EraseWhenKeyDecryptFail("Failed to write decrypted private key to BIO", keyPass, bioIn, bioOut, pkey);
-    }
-    char *keyData = nullptr;
-    long keyDataLen = BIO_get_mem_data(bioOut, &keyData);
-    if (keyDataLen <= 0 || keyData == nullptr) {
-        return EraseWhenKeyDecryptFail("Failed to get decrypted private key data", keyPass, bioIn, bioOut, pkey);
-    }
-    tlsCertPrivateKey_.assign(keyData, keyDataLen);
-    BIO_free(bioOut);
-    EVP_PKEY_free(pkey);
-    BIO_free(bioIn);
-    HseCryptorHelper::EraseDecryptData(keyPass);
-    MINDIE_LLM_LOG_INFO("Decrypted private key using HseCryptorHelper and OpenSSL: " + keyPath.string());
+    std::string keyContent;
+    ReadFileToString(keyPath, keyContent);
+ 
+    tlsCertPrivateKey_.assign(keyContent.data(), keyContent.size());
+
     return true;
 }
 

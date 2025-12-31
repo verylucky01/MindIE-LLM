@@ -103,9 +103,6 @@ namespace mindie_llm {
 
             bool GetKeyContent(SensitiveInfoManager &keyContent);
 
-            bool ValidKmcPath(std::string &miesInstallPath, std::string &kfsMasterPath,
-                std::string &kfsStandbyPath, std::string &tlsPriKeyPwdPath);
-
             bool GetKeyPassWordContent(SensitiveInfoManager& keyPwContent);
 
             bool SetEnvForSecurity();

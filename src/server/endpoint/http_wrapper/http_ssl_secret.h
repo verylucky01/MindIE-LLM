@@ -22,7 +22,6 @@
 
 #include "config_manager.h"
 #include "endpoint_def.h"
-#include "hse_cryptor_helper.h"
 
 namespace mindie_llm {
 class HttpSslSecret {
@@ -34,7 +33,6 @@ private:
     void CheckKeyExpiredTask();
 
     boost::mutex mMutex;
-    std::shared_ptr<HseCryptorHelper> mHseCryptorHelper = nullptr;
     ServerConfig serverConfig{};
     bool mCheckExpiredRunning = false;
     boost::condition_variable mCond;

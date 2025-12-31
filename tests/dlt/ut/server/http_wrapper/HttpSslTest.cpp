@@ -23,13 +23,11 @@
 #include "mock_util.h"
 #include "env_util.h"
 #include "log.h"
-#include "hse_cryptor.h"
 #include "common_util.h"
 #include "file_utils.h"
 #include "memory_utils.h"
 
 using namespace mindie_llm;
-using namespace ock::hse;
 
 MOCKER_CPP_OVERLOAD_EQ(ServerConfig)
 MOCKER_CPP_OVERLOAD_EQ(spdlog::level::level_enum)
@@ -43,17 +41,13 @@ protected:
         serverConfig_.tlsCaFile = {"ca.pem"};
         serverConfig_.tlsCert = "../../config_manager/conf/cert/server.pem";
         serverConfig_.tlsPk = "../../config_manager/conf/cert/server.key.pem";
-        serverConfig_.tlsPkPwd = "../../config_manager/conf/cert/key_pwd.txt";
         serverConfig_.tlsCrlPath = "../../config_manager/conf/cert/";
         serverConfig_.tlsCrlFiles = {"server_crl.pem"};
         serverConfig_.managementTlsCaFile = {"management_ca.pem"};
         serverConfig_.managementTlsCert = "../../config_manager/conf/cert/server.pem";
         serverConfig_.managementTlsPk = "../../config_manager/conf/cert/server.key.pem";
-        serverConfig_.managementTlsPkPwd = "../../config_manager/conf/cert/key_pwd.txt";
         serverConfig_.managementTlsCrlPath = "../../config_manager/conf/cert/";
         serverConfig_.managementTlsCrlFiles = {"server_crl.pem"};
-        serverConfig_.kmcKsfMaster = "../../config_manager/conf/ksfa";
-        serverConfig_.kmcKsfStandby = "../../config_manager/conf/ksfb";
         serverConfig_.inferMode = "standard";
         serverConfig_.interCommTLSEnabled = true;
         serverConfig_.interCommPort = 1121;
@@ -61,7 +55,6 @@ protected:
         serverConfig_.interCommTlsCaFiles = {"ca.pem"};
         serverConfig_.interCommTlsCert = "../../config_manager/conf/cert/server.pem";
         serverConfig_.interCommPk = "../../config_manager/conf/cert/server.key.pem";
-        serverConfig_.interCommPkPwd = "../../config_manager/conf/cert/key_pwd.txt";
         serverConfig_.interCommTlsCrlPath = "../../config_manager/conf/cert/";
         serverConfig_.interCommTlsCrlFiles = {"server_crl.pem"};
         ctx = reinterpret_cast<X509_STORE_CTX*>(0x1);
@@ -98,13 +91,6 @@ protected:
     SSL_CTX* sslCtx = nullptr;
 };
 
-
-TEST_F(HttpSslTest, HttpSsl_SeceasyLogToUlogLevel)
-{
-    EXPECT_EQ(SeceasyLogToUlogLevel(5), spdlog::level::level_enum::warn);
-    EXPECT_EQ(SeceasyLogToUlogLevel(1), spdlog::level::level_enum::info);
-    HseSeceasyLog(1, "test");
-}
 
 TEST_F(HttpSslTest, GetInstallPath_Success)
 {
@@ -350,113 +336,6 @@ TEST_F(HttpSslTest, LoadPrivateKey_Success)
         .will(returnValue(1));
     EXPECT_EQ(httpSsl.InitTlsPath(serverConfig_), 0);
     EXPECT_EQ(httpSsl.LoadPrivateKey(sslCtx), 0);
-}
-
-TEST_F(HttpSslTest, ValidKmcPath)
-{
-    EnvUtil::GetInstance().SetEnvVar("MINDIE_CHECK_INPUTFILES_PERMISSION", "0");
-    std::string miesInstallPath = "";
-    std::string kfsMasterPath = "";
-    std::string kfsStandbyPath = "";
-    std::string tlsPriKeyPwdPath = "";
-    
-    EXPECT_FALSE(httpSsl.ValidKmcPath(miesInstallPath, kfsMasterPath, kfsStandbyPath, tlsPriKeyPwdPath));
-    EnvUtil::GetInstance().SetEnvVar("MINDIE_CHECK_INPUTFILES_PERMISSION", "1");
-    EXPECT_FALSE(httpSsl.ValidKmcPath(miesInstallPath, kfsMasterPath, kfsStandbyPath, tlsPriKeyPwdPath));
-    MOCKER(static_cast<bool(*)(const std::string&, const std::string&, std::string&, std::string&)>(FileUtils::RegularFilePath))
-    .stubs().will(returnValue(false)).then(returnValue(true));
-    MOCKER(static_cast<bool(*)(const std::string&, std::string&, bool, mode_t, bool, uint64_t)>(FileUtils::IsFileValid))
-        .stubs().will(returnValue(false)).then(returnValue(true));
-    EXPECT_FALSE(httpSsl.ValidKmcPath(miesInstallPath, kfsMasterPath, kfsStandbyPath, tlsPriKeyPwdPath));
-    EXPECT_FALSE(httpSsl.ValidKmcPath(miesInstallPath, kfsMasterPath, kfsStandbyPath, tlsPriKeyPwdPath));
-    EXPECT_TRUE(httpSsl.ValidKmcPath(miesInstallPath, kfsMasterPath, kfsStandbyPath, tlsPriKeyPwdPath));
-}
-
-TEST_F(HttpSslTest, PasswordCallback_NullUserdata)
-{
-    char buf[50];
-    int size = sizeof(buf);
-    int result = httpSsl.PasswordCallback(buf, size, 0, nullptr);
-    EXPECT_EQ(result, 0);
-}
-
-TEST_F(HttpSslTest, PasswordCallback_GetInstallPathFailed)
-{
-    MOCKER_CPP(GetInstallPath, bool (*)(std::string&))
-        .stubs()
-        .will(returnValue(false));
-    
-    char buf[50];
-    int size = sizeof(buf);
-    const char* userdata = "tlsPwdPath";
-    int result = httpSsl.PasswordCallback(buf, size, 0, (void*)userdata);
-    EXPECT_EQ(result, 0);
-}
-
-TEST_F(HttpSslTest, PasswordCallback_InvalidKmcPath)
-{
-    MOCKER_CPP(GetServerConfig, const ServerConfig& (*)())
-        .stubs()
-        .will(returnValue(serverConfig_));
-    MOCKER_CPP(&HttpSsl::ValidKmcPath, bool (*)(std::string&, std::string&, std::string&, std::string&))
-        .stubs()
-        .will(returnValue(false));
-    
-    char buf[50];
-    int size = sizeof(buf);
-    const char* userdata = "tlsPwdPath";
-    int result = httpSsl.PasswordCallback(buf, size, 0, (void*)userdata);
-    EXPECT_EQ(result, 0);
-}
-
-TEST_F(HttpSslTest, PasswordCallback_CreateCryptorHelperFailed)
-{
-    MOCKER_CPP(GetServerConfig, const ServerConfig& (*)())
-        .stubs()
-        .will(returnValue(serverConfig_));
-    MOCKER_CPP(&HttpSsl::ValidKmcPath, bool (*)(std::string&, std::string&, std::string&, std::string&))
-        .stubs()
-        .will(returnValue(true));
-    char buf[50];
-    int size = sizeof(buf);
-    const char* userdata = "tlsPwdPath";
-    int result = httpSsl.PasswordCallback(buf, size, 0, (void*)userdata);
-    EXPECT_EQ(result, 0);
-}
-
-TEST_F(HttpSslTest, PasswordCallback_DecryptFailed)
-{
-    MOCKER_CPP(GetServerConfig, const ServerConfig& (*)())
-        .stubs()
-        .will(returnValue(serverConfig_));
-    MOCKER_CPP(&HttpSsl::ValidKmcPath, bool (*)(std::string&, std::string&, std::string&, std::string&))
-        .stubs()
-        .will(returnValue(true));
-    MOCKER_CPP(&HseCryptorHelper::Decrypt, int (*)(int, const std::string&, const std::string&, std::pair<char*, int>&))
-        .stubs().will(returnValue(1));
-    char buf[50];
-    int size = sizeof(buf);
-    const char* userdata = "tlsPwdPath";
-    int result = httpSsl.PasswordCallback(buf, size, 0, (void*)userdata);
-    EXPECT_EQ(result, 0);
-}
-
-TEST_F(HttpSslTest, PasswordCallback_PasswordTooShort)
-{
-    MOCKER_CPP(GetServerConfig, const ServerConfig& (*)())
-        .stubs()
-        .will(returnValue(serverConfig_));
-    MOCKER_CPP(&HttpSsl::ValidKmcPath, bool (*)(std::string&, std::string&, std::string&, std::string&))
-        .stubs()
-        .will(returnValue(true));
-    MOCKER_CPP(&HseCryptorHelper::Decrypt, int (*)(int, const std::string&, const std::string&, std::pair<char*, int>&))
-        .stubs()
-        .will(returnValue(0));
-    char buf[50];
-    int size = sizeof(buf);
-    const char* userdata = "tlsPwdPath";
-    int result = httpSsl.PasswordCallback(buf, size, 0, (void*)userdata);
-    EXPECT_EQ(result, 0);
 }
 
 TEST_F(HttpSslTest, LoadCertRevokeListFile_Fail1)

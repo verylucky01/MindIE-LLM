@@ -13,7 +13,6 @@
 #include "http_ssl.h"
 
 #include "config_info.h"
-#include "hse_cryptor.h"
 #include "log.h"
 #include "common_util.h"
 #include "file_utils.h"
@@ -27,7 +26,6 @@
 #endif
 
 using namespace mindie_llm;
-using namespace ock::hse;
 
 static const int MASTER_KEY_CHECK_AHEAD_TIME = 30;
 static const int MASTER_KEY_CHECK_PERIOD = 7 * 24;
@@ -58,14 +56,6 @@ static spdlog::level::level_enum SeceasyLogToUlogLevel(uint32_t level)
 }
 
 namespace mindie_llm {
-void HseSeceasyLog(int level, const char *msg)
-{
-    auto ulogLevel = SeceasyLogToUlogLevel(level);
-    auto logger = Log::GetInstance(LoggerType::DEBUG);
-    if (logger != nullptr) {
-        Log::LogMessage(LoggerType::DEBUG, ulogLevel, msg);
-    }
-}
 
 LOCAL_API bool GetInstallPath(std::string &configPath) noexcept
 {
@@ -119,10 +109,9 @@ static int32_t SetEnvForSecurity(std::string &workDir)
             CHECK_ERROR), "Get lib path failed");
         return EP_ERROR;
     }
-    if (::setenv("HSECEASY_PATH", path.c_str(), 1) != 0 ||
-        ::setenv("EP_OPENSSL_PATH", path.c_str(), 1) != 0) {
+    if (::setenv("EP_OPENSSL_PATH", path.c_str(), 1) != 0) {
         ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SINGLE_INFERENCE,
-            CHECK_ERROR), "Set hseceasy or ep openssl path failed. "  << strerror(errno));
+            CHECK_ERROR), "Set ep openssl path failed. "  << strerror(errno));
         return EP_ERROR;
     }
     return EP_OK;
@@ -189,7 +178,6 @@ EpCode HttpSsl::InitTlsPath(ServerConfig &serverConfig)
             tlsCrlFile = serverConfig.managementTlsCrlFiles;
             tlsCert = serverConfig.managementTlsCert;
             tlsPk = serverConfig.managementTlsPk;
-            tlsPkPwd = serverConfig.managementTlsPkPwd;
             break;
         case BUSINESS_CERT:
             tlsCaPath = serverConfig.tlsCaPath;
@@ -198,7 +186,6 @@ EpCode HttpSsl::InitTlsPath(ServerConfig &serverConfig)
             tlsCrlFile = serverConfig.tlsCrlFiles;
             tlsCert = serverConfig.tlsCert;
             tlsPk = serverConfig.tlsPk;
-            tlsPkPwd = serverConfig.tlsPkPwd;
             break;
         case METRICS_CERT:
             tlsCaPath = serverConfig.tlsCaPath;
@@ -207,7 +194,6 @@ EpCode HttpSsl::InitTlsPath(ServerConfig &serverConfig)
             tlsCrlPath = serverConfig.metricsTlsCrlPath;
             tlsCrlFile = serverConfig.metricsTlsCrlFiles;
             tlsPk = serverConfig.metricsTlsPk;
-            tlsPkPwd = serverConfig.metricsTlsPkPwd;
             break;
         default:
             SSL_LAYER_CHECK_RET(true, "Failed match tlsCategory");
@@ -327,12 +313,6 @@ EpCode HttpSsl::LoadPrivateKey(SSL_CTX *sslCtx)
     }
 
     int ret = 0;
-    if (!tlsPkPwd.empty()) {
-        SSL_CTX_set_default_passwd_cb(sslCtx, HttpSsl::PasswordCallback);
-        SSL_CTX_set_default_passwd_cb_userdata(sslCtx,
-            const_cast<void *>(static_cast<const void *>(tlsPkPwd.c_str())));
-    }
-
     /* load private key */
     ret = SSL_CTX_use_PrivateKey_file(sslCtx, tmpPath.c_str(), SSL_FILETYPE_PEM);
     if (ret <= 0) {
@@ -349,103 +329,6 @@ EpCode HttpSsl::LoadPrivateKey(SSL_CTX *sslCtx)
         return EP_ERROR;
     }
     return EP_OK;
-}
-
-bool HttpSsl::ValidKmcPath(std::string &miesInstallPath, std::string &kfsMasterPath, std::string &kfsStandbyPath,
-                           std::string &tlsPriKeyPwdPath)
-{
-    bool checkFlag = true;
-    const std::string isCheck = EnvUtil::GetInstance().Get("MINDIE_CHECK_INPUTFILES_PERMISSION");
-    if (isCheck == "0") {
-        checkFlag = false;
-    }
-    std::string errMsg;
-    std::string regularPath;
-    if (!FileUtils::RegularFilePath(kfsMasterPath, miesInstallPath, errMsg, regularPath) ||
-        !FileUtils::IsFileValid(regularPath, errMsg, true, FileUtils::FILE_MODE_600, checkFlag)) {
-        ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SINGLE_INFERENCE,
-            CHECK_ERROR), "Get server.key.pem secret failed by kmcKsfMaster path: " << errMsg);
-        return false;
-    }
-    if (!FileUtils::RegularFilePath(kfsStandbyPath, miesInstallPath, errMsg, regularPath) ||
-        !FileUtils::IsFileValid(regularPath, errMsg, true, FileUtils::FILE_MODE_600, checkFlag)) {
-        ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SINGLE_INFERENCE,
-            CHECK_ERROR), "Get server.key.pem secret failed by kmcKsfStandby path: " << errMsg);
-        return false;
-    }
-    if (!FileUtils::RegularFilePath(tlsPriKeyPwdPath, miesInstallPath, errMsg, regularPath) ||
-        !FileUtils::IsFileValid(regularPath, errMsg, true, FileUtils::FILE_MODE_600, checkFlag)) {
-        ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SINGLE_INFERENCE,
-            CHECK_ERROR), "Get server.key.pem secret failed by tlsPKPwd path: " << errMsg);
-        return false;
-    }
-    return true;
-}
-
-int HttpSsl::PasswordCallback(char *buf, int size, [[maybe_unused]] int rwflag, void *userdata)
-{
-    (void)rwflag;
-    
-    std::string miesInstallPath;
-    if (userdata == nullptr) {
-        ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SINGLE_INFERENCE,
-            CHECK_ERROR), "Get server.key.pem secret failed by get tlsPkPwd failed");
-        return 0;
-    }
-    const char *tlsPkPwd = (const char *)userdata;
-    if (!GetInstallPath(miesInstallPath)) {
-        ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SINGLE_INFERENCE,
-            CHECK_ERROR), "Get server.key.pem secret failed by get home path failed.");
-        return 0;
-    }
-
-    ServerConfig serverConfig = GetServerConfig();
-    std::string kfsMasterPath = miesInstallPath + serverConfig.kmcKsfMaster;
-    std::string kfsStandbyPath = miesInstallPath + serverConfig.kmcKsfStandby;
-    std::string tlsPriKeyPwdPath = miesInstallPath + std::string(tlsPkPwd);
-    if (!ValidKmcPath(miesInstallPath, kfsMasterPath, kfsStandbyPath, tlsPriKeyPwdPath)) {
-        return 0;
-    }
-
-    HseCryptor::SetExternalLogger(HseSeceasyLog);
-    std::shared_ptr <HseCryptorHelper> mHseCryptorHelper =
-            std::make_shared<HseCryptorHelper>(kfsMasterPath, kfsStandbyPath);
-    if (mHseCryptorHelper == nullptr) {
-        ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SINGLE_INFERENCE,
-            CHECK_ERROR), "Get server.key.pem secret failed by failed to create hse cryptor helper");
-        return 0;
-    }
-
-    std::pair<char *, int> mKeyPass = {nullptr, 0};
-    if (mHseCryptorHelper->Decrypt(1, tlsPriKeyPwdPath, miesInstallPath, mKeyPass) != EP_OK) {
-        ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SINGLE_INFERENCE,
-            CHECK_ERROR), "Get server.key.pem secret failed by Hse cryptor helper decrypt failed");
-        return 0;
-    }
-    int mKeyPassSize = mKeyPass.second;
-    if (mKeyPassSize < MIN_TOKEN_LEN || mKeyPassSize > MAX_TOKEN_LEN) {
-        ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SINGLE_INFERENCE,
-            CHECK_ERROR), "Get server.key.pem secret failed. The length of server.key.pem secret must in ["
-            << std::to_string(MIN_TOKEN_LEN) << " , " << std::to_string(MAX_TOKEN_LEN) << "]");
-        HseCryptorHelper::EraseDecryptData(mKeyPass);
-        return 0;
-    }
-    if (mKeyPassSize >= size) {
-        HseCryptorHelper::EraseDecryptData(mKeyPass);
-        ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SINGLE_INFERENCE,
-            CHECK_ERROR), "Get server.key.pem secret failed by get secret invalid.");
-        return 0;
-    }
-    errno_t ret = strncpy_s(buf, size, mKeyPass.first, mKeyPassSize);
-    if (ret != EOK) {
-        HseCryptorHelper::EraseDecryptData(mKeyPass);
-        ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SINGLE_INFERENCE,
-            ABNORMAL_TRANSMISSION_ERROR), "The strncpy_s server.key.pem secret failed. Status code is " << ret);
-        return 0;
-    }
-
-    HseCryptorHelper::EraseDecryptData(mKeyPass);
-    return mKeyPassSize;
 }
 
 static X509_CRL *LoadCertRevokeListFile(const char *crlFile)

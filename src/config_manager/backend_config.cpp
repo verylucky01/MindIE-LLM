@@ -29,9 +29,6 @@ static std::vector<ParamSpec> g_backendConfigConstraint = {
     {"interNodeTlsCaPath", "string", false},
     {"interNodeTlsCert", "string", false},
     {"interNodeTlsPk", "string", false},
-    {"interNodeTlsPkPwd", "string", false},
-    {"interNodeKmcKsfMaster", "string", false},
-    {"interNodeKmcKsfStandby", "string", false},
     {"modelInstanceNumber", "uint32_t", true},
     {"npuDeviceIds", "array", true},
     {"ScheduleConfig", "object", true},
@@ -60,11 +57,8 @@ void BackendConfigManager::InitKvPoolConfigFromJson(Json &backendConfigData)
 
 bool BackendConfigManager::InitTlsConfigFromJson(Json &backendConfigData)
 {
-    backendConfig_.interNodeKmcKsfMaster = backendConfigData["interNodeKmcKsfMaster"];
-    backendConfig_.interNodeKmcKsfStandby = backendConfigData["interNodeKmcKsfStandby"];
     backendConfig_.interNodeTlsCert = backendConfigData["interNodeTlsCert"];
     backendConfig_.interNodeTlsPk = backendConfigData["interNodeTlsPk"];
-    backendConfig_.interNodeTlsPkPwd = backendConfigData["interNodeTlsPkPwd"];
     backendConfig_.interNodeTlsCaPath = backendConfigData["interNodeTlsCaPath"];
     backendConfig_.interNodeTlsCrlPath = backendConfigData["interNodeTlsCrlPath"];
 
@@ -111,25 +105,12 @@ bool BackendConfigManager::CheckInterTlsParam()
     }
     homePath += "/";
     bool checkRes = true;
-    // check kmc
-    std::string kmcKsfMasterPath = homePath + backendConfig_.interNodeKmcKsfMaster;
-    CHECK_CONFIG_VALIDATION(
-        checkRes, ParamChecker::CheckPath(kmcKsfMasterPath, homePath, "backendConfig_.interNodeKmcKsfMaster"));
-    std::string kmcKsfStandbyPath = homePath + backendConfig_.interNodeKmcKsfStandby;
-    CHECK_CONFIG_VALIDATION(
-        checkRes, ParamChecker::CheckPath(kmcKsfStandbyPath, homePath, "backendConfig_.interNodeKmcKsfStandby"));
     // check cert
     std::string tlsCertPath = homePath + backendConfig_.interNodeTlsCert;
     CHECK_CONFIG_VALIDATION(checkRes,
                             ParamChecker::CheckPath(tlsCertPath, homePath, "backendConfig_.interNodeTlsCert"));
     std::string tlsPkPath = homePath + backendConfig_.interNodeTlsPk;
     CHECK_CONFIG_VALIDATION(checkRes, ParamChecker::CheckPath(tlsPkPath, homePath, "backendConfig_.interNodeTlsPk"));
-    // The key passphrase can be empty
-    if (!backendConfig_.interNodeTlsPkPwd.empty()) {
-        std::string tlsPkPwdPath = homePath + backendConfig_.interNodeTlsPkPwd;
-        CHECK_CONFIG_VALIDATION(checkRes,
-                                ParamChecker::CheckPath(tlsPkPwdPath, homePath, "backendConfig_.interNodeTlsPkPwd"));
-    }
     // check ca
     std::string interNodeTlsCaPath = homePath + backendConfig_.interNodeTlsCaPath;
     CHECK_CONFIG_VALIDATION(

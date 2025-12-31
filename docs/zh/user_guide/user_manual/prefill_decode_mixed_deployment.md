@@ -105,17 +105,13 @@ export PATH=/usr/local/python3.10.13/bin:$PATH
              "tlsCaFile" : ["ca.pem"],
              "tlsCert" : "security/certs/server.pem",
              "tlsPk" : "security/keys/server.key.pem",
-             "tlsPkPwd" : "security/pass/key_pwd.txt",
              "tlsCrlPath" : "security/certs/",
              "tlsCrlFiles" : ["server_crl.pem"],
              "managementTlsCaFile" : ["management_ca.pem"],
              "managementTlsCert" : "security/certs/management/server.pem",
              "managementTlsPk" : "security/keys/management/server.key.pem",
-             "managementTlsPkPwd" : "security/pass/management/key_pwd.txt",
              "managementTlsCrlPath" : "security/management/certs/",
              "managementTlsCrlFiles" : ["server_crl.pem"],
-             "kmcKsfMaster" : "tools/pmt/master/ksfa",
-             "kmcKsfStandby" : "tools/pmt/standby/ksfb",
              "inferMode" : "standard",
              "interCommTLSEnabled" : true,
              "interCommPort" : 1121,
@@ -123,7 +119,6 @@ export PATH=/usr/local/python3.10.13/bin:$PATH
              "interCommTlsCaFiles" : ["ca.pem"],
              "interCommTlsCert" : "security/grpc/certs/server.pem",
              "interCommPk" : "security/grpc/keys/server.key.pem",
-             "interCommPkPwd" : "security/grpc/pass/key_pwd.txt",
              "interCommTlsCrlPath" : "security/grpc/certs/",
              "interCommTlsCrlFiles" : ["server_crl.pem"],
              "openAiSupport" : "vllm",
@@ -144,11 +139,8 @@ export PATH=/usr/local/python3.10.13/bin:$PATH
              "interNodeTlsCaFiles": ["ca.pem"],
              "interNodeTlsCert": "security/grpc/certs/server.pem",
              "interNodeTlsPk": "security/grpc/keys/server.key.pem",
-             "interNodeTlsPkPwd": "security/grpc/pass/mindie_server_key_pwd.txt",
              "interNodeTlsCrlPath" : "security/grpc/certs/",
              "interNodeTlsCrlfiles" : ["server_crl.pem"],
-             "interNodeKmcKsfMaster": "tools/pmt/master/ksfa",
-             "interNodeKmcKsfStandby": "tools/pmt/standby/ksfb",
              "ModelDeployConfig":
              {
                  "maxSeqLen" : 2560,
@@ -475,12 +467,8 @@ ranktable.json文件权限需要设置为640，详细内容请根据以下样例
    | interNodeTlsCaFiles    | 根证书名称列表。“interNodeTLSEnabled”=true生效。             |
    | interNodeTlsCert       | 服务证书文件路径。“interNodeTLSEnabled” : true生效。         |
    | interNodeTlsPk         | 服务证书私钥文件路径。“interNodeTLSEnabled” : true生效。     |
-   | interNodeTlsPkPwd      | 服务证书私钥文件路径。“interNodeTLSEnabled” : true生效。     |
-   | interNodeTlsPkPwd      | 服务证书私钥加密密钥文件路径。“interNodeTLSEnabled” : true生效。 |
    | interNodeTlsCrlPath    | 服务证书吊销列表文件夹路径。“interNodeTLSEnabled”=true生效。 |
    | interNodeTlsCrlFiles   | 服务证书吊销列表名称列表。“interNodeTLSEnabled”=true生效。   |
-   | interNodeKmcKsfMaster  | KMC密钥库备份文件路径。“interNodeTLSEnabled” : true生效。    |
-   | interNodeKmcKsfStandby | KMC密钥库备份文件路径。“interNodeTLSEnabled” : true生效。    |
 
 > [!NOTE]说明
 > - 如果不开启HTTPS通信（即“httpsEnabled” : false时），会存在较高的网络安全风险。

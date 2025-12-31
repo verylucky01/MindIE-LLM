@@ -21,7 +21,6 @@
 #include <openssl/x509v3.h>
 #include "config_manager.h"
 #include "endpoint_def.h"
-#include "hse_cryptor_helper.h"
 
 namespace mindie_llm {
 enum SSLCertCategory : uint16_t {
@@ -52,9 +51,6 @@ private:
     EpCode LoadServerCert(SSL_CTX *sslCtx);
     EpCode LoadPrivateKey(SSL_CTX *sslCtx);
     EpCode CertVerify(X509 *cert);
-    static int PasswordCallback(char *buf, int size, int rwflag, void *userdata);
-    static bool ValidKmcPath(std::string &miesInstallPath, std::string &kfsMasterPath,
-                             std::string &kfsStandbyPath, std::string &tlsPriKeyPwdPath);
 
 private:
     std::string workDir;
@@ -66,7 +62,6 @@ private:
     std::set<std::string> tlsCrlFile;
     std::string tlsCert;
     std::string tlsPk;
-    std::string tlsPkPwd;
     SSLCertCategory sslCertCategory;
 };
 } // namespace mindie_llm

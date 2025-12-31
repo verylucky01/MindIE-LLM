@@ -103,11 +103,8 @@ vi conf/config.json
         "interNodeTlsCaFiles": ["ca.pem"],
         "interNodeTlsCert": "security/grpc/certs/server.pem",
         "interNodeTlsPk": "security/grpc/keys/server.key.pem",
-        "interNodeTlsPkPwd": "security/grpc/pass/mindie_server_key_pwd.txt",
         "interNodeTlsCrlPath": "security/grpc/certs/",
         "interNodeTlsCrlfiles": ["server_crl.pem"],
-        "interNodeKmcKsfMaster": "tools/pmt/master/ksfa",
-        "interNodeKmcKsfStandby": "tools/pmt/standby/ksfb",
         "ModelDeployConfig": {
             "maxSeqLen": 2560,
             "maxInputTokenLen": 2048,

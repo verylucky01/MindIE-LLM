@@ -121,8 +121,8 @@ TEST_F(ConfigManagerTest, should_retun_openAiSupport_change_to_false_when_config
     }
     inFile.close();
 
-    if (lines.size() > 45) {                           // 确保文件至少有46行
-        lines[45] = "\"openAiSupport\" : \"openai\","; // 正确转义双引号
+    if (lines.size() > 39) {                           // 确保文件至少有40行
+        lines[39] = "\"openAiSupport\" : \"openai\","; // 正确转义双引号
     }
     {
         std::ofstream outFile(jsonPath);
@@ -135,8 +135,8 @@ TEST_F(ConfigManagerTest, should_retun_openAiSupport_change_to_false_when_config
     sleep(20);
     EXPECT_EQ(ConfigManager::GetInstance().GetServerConfig().openAiSupportedvLLM, false);
     // then 恢复配置
-    if (lines.size() > 45) {                         // 确保文件至少有46行
-        lines[45] = "\"openAiSupport\" : \"vllm\","; // 正确转义双引号
+    if (lines.size() > 39) {                         // 确保文件至少有40行
+        lines[39] = "\"openAiSupport\" : \"vllm\","; // 正确转义双引号
     }
     {
         std::ofstream outFile(jsonPath);

@@ -32,23 +32,18 @@
 |tlsCaFile|std::set`<std::string>`|文件绝对路径长度范围为[1,4096]。列表元素个数最小为1，最大为3。|业务面根证书名称列表。httpsEnabled=true生效，生效后必填，默认值：["ca.pem"]。|
 |tlsCert|std::string|文件绝对路径长度范围为[1,4096]。实际路径为工程路径+tlsCert。|业务面服务证书文件路径，只支持软件包安装路径下的相对路径。httpsEnabled=true生效，生效后必填，默认值："security/certs/server.pem"。|
 |tlsPk|std::string|文件绝对路径长度范围为[1,4096]。实际路径为工程路径+tlsPk。|业务面服务证书私钥文件路径，只支持软件包安装路径下的相对路径，证书私钥的长度要求>=3072。httpsEnabled=true生效，生效后必填，默认值："security/keys/server.key.pem"。|
-|tlsPkPwd|std::string|文件绝对路径长度范围为[0,4096]。实际路径为工程路径+tlsPkPwd。|业务面服务证书私钥加密密钥文件路径，只支持软件包安装路径下的相对路径。httpsEnabled=true生效，生效后选填，默认值："security/pass/key_pwd.txt"。若私钥经过加密但是未提供此文件，系统启动时会要求用户在交互窗口输入私钥加密口令。|
 |tlsCrlPath|std::string|tlsCrlPath+tlsCrlFiles路径长度范围为[0,4096]。实际路径为工程路径+tlsCrlPath。|业务面服务证书吊销列表文件夹路径，只支持软件包安装路径下的相对路径。httpsEnabled=true生效，生效后选填，默认值："security/certs/"。httpsEnabled=false不启用吊销列表。|
 |tlsCrlFiles|std::set`<std::string>`|tlsCrlPath+tlsCrlFiles路径长度范围为[1,4096]。列表元素个数最小为1，最大为3。|业务面吊销列表名称列表。httpsEnabled=true生效，生效后选填，默认值：["server_crl.pem"]。|
 |managementTlsCaFile|std::set`<std::string>`|建议tlsCaPath+managementTlsCaFile路径长度范围为[0,4096]。列表元素个数最小为1，最大为3。|内部接口根证书名称列表，当前内部接口证书和业务面证书放在同一个路径（tlsCaPath）下。httpsEnabled=true且ipAddress!=managementIpAddress生效，生效后必填，默认值：["management_ca.pem"]。|
 |managementTlsCert|std::string|文件路径长度范围为[1,4096]。实际路径为工程路径+managementTlsCert。|内部接口服务证书文件路径，只支持软件包安装路径下的相对路径。httpsEnabled=true且ipAddress!=managementIpAddress生效，生效后必填，默认值："security/certs/management/server.pem"。|
 |managementTlsPk|std::string|文件路径长度范围为[1,4096]。实际路径为工程路径+managementTlsPk。|内部接口服务证书私钥文件路径，只支持软件包安装路径下的相对路径，证书私钥的长度要求>=3072。httpsEnabled=true且ipAddress!=managementIpAddress生效，生效后必填，默认值："security/keys/management/server.key.pem"。|
-|managementTlsPkPwd|std::string|文件路径长度范围为[0,4096]。实际路径为工程路径+managementTlsPkPwd。|内部接口服务证书私钥加密密钥文件路径。httpsEnabled=true且ipAddress!=managementIpAddress生效，生效后选填，默认值："security/pass/management/key_pwd.txt"。若私钥经过加密但是未提供此文件，系统启动时会要求用户在交互窗口输入私钥加密口令。|
 |managementTlsCrlPath|std::string|managementTlsCrlPath+managementTlsCrlFiles路径长度范围为[1,4096]。实际路径为工程路径+managementTlsCrlPath。|内部接口证书吊销列表文件夹路径，只支持软件包安装路径下的相对路径。httpsEnabled=true且ipAddress!=managementIpAddress生效，生效后选填，默认值："security/management/certs/"。httpsEnabled=false不启用吊销列表。|
 |managementTlsCrlFiles|std::set`<std::string>`|managementTlsCrlPath+managementTlsCrlFiles路径长度范围为[1,4096]。列表元素个数最小为1，最大为3。|内部接口吊销列表名称列表。httpsEnabled=true生效，生效后选填，默认值：["server_crl.pem"]。|
 |metricsTlsCaFile|std::set`<std::string>`|建议tlsCaPath+metricsTlsCaFile路径长度范围为[0,4096]。列表元素个数最小为1，最大为3。|内部接口根证书名称列表，当前内部接口证书和业务面证书放在同一个路径（tlsCaPath）下。httpsEnabled=true且ipAddress!=managementIpAddress生效，生效后必填，默认值：["metrics_ca.pem"]。|
 |metricsTlsCert|std::string|文件路径长度范围为[1,4096]。实际路径为工程路径+metricsTlsCert。|内部接口服务证书文件路径，只支持软件包安装路径下的相对路径。httpsEnabled=true且ipAddress!=managementIpAddress生效，生效后必填，默认值："security/certs/metrics/server.pem"。|
 |metricsTlsPk|std::string|文件路径长度范围为[1,4096]。实际路径为工程路径+metricsTlsPk。|内部接口服务证书私钥文件路径，只支持软件包安装路径下的相对路径，证书私钥的长度要求>=3072。httpsEnabled=true且ipAddress!=managementIpAddress生效，生效后必填，默认值："security/keys/metrics/server.key.pem"。|
-|metricsTlsPkPwd|std::string|文件路径长度范围为[0,4096]。实际路径为工程路径+metricsTlsPkPwd。|内部接口服务证书私钥加密密钥文件路径。httpsEnabled=true且ipAddress!=managementIpAddress生效，生效后选填，默认值："security/pass/metrics/key_pwd.txt"。若私钥经过加密但是未提供此文件，系统启动时会要求用户在交互窗口输入私钥加密口令。|
 |metricsTlsCrlPath|std::string|metricsTlsCrlPath+metricsTlsCrlFiles路径长度范围为[1,4096]。实际路径为工程路径+managementTlsCrlPath。|内部接口证书吊销列表文件夹路径，只支持软件包安装路径下的相对路径。httpsEnabled=true且ipAddress!=managementIpAddress生效，生效后选填，默认值："security/metrics/certs/"。httpsEnabled=false不启用吊销列表。|
 |metricsTlsCrlFiles|std::set`<std::string>`|metricsTlsCrlPath+metricsTlsCrlFiles路径长度范围为[1,4096]。列表元素个数最小为1，最大为3。|内部接口吊销列表名称列表。httpsEnabled=true生效，生效后选填，默认值：["server_crl.pem"]。|
-|kmcKsfMaster|std::string|文件路径长度范围为[1,4096]。实际路径为工程路径+kmcKsMaster。|KMC密钥库文件路径，只支持软件包安装路径下的相对路径。httpsEnabled=true生效，生效后必填，默认值："tools/pmt/master/ksfa"。|
-|kmcKsfStandby|std::string|文件路径长度范围为[1,4096]。实际路径为工程路径+kmcKsStandby1。|KMC密钥库备份文件路径，只支持软件包安装路径下的相对路径。httpsEnabled=true生效，生效后必填，默认值："tools/pmt/standby/ksfb"。|
 |inferMode|std::string|standarddmi|必填，默认值：standard。标识是否PD分离standard：表示PD混部模式；dmi：表示PD分离模式。|
 |interCommTLSEnabled|bool|truefalse|选填，默认值：true，需要配置证书相关内容。集群内部实例间的通信是否启用TLS。true：启用false：不启用取值为false或inferMode为standard时，忽略后续集群内部通信相关参数。|
 |interCommPort|uint16_t|[1024, 65535]|选填，默认值：1121。集群内部实例间的通信端口。|
@@ -56,7 +51,6 @@
 |interCommTlsCaFiles|std::set`<std::string>`|interCommTlsCaPath+interCommTlsCaFiles路径长度取决于操作系统配置（Linux为PATH_MAX）。实际路径为工程路径+interCommTlsCaFiles。|选填，默认值：["ca.pem"]。集群内部实例间的通信如果启用TLS，则使用此参数指定CA文件名称。|
 |interCommTlsCert|std::string|文件路径长度取决于操作系统配置（Linux为PATH_MAX）。实际路径为工程路径+interCommTlsCert。|选填，默认值："security/grpc/certs/server.pem"。集群内部实例间的通信如果启用TLS，则使用这里指定的文件作为证书。|
 |interCommPk|std::string|文件路径长度取决于操作系统配置（Linux为PATH_MAX）。实际路径为工程路径+interCommPk取决于操作系统配置（Linux为PATH_MAX）。|选填，默认值："security/grpc/keys/server.key.pem"。集群内部实例间的通信如果启用TLS，则使用这里指定的文件作为私钥。|
-|interCommPkPwd|std::string|文件路径长度取决于操作系统配置（Linux为PATH_MAX）。实际路径为工程路径+interCommPkPwd。|选填，默认值："security/grpc/pass/key_pwd.txt"。集群内部实例间的通信如果启用TLS，则使用这里指定的文件作为私钥的密码。|
 |interCommTlsCrlPath|std::string|interCommTlsCrlPath+interCommTlsCrlFiles路径长度取决于操作系统配置（Linux为PATH_MAX）。实际路径为工程路径+interCommTlsCrlPath。|选填，默认值："security/grpc/certs/"。集群内部实例间的通信如果启用TLS，则使用此参数指定证书吊销列表文件所在路径。|
 |interCommTlsCrlFiles|std::set`<std::string>`|interCommTlsCrlPath+interCommTlsCrlFiles路径长度取决于操作系统配置（Linux为PATH_MAX）。实际路径为工程路径+interCommTlsCrlFiles。|选填，默认值：["server_crl.pem"]。集群内部实例间的通信如果启用TLS，则使用此参数指定证书吊销列表文件名称。|
 |openAiSupport|std::string|字符串|选填，默认值："vllm"。是否启用vLLM兼容的OpenAI。取值为"vllm"或者配置字段缺失时，代表**/v1/chat/completions**接口使用vLLM兼容的OpenAI接口版本。取值为其他字符时，代表**/v1/chat/completions**接口使用原生OpenAI接口版本。此配置支持热更新。|
@@ -86,11 +80,8 @@
 |interNodeTlsCaFiles|std::set`<std::string>`|建议interNodeTlsCaPath+interNodeTlsCaFiles路径长度<=4096。实际路径为工程路径+interNodeTlsCaFiles，上限与操作系统有关，最小值为1。|根证书名称列表。interNodeTLSEnabled=true生效，生效后必填，默认值：["ca.pem"]。|
 |interNodeTlsCert|std::string|建议文件路径长度<=4096。实际路径为工程路径+interNodeTlsCert，上限与操作系统有关，最小值为1。|服务证书文件路径，只支持软件包安装路径下的相对路径。interNodeTLSEnabled=true生效，生效后必填，默认值："security/grpc/certs/server.pem"。|
 |interNodeTlsPk|std::string|建议文件路径长度<=4096。实际路径为工程路径+interNodeTlsPk，上限与操作系统有关，最小值为1。|服务证书私钥文件路径，只支持软件包安装路径下的相对路径。interNodeTLSEnabled=true生效，生效后必填，默认值："security/grpc/keys/server.key.pem"。|
-|interNodeTlsPkPwd|std::string|建议文件路径长度<=4096。支持为空；若非空，则实际路径为工程路径+interNodeTlsPkPwd，上限与操作系统有关，最小值为1。|服务证书私钥加密密钥文件路径，只支持软件包安装路径下的相对路径。interNodeTLSEnabled=true生效，生效后必填，默认值："security/grpc/pass/mindie_server_key_pwd.txt"。|
 |interNodeTlsCrlPath|std::string|建议interNodeTlsCrlPath+interNodeTlsCrlFiles路径长度<=4096。实际路径为工程路径+interNodeTlsCrlPath，上限与操作系统有关，最小值为1。|选填，默认值："security/grpc/certs/"。服务证书吊销列表文件夹路径。interNodeTLSEnabled=true生效。|
 |interNodeTlsCrlFiles|std::set`<std::string>`|建议interNodeTlsCrlPath+interNodeTlsCrlFiles路径长度<=4096。实际路径为工程路径+interNodeTlsCrlFiles，上限与操作系统有关，最小值为1。|选填，默认值：["server_crl.pem"]。服务证书吊销列表名称列表。interNodeTLSEnabled=true生效。|
-|interNodeKmcKsfMaster|std::string|建议文件路径长度<=4096。实际路径为工程路径+interNodeKmcKsfMaster，上限与操作系统有关，最小值为1。|KMC密钥库文件路径，只支持软件包安装路径下的相对路径。interNodeTLSEnabled=true生效，生效后必填，默认值："tools/pmt/master/ksfa"。|
-|interNodeKmcKsfStandby|std::string|建议文件路径长度<=4096。实际路径为工程路径+interNodeKmcKsfStandby，上限与操作系统有关，最小值为1。|KMC密钥库备份文件路径，只支持软件包安装路径下的相对路径。interNodeTLSEnabled=true生效，生效后必填，默认值："tools/pmt/standby/ksfb"。|
 |ModelDeployConfig|map|-|模型部署相关配置。详情请参见ModelDeployConfig参数说明。|
 |ScheduleConfig|map|-|调度相关配置。详情请参见ScheduleConfig参数说明。|
 

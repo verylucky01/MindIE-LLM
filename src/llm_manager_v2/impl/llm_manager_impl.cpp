@@ -378,9 +378,6 @@ static void InitbackendConfig(EngineConfig &engineConfig, const BackendConfig &b
     engineConfig.interNodeTlsPk = backendConfig.interNodeTlsPk;
     engineConfig.interNodeTlsCrlPath = backendConfig.interNodeTlsCrlPath;
     engineConfig.interNodeTlsCrlFiles = backendConfig.interNodeTlsCrlFiles;
-    engineConfig.interNodeTlsPkPwd = backendConfig.interNodeTlsPkPwd;
-    engineConfig.interNodeKmcKsfMaster = backendConfig.interNodeKmcKsfMaster;
-    engineConfig.interNodeKmcKsfStandby = backendConfig.interNodeKmcKsfStandby;
     engineConfig.kvPoolConfig = backendConfig.kvPoolConfig;
 }
 
@@ -773,9 +770,6 @@ static void LLMSetMultiNodeConfig(std::map<std::string, std::string> &modelConfi
     modelConfig["interNodeTlsCrlPath"] = engineConfig.interNodeTlsCrlPath;
     modelConfig["interNodeTlsCrlFiles"] = engineConfig.interNodeTlsCrlFiles;
     modelConfig["interNodeTlsPk"] = engineConfig.interNodeTlsPk;
-    modelConfig["interNodeTlsPkPwd"] = engineConfig.interNodeTlsPkPwd;
-    modelConfig["interNodeKmcKsfMaster"] = engineConfig.interNodeKmcKsfMaster;
-    modelConfig["interNodeKmcKsfStandby"] = engineConfig.interNodeKmcKsfStandby;
     modelConfig["interNodeTlsCaPath"] = engineConfig.interNodeTlsCaPath;
     modelConfig["interNodeTlsCaFiles"] = engineConfig.interNodeTlsCaFiles;
 
@@ -855,9 +849,6 @@ static void LLMSetLayerwiseDisaggregatedModelConfig(std::map<std::string, std::s
     modelConfig["interNodeTlsPk"] = backendConfig.interNodeTlsPk;
     modelConfig["interNodeTlsCrlPath"] = backendConfig.interNodeTlsCrlPath;
     modelConfig["interNodeTlsCrlFiles"] = backendConfig.interNodeTlsCrlFiles;
-    modelConfig["interNodeTlsPkPwd"] = backendConfig.interNodeTlsPkPwd;
-    modelConfig["interNodeKmcKsfMaster"] = backendConfig.interNodeKmcKsfMaster;
-    modelConfig["interNodeKmcKsfStandby"] = backendConfig.interNodeKmcKsfStandby;
 }
 
 static void LLMSetModelConfig(std::map<std::string, std::string> &modelConfig, const std::string &homePath,

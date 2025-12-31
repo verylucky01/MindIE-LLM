@@ -29,7 +29,6 @@ endif()
 
 include_directories(
         ${Python3_INCLUDE_DIRS}
-        ${THIRD_PARTY_OUTPUT_DIR}/hseceasy_${PLATFORM}/include
         ${THIRD_PARTY_OUTPUT_DIR}/http/include
         ${THIRD_PARTY_OUTPUT_DIR}/openssl/include
         ${THIRD_PARTY_OUTPUT_DIR}/boost/include

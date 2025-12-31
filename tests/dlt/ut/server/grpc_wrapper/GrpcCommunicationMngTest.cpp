@@ -22,7 +22,6 @@
 #include "config_manager/config_manager_impl.h"
 #include "grpc_communication_mng.h"
 #include "common_util.h"
-#include "hse_cryptor_helper.h"
 #include "memory_utils.h"
 #include "mock_util.h"
 
@@ -103,17 +102,13 @@ protected:
         serverConfig_.tlsCaFile = {"ca.pem"};
         serverConfig_.tlsCert = "../../config_manager/conf/cert/server.pem";
         serverConfig_.tlsPk = "../../config_manager/conf/cert/server.key.pem";
-        serverConfig_.tlsPkPwd = "../../config_manager/conf/cert/key_pwd.txt";
         serverConfig_.tlsCrlPath = "../../config_manager/conf/cert/";
         serverConfig_.tlsCrlFiles = {"server_crl.pem"};
         serverConfig_.managementTlsCaFile = {"management_ca.pem"};
         serverConfig_.managementTlsCert = "../../config_manager/conf/cert/server.pem";
         serverConfig_.managementTlsPk = "../../config_manager/conf/cert/server.key.pem";
-        serverConfig_.managementTlsPkPwd = "../../config_manager/conf/cert/key_pwd.txt";
         serverConfig_.managementTlsCrlPath = "../../config_manager/conf/cert/";
         serverConfig_.managementTlsCrlFiles = {"server_crl.pem"};
-        serverConfig_.kmcKsfMaster = "../../config_manager/conf/ksfa";
-        serverConfig_.kmcKsfStandby = "../../config_manager/conf/ksfb";
         serverConfig_.inferMode = "standard";
         serverConfig_.interCommTLSEnabled = true;
         serverConfig_.interCommPort = 1121;
@@ -121,7 +116,6 @@ protected:
         serverConfig_.interCommTlsCaFiles = {"ca.pem"};
         serverConfig_.interCommTlsCert = "../../config_manager/conf/cert/server.pem";
         serverConfig_.interCommPk = "../../config_manager/conf/cert/server.key.pem";
-        serverConfig_.interCommPkPwd = "../../config_manager/conf/cert/key_pwd.txt";
         serverConfig_.interCommTlsCrlPath = "../../config_manager/conf/cert/";
         serverConfig_.interCommTlsCrlFiles = {"server_crl.pem"};
         serverConfig_.tokenTimeout = 5;
@@ -249,20 +243,9 @@ TEST_F(GrpcCommunicationMngTest, GetKeyContentSuccess)
 {
     SensitiveInfoManager keyContent{nullptr, 0, MAX_PRIVATE_KEY_CONTENT_BYTE_LEN, MIN_PRIVATE_KEY_CONTENT_BYTE_LEN};
     EXPECT_FALSE(mng->GetKeyContent(keyContent));
-    mng->kfsMasterPath_ = GetParentDirectory() + "/../../config_manager/conf/ksfa";
-    mng->kfsStandbyPath_ = GetParentDirectory() + "/../../config_manager/conf/ksfb";
-    mng->kfsStandbyPath_ = GetParentDirectory() + "/../../config_manager/conf/cert/key_pwd.txt";
     EnvUtil::GetInstance().SetEnvVar("MINDIE_CHECK_INPUTFILES_PERMISSION", "0");
     EXPECT_FALSE(mng->GetKeyContent(keyContent));
-    MOCKER_CPP(&GrpcCommunicationMng::ValidKmcPath,
-               bool (*)(std::string &, std::string &, std::string &, std::string &))
-        .stubs()
-        .will(returnValue(true));
     EXPECT_FALSE(mng->GetKeyContent(keyContent));
-    MOCKER_CPP(&HseCryptorHelper::Decrypt,
-               int (*)(int, const std::string &, const std::string &, std::pair<char *, int> &))
-        .stubs()
-        .will(returnValue(0));
     EXPECT_FALSE(mng->GetKeyContent(keyContent));
     MOCKER_CPP(&SensitiveInfoManager::CopySensitiveInfo, bool (*)(char *, int)).stubs().will(returnValue(true));
     EXPECT_FALSE(mng->GetKeyContent(keyContent));
@@ -295,23 +278,6 @@ TEST_F(GrpcCommunicationMngTest, RunServer)
 {
     mng->useTls_ = true;
     EXPECT_FALSE(mng->RunServer());
-}
-
-TEST_F(GrpcCommunicationMngTest, ValidKmcPath)
-{
-    MOCKER(static_cast<bool (*)(const std::string &, const std::string &, std::string &, std::string&)>(FileUtils::RegularFilePath))
-        .stubs()
-        .will(returnValue(true));
-    MOCKER(
-        static_cast<bool (*)(const std::string &, std::string &, bool, mode_t, bool, uint64_t)>(FileUtils::IsFileValid))
-        .stubs()
-        .will(returnValue(true));
-    std::string miesInstallPath = "";
-    std::string kfsMasterPath = "";
-    std::string kfsStandbyPath = "";
-    std::string tlsPriKeyPwdPath = "";
-
-    EXPECT_TRUE(mng->ValidKmcPath(miesInstallPath, kfsMasterPath, kfsStandbyPath, tlsPriKeyPwdPath));
 }
 
 TEST_F(GrpcCommunicationMngTest, StopServerThreadHandlesErrors)

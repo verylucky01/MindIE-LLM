@@ -52,11 +52,8 @@
             "interNodeTlsCaFiles" : ["ca.pem"],
             "interNodeTlsCert" : "security/grpc/certs/server.pem",
             "interNodeTlsPk" : "security/grpc/keys/server.key.pem",
-            "interNodeTlsPkPwd" : "security/grpc/pass/mindie_server_key_pwd.txt",
             "interNodeTlsCrlPath" : "security/grpc/certs/",
             "interNodeTlsCrlFiles" : ["server_crl.pem"],
-            "interNodeKmcKsfMaster" : "tools/pmt/master/ksfa",
-            "interNodeKmcKsfStandby" : "tools/pmt/standby/ksfb",
             "kvPoolConfig" : {"backend"："kv_pool_backend_name", "configPath":"/path/to/your/config/file"},
         "ModelDeployConfig" :
             {

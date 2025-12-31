@@ -54,9 +54,6 @@ TLS_CERT = "tls_cert"
 TLS_PK = "tls_pk"
 TLS_CRL_PATH = "tls_crl_path"
 TLS_CRL_FILES = "tls_crl_files"
-TLS_PK_PWD = "tls_pk_pwd"
-KMC_KSF_MASTER = "kmc_ksf_master"
-KMC_KSF_STANDBY = "kmc_ksf_standby"
 
 
 class ModelRunner:
@@ -260,9 +257,6 @@ class ModelRunner:
                 TLS_PK: kwargs.get(TLS_PK, ''),
                 TLS_CRL_PATH: kwargs.get(TLS_CRL_PATH, ''),
                 TLS_CRL_FILES: kwargs.get(TLS_CRL_FILES, ''),
-                TLS_PK_PWD: kwargs.get(TLS_PK_PWD, ''),
-                KMC_KSF_MASTER: kwargs.get(KMC_KSF_MASTER, ''),
-                KMC_KSF_STANDBY: kwargs.get(KMC_KSF_STANDBY, '')
             }
             self.data_comm = EdgeCloudDataComm(self.dtype)
             self.ctrl_comm = EdgeCloudCtrlComm(tls_config)
