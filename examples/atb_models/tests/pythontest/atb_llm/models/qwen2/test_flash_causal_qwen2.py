@@ -7,19 +7,22 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
+
 import unittest
-import json
 from unittest.mock import MagicMock, patch
 
 import torch
 
 from atb_llm.models.qwen2.config_qwen2 import Qwen2Config
-from atb_llm.models.qwen2.flash_causal_qwen2 import FlashQwen2ForCausalLM, LwdLayerStatus
+from atb_llm.models.qwen2.flash_causal_qwen2 import FlashQwen2ForCausalLM
 from atb_llm.utils.mapping import Mapping
 from atb_llm.utils.op_backend import OpBackend
 from atb_llm.utils.quantize.quant_type import QuantType
+from atb_llm.utils.quantize.pack_type import TransposeType
 from atb_llm.utils.adapter_manager import AdapterManager
-from atb_llm.models.base.flash_causal_lm import DistributedType
+from atb_llm.utils.data.layer_adapter import ParallelLMHead
+
+from mindie_llm.runtime.utils.distributed import set_parallel_info_manager
 from tests.pythontest.atb_llm.models.base.mock_class import MockTorchClasses
 
 
@@ -55,28 +58,42 @@ class TestFlashQwen2ForCausalLM(unittest.TestCase):
         self.weights.process_group.size.return_value = 2
         self.weights.quant_desc = None
 
+        # Create mock parallel info
+        self.mock_parallel_info = MagicMock()
+        self.mock_parallel_info.rank = 0
+        self.mock_parallel_info.group_size = 2
+        self.mock_parallel_info.process_group = None
+
+        # Create mock parallel info manager
+        self.mock_parallel_info_manager = MagicMock()
+        self.mock_parallel_info_manager.world_size = 2
+        self.mock_parallel_info_manager.word_embed_tp = self.mock_parallel_info
+        self.mock_parallel_info_manager.attn_tp = self.mock_parallel_info
+        self.mock_parallel_info_manager.lm_head_tp = self.mock_parallel_info
+
+        # Set the global parallel info manager
+        set_parallel_info_manager(self.mock_parallel_info_manager)
+
+    def tearDown(self):
+        """Clean up after tests."""
+        set_parallel_info_manager(None)
+
     @patch(f"{LOAD_ATB_SPEED}")
     @patch(f"{FLASH_QWEN2}.FlashQwenModel", return_value=MagicMock())
+    @patch(f"{FLASH_QWEN2}.Qwen2Model", return_value=MagicMock())
     @patch(f"{FLASH_QWEN2}.load_column_multi")
     @patch(f"{FLASH_QWEN2}.TensorHead")
     def test_init(
             self,
             mock_tensor_head,
             mock_load_column_multi,
+            mock_new_qwen_model,
             mock_qwen_model,
             _mock_init_so
     ) -> None:
-        FlashQwen2ForCausalLM(self.config, self.weights)
-        mock_qwen_model.assert_called_once_with(
-            self.config, self.weights, model_prefix="model", lmhead_prefix="lm_head",
-            attn_decode_backend=OpBackend.ATB
-        )
-        mock_load_column_multi.assert_called_once_with(
-            self.config,
-            prefixes=["lm_head"],
-            weights=self.weights,
-            head_size=1,
-            lm_head=True
+        FlashQwen2ForCausalLM(self.config, self.weights, prealloc_weight_mem_on_npu=True)
+        mock_new_qwen_model.assert_called_once_with(
+            self.config, "model", quant_config=None
         )
 
         self.config.quantize = "w8a8sc"
@@ -103,7 +120,8 @@ class TestFlashQwen2ForCausalLM(unittest.TestCase):
     @patch(f"{FLASH_QWEN2}.FlashQwenModel", return_value=MagicMock())
     @patch(f"{FLASH_QWEN2}.load_column_multi")
     @patch(f"{FLASH_QWEN2}.WeightWrapper")
-    def test_init_ascend_weight(self, mock_weight_wrapper, _mock_load_column_multi, _mock_qwen_model, _mock_init_so):
+    def test_init_ascend_weight(
+        self, mock_weight_wrapper, _mock_load_column_multi, _mock_qwen_model, _mock_init_so):
         mock_weight_wrapper_ins = mock_weight_wrapper.return_value
         mock_weight_wrapper_ins.register_embedding = MagicMock()
         mock_weight_wrapper_ins.register_layer = MagicMock()
@@ -115,18 +133,18 @@ class TestFlashQwen2ForCausalLM(unittest.TestCase):
         mock_weight_wrapper_ins.linear_transpose_types = {}
         mock_weight_wrapper_ins.linear_descs = []
 
-        ins = FlashQwen2ForCausalLM(self.config, self.weights)
-        ins.lm_head.linear.trans_flag = True
+        ins = FlashQwen2ForCausalLM(self.config, self.weights, prealloc_weight_mem_on_npu=True)
+        ins.lm_head.get_weight_transpose_type()[0] = TransposeType.NOT_TRANSPOSE
         ins.graph_manager = MagicMock()
         ins.graph_manager.set_param.return_value = True
         ins.init_ascend_weight()
         ins.graph_manager.set_param.assert_called()
 
         self.config.quantize = QuantType.W8A8_PDMIX
-        ins = FlashQwen2ForCausalLM(self.config, self.weights)
+        ins = FlashQwen2ForCausalLM(self.config, self.weights, prealloc_weight_mem_on_npu=True)
         ins.graph_manager = MagicMock()
         ins.graph_manager.set_param.return_value = True
-        ins.lm_head.linear.trans_flag = True
+        ins.lm_head.get_weight_transpose_type()[0] = TransposeType.TRANSPOSE
         ins.init_ascend_weight()
         ins.graph_manager.set_param.assert_called()
 
@@ -363,6 +381,210 @@ class TestFlashQwen2ForCausalLM(unittest.TestCase):
         ins = FlashQwen2ForCausalLM(self.config, self.weights, **kwargs)
         with patch.object(ins.graph_manager, 'set_param') as mock_set_param:
             ins.init_ascend_weight()
+
+    @patch(f"{LOAD_ATB_SPEED}")
+    @patch(f"{FLASH_QWEN2}.FlashQwenModel", return_value=MagicMock())
+    @patch(f"{FLASH_QWEN2}.load_column_multi")
+    def test_get_model_weights(self, _mock_load_column_multi, _mock_model, _mock_init_so):
+        """Test get_model_weights method."""
+        ins = FlashQwen2ForCausalLM(self.config, self.weights)
+        ins.enable_swiglu_quant = True
+        ins.num_layers = 2
+        
+        # Mock model components
+        ins.model = MagicMock(spec=torch.nn.Module)
+        ins.model.embed_tokens = MagicMock()
+        ins.model.embed_tokens.get_weights_for_atb_graph.return_value = [0]
+        
+        ins.model.norm = MagicMock()
+        ins.model.norm.get_weights_for_atb_graph.return_value = [100]
+        
+        ins.lm_head = MagicMock(spec=ParallelLMHead)
+        ins.lm_head.get_weights_for_atb_graph.return_value = [200]
+        
+        # Mock layers
+        mock_layers = []
+        for _ in range(2):
+            mock_layer = MagicMock()
+            mock_layer.input_layernorm = MagicMock()
+            mock_layer.input_layernorm.get_weights_for_atb_graph.return_value = [1, 2, 3, 4]
+            
+            mock_layer.self_attn = MagicMock()
+            mock_layer.self_attn.qkv_proj = MagicMock()
+            mock_layer.self_attn.qkv_proj.get_weights_for_atb_graph.return_value = list(range(18))
+            mock_layer.self_attn.qkv_proj.get_linear_descs.return_value = list(range(7))
+            mock_layer.self_attn.qkv_proj.get_weight_transpose_type.return_value = list(range(7))
+            
+            mock_layer.self_attn.o_proj = MagicMock()
+            mock_layer.self_attn.o_proj.get_weights_for_atb_graph.return_value = list(range(6))
+            mock_layer.self_attn.o_proj.get_linear_descs.return_value = list(range(7))
+            mock_layer.self_attn.o_proj.get_weight_transpose_type.return_value = list(range(7))
+            
+            mock_layer.post_attention_layernorm = MagicMock()
+            mock_layer.post_attention_layernorm.get_weights_for_atb_graph.return_value = [5, 6, 7, 8]
+            
+            mock_layer.mlp = MagicMock()
+            mock_layer.mlp.gate_up_proj = MagicMock()
+            mock_layer.mlp.gate_up_proj.get_weights_for_atb_graph.return_value = list(range(12))
+            mock_layer.mlp.gate_up_proj.get_linear_descs.return_value = list(range(7))
+            mock_layer.mlp.gate_up_proj.get_weight_transpose_type.return_value = list(range(7))
+            
+            mock_layer.mlp.down_proj = MagicMock()
+            mock_layer.mlp.down_proj.get_weights_for_atb_graph.return_value = list(range(6))
+            mock_layer.mlp.down_proj.get_linear_descs.return_value = list(range(7))
+            mock_layer.mlp.down_proj.get_weight_transpose_type.return_value = list(range(7))
+            
+            mock_layers.append(mock_layer)
+        
+        ins.model.layers = mock_layers
+        ins.config.use_qk_norm = False
+        
+        # Test get_model_weights
+        weights, linear_descs, weight_transpose_types = ins.get_model_weights()
+        
+        # Verify structure
+        # 1 (embed_tokens) + 2 * 50 (layers) + 1 (norm) + 1 (lm_head) = 103
+        self.assertEqual(len(weights), 103)
+        # linear_descs: 2 layers, each with 28 descriptors
+        self.assertEqual(len(linear_descs), 2)
+        self.assertEqual(len(linear_descs[0]), 28)
+        self.assertEqual(len(linear_descs[1]), 28)
+        # weight_transpose_types: 2 layers, each with 28 types
+        self.assertEqual(len(weight_transpose_types), 2)
+        self.assertEqual(len(weight_transpose_types[0]), 28)
+        self.assertEqual(len(weight_transpose_types[1]), 28)
+        
+        # Verify embed_tokens was called
+        ins.model.embed_tokens.get_weights_for_atb_graph.assert_called_once()
+        # Verify norm was called
+        ins.model.norm.get_weights_for_atb_graph.assert_called_once_with(padding=False)
+        # Verify lm_head was called
+        ins.lm_head.get_weights_for_atb_graph.assert_called_once_with(padding=False)
+        
+        # Test with quant_type
+        quant_type = QuantType.W8A8
+        weights, linear_descs, weight_transpose_types = ins.get_model_weights(quant_type=quant_type)
+        
+        # Verify quant_type was passed to layers
+        for layer in mock_layers:
+            layer.self_attn.qkv_proj.get_weights_for_atb_graph.assert_called_with(quant_type=quant_type)
+
+    @patch(f"{LOAD_ATB_SPEED}")
+    @patch(f"{FLASH_QWEN2}.FlashQwenModel", return_value=MagicMock())
+    @patch(f"{FLASH_QWEN2}.load_column_multi")
+    def test_get_layer_weights_with_swiglu_quant_disabled(self, _mock_load_column_multi, _mock_model, _mock_init_so):
+        """Test get_layer_weights with enable_swiglu_quant=False."""
+        ins = FlashQwen2ForCausalLM(self.config, self.weights)
+        ins.enable_swiglu_quant = False
+        
+        # Mock layer components
+        mock_layer = MagicMock()
+        mock_layer.input_layernorm = MagicMock()
+        mock_layer.input_layernorm.get_weights_for_atb_graph.return_value = torch.tensor([1, 2, 3, 4])
+        
+        mock_layer.self_attn = MagicMock()
+        mock_layer.self_attn.qkv_proj = MagicMock()
+        mock_layer.self_attn.qkv_proj.get_weights_for_atb_graph.return_value = torch.tensor(list(range(18)))
+        mock_layer.self_attn.qkv_proj.get_linear_descs.return_value = torch.tensor(list(range(7)))
+        mock_layer.self_attn.qkv_proj.get_weight_transpose_type.return_value = torch.tensor(list(range(7)))
+        
+        mock_layer.self_attn.o_proj = MagicMock()
+        mock_layer.self_attn.o_proj.get_weights_for_atb_graph.return_value = torch.tensor(list(range(6)))
+        mock_layer.self_attn.o_proj.get_linear_descs.return_value = torch.tensor(list(range(7)))
+        mock_layer.self_attn.o_proj.get_weight_transpose_type.return_value = torch.tensor(list(range(7)))
+        
+        mock_layer.post_attention_layernorm = MagicMock()
+        mock_layer.post_attention_layernorm.get_weights_for_atb_graph.return_value = torch.tensor([5, 6, 7, 8])
+        
+        mock_layer.mlp = MagicMock()
+        mock_layer.mlp.gate_up_proj = MagicMock()
+        mock_layer.mlp.gate_up_proj.get_weights_for_atb_graph.return_value = torch.tensor(list(range(12)))
+        mock_layer.mlp.gate_up_proj.get_linear_descs.return_value = torch.tensor(list(range(7)))
+        mock_layer.mlp.gate_up_proj.get_weight_transpose_type.return_value = torch.tensor(list(range(7)))
+        
+        mock_layer.mlp.down_proj = MagicMock()
+        mock_layer.mlp.down_proj.get_weights_for_atb_graph.return_value = torch.tensor(list(range(6)))
+        mock_layer.mlp.down_proj.get_linear_descs.return_value = torch.tensor(list(range(7)))
+        mock_layer.mlp.down_proj.get_weight_transpose_type.return_value = torch.tensor(list(range(7)))
+        
+        ins.config.use_qk_norm = False
+        
+        _, _, _ = ins.get_layer_weights(mock_layer)
+        
+        # Verify down_proj was called with enable_swiglu_quant=False
+        mock_layer.mlp.down_proj.get_weights_for_atb_graph.assert_called_once_with(
+            is_swiglu_quant_enabled=False, quant_type=None
+        )
+
+    @patch(f"{LOAD_ATB_SPEED}")
+    @patch(f"{FLASH_QWEN2}.FlashQwenModel", return_value=MagicMock())
+    @patch(f"{FLASH_QWEN2}.load_column_multi")
+    @patch(f"{FLASH_QWEN2}.WeightWrapper")
+    @patch(f"{FLASH_QWEN2}.MlpWrapper")
+    @patch(f"{FLASH_QWEN2}.AttnWrapper")
+    def test_get_weights_basic(self, mock_attn_wrapper_class, mock_mlp_wrapper_class, mock_weight_wrapper_class, _mock_load_column_multi, _mock_model, _mock_init_so):
+        """Test get_weights method with basic configuration."""
+        ins = FlashQwen2ForCausalLM(self.config, self.weights)
+        ins.quantize = None
+        ins.enable_rope_quant_kvcache = False
+        ins.enable_swiglu_quant = True
+        ins.soc_info = MagicMock()
+        ins.tp_rank = 0
+        ins.num_layers = 2
+        ins.enable_intra_layer_add_norm = False
+        ins.enable_inter_layer_add_norm = False
+        ins.adapter_manager = None
+        
+        # Mock transformer
+        ins.transformer = MagicMock()
+        ins.transformer.wte = MagicMock()
+        ins.transformer.ln_f = MagicMock()
+        ins.transformer.h = []
+        for _ in range(2):
+            mock_layer = MagicMock()
+            mock_layer.attn = MagicMock()
+            ins.transformer.h.append(mock_layer)
+        
+        ins.config.use_qk_norm = False
+        ins.config.quantization_config = MagicMock()
+        ins.config.quantization_config.kv_quant_type = None
+        ins.config.quantization_config.fa_quant_type = None
+        
+        mock_weight_wrapper = MagicMock()
+        mock_weight_wrapper_class.return_value = mock_weight_wrapper
+        
+        result = ins.get_weights()
+        
+        # Verify AttnWrapper and MlpWrapper were created
+        mock_attn_wrapper_class.assert_called_once_with(
+            norm_name='ln_1',
+            wrapper_name='attn',
+            pack_name='c_attn',
+            sep_names=['q_proj', 'k_proj', 'v_proj'],
+            o_name='c_proj'
+        )
+        mock_mlp_wrapper_class.assert_called_once_with(
+            norm_name='ln_2',
+            wrapper_name='mlp',
+            pack_name='w2_w1',
+            sep_names=['w2', 'w1'],
+            down_name='c_proj'
+        )
+        
+        # Verify WeightWrapper was created with correct kwargs
+        mock_weight_wrapper_class.assert_called_once()
+        call_kwargs = mock_weight_wrapper_class.call_args[1]
+        self.assertFalse(call_kwargs['enable_rope_quant_kvcache'])
+        self.assertTrue(call_kwargs['enable_swiglu_quant'])
+        
+        # Verify registration calls
+        mock_weight_wrapper.register_embedding.assert_called_once_with(ins.transformer.wte)
+        self.assertEqual(mock_weight_wrapper.register_layer.call_count, 2)
+        mock_weight_wrapper.register_model_norm.assert_called_once_with(ins.transformer.ln_f)
+        mock_weight_wrapper.register_model_lmhead.assert_called_once_with(ins.lm_head)
+        
+        self.assertEqual(result, mock_weight_wrapper)
+
 
 if __name__ == "__main__":
     unittest.main()

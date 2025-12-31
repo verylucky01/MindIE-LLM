@@ -26,6 +26,7 @@ BUILD_ENABLE=1
 function export_atb_models_env()
 {
     source $PROJECT_DIR/output/atb_models/set_env.sh
+    export MINDIE_LLM_HOME_PATH=/
 }
 
 function fn_build_dt()

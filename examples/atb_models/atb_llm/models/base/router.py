@@ -98,6 +98,7 @@ class BaseRouter:
     llm_config: LLMConfig = None
 
     sub_model_path: str = ""
+    prealloc_weight_mem_on_npu: bool = False
 
     # 初始化默认读取的autoconfig，各个模型可能会自定义，self.config会返回后续使用的config，注意不要循环依赖
     _config: Any = None
