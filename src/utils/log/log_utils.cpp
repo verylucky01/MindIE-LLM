@@ -148,8 +148,16 @@ void LogUtils::UpdateLogFileParam(std::string rotateConfig, uint32_t &maxFileSiz
         }
         if (option == "-fs" && isNumeric(value)) {
             maxFileSize = static_cast<uint32_t>(std::stoi(value)) * 1024 * 1024;  // 1 MB = 1024 KB = 1024 * 1024 B;
+            if (maxFileSize > LOG_FILE_SIZE_LIMIT) {
+                throw std::runtime_error("log file size should not be set bigger than"
+                                        + std::to_string(LOG_FILE_SIZE_LIMIT));
+            }
         } else if (option == "-r" && isNumeric(value)) {
             maxFiles = static_cast<uint32_t>(std::stoi(value));
+            if (maxFiles > LOG_FILE_NUM_LIMIT) {
+                throw std::runtime_error("log file num should not be set bigger than"
+                                        + std::to_string(LOG_FILE_NUM_LIMIT));
+            }
         }
     }
 }

@@ -32,6 +32,8 @@
 namespace mindie_llm {
 
 const size_t INTERVAL_OF_SLEEP = 100;
+const size_t LOG_FILE_SIZE_LIMIT = 524288000;
+const size_t LOG_FILE_NUM_LIMIT = 64;
 
 class LogUtils {
 public:

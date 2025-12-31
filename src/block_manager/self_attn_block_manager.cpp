@@ -73,14 +73,13 @@ BlockSpaceManagerSPtr BlockManagerFactory::CreateBlockSpaceManager(BlockManagerT
 
 size_t SelfAttnBlockManager::GetNumRequiredBlocks(size_t seqLen, size_t blockSize) const
 {
-    size_t num = -1;
-    if (blockSize > 0) {
-        num = (seqLen + blockSize - 1) / blockSize;
-        if (rankSize_ > 1) {
-            num += 1;
-        }
+    if (blockSize == 0) {
+        throw std::runtime_error("the blockSize should not be zero");
     }
-
+    size_t num = (seqLen + blockSize - 1) / blockSize;
+    if (rankSize_ > 1) {
+        num += 1;
+    }
     return num;
 }
 

@@ -77,5 +77,9 @@ TEST_F(QueueCounterTest, TestCountBlocks)
     RequestId sgId = "sg";
     std::vector<SequenceSPtr> seqs{std::make_shared<Sequence>(10, 10)};
     auto seqGroup = std::make_shared<SequenceGroup>(sgId, seqs);
-    EXPECT_EQ(-1, queueCounter_->CountBlocks(seqGroup, SequenceStatus::WAITING));
+    // 验证抛出 std::runtime_error
+    EXPECT_THROW(
+        queueCounter_->CountBlocks(seqGroup, SequenceStatus::WAITING),
+        std::runtime_error
+    );
 }
