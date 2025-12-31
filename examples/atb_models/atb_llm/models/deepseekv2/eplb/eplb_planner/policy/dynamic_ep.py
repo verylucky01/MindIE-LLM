@@ -16,14 +16,14 @@ from .eplb_policy import EplbPolicy, DynamicConfig, EplbResult
 
 class DynamicTable:
     # workload_table:
-    # 三维矩阵，[layer, gpus, experts_per_gpu_per_layer] -> value: 所在位置的热度
+    # 三维矩阵，[layer, ranks, experts_per_rank_per_layer] -> value: 所在位置的热度
     # 大小为 层数 * 卡数 * 每层每卡的专家数量
     # 里面i, j, k的元素代表 第 i 层 第 j 张卡第 k 个专家的热度
     # 对于收集不到的专家，填为 -1
     workload_table = None
 
     # placement_table:
-    # 三维矩阵，[layer, gpus, experts_per_gpu_per_layer] -> value: 所在位置的物理专家id
+    # 三维矩阵，[layer, ranks, experts_per_rank_per_layer] -> value: 所在位置的物理专家id
     # 大小为 层数 * 卡数 * 每层每卡的专家数量
     # 里面i, j, k的元素代表 第 i 层 第 j 张卡第 k 个专家的物理id
     # 对于收集不到的专家，填为 -1
