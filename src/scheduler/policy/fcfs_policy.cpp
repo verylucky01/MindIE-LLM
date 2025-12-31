@@ -215,7 +215,7 @@ PrefillOutputs FcfsPolicy::ApplyToWaitingQueue(SchedulingBudget &budget, const b
                 seqGroup->arriveTime).count());
             size_t maxFirstTokenWaitTime = schedulerConfig_->maxFirstTokenWaitTime;
             if (seqGroup->firstSeq->data_.outputTokenIds.size() == 0 && reqArriveTime > maxFirstTokenWaitTime) {
-                MINDIE_LLM_LOG_DEBUG("Request(requestId: " << seqGroup->metrics_.inferReqId_
+                MINDIE_LLM_LOG_DEBUG_REQUEST("Request(requestId: " << seqGroup->metrics_.inferReqId_
                     << ") exceeded first token wait time (" << reqArriveTime << " > " << maxFirstTokenWaitTime
                     << ", preempting current request, Only effective in the PD mix scenario.");
                 newRequestFirst_ = true;
@@ -444,7 +444,7 @@ PreemptionMode FcfsPolicy::Preempt(SequenceGroupSPtr &seqGroup,
     }
     
     const int warningFrequency = 50;
-    MINDIE_LLM_LOG_WARN("Preemption num exceeds threshold. CumulativePreemptionNum:"
+    MINDIE_LLM_LOG_WARN_REQUEST("Preemption num exceeds threshold. CumulativePreemptionNum:"
                         << (numCumulativePreemption_ + 1) << "; warningFrequency:" << warningFrequency
                         << "; seqId: " << seqGroup->firstSeq->seqId_
                         << "; requestId: " << seqGroup->metrics_.inferReqId_

@@ -122,7 +122,7 @@ void DummyQuotaManager::AllGather_(bool iAmDummy, bool &allDummy, int &maxQuota,
     allCost += cost;
     count++;
     if (cost > 200) {
-        MINDIE_LLM_LOG_INFO("dummy all gather cost too long, dp:"
+        MINDIE_LLM_LOG_INFO_REQUEST("dummy all gather cost too long, dp:"
                             << rank_ << ", time:" << cost << ", quotaLeft_:" << quotaLeft_.load() << ", iAmDummy:"
                             << iAmDummy << ", dummyQueue size:" << dummyBatchQueue_.size() << ", allDummy:" << allDummy
                             << ", maxQuota:" << maxQuota << ", average cost:" << (allCost / count));
@@ -150,7 +150,7 @@ void DummyQuotaManager::AcrossProcSyncThreadEntry_()
     int cnt = 0;
     while (!threadNeedStop_.load()) {
         if (cnt % 1000 == 0) {
-            MINDIE_LLM_LOG_INFO("DummyQuotaManager across process synchronization thread is live. dprank:"
+            MINDIE_LLM_LOG_INFO_REQUEST("DummyQuotaManager across process synchronization thread is live. dprank:"
                                 << rank_ << "; quotaLeft_:" << quotaLeft_.load()
                                 << "; dummyBatchQueue_ size:" << dummyBatchQueue_.size());
         }

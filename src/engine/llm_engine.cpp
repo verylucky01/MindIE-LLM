@@ -122,7 +122,7 @@ bool LlmEngine::AddRequest(RequestSPtr request)
         EnginePerDPSPtr &engine = enginePerDPs_.at(rankId);
         engine->scheduler->AddSeqGroup(seqGroup);
         engine->addedRequestNum++;
-        MINDIE_LLM_LOG_INFO("[LlmEngine|Request-Enter Waiting] DP RankId: "
+        MINDIE_LLM_LOG_INFO_REQUEST("[LlmEngine|Request-Enter Waiting] DP RankId: "
                             << (dpRankId_ > 0 ? dpRankId_ : rankId) << ", Add request(requestId: " << request->requestId
                             << ", seqId: " << seqGroup->firstSeq->seqId_ << ") successfully."
                             << " Total added request num is:" << engine->addedRequestNum);
@@ -159,7 +159,7 @@ void LlmEngine::AbortRequests(std::unordered_set<RequestId> &requestIds)
     for (RequestId reqId : requestIds) {
         auto [localDPRank, seqGrpSptr] = LiveInferContext::FindSeqGroupInAllRank(reqId);
         if (seqGrpSptr == nullptr) {
-            MINDIE_LLM_LOG_WARN("[LlmEngine]Abort request(requestId: "
+            MINDIE_LLM_LOG_WARN_REQUEST("[LlmEngine]Abort request(requestId: "
                                  << reqId << ") does not exist. This request may have been kv-released.");
             continue;
         }
@@ -168,7 +168,7 @@ void LlmEngine::AbortRequests(std::unordered_set<RequestId> &requestIds)
         // PD分离场景，加入到abortedRequestIds后，后续调度线程会回收transferringMap_，
         enginePerDPs_.at(localDPRank)->abortedRequestIds.PushBack(reqId);
         enginePerDPs_.at(localDPRank)->abortedRequestNum++;
-        MINDIE_LLM_LOG_INFO("[LlmEngine]Abort request(requestId: "
+        MINDIE_LLM_LOG_INFO_REQUEST("[LlmEngine]Abort request(requestId: "
                             << reqId << ") successfully."
                             << " Total aborted request num is:" << enginePerDPs_.at(localDPRank)->abortedRequestNum);
     }
@@ -179,14 +179,14 @@ void LlmEngine::ReleaseKvCache(std::unordered_set<RequestId> &requestIds)
     for (auto reqId : requestIds) {
         auto [localDPRank, seqGroup] = LiveInferContext::FindSeqGroupInAllRank(reqId);
         if (seqGroup == nullptr) {
-            MINDIE_LLM_LOG_WARN("[LlmEngine]Try to release kv.The request(" << reqId
+            MINDIE_LLM_LOG_WARN_REQUEST("[LlmEngine]Try to release kv.The request(" << reqId
                                                                             << ") is not exist. Maybe been aborted");
             continue;
         }
 
         SequenceId seqId = seqGroup->firstSeq->seqId_;
         enginePerDPs_[localDPRank]->scheduler->NotifyMeKvPulledSeqIds(seqId);
-        MINDIE_LLM_LOG_INFO("[LlmEngine] DP RankId: " << (dpRankId_ > 0 ? dpRankId_ : localDPRank)
+        MINDIE_LLM_LOG_INFO_REQUEST("[LlmEngine] DP RankId: " << (dpRankId_ > 0 ? dpRankId_ : localDPRank)
                                                       << ". Send Release KV response(requestId: " << reqId
                                                       << ") successfully.");
     }
@@ -264,7 +264,7 @@ void LlmEngine::SendRecomputeResponse(std::vector<SequenceId> &recomputeSeqIds, 
         response->iterTimes = seqGroup->iterTimes;
         response->transferStatusFlag = TransferStatusType::RECOMPUTED_TRIGGERED;
         enginePerDPs_.at(localDPRank)->abortRespToManagerCall(response);
-        MINDIE_LLM_LOG_INFO("[LlmEngine] DP RankId: "
+        MINDIE_LLM_LOG_INFO_REQUEST("[LlmEngine] DP RankId: "
                             << (dpRankId_ > 0 ? dpRankId_ : localDPRank)
                             << ". Engine(Decode Node) send recompute response successfully. seqId: " << seqId
                             << ", requestId: " << seqGroup->metrics_.inferReqId_);
@@ -311,7 +311,7 @@ SchOutDataPair LlmEngine::PostScheduleSyncUp(bool needSync, SequenceGroupMetaDat
     if (syncSecondCost > LOG_CC_TIME_THRESHOLD_MS) {
         auto syncFirstCost = duration_cast<milliseconds>(syncUpAfterBatchInfo - syncUpBegin).count();
         auto syncUpCost = duration_cast<milliseconds>(syncUpEnd - syncUpBegin).count();
-        MINDIE_LLM_LOG_INFO("[Scheduler|Schedule-Sync up] PostSchedule sync too long :"
+        MINDIE_LLM_LOG_INFO_REQUEST("[Scheduler|Schedule-Sync up] PostSchedule sync too long :"
                             << syncUpCost << ", DP RankId:" << (dpRankId_ > 0 ? dpRankId_ : localDPRank)
                             << ", maxBatchSize:" << metas.maxBatchSize << ", maxSeqLen:" << metas.maxSeqLen
                             << ", syncFirstCost:" << syncFirstCost << ", syncSecondCost:" << syncSecondCost);
@@ -453,7 +453,7 @@ void LlmEngine::SchedulerThreadEntry(size_t localDPRank)
         int64_t totalIterCost = scheduleCost + responseCost;
         if (totalIterCost > LOG_TIME_THRESHOLD_MS) {
             auto transferKVCost = duration_cast<milliseconds>(transferEnd - transferBegin).count();
-            MINDIE_LLM_LOG_INFO(
+            MINDIE_LLM_LOG_INFO_REQUEST(
                 "[Scheduler|Schedule-Response] Response and schedule transfer cost too long. DP RankId:"
                 << (dpRankId_ > 0 ? dpRankId_ : localDPRank) << ", response cost:" << responseCost
                 << ", ScheduleExecTransfer cost:" << transferKVCost << ", scheduleCost:" << scheduleCost
@@ -601,7 +601,7 @@ void LlmEngine::SchedulerThreadEntry(size_t localDPRank)
         auto scheduleEnd = high_resolution_clock::now();
         scheduleCost = duration_cast<milliseconds>(scheduleEnd - scheduleBegin).count();
         if (scheduleCost > LOG_TIME_THRESHOLD_MS) {
-            MINDIE_LLM_LOG_INFO("[Scheduler|Schedule-Batch] Schedule too long :"
+            MINDIE_LLM_LOG_INFO_REQUEST("[Scheduler|Schedule-Batch] Schedule too long :"
                                 << scheduleCost << ", DP RankId:" << (dpRankId_ > 0 ? dpRankId_ : localDPRank)
                                 << ",cur dp batch size:" << scheduleOut.scheduledSeqGroups_.size()
                                 << ", all dp max batch size:" << seqGroupMetadata.maxBatchSize

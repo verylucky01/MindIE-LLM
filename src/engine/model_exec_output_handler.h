@@ -66,7 +66,8 @@ private:
     ConcurrentDeque<SequenceId> execExceptionSeqIds_; // will be used by scheduler, seqs of execution exception
     std::atomic<size_t> asyncBatchNum_{0};
     BufferedResponser bufferedResponser_;
-
+    // store rankid for logging
+    int dpRankId_{0};
     ResponseSPtr ConvertSequenceGroupOutputToResponse(const model_execute_data::CompletionSequenceGroupOutput &output,
                                                       uint64_t &queueWaitTime, uint64_t &currentPrefixCachedTokenNums);
 

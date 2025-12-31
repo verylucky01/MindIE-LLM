@@ -9,7 +9,9 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
-
+import subprocess
+import re
+from pathlib import Path
 import numpy as np
 from dataclasses import dataclass, fields
 from mindie_llm.text_generator.utils.separate_deployment_engine import DmiModeNodeRole
@@ -59,6 +61,20 @@ class BaseConfig():
 
         logger.info(">>model_config after initialize %s", model_config)
 
+    @staticmethod
+    def check_path_is_mounted(target_path: str) -> bool:
+        # 根据系统补充
+        shared_fs_types = ["nfs", "cifs", "smbfs", "glusterfs", "lustre", "panfs", "afs", "ceph", "dtfs"]
+        target_path = Path(target_path).resolve()
+        mount_output = subprocess.check_output(["/usr/bin/mount"], encoding="utf-8", stderr=subprocess.STDOUT)
+        mount_pattern = re.compile(r"^(.+?) on (.+?) type (.+?) \((.+?)\)$", re.MULTILINE)
+        for match in mount_pattern.finditer(mount_output):
+            _, mount_point, fs_type, _ = match.groups()
+            mount_point = Path(mount_point).resolve()
+            if (target_path == mount_point or target_path.is_relative_to(mount_point)) and fs_type in shared_fs_types:
+                return True
+        return False
+    
     def layerwise_disaggregated_initialize(self):
         self.layerwise_disaggregated = self.parse("layerwiseDisaggregated", required=False, default_value=None)
 
@@ -109,6 +125,11 @@ class BaseConfig():
                 value = default_value
         elif to_int:
             value = int(value)
+        if item_name == "model_id":
+            if BaseConfig.check_path_is_mounted(value):
+                error_msg = f"The model {value} resides in mounted directory, which could be a shared storage path. \
+                              If the I/O rate is too low, it may cause abnormal service startup."
+                logger.warning(error_msg)
         logger.info(f"The item {item_name} value is {value}.")
         return value
 

@@ -49,7 +49,7 @@ Scheduler::Scheduler(const std::shared_ptr<SchedulerConfig> &schedulerConfig,
                                     schedulerConfig->enableKvPool,
                                     schedulerConfig->kvPoolConfig.backend,
                                     schedulerConfig->kvPoolConfig.configPath};
-
+    dpRankId_ = schedulerConfig_->dpRankId_;
     blockManager_ = BlockManagerFactory::CreateBlockSpaceManager(BlockManagerType::SELFATTNBLOCKMANGER,
                                                                  std::move(blockConf), localDPRank);
 
@@ -242,8 +242,8 @@ std::pair<SequenceGroupMetaDatas, SchedulerOutputs> Scheduler::Schedule(bool nee
     if ((!schedulerOut.IsEmpty() && schedulerOut.forwardMode_ == ForwardMode::PREFILL) ||
         (!schedulerOut.IsEmpty() && iterTimes_++ % LOG_INTERVAL_COUNT == 0) ||
         iterTimes_++ % LOG_EMPTY_BATCH_INTERVAL_COUNT == 0) {
-        MINDIE_LLM_LOG_INFO("[Scheduler|Schedule-scheduling] DP RankId: "
-                            << schedulerConfig_->dpRankId_ << ". After Backfill, running size:" << running_.Size()
+        MINDIE_LLM_LOG_INFO_REQUEST("[Scheduler|Schedule-scheduling] DP RankId: "
+                            << dpRankId_ << ". After Backfill, running size:" << running_.Size()
                             << "; waiting size: " << waiting_.Size() << "; swapped size:" << swapped_.Size()
                             << "; batch size:" << schedulerOut.scheduledSeqGroups_.size()
                             << "; transferring size:" << transferringMap_.Size()
@@ -280,8 +280,8 @@ std::unordered_set<SequenceId> Scheduler::ReleaseKvPulledBlocks()
             // abort流程也会触发release kv，如果abort和release kv 并发，可能会存在这个场景。增加日志打印
             MINDIE_LLM_LOG_WARN("Try to release kv, but kv has released before. seqid:" << seqId);
         }
-        MINDIE_LLM_LOG_INFO("[LlmEngine|Request-Release KV] DP RankId: "
-                            << schedulerConfig_->dpRankId_ << ". KV blocks of seqId: " << seqId << " are released.");
+        MINDIE_LLM_LOG_INFO_REQUEST("[LlmEngine|Request-Release KV] DP RankId: "
+                            << dpRankId_ << ". KV blocks of seqId: " << seqId << " are released.");
         blockManager_->Free(seqId);
         transferringMap_.Erase(seqId);
         LiveInferContext::GetInstance(localDPRank_)->Remove(seqId);
@@ -533,8 +533,9 @@ void Scheduler::BackfillConcurrentQueue(PolicyOutput &policyOut)
     if (role_ == Role::PnD || role_ == Role::FlexPnD) {
         for (SequenceGroupSPtr &seqGroup : policyOut.preemptedSeqGroups_) {
             if (seqGroup->sampling->enableParallelSampling) {
-                MINDIE_LLM_LOG_WARN("Parallel sampling does not support RECOMPUTE preemption now, request(requestId: "
-                                    << seqGroup->requestId << ") will be aborted!");
+                MINDIE_LLM_LOG_WARN_REQUEST(
+                    "Parallel sampling does not support RECOMPUTE preemption now, request(requestId: "
+                    << seqGroup->requestId << ") will be aborted!");
                 abortedParallelSeqGroups_.push_back(seqGroup);
             }
             layerwiseMixin_.LwdSetRecomputeArrTime(schedulerConfig_->layerwiseDisaggregated, seqGroup,
@@ -1081,7 +1082,7 @@ template <typename T> void Scheduler::PopAndSave_(ConcurrentDeque<T> &src, std::
         T resId = T{}; // if Request is int, it is not initialized.
         src.PopFront(resId);
         if (dst.count(resId) != 0) {
-            MINDIE_LLM_LOG_INFO("Request(id:" << resId << ") is already in the finished/aborted queue.");
+            MINDIE_LLM_LOG_INFO_REQUEST("Request(id:" << resId << ") is already in the finished/aborted queue.");
         } else {
             dst.insert(resId);
         }
@@ -1123,7 +1124,7 @@ template <typename T> void Scheduler::LifeEndKVCleanup(std::unordered_set<T> &li
         // 已经在transferring map的请求加入到pulled清理队列由后面调度线程统一清理KV.
         this->kvCachePulledSeqIds_.PushBack(seqGrpSPtr->firstSeq->seqId_);
         it = lifeEndSet.erase(it);
-        MINDIE_LLM_LOG_INFO("[LlmEngine|Life End, add to release-kv queue] Add to pulled. requestId: "
+        MINDIE_LLM_LOG_INFO_REQUEST("[LlmEngine|Life End, add to release-kv queue] Add to pulled. requestId: "
                             << seqGrpSPtr->metrics_.inferReqId_
                             << "; seqId: " << seqGrpSPtr->firstSeq->seqId_);
         processNum++;
@@ -1174,8 +1175,8 @@ void Scheduler::KVPulledReqEnterRunningQueue(ConcurrentDeque<RequestId> &pulledR
         running_.PushBack(seqGrpSPtr);
         PROF(prof.Metric("QueueSize", running_.Size()).Attr("status", "running").Event("Enqueue"));
         transferringMap_.Erase(seqGrpSPtr->firstSeq->seqId_);
-        MINDIE_LLM_LOG_INFO("[LlmEngine|Request-Enter running queue] DP RankId: "
-                            << schedulerConfig_->dpRankId_ << ". Pull kv ended, enter running queue. requestId: "
+        MINDIE_LLM_LOG_INFO_REQUEST("[LlmEngine|Request-Enter running queue] DP RankId: "
+                            << dpRankId_ << ". Pull kv ended, enter running queue. requestId: "
                             << seqGrpSPtr->metrics_.inferReqId_
                             << "; seqId: " << seqGrpSPtr->firstSeq->seqId_
                             << "; running size:" << running_.Size() << "; waiting size: " << waiting_.Size()
@@ -1280,8 +1281,8 @@ void Scheduler::ClearSeqGrp(SequenceGroupSPtr seqGroup, SequenceStatus finalStat
 {
     // sequence group处于终止态，则删除各个容器中的资源（有可能被aborted的同时Response的返回也是终止态）
     LiveInferContext::GetInstance(localDPRank_)->Remove(seqGroup->requestId);
-    MINDIE_LLM_LOG_INFO("[LlmEngine|Request-Life End] Request life endup. DP RankId: "
-                        << schedulerConfig_->dpRankId_
+    MINDIE_LLM_LOG_INFO_REQUEST("[LlmEngine|Request-Life End] Request life endup. DP RankId: "
+                        << dpRankId_
                         << ". requestId: " << seqGroup->metrics_.inferReqId_
                         << "; seqId: " << seqGroup->firstSeq->seqId_
                         << "; final status:" << static_cast<int>(finalStatus));

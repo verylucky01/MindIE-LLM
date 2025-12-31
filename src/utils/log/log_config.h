@@ -33,11 +33,12 @@ const std::string DEFAULT_LOG_PATH = "mindie/log";
 constexpr uint32_t DEFAULT_LOG_FILE_COUNT = 10U;
 constexpr uint32_t DEFAULT_LOG_FILE_SIZE = 20U; // 20 MB
 
-const std::string COMPONENT_NAME_LLM = "llm";
-const std::string COMPONENT_NAME_ATB = "llmmodels";
-const std::string COMPONENT_NAME_SERVER = "server";
-const std::string ALL_COMPONENT_NAME = "*";
-
+extern const char* MODULE_NAME_LLM;
+extern const char*  MODULE_NAME_ATB;
+extern const char* MODULE_NAME_SERVER;
+extern const char* LOGGER_NAME_LLM_TOKEN;
+extern const char* LOGGER_NAME_LLM_REQUEST;
+extern const char* ALL_COMPONENT_NAME;
 // Log setting limits
 constexpr size_t MAX_PATH_LENGTH = 4096;
 constexpr uint32_t MAX_ROTATION_FILE_COUNT_LIMIT = 64;
@@ -60,17 +61,18 @@ const std::unordered_map<std::string, LogLevel> LOG_LEVEL_MAP{
     {"WARNING", LogLevel::warn}, {"ERROR", LogLevel::err}, {"CRITICAL", LogLevel::critical},
 };
 
-enum class LoggerType { MINDIE_LLM, ATB, SECURITY, DEBUG, MAX_LOGGER_TYPE };
+enum class LoggerType {
+    MINDIE_LLM,
+    MINDIE_LLM_REQUEST,
+    MINDIE_LLM_TOKEN,
+    ATB,
+    SECURITY,
+    DEBUG,
+    MAX_LOGGER_TYPE
+};
+extern const std::unordered_map<LoggerType, std::string> LOGGER_NAME_MAP;
+extern const std::unordered_map<LoggerType, std::string> MODULE_NAME_MAP;
 
-const std::unordered_map<LoggerType, std::string> LOGGER_NAME_MAP{{LoggerType::MINDIE_LLM, "mindie_llm"},
-                                                                  {LoggerType::ATB, "atb"},
-                                                                  {LoggerType::SECURITY, "server_security"},
-                                                                  {LoggerType::DEBUG, "server_debug"}};
-
-const std::unordered_map<LoggerType, std::string> MODULE_NAME_MAP{{LoggerType::MINDIE_LLM, COMPONENT_NAME_LLM},
-                                                                  {LoggerType::ATB, COMPONENT_NAME_ATB},
-                                                                  {LoggerType::SECURITY, COMPONENT_NAME_SERVER},
-                                                                  {LoggerType::DEBUG, COMPONENT_NAME_SERVER}};
 class LogConfig {
 public:
     LogConfig() = default;

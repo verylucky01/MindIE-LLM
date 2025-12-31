@@ -54,6 +54,8 @@ public:
     static void GetLogFileName(LoggerType loggerType, std::string &filename);
 
     static std::string GetModuleName(LoggerType loggerType);
+
+    static std::string GetLoggerNameStr(LoggerType loggerType);
 };
 
 class GenericRotationFileSink : public spdlog::sinks::base_sink<std::mutex> {

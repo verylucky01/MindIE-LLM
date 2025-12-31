@@ -167,7 +167,7 @@ void LoadBalancer::DistributeSeqGroups(const std::vector<size_t> &dpRankIds)
             }
             seqGroupSPtr->waveId_ = waveId_;
             enginePerDP->scheduler->AddSeqGroup(seqGroupSPtr);
-            MINDIE_LLM_LOG_INFO("[LlmEngine|Request-Enter Waiting] Load Balance dispatch request to DP RankId: "
+            MINDIE_LLM_LOG_INFO_REQUEST("[LlmEngine|Request-Enter Waiting] Load Balance dispatch request to DP RankId: "
                                 << dpRankIds[i] << ", requestId: " << seqGroupSPtr->metrics_.inferReqId_
                                 << "seqId: " << seqGroupSPtr->firstSeq->seqId_ << ").");
             enginePerDP->addedRequestNum++;

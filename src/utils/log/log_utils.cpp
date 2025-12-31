@@ -182,13 +182,22 @@ void LogUtils::GetLogFileName(LoggerType loggerType, std::string &filename)
     ss << std::setw(millisecondsWidth) << std::setfill('0') << millisecondsPart;
 
     std::string timeStr = ss.str();
-    filename += "/mindie-" + GetModuleName(loggerType) + "_" + std::to_string(pid) + "_" + timeStr + ".log";
+    filename += "/mindie-" + GetLoggerNameStr(loggerType) + "_" + std::to_string(pid) + "_" + timeStr + ".log";
 }
 
 std::string LogUtils::GetModuleName(LoggerType loggerType)
 {
+    loggerType = (loggerType == LoggerType::MINDIE_LLM_REQUEST || loggerType == LoggerType::MINDIE_LLM_TOKEN)
+                     ? LoggerType::MINDIE_LLM
+                     : loggerType;
     auto it = MODULE_NAME_MAP.find(loggerType);
     return it != MODULE_NAME_MAP.end() ? it->second : throw std::invalid_argument("Invalid LoggerType enum value");
+}
+
+std::string LogUtils::GetLoggerNameStr(LoggerType loggerType)
+{
+    auto it = LOGGER_NAME_MAP.find(loggerType);
+    return it != LOGGER_NAME_MAP.end() ? it->second : throw std::invalid_argument("Invalid LoggerType enum value");
 }
 
 GenericRotationFileSink::GenericRotationFileSink(const std::string &baseFileName,

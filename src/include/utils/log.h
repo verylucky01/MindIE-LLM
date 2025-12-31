@@ -88,9 +88,9 @@ public:
 private:
     void SetFileEventHandle(spdlog::file_event_handlers &handlers) const;
     int Initialize(LoggerType loggerType);
+    bool ShouldPrintToStdout(LoggerType loggerType);
     std::string GetLogPattern(LoggerType loggerType);
     static std::string GetLoggerFormat(LoggerType loggerType);
-    static std::string GetLoggerNameStr(LoggerType loggerType);
     static void SanitizeMessage(std::string& msg);
 private:
     static std::once_flag atbLogInitFlag;
@@ -115,16 +115,16 @@ inline std::ostream& operator<<(std::ostream& os, const std::vector<T>& vec)
 #endif
 
 #ifdef FUZZ_TEST
-#define MINDIE_LLM_LOG(level, msg, ...)
+#define MINDIE_LLM_LOG(level, msg, loggerType, ...)
 #else
-#define MINDIE_LLM_LOG(level, msg, ...)                                                                \
-    do {                                                                                               \
-        if (mindie_llm::Log::GetInstance(mindie_llm::LoggerType::MINDIE_LLM) != nullptr &&             \
-            mindie_llm::Log::GetLogConfig(mindie_llm::LoggerType::MINDIE_LLM)->logLevel_ <= (level)) { \
-            std::ostringstream oss;                                                                    \
-            MINDIE_LLM_FORMAT_LOG(oss, level, msg, ##__VA_ARGS__);                                     \
-            mindie_llm::Log::LogMessage(mindie_llm::LoggerType::MINDIE_LLM, level, oss.str());         \
-        }                                                                                              \
+#define MINDIE_LLM_LOG(level, msg, loggerType, ...) \
+    do { \
+        if (mindie_llm::Log::GetInstance(loggerType) != nullptr && \
+            mindie_llm::Log::GetLogConfig(loggerType)->logLevel_ <= (level)) { \
+            std::ostringstream oss; \
+            MINDIE_LLM_FORMAT_LOG(oss, level, msg, ##__VA_ARGS__); \
+            mindie_llm::Log::LogMessage(loggerType, level, oss.str()); \
+        } \
     } while (0)
 #endif
 
@@ -139,15 +139,33 @@ inline std::ostream& operator<<(std::ostream& os, const std::vector<T>& vec)
 
 // MINDIE_LLM_LOG宏函数调用示例：MINDIE_LLM_LOG_DEBUG(msg, errorcode) errorcode为可选传参
 // 其他日志级别同理
-#define MINDIE_LLM_LOG_DEBUG(msg, ...) MINDIE_LLM_LOG(spdlog::level::debug, msg, __VA_ARGS__)
 
-#define MINDIE_LLM_LOG_INFO(msg, ...) MINDIE_LLM_LOG(spdlog::level::info, msg, __VA_ARGS__)
+#define MINDIE_LLM_LOG_WARN(msg, ...) \
+    MINDIE_LLM_LOG(spdlog::level::warn, msg, mindie_llm::LoggerType::MINDIE_LLM, __VA_ARGS__)
+#define MINDIE_LLM_LOG_WARN_REQUEST(msg, ...) \
+    MINDIE_LLM_LOG(spdlog::level::warn, msg, mindie_llm::LoggerType::MINDIE_LLM_REQUEST, __VA_ARGS__)
+#define MINDIE_LLM_LOG_WARN_TOKEN(msg, ...) \
+    MINDIE_LLM_LOG(spdlog::level::warn, msg, mindie_llm::LoggerType::MINDIE_LLM_TOKEN, __VA_ARGS__)
 
-#define MINDIE_LLM_LOG_WARN(msg, ...) MINDIE_LLM_LOG(spdlog::level::warn, msg, __VA_ARGS__)
+#define MINDIE_LLM_LOG_ERROR(msg, ...) \
+    MINDIE_LLM_LOG(spdlog::level::err, msg, mindie_llm::LoggerType::MINDIE_LLM, __VA_ARGS__)
 
-#define MINDIE_LLM_LOG_ERROR(msg, ...) MINDIE_LLM_LOG(spdlog::level::err, msg, __VA_ARGS__)
+#define MINDIE_LLM_LOG_FATAL(msg, ...) \
+    MINDIE_LLM_LOG(spdlog::level::critical, msg, mindie_llm::LoggerType::MINDIE_LLM, __VA_ARGS__)
 
-#define MINDIE_LLM_LOG_FATAL(msg, ...) MINDIE_LLM_LOG(spdlog::level::critical, msg, __VA_ARGS__)
+#define MINDIE_LLM_LOG_DEBUG(msg, ...) \
+    MINDIE_LLM_LOG(spdlog::level::debug, msg, mindie_llm::LoggerType::MINDIE_LLM, __VA_ARGS__)
+#define MINDIE_LLM_LOG_DEBUG_REQUEST(msg, ...) \
+    MINDIE_LLM_LOG(spdlog::level::debug, msg, mindie_llm::LoggerType::MINDIE_LLM_REQUEST, __VA_ARGS__)
+#define MINDIE_LLM_LOG_DEBUG_TOKEN(msg, ...) \
+    MINDIE_LLM_LOG(spdlog::level::debug, msg, mindie_llm::LoggerType::MINDIE_LLM_TOKEN, __VA_ARGS__)
+
+#define MINDIE_LLM_LOG_INFO(msg, ...) \
+    MINDIE_LLM_LOG(spdlog::level::info, msg, mindie_llm::LoggerType::MINDIE_LLM, __VA_ARGS__)
+#define MINDIE_LLM_LOG_INFO_REQUEST(msg, ...) \
+    MINDIE_LLM_LOG(spdlog::level::info, msg, mindie_llm::LoggerType::MINDIE_LLM_REQUEST, __VA_ARGS__)
+#define MINDIE_LLM_LOG_INFO_TOKEN(msg, ...) \
+    MINDIE_LLM_LOG(spdlog::level::info, msg, mindie_llm::LoggerType::MINDIE_LLM_TOKEN, __VA_ARGS__)
 
 #define ATB_SPEED_LOG(level, msg, ...)                                                                 \
     do {                                                                                               \
@@ -195,7 +213,7 @@ inline std::ostream& operator<<(std::ostream& os, const std::vector<T>& vec)
     do {                                                                                               \
         if (mindie_llm::Log::GetLogConfig(mindie_llm::LoggerType::DEBUG)->logVerbose_) {               \
             oss << mindie_llm::Log::GetLevelStr(level) << "[" << LOG_FILENAME << ":" << __LINE__ <<    \
-                "] " << errCode << "[" << submoduleName << "] ";                                        \
+                "] " << (errCode) << "[" << (submoduleName) << "] ";                                        \
         } else {                                                                                       \
             oss << errCode;                                                                            \
         }                                                                                              \

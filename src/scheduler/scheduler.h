@@ -270,8 +270,11 @@ private:
 
     std::unordered_set<SequenceId> abortedSequenceIds_;
 
-    // 调度轮次， 打印日志时使用
+    // 打印日志时使用
+    // 调度轮次
     size_t iterTimes_{0};
+    // rankid
+    int dpRankId_{0};
 
     SchedulerMetricsStatics schedulerMetricsStatics_{};
 

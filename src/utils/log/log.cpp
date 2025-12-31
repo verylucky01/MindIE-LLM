@@ -72,16 +72,14 @@ void Log::CreateInstance(LoggerType loggerType)
         return;
     }
 
-    std::string name = GetLoggerNameStr(loggerType);
+    std::string name = LogUtils::GetLoggerNameStr(loggerType);
     std::shared_ptr<LogConfig> logConfig = std::make_shared<LogConfig>();
     if (!logConfig || logConfig->Init(loggerType) != LOG_OK) {
         throw std::runtime_error(name + " failed to init the logConfig.");
     }
-
     if (logConfig->ValidateSettings() != LOG_OK) {
         throw std::runtime_error(name + " log params validation failed.");
     }
-
     std::shared_ptr<Log> targetLogger = std::make_shared<Log>(logConfig);
     if (targetLogger == nullptr) {
         throw std::runtime_error(name + " failed to create logger.");
@@ -99,17 +97,17 @@ const std::shared_ptr<LogConfig> Log::GetLogConfig(LoggerType loggerType)
     if (logger != nullptr) {
         return logger->logConfig_;
     }
-    throw std::runtime_error(GetLoggerNameStr(loggerType) + " logger is null, failed to get LogConfig.");
+    throw std::runtime_error(LogUtils::GetLoggerNameStr(loggerType) + " logger is null, failed to get LogConfig.");
 }
 
 void Log::LogMessage(LoggerType loggerType, LogLevel level, const std::string &message)
 {
     std::shared_ptr<Log> logger = GetInstance(loggerType);
     if (logger == nullptr || logger->innerLogger_ == nullptr) {
-        throw std::runtime_error(GetLoggerNameStr(loggerType) + " logger is null.");
+        throw std::runtime_error(LogUtils::GetLoggerNameStr(loggerType) + " logger is null.");
     }
     if (message.empty() || level < 0 || level > MAX_LOG_LEVEL_LIMIT) {
-        throw std::runtime_error(GetLoggerNameStr(loggerType) + " invalid log params.");
+        throw std::runtime_error(LogUtils::GetLoggerNameStr(loggerType) + " invalid log params.");
     }
 
     // 长度检查和截断处理
@@ -151,11 +149,13 @@ void Log::SetFileEventHandle(spdlog::file_event_handlers &handlers) const
     };
 }
 
+bool Log::ShouldPrintToStdout(LoggerType loggerType) { return loggerType != LoggerType::MINDIE_LLM_TOKEN; }
+
 int Log::Initialize(LoggerType loggerType)
 {
     std::vector<spdlog::sink_ptr> sinks;
     try {
-        if (logConfig_->logToStdOut_) {
+        if (logConfig_->logToStdOut_ && ShouldPrintToStdout(loggerType)) {
             auto stdoutSink = std::make_shared<spdlog::sinks::stdout_sink_mt>();
             stdoutSink->set_pattern(GetLogPattern(loggerType));
             sinks.push_back(stdoutSink);
@@ -175,9 +175,10 @@ int Log::Initialize(LoggerType loggerType)
         }
         if (loggerType == LoggerType::ATB) {
             // ATB日志使用同步日志器 spdlog::logger
-            innerLogger_ = std::make_shared<spdlog::logger>(GetLoggerNameStr(loggerType), sinks.begin(), sinks.end());
+            innerLogger_ =
+                std::make_shared<spdlog::logger>(LogUtils::GetLoggerNameStr(loggerType), sinks.begin(), sinks.end());
         } else {
-            innerLogger_ = std::make_shared<spdlog::async_logger>(GetLoggerNameStr(loggerType),
+            innerLogger_ = std::make_shared<spdlog::async_logger>(LogUtils::GetLoggerNameStr(loggerType),
                 sinks.begin(), sinks.end(), spdlog::thread_pool(),
                 spdlog::async_overflow_policy::block);
         }
@@ -198,7 +199,7 @@ std::string Log::GetLogPattern(LoggerType loggerType)
 {
     std::string moduleName = LogUtils::GetModuleName(loggerType);
     std::string pattern = "[%Y-%m-%d %H:%M:%S.%f] %v";
-    if (loggerType == LoggerType::MINDIE_LLM || loggerType == LoggerType::ATB) {
+    if (loggerType <= LoggerType::ATB) {
         if (logConfig_->logVerbose_) {
             pattern = "[%Y-%m-%d %H:%M:%S.%f] [%P] [%t] [" + moduleName + "] %v";
         }
@@ -212,12 +213,6 @@ std::string Log::GetLogPattern(LoggerType loggerType)
         }
     }
     return pattern;
-}
-
-std::string Log::GetLoggerNameStr(LoggerType loggerType)
-{
-    auto it = LOGGER_NAME_MAP.find(loggerType);
-    return it != LOGGER_NAME_MAP.end() ? it->second : throw std::invalid_argument("Invalid LoggerType enum value");
 }
 
 std::string Log::GetLoggerFormat(LoggerType loggerType)
