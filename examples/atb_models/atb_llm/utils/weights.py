@@ -95,7 +95,9 @@ class Weights:
 
         self.dimfiles = model_name_or_path
         self.quantize = quantize
-        routing = self.load_routing(process_group)
+        routing = {}
+        if not kwargs.get("lazy_loading_file_handlers", False):
+            routing = self.load_routing(process_group)
         self.weight_dims = {}
         if aliases is None:
             aliases = {}
