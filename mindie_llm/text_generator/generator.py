@@ -319,8 +319,13 @@ class Generator(PDInterface):
                 mapping.attn_cp,
             )
 
-        logger.debug(f"[Config]\t>>> rank:{self.rank} Warm up inference start...")
         self.is_multimodal = self.model_wrapper.is_multimodal
+        if self.is_multimodal and "memory_decoding" in plugin_list:
+            message = ("Memory decoding is not supported when the model type is multimodal.")
+            logger.error(message, ErrorCode.TEXT_GENERATOR_FEAT_COMPAT_INVALID)
+            raise NotImplementedError(message)
+
+        logger.debug(f"[Config]\t>>> rank:{self.rank} Warm up inference start...")
         self.is_separated_pd = self.pd_config.model_role in [PREFILL_TAG, DECODER_TAG]
         self.context_params = ContextParams(
             self.is_separated_pd,
