@@ -122,8 +122,8 @@ LoRA权重中需包含"adapter\_config.json"和"adapter\_model.safetensors"文�
                             "trustRemoteCode": false
                         }
                     ],
-                   "maxLoras": 4,
-                   "maxLoraRank": 296,
+                    "maxLoras": 4,
+                    "maxLoraRank": 296,
                     "LoraModules" :[{
                     "name" : "adapter1",
                     "path" : "/data/lora_model_weights/llama3.1-70b-lora",
@@ -157,7 +157,7 @@ LoRA权重中需包含"adapter\_config.json"和"adapter\_model.safetensors"文�
 
         ```bash
         curl -X POST 127.0.0.2:1026/v1/unload_lora_adapter -d '{
-        "lora_name": "adapter2"
+            "lora_name": "adapter2"
         }'
         ```
 
