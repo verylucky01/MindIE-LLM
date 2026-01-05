@@ -29,7 +29,8 @@ function fn_make_run_package()
     cares_so_list=("libcares.so.2")
     prometheus_so_list=("libprometheus-cpp-core.so.1.3")
     grpc_version="so.37"
-    grpc_so_list=("libgrpc++.so.1.60" lib*."${grpc_version}" "libgrpc++_alts.so.1.60")
+    grpcpp_version="so.1.60"
+    grpc_so_list=(lib*."${grpcpp_version}" lib*."${grpc_version}")
     libboundscheck_so_list=("libboundscheck.so")
 
     copy_so() {
