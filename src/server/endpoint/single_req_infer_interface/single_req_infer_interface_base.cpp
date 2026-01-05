@@ -29,7 +29,6 @@
 using OrderedJson = nlohmann::ordered_json;
 
 namespace mindie_llm {
-std::atomic<bool> SingleReqInferInterfaceBase::refuseReqFlag{false};
 
 std::atomic<bool> StopServiceOption::stopServiceFlag{false};
 

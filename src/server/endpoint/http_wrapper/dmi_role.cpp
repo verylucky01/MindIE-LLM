@@ -516,7 +516,6 @@ void DmiRole::HandlePDRoleV1(const ReqCtxPtr &ctx, const std::string &roleName)
     ordered_json body;
     GlobalIpInfo globalIpInfo;
     if (!PDParseRequestBodyToJson(ctx, body) || !JsonParse::CheckPDRoleReqJson(body)) {
-        SingleReqInferInterfaceBase::refuseReqFlag.store(false);
         ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SPLITWISE, JSON_PARSE_ERROR),
             "[DmiRole::HandlePDRole] Req body converts to json fail. Reset to previous node status.");
         HttpRestResource::ResponseJsonBody(ctx, httplib::StatusCode::UnprocessableContent_422,
@@ -541,7 +540,6 @@ void DmiRole::HandlePDRoleV2(const ReqCtxPtr &ctx, const std::string &roleName)
     GlobalIpInfo globalIpInfo;
     try {
         if (!PDParseRequestBodyToJson(ctx, body) || !JsonParse::CheckPDRoleV2ReqJson(body)) {
-            SingleReqInferInterfaceBase::refuseReqFlag.store(false);
             ULOG_ERROR(SUBMODLE_NAME_ENDPOINT,
                 GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_PREFIX_CACHE, STATUS_WARNING),
                 "[DmiRole::HandlePDRole] Req body converts to json fail. Reset to previous node status. ");

@@ -68,7 +68,6 @@ public:
     virtual bool SetupInferParams(RequestSPtr tmpReq, std::string &msg) = 0;
 
 public:
-    static std::atomic<bool> refuseReqFlag;
     virtual void SetDMIReComputeBuilder() = 0;
     // 端点能力声明：默认全 false，需要能力的端点自行覆写
     virtual const InferParam::FeatureSupport &GetFeatureSupport() const

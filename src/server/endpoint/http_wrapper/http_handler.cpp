@@ -981,7 +981,6 @@ void HttpHandler::InitializeServiceMgmtV1(HttpsServerHelper &server)
             return;
         }
         std::string roleName = GetUriParameters(context->Req(), 1);
-        SingleReqInferInterfaceBase::refuseReqFlag.store(true);
         DmiRole::GetInstance()->HandlePDRoleV1(context, roleName);
         return;
     });
@@ -1097,7 +1096,6 @@ void HttpHandler::InitializeServiceMgmtV2(HttpsServerHelper &server)
             return;
         }
         std::string roleName = GetUriParameters(context->Req(), 1);
-        SingleReqInferInterfaceBase::refuseReqFlag.store(true);
         DmiRole::GetInstance()->HandlePDRoleV2(context, roleName);
         HandleUpdateNpuDeviceIds(context);
         return;
