@@ -371,7 +371,9 @@ bool TokenizerProcessPool::InitTokenizerPool()
     int32_t parentPid = getpid();
     auto modelDeployParam = GetModelDeployConfig();
     if (modelDeployParam.empty()) {
-        throw std::runtime_error("modelDeployParam is empty, please provide model deployment parameter in conf/config.json");
+        ULOG_ERROR(SUBMODLE_NAME_TOKENIZER, GenerateTokenizerErrCode(ERROR, SUBMODLE_FEATURE_TOKENIZER,
+            INIT_ERROR), "modelDeployParam is empty, please provide model deployment parameter in conf/config.json");
+        return false;
     }
     modelWeightPath_ = modelDeployParam[0].modelWeightPath;
     backendType_ = modelDeployParam[0].backendType;
