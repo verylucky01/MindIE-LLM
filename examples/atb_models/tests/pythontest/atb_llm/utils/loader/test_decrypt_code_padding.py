@@ -25,6 +25,8 @@ sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../
 # than where the script was originally located
 import tests.encrypttest.decrypt_code_padding as decrypt_code_padding
 
+patch_operations = decrypt_code_padding.patch_operations
+
 
 class TestDecryptCodePadding(unittest.TestCase):
     def setUp(self):
@@ -84,7 +86,7 @@ class TestDecryptCodePadding(unittest.TestCase):
             f.write("        return routing\n")
             
         # Process the file
-        result = decrypt_code_padding.process_file(test_file_path)
+        result = decrypt_code_padding.process_file(test_file_path, patch_operations)
         
         # Check that all modifications were made successfully
         self.assertTrue(result, "The decrypt_code_padding script should successfully process the file when all target content matches")
@@ -134,7 +136,7 @@ class TestDecryptCodePadding(unittest.TestCase):
         
         try:
             # Process the real file
-            result = decrypt_code_padding.process_file(real_file_path)
+            result = decrypt_code_padding.process_file(real_file_path, patch_operations)
             
             # Check that modifications were made
             self.assertTrue(result, "The decrypt_code_padding script should successfully process the real safetensor_file_loader.py file")
