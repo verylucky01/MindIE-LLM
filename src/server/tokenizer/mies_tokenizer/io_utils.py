@@ -162,7 +162,7 @@ def create_cache_dir(dir_path):
                 file_utils.check_path_permission(single_dir)
             else:
                 os.makedirs(single_dir, exist_ok=True)
-                os.chmod(single_dir, 0o640)
+                os.chmod(single_dir, 0o750)
         with file_utils.safe_open(shm_save_path, mode='wb', permission_mode=0o640):
             pass
     except FileNotFoundError as file_not_found_error:
