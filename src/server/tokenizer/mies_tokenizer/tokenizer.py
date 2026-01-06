@@ -15,6 +15,7 @@ import json
 import os
 import signal
 import multiprocessing
+import threading
 import time
 from urllib.parse import urlparse
 import re
@@ -28,7 +29,9 @@ from . import file_utils
 
 logger = file_utils.get_tokenizer_logger()
 
+_ALLOWED_MEDIA_DOMAINS_ENV = "ALLOWED_MEDIA_DOMAINS_ENV"
 _ALLOWED_LOCAL_MEDIA_PATH = "/data/multimodal_inputs/"
+once_flag = threading.Event()
 
 _DURATION = 30  # check undeleted cache dir pre 30 seconds
 _DELET_DURATION = 2 ** 16  # delete dirs in the cache that are older than 2**16 seconds, which is equal to e2eTimeout
@@ -197,6 +200,42 @@ class IbisTokenizer:
         dir_path = os.path.join(dir_path, child_dir_name)
         file_utils.check_path_length_lt(dir_path)
         return dir_path
+
+    @staticmethod
+    def _extract_domain(url: str) -> str:
+        """
+        Extract normalized domain (hostname) from a URL.
+        """
+        parsed = urlparse(url)
+        if not parsed.scheme or not parsed.hostname:
+            raise ValueError(f"Invalid URL: {url}")
+        return parsed.hostname.lower()
+
+    @staticmethod
+    def _load_allowed_media_domains() -> set[str]:
+        """
+        Load allowed media domains from environment variable.
+
+        Example:
+        ALLOWED_MEDIA_DOMAINS_ENV="upload.xxxmedia.org, cxxx.xxx.com"
+
+        """
+        allowed_media_domains_env = os.getenv(_ALLOWED_MEDIA_DOMAINS_ENV)
+        if not allowed_media_domains_env:
+            return set()
+
+        return {d.strip().lower() for d in allowed_media_domains_env.split(",") if d.strip()}
+
+    @staticmethod
+    def _check_domain_allowed(media_url: str, allowed_domains: set[str]) -> None:
+        """
+        Validate whether media_url's domain is allowed.
+        """
+        domain = IbisTokenizer._extract_domain(media_url)
+        if domain not in allowed_domains:
+            raise ValueError(
+                f"Domain '{domain}' is not in allowed domain list"
+            )
 
     def delete_multimodal_cache(self, timestamp: int, cache_prefix=None):
         dir_path = self.cache_path
@@ -499,12 +538,33 @@ class IbisTokenizer:
 
         _, ext = os.path.splitext(media_url)
         cache_dir = self.media_cache_dirs.get(input_type)
+
         if media_url.startswith("http://") or media_url.startswith("https://"):  # http or https
             if len(media_url) > _URL_LENGTH_LIMIT:
                 logger.error(f"The length of media_url should be less than {_URL_LENGTH_LIMIT}, "
                              f"but got {len(media_url)}.")
                 raise ValueError(f"The length of media_url should be less than {_URL_LENGTH_LIMIT}, "
                                  f"but got {len(media_url)}.")
+     
+            allowed_domains = self._load_allowed_media_domains()
+            if allowed_domains:
+                try:
+                    self._check_domain_allowed(media_url, allowed_domains)
+                except ValueError as e:
+                    logger.error("Domain whitelist validation failed: %s", e)
+                    raise ValueError(
+                        f"The media URL domain is not allowed: {e}"
+                    ) from e
+            else:
+                if not once_flag.is_set():
+                    with threading.Lock():
+                        if not once_flag.is_set():
+                            logger.warning(
+                                "ALLOWED_MEDIA_DOMAIN_ENV is not set. "
+                                "Domain whitelist check is disabled."
+                            )
+                            once_flag.set()
+            
             media_size = self._process_url_path(media_url, ext, input_type, cache_dir, total_start_time)
         elif ext.lower() in _MEDIA_TYPE.get(input_type):  # local path
             if media_url.startswith("file://"):
