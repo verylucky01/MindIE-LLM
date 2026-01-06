@@ -10,12 +10,14 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 
-import os
-import shutil
 import base64
 import binascii
+import os
+import shutil
+import time
 from io import BytesIO
 from multiprocessing import shared_memory
+import psutil
 import requests
 from PIL import Image
 from . import file_utils
@@ -23,31 +25,69 @@ from . import file_utils
 logger = file_utils.get_tokenizer_logger()
 logger.info("tokenizer start.")
 
+_CHUNK_SIZE = 1024 * 1024
+_TOKENIZER_ENCODE_TIMEOUT = "TOKENIZER_ENCODE_TIMEOUT"
+_CONNECT_TIMEOUT = 5
+_READ_TIMEOUT = 30
+_MAX_TOKENIZER_NUMBER = 32
 
-def fetch_media_url(image_url, input_type: str, ext: str,
-                    media_type_dict: dict[str, list[str]], size_limit_dict: dict[str, int]):
+
+def fetch_media_url(image_url, input_type: str, ext: str, limit_params: tuple,
+                    media_type_dict: dict[str, list[str]]):
     if ext.lower() not in media_type_dict.get(input_type):
         raise ValueError(f"The media type is {input_type}, url must end with one of {media_type_dict.get(input_type)}.")
-
+    size_limit_dict, total_start_time = limit_params
     size_limit = size_limit_dict.get(input_type, 0)
     if size_limit <= 0:
         raise ValueError(f'Invalid size limit for input type: {input_type}.')
 
-    try:
-        with requests.get(image_url, stream=True, timeout=5, verify=True, allow_redirects=False) as response:
-            response.raise_for_status()
+    current_memory = psutil.virtual_memory()
+    if current_memory.available < size_limit * _MAX_TOKENIZER_NUMBER * 2:
+        raise ValueError("Insufficient system memory for download.")
 
-            media_content = bytearray()
-            total_size = 0
-            for chunk in response.iter_content(chunk_size=size_limit):
+    download_timeout = os.getenv(_TOKENIZER_ENCODE_TIMEOUT, "60")
+    try:
+        download_timeout = float(download_timeout)
+    except ValueError:
+        download_timeout = 60.0
+
+    media_content = bytearray()
+    total_size = 0
+
+    try:
+        time_params = (_CONNECT_TIMEOUT, _READ_TIMEOUT)
+        with requests.get(image_url, stream=True, timeout=time_params, verify=True, allow_redirects=False) as response:
+            response.raise_for_status()
+            elapsed_time = time.time() - total_start_time
+            if elapsed_time > download_timeout:
+                media_content = bytearray()
+                raise ValueError(f"Download timed out during initial response after {download_timeout} seconds.")
+
+            for chunk in response.iter_content(chunk_size=_CHUNK_SIZE):
+                elapsed_time = time.time() - total_start_time
+                if elapsed_time > download_timeout:
+                    media_content = bytearray()
+                    raise ValueError(f"Download timed out after {download_timeout} seconds.")
                 if chunk:
                     total_size += len(chunk)
+                    current_memory = psutil.virtual_memory()
+                    if current_memory.available < size_limit * _MAX_TOKENIZER_NUMBER * 2:
+                        media_content = bytearray()
+                        raise ValueError("Insufficient system memory for download.")
                     if total_size > size_limit:
+                        media_content = bytearray()
                         raise ValueError(f'The size of {input_type} exceeds the limit '
                                          f'of {size_limit / (1024 * 1024):.2f} MB.')
                     media_content.extend(chunk)
             return bytes(media_content), total_size
+    except requests.exceptions.ConnectTimeout as e:
+        media_content = bytearray()
+        raise RuntimeError(f"Connection timed out after {_CONNECT_TIMEOUT} seconds.") from e
+    except requests.exceptions.ReadTimeout as e:
+        media_content = bytearray()
+        raise RuntimeError(f"Read timed out after {_READ_TIMEOUT} seconds.") from e
     except requests.RequestException as e:
+        media_content = bytearray()
         raise RuntimeError("Download error") from e
 
 

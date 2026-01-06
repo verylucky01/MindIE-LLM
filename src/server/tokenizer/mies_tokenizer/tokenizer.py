@@ -36,6 +36,7 @@ _SINGLE_IMAGE_LIMIT = 20 * 1024 * 1024  # 20 MB
 _SINGLE_AUDIO_LIMIT = 20 * 1024 * 1024  # 20 MB
 _SINGLE_VIDEO_LIMIT = 512 * 1024 * 1024  # 512 MB
 _MEDIA_SIZE_LIMIT = 1000 * 1024 * 1024 # 1 GB
+_URL_LENGTH_LIMIT = 4096
 
 _TEXT_KEY = "text"
 _CONTENT_NAME_KEY = "content"
@@ -136,13 +137,14 @@ class IbisTokenizer:
             raise ValueError(f"'{path}' path not exist.")
 
     @staticmethod
-    def _process_url_path(media_url, ext, input_type, cache_dir):
+    def _process_url_path(media_url, ext, input_type, cache_dir, total_start_time):
         parsed_url = urlparse(media_url)
         if parsed_url.scheme not in ("http", "https"):
             logger.error("Invalid HTTP URL.")
             raise ValueError("Invalid HTTP URL.")
 
-        media_content, media_size = io_utils.fetch_media_url(media_url, input_type, ext, _MEDIA_TYPE, _SIZE_LIMITS)
+        limit_params = (_SIZE_LIMITS, total_start_time)
+        media_content, media_size = io_utils.fetch_media_url(media_url, input_type, ext, limit_params, _MEDIA_TYPE)
         if input_type == _IMAGE_KEY:
             image_count = len(os.listdir(cache_dir))
             image_save_path = os.path.join(cache_dir, f"{image_count + 1}.jpg")
@@ -238,8 +240,9 @@ class IbisTokenizer:
     def download_url(self, prompt: str, timestamp: int):
         def download_elems(elem_list):
             media_size = 0
+            total_start_time = time.time()
             for elem in elem_list:
-                media_size += self._download(elem)
+                media_size += self._download(elem, total_start_time)
                 if media_size > _MEDIA_SIZE_LIMIT:
                     err_str = f'The total media input cannot exceed {_MEDIA_SIZE_LIMIT / (1024 * 1024)} MB.'
                     logger.error(err_str)
@@ -473,7 +476,7 @@ class IbisTokenizer:
             _AUDIO_KEY: os.path.join(dir_path, "audio"),
         }
 
-    def _download(self, info):
+    def _download(self, info, total_start_time):
         media_size = 0
         input_type = info['type']
         if input_type == 'text':
@@ -497,7 +500,12 @@ class IbisTokenizer:
         _, ext = os.path.splitext(media_url)
         cache_dir = self.media_cache_dirs.get(input_type)
         if media_url.startswith("http://") or media_url.startswith("https://"):  # http or https
-            media_size = self._process_url_path(media_url, ext, input_type, cache_dir)
+            if len(media_url) > _URL_LENGTH_LIMIT:
+                logger.error(f"The length of media_url should be less than {_URL_LENGTH_LIMIT}, "
+                             f"but got {len(media_url)}.")
+                raise ValueError(f"The length of media_url should be less than {_URL_LENGTH_LIMIT}, "
+                                 f"but got {len(media_url)}.")
+            media_size = self._process_url_path(media_url, ext, input_type, cache_dir, total_start_time)
         elif ext.lower() in _MEDIA_TYPE.get(input_type):  # local path
             if media_url.startswith("file://"):
                 _, media_url = media_url.split("file://", 1)
