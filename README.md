@@ -3,7 +3,8 @@
 
 ## 🔥Latest News
 
-- [2025/12] MindIE LLM 正式宣布开源并面向公众开放！
+- [2025/12] MindIE LLM 正式宣布开源并面向公众开放！ [会议日历](https://meeting.ascend.osinfra.cn/?sig=sig-MindIE-LLM)
+
 
 ## 🚀简介
 
