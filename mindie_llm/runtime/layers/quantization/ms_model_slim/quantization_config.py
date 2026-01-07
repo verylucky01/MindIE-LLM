@@ -18,6 +18,7 @@ from mindie_llm.runtime.layers.quantization.ms_model_slim.w8a8 import (
     W8A8PerTensorLinearMethod,
     W8A8PerTokenLinearMethod,
     W8A8MixLinearMethod,
+    W8A8MXFP8PerGroupLinearMethod,
 )
 
 from mindie_llm.runtime.layers.quantization.ms_model_slim.anti_outlier import AntiOutlierNormMethod
@@ -112,6 +113,7 @@ class QuantizationConfig(QuantizationConfigBase):
                 QuantType.W8A8: W8A8PerTensorLinearMethod,
                 QuantType.W8A8_DYNAMIC: W8A8PerTokenLinearMethod,
                 QuantType.W8A8_MIX: W8A8MixLinearMethod,
+                QuantType.W8A8_MXFP8: W8A8MXFP8PerGroupLinearMethod,
             }
             quant_method_cls = quant_type_method_cls_map.get(quant_type)
             if quant_method_cls is None:

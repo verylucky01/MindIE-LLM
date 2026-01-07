@@ -12,6 +12,7 @@ import unittest
 from unittest.mock import MagicMock, patch, Mock
 import torch
 import torch.distributed as dist
+import torch_npu
 
 from mindie_llm.runtime.layers.linear.linear import (
     LinearBase,
@@ -26,6 +27,7 @@ from mindie_llm.runtime.layers.quantization.ms_model_slim.w8a8 import (
     W8A8PerTensorLinearMethod,
     W8A8PerTokenLinearMethod,
     W8A8MixLinearMethod,
+    W8A8MXFP8PerGroupLinearMethod,
 )
 from mindie_llm.runtime.layers.quantization.ms_model_slim.quantization_config import QuantizationConfig
 from mindie_llm.runtime.layers.quantization.ms_model_slim.quant_type import QuantType, InferenceMode
@@ -421,6 +423,92 @@ class TestW8A8MixLinearMethod(unittest.TestCase):
         self.assertEqual(layer.input_scale.data.shape, (512,))
         # Verify weight_scale was flattened
         self.assertEqual(layer.weight_scale.data.shape, (1024,))
+
+
+class TestW8A8MXFP8PerGroupLinearMethod(unittest.TestCase):
+    """Test cases for W8A8MXFP8PerGroupLinearMethod."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        # W8A8_MXFP8 for pertoken
+        self.quant_config_w8a8_mxfp8 = QuantizationConfig({
+            "version": "1.0.0",
+            "model_quant_type": QuantType.W8A8_MXFP8,
+            "layer.weight": QuantType.W8A8_MXFP8,
+            "layer.bias": None,
+            "embed_tokens.weight": QuantType.W8A8_MXFP8,
+            "lm_head.weight": QuantType.W8A8_MXFP8,
+        })
+
+        # Create mock parallel info manager
+        self.mock_parallel_info_manager = MagicMock()
+        self.mock_parallel_info_manager.rank = 0
+        self.mock_parallel_info_manager.world_size = 1
+
+        # Set the global parallel info manager
+        set_parallel_info_manager(self.mock_parallel_info_manager)
+
+    def tearDown(self):
+        """Clean up after tests."""
+        set_parallel_info_manager(None)
+
+    def test_create_weights(self):
+        """Test create_weights method."""
+        layer = ReplicatedLinear(
+            input_size=512,
+            output_size=1024,
+            quant_config=self.quant_config_w8a8_mxfp8,
+            weight_dtype=torch.float16,
+            prefix="layer"
+        )
+
+        # Verify quantized parameters were created
+        self.assertIsInstance(layer.quant_method, W8A8MXFP8PerGroupLinearMethod)
+        self.assertIsNotNone(layer.weight)
+        self.assertEqual(layer.weight.data.dtype, torch.float8_e4m3fn)
+        self.assertIsNotNone(layer.weight_scale)
+
+    @patch('torch.float8_e4m3fn', torch.float16)
+    @patch('torch_npu.float8_e8m0fnu', torch.float16, create=True)
+    @patch('torch_npu.npu_quant_matmul')
+    @patch('torch_npu.npu_dynamic_mx_quant', create=True)
+    def test_apply(self, mock_npu_dynamic_quant, mock_npu_quant_matmul):
+        """Test apply method."""
+        layer = ReplicatedLinear(
+            input_size=512,
+            output_size=1024,
+            quant_config=self.quant_config_w8a8_mxfp8,
+            prefix="layer"
+        )
+
+        # Initialize parameters
+        layer.weight.data = torch.randn(1024, 512).to(torch.float8_e4m3fn)
+        layer.weight_scale.data = torch.randn(1024, 1).to(torch.uint8)
+
+        x = torch.randn(2, 3, 512, dtype=torch.float16)
+
+        # Mock npu functions
+        mock_quantized_tensor = torch.randn(2, 3, 512)
+        mock_pertoken_scale = torch.randn(2, 3, 1)
+        mock_npu_dynamic_quant.return_value = (mock_quantized_tensor, mock_pertoken_scale)
+        mock_npu_quant_matmul.return_value = torch.randn(2, 3, 1024, dtype=torch.float16)
+
+        output = layer.quant_method.apply(layer, x)
+
+        # Verify npu_dynamic_quant was called
+        mock_npu_dynamic_quant.assert_called_once_with(x, dst_type=torch.float8_e4m3fn)
+
+        # Verify npu_quant_matmul was called
+        mock_npu_quant_matmul.assert_called_once()
+        matmul_call_args = mock_npu_quant_matmul.call_args
+        self.assertTrue(torch.equal(matmul_call_args[0][0], mock_quantized_tensor))
+        self.assertTrue(torch.equal(matmul_call_args[0][1], layer.weight))
+        self.assertTrue(torch.equal(matmul_call_args[0][2], layer.weight_scale))
+        self.assertTrue(torch.equal(matmul_call_args[1]['pertoken_scale'], mock_pertoken_scale))
+        self.assertEqual(matmul_call_args[1]['bias'], None)
+        self.assertEqual(matmul_call_args[1]['output_dtype'], torch.float16)
+
+        self.assertEqual(output.shape, (2, 3, 1024))
 
 
 if __name__ == '__main__':

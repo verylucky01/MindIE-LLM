@@ -24,10 +24,12 @@ from mindie_llm.runtime.layers.parameter import (
 )
 from mindie_llm.runtime.layers.quantization.ms_model_slim.quant_type import InferenceMode
 from mindie_llm.runtime.utils.npu_utils import get_platform_info
+from mindie_llm.runtime.utils.distributed.utils import even_divide
 from mindie_llm.utils.log.logging import logger
 
 
 SUPPORT_NZ_NPU_LIST = ("Ascend910B3", "Ascend910B4_1", "Ascend910_9381", "Ascend910_9372")
+MXFP8_GROUP_SIZE = 32
 
 
 class W8A8PerTensorLinearMethod(LinearMethodBase):
@@ -285,3 +287,83 @@ class W8A8MixLinearMethod(LinearMethodBase):
             layer.weight.data = torch_npu.npu_format_cast(layer.weight.data, 29)
             logger.debug("Convert weight to FRACTAL_NZ done, current format is %s", 
                        torch_npu.get_npu_format(layer.weight.data))
+            
+
+class W8A8MXFP8PerGroupLinearMethod(LinearMethodBase):
+    """
+    Implements per-token activation quantization with per-group weight quantization (W8A8_MXFP8).
+    """
+    def create_weights(
+        self,
+        layer: torch.nn.Module,
+        input_size_per_partition: int,
+        output_partition_sizes: list[int],
+        bias: bool,
+        weight_dtype: torch.dtype,
+        bias_dtype: torch.dtype,
+        **extra_weight_attrs,
+    ):
+        """
+        Creates and registers quantized weights for both prefill and decode modes.
+
+        Args:
+            layer: The layer to register parameters in.
+            input_size_per_partition: Input dimension for this partition.
+            output_partition_sizes: List of output dimensions for each partition.
+            bias: Whether to create bias parameters.
+            weight_dtype: Data type for weights.
+            bias_dtype: Data type for bias.
+            **extra_weight_attrs: Additional attributes for parameters.
+        """
+        weight = ModelWeightParameter(
+            data=torch.empty(sum(output_partition_sizes), input_size_per_partition, dtype=torch.float8_e4m3fn),
+        )
+        weight.add_attrs({
+            self.INPUT_DIM: 1,
+            self.OUTPUT_DIM: 0,
+            **extra_weight_attrs,
+        })
+
+        weight_scale = ModelWeightParameter(
+            data=torch.empty(sum(output_partition_sizes),
+                            even_divide(input_size_per_partition, MXFP8_GROUP_SIZE),
+                            dtype=torch.uint8),
+        )
+        weight_scale.add_attrs({
+            self.INPUT_DIM: 1,
+            self.OUTPUT_DIM: 0,
+            **extra_weight_attrs,
+        })
+
+        layer.register_parameter("weight", weight)
+        layer.register_parameter("weight_scale", weight_scale)
+        layer.register_parameter("bias", None)
+    
+    def apply(
+        self,
+        layer: torch.nn.Module,
+        x: torch.Tensor
+    ) -> torch.Tensor:
+        quantized_x, dynamic_scale = torch_npu.npu_dynamic_mx_quant(x, dst_type=torch.float8_e4m3fn)
+        pertoken_scale = dynamic_scale
+        output_dtype = x.dtype
+
+        output = torch_npu.npu_quant_matmul(
+            quantized_x,
+            layer.weight,
+            layer.weight_scale,
+            scale_dtype=torch_npu.float8_e8m0fnu,
+            pertoken_scale=pertoken_scale,
+            pertoken_scale_dtype=torch_npu.float8_e8m0fnu,
+            bias=layer.bias,
+            output_dtype=output_dtype,
+            group_sizes=[1, 1, MXFP8_GROUP_SIZE]
+        )
+
+        return output
+
+    def process_weights_after_loading(self, layer: nn.Module) -> None:
+        n_dim, k_dim = layer.weight_scale.data.shape
+        layer.weight_scale.data = layer.weight_scale.data.reshape(n_dim, even_divide(k_dim, 2), 2)
+        layer.weight.data = layer.weight.data.transpose(0, 1)
+        layer.weight_scale.data = layer.weight_scale.data.transpose(0, 1)
