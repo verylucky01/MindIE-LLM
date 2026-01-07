@@ -9,16 +9,36 @@
 # See the Mulan PSL v2 for more details.
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from mindie_llm.runtime.config.huggingface_config import HuggingFaceConfig, GenerationConfig
 from mindie_llm.runtime.config.configuration_utils import LLMConfig
 from mindie_llm.runtime.layers.quantization.quantization_config_base import QuantizationConfigBase
 from mindie_llm.runtime.layers.quantization.ms_model_slim.quantization_config import QuantizationConfig
+from mindie_llm.runtime.utils.parameter_validators import ParameterValidator, IntParameterValidator, Field
 from mindie_llm.runtime.utils.helpers.safety.file import safe_open
 from mindie_llm.runtime.utils.npu_utils import PlatformInfo
 from mindie_llm.utils.log.logging import logger
+
+
+@dataclass
+class LoraModelConfig:
+    """
+    Dataclass which contains LoRA configs.
+
+    Attributes:
+        max_loras: the MAX number of LoRAs to store in NPU memory
+        max_lora_rank: the MAX LoRA rank
+    """
+    max_loras: int = field(default=0, metadata={'validator': IntParameterValidator(Field(ge=0), allow_none=False)})
+    max_lora_rank: int = field(default=0, metadata={'validator': IntParameterValidator(Field(ge=0), allow_none=False)})
+
+    def __post_init__(self):
+        for field_name, field_value in self.__dataclass_fields__.items():
+            validator: ParameterValidator = field_value.metadata.get('validator')
+            if validator:
+                validator.validate(getattr(self, field_name), field_name)
 
 
 @dataclass
@@ -32,12 +52,14 @@ class MindIELLMConfig:
         llm_config (LLMConfig): model's feature configurable features from server's config
         generation_config (Optional[GenerationConfig]): model's generation_config
         quant_config (Optional[QuantizationConfigBase]): model's quant config
+        lora_model_config (Optional[LoraModelConfig]): model's lora config
     """
     model_name_or_path: str
     hf_config: HuggingFaceConfig
     llm_config: LLMConfig
     generation_config: GenerationConfig
     quant_config: QuantizationConfigBase | None = None
+    lora_model_config: LoraModelConfig | None = None
 
     def __post_init__(self):
         self.soc_info = PlatformInfo()

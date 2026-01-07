@@ -347,8 +347,8 @@ class ModelRunner:
             self.kvcache_quant_layers = self.model.kvcache_quant_layers
         logger.info(f'Initialized model: {self.model_cls.__name__}')
 
-        if not enable_v3:
-            if self.lora_adapter is not None:  # FlashForCausalLM
+        if not enable_v3 and not self.prealloc_weight_mem_on_npu: # FlashForCausalLM
+            if self.lora_adapter is not None:
                 self.model.adapter_manager = AdapterManager(weights)
                 self.model.update_adapter_manager()
                 self.model.adapter_manager.preload_adapter(self.lora_adapter)
@@ -389,6 +389,14 @@ class ModelRunner:
             if self.adapter_manager.lora_weights_loader is not None:
                 self.adapter_manager.lora_weights_loader.release_file_handler()
             self.adapter_manager.prepare_adapter_weights()
+
+        if not enable_v3: # FlashForCausalLM
+            if self.prealloc_weight_mem_on_npu and self.lora_model_config is not None:
+                self.model.adapter_manager = self.model.lora_modifier.adapter_manager
+                self.model.adapter_manager.preload_adapter(self.lora_adapter)
+                self.adapter_manager = self.model.adapter_manager
+                self.adapter_manager.wrap_lora_module_for_atb_graph()
+
         if self.enable_atb_torch:
             self.model.init_graph()
 
@@ -437,6 +445,7 @@ class ModelRunner:
             inference_mode=self.inference_mode,
             plugin_params=self.plugin_params,
             trust_remote_code=self.trust_remote_code,
+            lora_model_config=self.lora_model_config,
             lora_adapter=self.lora_adapter,
             num_speculative_tokens=self.num_speculative_tokens,
             distributed_enable=self.distributed_enable,

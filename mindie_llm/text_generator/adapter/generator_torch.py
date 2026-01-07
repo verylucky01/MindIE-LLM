@@ -282,7 +282,7 @@ class GeneratorTorch(GeneratorBackend):
             message = "The length of `adapter_ids` should not be larger than batch size."
             logger.error(message, ErrorCode.TEXT_GENERATOR_INTERNAL_ERROR)
             raise ValueError(message)
-        effective_adapter_ids = self.adapter_manager.preprocess_adatper_ids(
+        effective_adapter_ids = self.adapter_manager.preprocess_adapter_ids(
             adapter_ids, model_name=self.model_wrapper.model_name, model_id=self.model_wrapper.model_id)
         if len(effective_adapter_ids) == 1:
             model_inputs.adapter_ids = effective_adapter_ids

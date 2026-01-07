@@ -51,7 +51,7 @@ class SingleLoraDecorator(FeatureDecorator):
 
     def modify_inputs(self, engine_inputs, engine_outputs, engine_runtime_params, input_metadata):
         adapter_ids = input_metadata.get("adapter_ids")
-        effective_adapter_ids = self.adapter_manager.preprocess_adatper_ids(adapter_ids)
+        effective_adapter_ids = self.adapter_manager.preprocess_adapter_ids(adapter_ids)
         if effective_adapter_ids == ["base"]:
             return
         need_update_weights = self.adapter_manager.check_adapter_weights_update()
@@ -63,7 +63,7 @@ class SingleLoraDecorator(FeatureDecorator):
 
     def is_activated(self, input_metadata):
         adapter_ids = input_metadata.get("adapter_ids", None)
-        effective_adapter_ids = self.adapter_manager.preprocess_adatper_ids(adapter_ids)
+        effective_adapter_ids = self.adapter_manager.preprocess_adapter_ids(adapter_ids)
         self.adapter_manager.set_current_adapter_ids_status(effective_adapter_ids)
         return self.adapter_manager is not None \
             and self.adapter_manager.current_adapter_ids_cache is not None \

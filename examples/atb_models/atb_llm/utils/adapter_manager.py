@@ -325,7 +325,7 @@ class AdapterManager:
             lora_module[adapter].lora_b.data = self.padding_tensor(
                 0, padding_size, lora_module[adapter].lora_b.data)  # [r, n]
 
-    def preprocess_adatper_ids(
+    def preprocess_adapter_ids(
             self, adapter_ids: None | List[str | None],
             model_name=None, model_id=None) -> List[str]:
         if adapter_ids is None:

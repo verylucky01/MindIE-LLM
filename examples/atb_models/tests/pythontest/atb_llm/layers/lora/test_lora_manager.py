@@ -155,7 +155,7 @@ class TestLoraManager(unittest.TestCase):
     @unpack
     def test_preprocess_adatper_ids(self, adapter_ids, expected_adapter_ids):
         self._update_adapter_ids_registry()
-        effective_adapter_ids = self.adapter_manager.preprocess_adatper_ids(adapter_ids)
+        effective_adapter_ids = self.adapter_manager.preprocess_adapter_ids(adapter_ids)
         self.assertEqual(effective_adapter_ids, expected_adapter_ids)
 
     @data(([BASE_ADAPTER_NAME], AdapterIdsType.SINGLE), ([BASE_ADAPTER_NAME, ADATPER1_STR], AdapterIdsType.MIXED),

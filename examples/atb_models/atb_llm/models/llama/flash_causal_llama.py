@@ -112,7 +112,8 @@ class FlashLlamaForCausalLM(FlashForCausalLM):
         self.graph_manager = ATBGraphManager()
         self.flash_comm_modifier = FlashCommModifier(weights, self.hidden_size, self.flash_comm_gate(weights))
         self.qlen_modifier = QLenModifier()
-        self.lora_modifier = LoraModifier(weights, self)
+        self.lora_modifier = LoraModifier(weights, self, lora_adapter=kwargs.get("lora_adapter"), \
+            lora_model_config=kwargs.get("lora_model_config"))
         if self.long_seq_enable:
             self.long_seq_modifier = LongSeqModifier(self.config)
 

@@ -8,13 +8,14 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 
-from typing import List
+from typing import List, Dict
 
 import torch
 
 from atb_llm.utils.adapter_manager import AdapterManager, AdapterIdsType
 from atb_llm.utils.weights import Weights
 from atb_llm.models.base.flash_causal_lm import FlashForCausalLM
+from mindie_llm.runtime.config.mindie_llm_config import LoraModelConfig
 
 
 class LoraModifier:
@@ -22,15 +23,22 @@ class LoraModifier:
 
     Attributes:
         lora_adapter: A dict contains adapter id and adapter path.
+        lora_model_config: Model's lora config.
         active: A flag indicating whether model has lora adapters.
         adapter_manager: A class manages lora weights and adapter metainfo.
         adapter_weights: A list contains currently activated adapter weights.
         _torch_device: Device of weights.
         _torch_dtype: `torch_dtype` from model's config.json.
     """
-    def __init__(self, weights: Weights, base_model: FlashForCausalLM, **kwargs):
-        self.lora_adapter = kwargs.get("lora_adapter")
-        self.active = self.lora_adapter is not None
+    def __init__(self, weights: Weights, base_model: FlashForCausalLM, lora_adapter: Dict[str, str], \
+        lora_model_config: LoraModelConfig):
+        self.lora_adapter = lora_adapter
+        self.lora_model_config = lora_model_config
+        self.prealloc_weight_mem_on_npu = getattr(base_model, "prealloc_weight_mem_on_npu", False)
+        if self.prealloc_weight_mem_on_npu:
+            self.active = self.lora_model_config is not None
+        else:
+            self.active = self.lora_adapter is not None
         self.adapter_manager = None
         self.adapter_weights = []
 
@@ -40,8 +48,12 @@ class LoraModifier:
         self._placeholder = torch.zeros(1, dtype=self._torch_dtype, device="npu")
 
         if self.active:
-            self.adapter_manager = AdapterManager(weights)
-            self.adapter_manager.base_model = base_model
+            if self.prealloc_weight_mem_on_npu:
+                from atb_llm.utils.data.lora_adapter import LoraManager
+                self.adapter_manager = LoraManager(base_model, self.lora_model_config)
+            else:
+                self.adapter_manager = AdapterManager(weights)
+                self.adapter_manager.base_model = base_model
 
     def use_multi_adapters(self) -> bool:
         """
@@ -106,7 +118,7 @@ class LoraModifier:
         if not self.active:
             return
 
-        effective_adapter_ids = self.adapter_manager.preprocess_adatper_ids(adapter_ids)
+        effective_adapter_ids = self.adapter_manager.preprocess_adapter_ids(adapter_ids)
 
         need_update = self.adapter_manager.update_adapter(effective_adapter_ids)
         # no adapter
@@ -155,7 +167,10 @@ class LoraModifier:
                 cum_group_size = torch.arange(1, input_lengths.shape[0] + 1, 
                                               dtype=torch.int64, device=self._torch_device)
         else:
-            active_adapters_count = len(self.adapter_manager.adapter_info_registry) - 1  # exclude *sort
+            if self.prealloc_weight_mem_on_npu:
+                active_adapters_count = self.adapter_manager.lora_slots + 1 # include base
+            else:
+                active_adapters_count = len(self.adapter_manager.adapter_info_registry) - 1  # exclude *sort
             adapter_indexes = []
             for adapter_id in adapter_ids:
                 adapter_indexes.append(self.adapter_manager.adapter_info_registry.get(adapter_id).idx)
