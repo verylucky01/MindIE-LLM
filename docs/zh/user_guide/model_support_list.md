@@ -114,3 +114,85 @@
 | Baichuan2-13B | <span style="font-size:1.4em;color:#FFA500;">●</span> | 4096 | ✅ | ❌ | ✅ | ❌ | ✅ | ❌ | Atlas 800I A2：2/4/8卡(推荐2卡)<br>Atlas 800I A3：1/2/4卡(推荐1卡)<br>Atlas 300I Duo：1/2卡(推荐1卡) | [README](https://gitcode.com/Ascend/MindIE-LLM/blob/dev/examples/atb_models/examples/models/baichuan/README.md) | [baichuan-inc/Baichuan2-13B](https://huggingface.co/baichuan-inc/Baichuan-13B-Base) | [baichuan/Baichuan2-13B](https://modelscope.cn/models/baichuan-inc/Baichuan2-13B-Base) |
 
 ---
+
+## 多模态理解模型
+
+### Qwen 系列
+
+| 模型 | Support | 最大上下文长度 | W8A8 | atbgraph | aclgraph | 硬件规格 | README 链接 | Hugging Face 链接 | ModelScope 链接 |
+|:---|:---:|:---:|:---:|:---:|:---:|:---|:---|:---|:---|
+| Qwen2-VL-2B | <span style="font-size:1.4em;color:green">●</span> | 32k | ✅ | ✅ | ❌ | Atlas 800I A2：1/2/4/8卡(推荐1卡)<br>Atlas 800I A3：1/2/4卡(推荐1卡) | [README](https://gitcode.com/Ascend/MindIE-LLM/blob/master/examples/atb_models/examples/models/qwen2_vl/README.md) | [Qwen/Qwen2-VL-2B-Instruct](https://huggingface.co/Qwen/Qwen2-VL-2B-Instruct) | [Qwen/Qwen2-VL-2B-Instruct](https://modelscope.cn/models/Qwen/Qwen2-VL-2B-Instruct) |
+| Qwen2-VL-7B | <span style="font-size:1.4em;color:green">●</span> | 32k | ✅ | ✅ | ❌ | Atlas 800I A2：1/2/4/8卡(推荐2卡)<br>Atlas 800I A3：1/2/4卡(推荐1卡) | [README](https://gitcode.com/Ascend/MindIE-LLM/blob/master/examples/atb_models/examples/models/qwen2_vl/README.md) | [Qwen/Qwen2-VL-7B-Instruct](https://huggingface.co/Qwen/Qwen2-VL-7B-Instruct) | [Qwen/Qwen2-VL-7B-Instruct](https://modelscope.cn/models/Qwen/Qwen2-VL-7B-Instruct) |
+| Qwen2-VL-72B | <span style="font-size:1.4em;color:green">●</span> | 32k | ✅ | ✅ | ❌ | Atlas 800I A2：4/8卡(推荐8卡)<br>Atlas 800I A3：2/4卡(推荐4卡) | [README](https://gitcode.com/Ascend/MindIE-LLM/blob/master/examples/atb_models/examples/models/qwen2_vl/README.md) | [Qwen/Qwen2-VL-72B-Instruct](https://huggingface.co/Qwen/Qwen2-VL-72B-Instruct) | [Qwen/Qwen2-VL-72B-Instruct](https://modelscope.cn/models/Qwen/Qwen2-VL-72B-Instruct) |
+| Qwen2.5-VL-3B | <span style="font-size:1.4em;color:green">●</span> | 32k | ✅ | ✅ | ❌ | Atlas 800I A2：1/2/4/8卡(推荐1卡)<br>Atlas 800I A3：1/2/4卡(推荐1卡)<br>Atlas 300I Duo：1/2/4卡(推荐1卡) | [README](https://gitcode.com/Ascend/MindIE-LLM/blob/master/examples/atb_models/examples/models/qwen2_vl/README.md) | [Qwen/Qwen2.5-VL-3B-Instruct](https://huggingface.co/Qwen/Qwen2.5-VL-3B-Instruct) | [Qwen/Qwen2.5-VL-3B-Instruct](https://modelscope.cn/models/Qwen/Qwen2.5-VL-3B-Instruct) |
+| Qwen2.5-VL-7B | <span style="font-size:1.4em;color:green">●</span> | 32k | ✅ | ✅ | ❌ | Atlas 800I A2：1/2/4/8卡(推荐2卡)<br>Atlas 800I A3：1/2/4卡(推荐1卡)<br>Atlas 300I Duo：1/2/4卡(推荐1卡) | [README](https://gitcode.com/Ascend/MindIE-LLM/blob/master/examples/atb_models/examples/models/qwen2_vl/README.md) | [Qwen/Qwen2.5-VL-7B-Instruct](https://huggingface.co/Qwen/Qwen2.5-VL-7B-Instruct) | [Qwen/Qwen2.5-VL-7B-Instruct](https://modelscope.cn/models/Qwen/Qwen2.5-VL-7B-Instruct) |
+| Qwen2.5-VL-32B | <span style="font-size:1.4em;color:green">●</span> | 32k | ✅ | ✅ | ❌ | Atlas 800I A2：4/8卡(推荐4卡)<br>Atlas 800I A3：2/4卡(推荐2卡)<br>Atlas 300I Duo：2/4卡(推荐2卡) | [README](https://gitcode.com/Ascend/MindIE-LLM/blob/master/examples/atb_models/examples/models/qwen2_vl/README.md) | [Qwen/Qwen2.5-VL-32B-Instruct](https://huggingface.co/Qwen/Qwen2.5-VL-32B-Instruct) | [Qwen/Qwen2.5-VL-32B-Instruct](https://modelscope.cn/models/Qwen/Qwen2.5-VL-32B-Instruct) |
+| Qwen2.5-VL-72B | <span style="font-size:1.4em;color:green">●</span> | 32k | ✅ | ✅ | ❌ | Atlas 800I A2：4/8卡(推荐8卡)<br>Atlas 800I A3：2/4卡(推荐4卡)<br>Atlas 300I Duo：2/4卡(推荐4卡) | [README](https://gitcode.com/Ascend/MindIE-LLM/blob/master/examples/atb_models/examples/models/qwen2_vl/README.md) | [Qwen/Qwen2.5-VL-72B-Instruct](https://huggingface.co/Qwen/Qwen2.5-VL-72B-Instruct) | [Qwen/Qwen2.5-VL-72B-Instruct](https://modelscope.cn/models/Qwen/Qwen2.5-VL-72B-Instruct) |
+| QVQ-72B-Preview | <span style="font-size:1.4em;color:green">●</span> | 32k | ❌ | ✅ | ❌ | Atlas 800I A2：4/8卡(推荐8卡)<br>Atlas 800I A3：2/4卡(推荐4卡) | [README](https://gitcode.com/Ascend/MindIE-LLM/blob/master/examples/atb_models/examples/models/qwen2_vl/README.md) | [Qwen/QVQ-72B-Preview](https://huggingface.co/Qwen/QVQ-72B-Preview) | [Qwen/QVQ-72B-Preview](https://modelscope.cn/models/Qwen/QVQ-72B-Preview) |
+| Qwen2-Audio-7B | <span style="font-size:1.4em;color:green">●</span> | 32k | ❌ | ✅ | ❌ | Atlas 800I A2：1/2/4/8卡(推荐2卡)<br>Atlas 800I A3：1/2/4卡(推荐1卡) | [README](https://gitcode.com/Ascend/MindIE-LLM/blob/master/examples/atb_models/examples/models/qwen2_vl/README.md) | [Qwen/Qwen2-Audio-7B-Instruct](https://huggingface.co/Qwen/Qwen2-Audio-7B-Instruct) | [Qwen/Qwen2-Audio-7B-Instruct](https://modelscope.cn/models/Qwen/Qwen2-Audio-7B-Instruct) |
+
+---
+
+### InternVL 系列
+
+| 模型 | Support | 最大上下文长度 | W8A8 | atbgraph | aclgraph | 硬件规格 | README 链接 | Hugging Face 链接 | ModelScope 链接 |
+|:---|:---:|:---:|:---:|:---:|:---:|:---|:---|:---|:---|
+| InternVL2-8B | <span style="font-size:1.4em;color:green">●</span> | 8k | ❌ | ✅ | ❌ | Atlas 800I A2：1/2/4/8卡(推荐2卡)<br>Atlas 800I A3：1/2/4卡(推荐1卡) | [README](https://gitcode.com/Ascend/MindIE-LLM/tree/master/examples/atb_models/examples/models/internvl/README.md) | [OpenGVLab/InternVL2-8B](https://huggingface.co/OpenGVLab/InternVL2-8B) | [OpenGVLab/InternVL2-8B](https://modelscope.cn/models/OpenGVLab/InternVL2-8B) |
+| InternVL2-40B | <span style="font-size:1.4em;color:green">●</span> | 8k | ❌ | ✅ | ❌ | Atlas 800I A2：2/4/8卡(推荐4卡)<br>Atlas 800I A3：1/2/4卡(推荐2卡) | [README](https://gitcode.com/Ascend/MindIE-LLM/tree/master/examples/atb_models/examples/models/internvl/README.md) | [OpenGVLab/InternVL2-40B](https://huggingface.co/OpenGVLab/InternVL2-40B) | [OpenGVLab/InternVL2-40B](https://modelscope.cn/models/OpenGVLab/InternVL2-40B) |
+| InternVL2.5-8B  | <span style="font-size:1.4em;color:green">●</span> | 32k | ❌ | ✅ | ❌ | Atlas 800I A2：1/2/4/8卡(推荐2卡)<br>Atlas 800I A3：1/2/4卡(推荐1卡) | [README](https://gitcode.com/Ascend/MindIE-LLM/tree/master/examples/atb_models/examples/models/internvl/README.md) | [OpenGVLab/InternVL2_5-8B](https://huggingface.co/OpenGVLab/InternVL2_5-8B) | [OpenGVLab/InternVL2_5-8B](https://modelscope.cn/models/OpenGVLab/InternVL2_5-8B) |
+| InternVL2.5-78B  | <span style="font-size:1.4em;color:green">●</span> | 32k | ❌ | ✅ | ❌ | Atlas 800I A2：8卡<br>Atlas 800I A3：4卡 | [README](https://gitcode.com/Ascend/MindIE-LLM/tree/master/examples/atb_models/examples/models/internvl/README.md) | [OpenGVLab/InternVL2_5-78B](https://huggingface.co/OpenGVLab/InternVL2_5-78B) | [OpenGVLab/InternVL2_5-78B](https://modelscope.cn/models/OpenGVLab/InternVL2_5-78B) |
+
+---
+
+### GLM 系列
+
+| 模型 | Support | 最大上下文长度 | W8A8 | atbgraph | aclgraph | 硬件规格 | README 链接 | Hugging Face 链接 | ModelScope 链接 |
+|:---|:---:|:---:|:---:|:---:|:---:|:---|:---|:---|:---|
+| GLM-4V-9B | <span style="font-size:1.4em;color:green">●</span> | 128k | ❌ | ✅ | ❌ | Atlas 800I A2：1/2/4/8卡(推荐2卡)<br>Atlas 800I A3：1/2/4卡(推荐1卡) | [README](https://gitcode.com/Ascend/MindIE-LLM/tree/master/examples/atb_models/examples/models/glm4v/README.md) | [zai-org/glm-4v-9b](https://huggingface.co/zai-org/glm-4v-9b) | [ZhipuAI/glm-4v-9b](https://modelscope.cn/models/ZhipuAI/glm-4v-9b) |
+| GLM-4.1V-9B-Thinking | <span style="font-size:1.4em;color:green">●</span> | 64k | ✅ | ✅ | ❌ | Atlas 800I A2：1/2卡(推荐2卡)<br>Atlas 800I A3：1卡<br>Atlas 300I Duo：1卡 | [README](https://gitcode.com/Ascend/MindIE-LLM/tree/master/examples/atb_models/examples/models/glm41v/README.md) | [zai-org/GLM-4.1V-9B-Thinking](https://huggingface.co/zai-org/GLM-4.1V-9B-Thinking) | [ZhipuAI/GLM-4.1V-9B-Thinking](https://modelscope.cn/models/ZhipuAI/GLM-4.1V-9B-Thinking) |
+
+---
+
+### MiniCPM-V
+
+| 模型 | Support | 最大上下文长度 | W8A8 | atbgraph | aclgraph | 硬件规格 | README 链接 | Hugging Face 链接 | ModelScope 链接 |
+|:---|:---:|:---:|:---:|:---:|:---:|:---|:---|:---|:---|
+| MiniCPM-V 2.6 | <span style="font-size:1.4em;color:green">●</span> | 32k | ❌ | ✅ | ❌ | Atlas 800I A2：1/2卡(推荐2卡)<br>Atlas 800I A3：1卡<br>Atlas 300I Duo：1卡 | [README](https://gitcode.com/Ascend/MindIE-LLM/blob/master/examples/atb_models/examples/models/minicpm_qwen2_v2/README.md) | [openbmb/MiniCPM-V-2_6](https://huggingface.co/openbmb/MiniCPM-V-2_6) | [OpenBMB/MiniCPM-V-2_6](https://modelscope.cn/models/OpenBMB/MiniCPM-V-2_6) |
+
+---
+
+### VITA
+
+| 模型 | Support | 最大上下文长度 | W8A8 | atbgraph | aclgraph | 硬件规格 | README 链接 | Hugging Face 链接 | ModelScope 链接 |
+|:---|:---:|:---:|:---:|:---:|:---:|:---|:---|:---|:---|
+| VITA-1.5 | <span style="font-size:1.4em;color:green">●</span> | 32k | ❌ | ✅ | ❌ | Atlas 800I A2：1卡<br>Atlas 800I A3：1卡 | [README](https://gitcode.com/Ascend/MindIE-LLM/blob/master/examples/atb_models/examples/models/vita/README.md) | [VITA-MLLM/VITA-1.5](https://huggingface.co/VITA-MLLM/VITA-1.5) | [VITA-MLLM/VITA-1.5](https://modelscope.cn/models/VITA-MLLM/VITA-1.5) |
+
+### LLaVa 系列
+
+| 模型 | Support | 最大上下文长度 | W8A8 | atbgraph | aclgraph | 硬件规格 | README 链接 | Hugging Face 链接 | ModelScope 链接 |
+|:---|:---:|:---:|:---:|:---:|:---:|:---|:---|:---|:---|
+| LLaVa-1.5-7B | <span style="font-size:1.4em;color:#FFA500;">●</span> | 4k | ❌ | ✅ | ❌ | Atlas 800I A2：1/2/4/8卡(推荐2卡)<br>Atlas 800I A3：1/2/4卡(推荐1卡)<br>Atlas 300I Duo：1/2/4卡(推荐1卡) | [README](https://gitcode.com/Ascend/MindIE-LLM/tree/master/examples/atb_models/examples/models/llava/README.md) | [llava-hf/llava-1.5-7b-hf](https://huggingface.co/llava-hf/llava-1.5-7b-hf) | [llava-hf/llava-1.5-7b-hf](https://modelscope.cn/models/llava-hf/llava-1.5-7b-hf) |
+| LLaVa-1.5-13B | <span style="font-size:1.4em;color:#FFA500;">●</span> | 4k | ❌ | ✅ | ❌ | Atlas 800I A2：2/4/8卡(推荐4卡)<br>Atlas 800I A3：1/2/4卡(推荐2卡)<br>Atlas 300I Duo：2/4卡(推荐2卡) | [README](https://gitcode.com/Ascend/MindIE-LLM/tree/master/examples/atb_models/examples/models/llava/README.md) | [llava-hf/llava-1.5-13b-hf](https://huggingface.co/llava-hf/llava-1.5-13b-hf) | [llava-hf/llava-1.5-7b-hf](https://modelscope.cn/models/llava-hf/llava-1.5-13b-hf) |
+| LLaVa-v1.6-7B | <span style="font-size:1.4em;color:#FFA500;">●</span> | 4k | ❌ | ✅ | ❌ | Atlas 800I A2：1/2/4/8卡(推荐2卡)<br>Atlas 800I A3：1/2/4卡(推荐1卡)<br>Atlas 300I Duo：1/2/4卡(推荐1卡) | [README](https://gitcode.com/Ascend/MindIE-LLM/tree/master/examples/atb_models/examples/models/llava/README.md) | [llava-hf/llava-v1.6-vicuna-7b-hf](https://huggingface.co/llava-hf/llava-v1.6-vicuna-7b-hf) | [llava-hf/llava-v1.6-vicuna-7b-hf](https://modelscope.cn/models/llava-hf/llava-v1.6-vicuna-7b-hf) |
+| LLaVa-v1.6-13B | <span style="font-size:1.4em;color:#FFA500;">●</span> | 4k | ❌ | ✅ | ❌ | Atlas 800I A2：2/4/8卡(推荐4卡)<br>Atlas 800I A3：1/2/4卡(推荐2卡)<br>Atlas 300I Duo：1/2/4卡(推荐2卡) | [README](https://gitcode.com/Ascend/MindIE-LLM/tree/master/examples/atb_models/examples/models/llava/README.md) | [llava-hf/llava-v1.6-vicuna-13b-hf](https://huggingface.co/llava-hf/llava-v1.6-vicuna-13b-hf) | [llava-hf/llava-v1.6-vicuna-13b-hf](https://modelscope.cn/models/llava-hf/llava-v1.6-vicuna-13b-hf) |
+| LLaVa-v1.6-34B | <span style="font-size:1.4em;color:#FFA500;">●</span> | 4k | ❌ | ✅ | ❌ | Atlas 800I A2：4/8卡(推荐4卡)<br>Atlas 800I A3：2/4卡(推荐2卡)<br>Atlas 300I Duo：2/4卡(推荐2卡) | [README](https://gitcode.com/Ascend/MindIE-LLM/tree/master/examples/atb_models/examples/models/llava/README.md) | [llava-hf/llava-v1.6-34b-hf](https://huggingface.co/llava-hf/llava-v1.6-34b-hf) | [llava-hf/llava-v1.6-34b-hf](https://modelscope.cn/models/llava-hf/llava-v1.6-34b-hf) |
+| LLaVa-NeXT-Video-7B | <span style="font-size:1.4em;color:#FFA500;">●</span> | 4k | ❌ | ✅ | ❌ | Atlas 800I A2：1/2/4/8卡(推荐2卡)<br>Atlas 800I A3：1/2/4卡(推荐1卡)<br>Atlas 300I Duo：1/2/4卡(推荐1卡) | [README](https://gitcode.com/Ascend/MindIE-LLM/tree/master/examples/atb_models/examples/models/llava/README.md) | [llava-hf/LLaVA-NeXT-Video-7B-hf](https://huggingface.co/llava-hf/LLaVA-NeXT-Video-7B-hf) | [llava-hf/LLaVA-NeXT-Video-7B-hf](https://modelscope.cn/models/llava-hf/LLaVA-NeXT-Video-7B-hf) |
+| LLaVa-NeXT-Video-34B | <span style="font-size:1.4em;color:#FFA500;">●</span> | 4k | ❌ | ✅ | ❌ | Atlas 800I A2：4/8卡(推荐4卡)<br>Atlas 800I A3：2/4卡(推荐2卡)<br>Atlas 300I Duo：2/4卡(推荐2卡) | [README](https://gitcode.com/Ascend/MindIE-LLM/tree/master/examples/atb_models/examples/models/llava/README.md) | [llava-hf/LLaVA-NeXT-Video-34B-hf](https://huggingface.co/llava-hf/LLaVA-NeXT-Video-34B-hf) | [llava-hf/LLaVA-NeXT-Video-34B-hf](https://modelscope.cn/models/llava-hf/LLaVA-NeXT-Video-34B-hf) |
+
+---
+
+### Llama 系列
+
+| 模型 | Support | 最大上下文长度 | W8A8 | atbgraph | aclgraph | 硬件规格 | README 链接 | Hugging Face 链接 | ModelScope 链接 |
+|:---|:---:|:---:|:---:|:---:|:---:|:---|:---|:---|:---|
+| Llama 3.2-Vision-11B | <span style="font-size:1.4em;color:#FFA500;">●</span> | 128k | ❌ | ✅ | ❌ | Atlas 800I A2：1/2/4/8卡(推荐2卡)<br>Atlas 800I A3：1/2/4卡(推荐1卡) | [README](https://gitcode.com/Ascend/MindIE-LLM/blob/master/examples/atb_models/examples/models/mllama/README.md) | [meta-llama/Llama-3.2-11B-Vision-Instruct](https://huggingface.co/meta-llama/Llama-3.2-11B-Vision-Instruct) | [LLM-Research/Llama-3.2-11B-Vision-Instruct](https://modelscope.cn/models/LLM-Research/Llama-3.2-11B-Vision-Instruct) |
+| Llama 3.2-Vision-90B | <span style="font-size:1.4em;color:#FFA500;">●</span> | 128k | ❌ | ✅ | ❌ | Atlas 800I A2：4/8卡(推荐8卡)<br>Atlas 800I A3：2/4卡(推荐4卡) | [README](https://gitcode.com/Ascend/MindIE-LLM/blob/master/examples/atb_models/examples/models/mllama/README.md) | [meta-llama/Llama-3.2-90B-Vision-Instruct](https://huggingface.co/meta-llama/Llama-3.2-90B-Vision-Instruct) | [LLM-Research/Llama-3.2-90B-Vision-Instruct](https://modelscope.cn/models/LLM-Research/Llama-3.2-90B-Vision-Instruct) |
+
+---
+
+### Yi-VL 系列
+
+| 模型 | Support | 最大上下文长度 | W8A8 | atbgraph | aclgraph | 硬件规格 | README 链接 | Hugging Face 链接 | ModelScope 链接 |
+|:---|:---:|:---:|:---:|:---:|:---:|:---|:---|:---|:---|
+| Yi-VL-6B | <span style="font-size:1.4em;color:#FFA500;">●</span> | 4k | ❌ | ✅ | ❌ | Atlas 800I A2：1/2/4/8卡(推荐2卡)<br>Atlas 800I A3：1/2/4卡(推荐1卡)<br>Atlas 300I Duo：1/2/4卡(推荐1卡) | [README](https://gitcode.com/Ascend/MindIE-LLM/blob/master/examples/atb_models/examples/models/yivl/README.md) | [01-ai/Yi-VL-6B](https://huggingface.co/01-ai/Yi-VL-6B) | [01ai/Yi-VL-6B](https://www.modelscope.cn/models/01ai/Yi-VL-6B) |
+| Yi-VL-34B | <span style="font-size:1.4em;color:#FFA500;">●</span> | 4k | ❌ | ✅ | ❌ | Atlas 800I A2：4/8卡(推荐4卡)<br>Atlas 800I A3：2/4卡(推荐2卡)<br>Atlas 300I Duo：2/4卡(推荐2卡) | [README](https://gitcode.com/Ascend/MindIE-LLM/blob/master/examples/atb_models/examples/models/yivl/README.md) | [01-ai/Yi-VL-34B](https://huggingface.co/01-ai/Yi-VL-34B) | [01ai/Yi-VL-34B](https://www.modelscope.cn/models/01ai/Yi-VL-34B) |
