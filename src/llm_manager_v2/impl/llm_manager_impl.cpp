@@ -28,6 +28,7 @@
 #include "msServiceProfiler/msServiceProfiler.h"
 #include "infer_instances.h"
 #include "config_manager_impl.h"
+#include "safe_io.h"
 
 using Json = nlohmann::json;
 namespace py = pybind11;
@@ -391,7 +392,7 @@ static void UpdateFromEnv(std::set<size_t> &npuDeviceIds, uint32_t modelInstance
     RemoveSpaces(envNpuIds);
     Json jsonData;
     try {
-        jsonData["npuDeviceIds"] = Json::parse(envNpuIds);
+        jsonData["npuDeviceIds"] = Json::parse(envNpuIds, CheckJsonDepthCallback);
         MINDIE_LLM_LOG_INFO("Config data has been updated by env variable:" << ENV_NPU_DEVICE_IDS);
         
         npuDeviceIds.clear();
@@ -501,7 +502,7 @@ static bool GetPluginEnable(std::string pluginName, std::vector<ModelDeployConfi
         }
         nlohmann::json jstring;
         try {
-            jstring = nlohmann::json::parse(pluginParam);
+            jstring = nlohmann::json::parse(pluginParam, CheckJsonDepthCallback);
         } catch (const nlohmann::json::parse_error &e) {
             std::stringstream errMsg;
             errMsg << "Invalid plugin parameters. "

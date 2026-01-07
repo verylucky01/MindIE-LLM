@@ -9,7 +9,7 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
+#include "single_llm_prefill_req_handler.h"
 #include <boost/thread/mutex.hpp>
 #include <boost/thread.hpp>
 #include <boost/thread/condition_variable.hpp>
@@ -25,7 +25,7 @@
 #include "env_util.h"
 #include "dmi_role.h"
 #include "config_manager_impl.h"
-#include "single_llm_prefill_req_handler.h"
+#include "safe_io.h"
 
 using namespace prefillAndDecodeCommunication;
 using OrderedJson = nlohmann::ordered_json;
@@ -99,7 +99,7 @@ bool SingleLLMPrefillReqHandler::GetContextJsonBody(OrderedJson& body)
                 JSON_PARSE_ERROR), "Convert string to json object exception. CallbackId is " << ctx->CallbackId());
             return false;
         }
-        body = OrderedJson::parse(converted);
+        body = OrderedJson::parse(converted, CheckOrderedJsonDepthCallback);
     } catch (...) {
         ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SPLITWISE,
             JSON_PARSE_ERROR), "Convert string to json object exception. CallbackId is " << ctx->CallbackId());

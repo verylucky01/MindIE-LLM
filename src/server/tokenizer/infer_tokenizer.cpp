@@ -24,6 +24,7 @@
 #include "file_utils.h"
 #include "memory_utils.h"
 #include "config_manager_impl.h"
+#include "safe_io.h"
 
 using json = nlohmann::json;
 
@@ -43,7 +44,7 @@ static std::string GetModelConfigString()
 
     std::string modelsString;
     try {
-        auto configJson = json::parse(ConfigManager::GetInstance().GetConfigJsonStr());
+        auto configJson = json::parse(ConfigManager::GetInstance().GetConfigJsonStr(), CheckJsonDepthCallbackNoLogger);
         if (configJson.contains(kBackendConfig) &&
             configJson[kBackendConfig].contains(kModelDeployConfig) &&
             configJson[kBackendConfig][kModelDeployConfig].contains(kModelConfig) &&
@@ -754,7 +755,7 @@ Status TokenizerProcessPool::TikToken(const std::string &prompt, int &numTokenId
             }
             if (!postSingleText.empty()) {
                 try {
-                    json j = json::parse(postSingleText);
+                    json j = json::parse(postSingleText, CheckJsonDepthCallbackNoLogger);
                     if (j.contains("content") && j["content"].is_string()) {
                         std::string parsedContent = j["content"];
                         tokens.push_back(parsedContent);

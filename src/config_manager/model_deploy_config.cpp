@@ -22,6 +22,7 @@
 #include "file_utils.h"
 #include "base_config_manager.h"
 #include "log.h"
+#include "safe_io.h"
 
 using mindie_llm::Json;
 using namespace nlohmann::literals;
@@ -131,7 +132,7 @@ static uint32_t GammaUpdate(ModelDeployConfig modelParam, uint32_t speculationGa
         std::string pluginParams = it->second;
         try {
             // 解析 JSON 字符串
-            nlohmann::json pluginConfig = nlohmann::json::parse(pluginParams);
+            nlohmann::json pluginConfig = nlohmann::json::parse(pluginParams, CheckJsonDepthCallbackNoLogger);
             // 检查 plugin_type 字段是否为 "mtp"
             if (!pluginConfig.contains("plugin_type") ||
             std::string(pluginConfig["plugin_type"]).find("mtp") == std::string::npos) {

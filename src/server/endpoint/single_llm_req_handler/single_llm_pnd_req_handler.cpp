@@ -9,7 +9,7 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
- 
+#include "single_llm_pnd_req_handler.h"
 #include <atomic>
 #include "http_metrics.h"
 #include "config_manager.h"
@@ -17,7 +17,7 @@
 #include "log.h"
 #include "config_manager_impl.h"
 #include "infer_tokenizer.h"
-#include "single_llm_pnd_req_handler.h"
+#include "safe_io.h"
 
 using ordered_json = nlohmann::ordered_json;
 
@@ -56,7 +56,7 @@ bool SingleLLMPnDReqHandler::GetContextJsonBody(ordered_json &body)
                        "Convert string to json object exception, cbId is " << ctx->CallbackId());
             return false;
         }
-        body = ordered_json::parse(converted);
+        body = ordered_json::parse(converted, CheckOrderedJsonDepthCallback);
     } catch (...) {
         ULOG_ERROR(SUBMODLE_NAME_ENDPOINT,
                    GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SINGLE_INFERENCE, JSON_PARSE_ERROR),

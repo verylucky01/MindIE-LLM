@@ -9,12 +9,13 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
+#include "dmi_role.h"
 #include <unordered_map>
 
 #include "parse_protocol.h"
 #include "grpc_communication_mng.h"
 #include "log.h"
-#include "dmi_role.h"
+#include "safe_io.h"
 
 using namespace std;
 using OrderedJson = nlohmann::ordered_json;
@@ -66,8 +67,7 @@ bool DmiRole::PDParseRequestBodyToJson(const ReqCtxPtr &reqCtx, ordered_json &bo
                 JSON_PARSE_ERROR), "Convert string to json object failed, CallbackId is " << reqCtx->CallbackId());
             return false;
         }
-
-        body = ordered_json::parse(msgBody);
+        body = ordered_json::parse(msgBody, CheckOrderedJsonDepthCallback);
     } catch (...) {
         ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SPLITWISE,
             JSON_PARSE_ERROR), "Convert string to json object exception, CallbackId is " << reqCtx->CallbackId());

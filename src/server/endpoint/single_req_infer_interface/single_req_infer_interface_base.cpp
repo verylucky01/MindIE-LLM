@@ -9,6 +9,7 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
+#include "single_req_infer_interface_base.h"
 #include <atomic>
 #include <chrono>
 #include <codecvt>
@@ -24,7 +25,7 @@
 #include "random_generator.h"
 #include "parameters_checker.h"
 #include "config_manager_impl.h"
-#include "single_req_infer_interface_base.h"
+#include "safe_io.h"
 
 using OrderedJson = nlohmann::ordered_json;
 
@@ -1110,7 +1111,7 @@ bool SingleReqInferInterfaceBase::DecodeSingleToken(std::vector<int64_t> &tokenI
         return false;
     }
     try {
-        Json resultJson = Json::parse(inferResult);
+        Json resultJson = Json::parse(inferResult, CheckJsonDepthCallbackUlog);
         if (JsonParse::JsonContainItemWithType(resultJson, "content", Json::value_t::string, err) &&
             !resultJson["content"].get<std::string>().empty()) {
             output = resultJson["content"];

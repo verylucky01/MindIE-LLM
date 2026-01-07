@@ -9,6 +9,7 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
+#include "single_req_vllm_infer_interface.h"
 #include <chrono>
 #include <tuple>
 
@@ -20,7 +21,7 @@
 #include "common_util.h"
 #include "base64_util.h"
 #include "config_manager_impl.h"
-#include "single_req_vllm_infer_interface.h"
+#include "safe_io.h"
 
 using OrderedJson = nlohmann::ordered_json;
 
@@ -245,9 +246,7 @@ std::string SingleReqVllmInferInterface::ChangeUtf8Str(std::string &input) const
 static bool IsValidJson(const std::string& str)
 {
     try {
-        // try to parse json
-        std::ignore = Json::parse(str);
-        return true;
+        return Json::accept(str);
     } catch (const Json::parse_error& e) {
         // cannot parse json
         return false;
@@ -261,7 +260,7 @@ bool SingleReqVllmInferInterface::EncodeVllmResponse(RespBodyQueue &jsonStrs)
         std::string space = " ";
         std::string parsedPrompt;
         if (IsValidJson(inputParam->textInput)) {
-            Json multiModalInput = Json::parse(inputParam->textInput);
+            Json multiModalInput = Json::parse(inputParam->textInput, CheckJsonDepthCallbackUlog);
             for (const auto& item: multiModalInput) {
                 if (item.contains("type") && item["type"] == "text" && item.contains("text")) {
                     parsedPrompt = item["text"];
@@ -378,9 +377,10 @@ std::unique_ptr<std::string> SingleReqVllmInferInterface::BuildVllmReComputeBody
     if (request_->seed.has_value()) {
         newReqJsonObj["seed"] = request_->seed.value();
     }
-    if (request_->stopStrings.has_value() && request_->stopStrings != "") {
+    std::string stopStr = request_->stopStrings.has_value() ? request_->stopStrings.value() : "";
+    if (stopStr != "") {
         try {
-            newReqJsonObj["stop"] = nlohmann::json::parse(request_->stopStrings.value());
+            newReqJsonObj["stop"] = nlohmann::json::parse(stopStr, CheckJsonDepthCallbackUlog);
         } catch(...) {
             ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SINGLE_INFERENCE,
                 JSON_PARSE_ERROR), "Failed to parse stopStrings");

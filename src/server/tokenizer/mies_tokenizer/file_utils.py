@@ -289,7 +289,7 @@ def get_tokenizer_logger():
         logger.addHandler(console_hd)
 
         log_file = parse_log_path()
-        file_hd = RotatingFileHandler(log_file, maxBytes=LOG_FILE_SIZE, backupCount=LOG_FILE_NUM)
+        file_hd = RotatingFileHandler(log_file, maxBytes=LOG_FILE_SIZE, backupCount=LOG_FILE_NUM, delay=True)
         file_hd.setLevel(log_lvl)
         file_hd.setFormatter(formatter)
         logger.addHandler(file_hd)

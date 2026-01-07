@@ -9,6 +9,7 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
+#include "single_req_vllm_openai_infer_interface.h"
 #include <regex>
 
 #include "endpoint_def.h"
@@ -19,13 +20,13 @@
 #include "common_util.h"
 #include "base64_util.h"
 #include "config_manager_impl.h"
-#include "single_req_vllm_openai_infer_interface.h"
+#include "safe_io.h"
 
 using OrderedJson = nlohmann::ordered_json;
 
 namespace mindie_llm {
 static constexpr double MAX_OPENAI_REPETITION_PENALTY = 2.0;
-static std::wregex FUNCTION_NAME_PATTERN(L"^[a-zA-Z0-9_\u4e00-\u9fa5-]{1,64}$");
+static std::wregex g_functionNamePattern(L"^[a-zA-Z0-9_\u4e00-\u9fa5-]{1,64}$");
 
 SingleReqVllmOpenAiInferInterface::SingleReqVllmOpenAiInferInterface(
     const std::shared_ptr<SingleLLMReqHandlerBase>& singleLLMReqHandlerBase, bool isReCompute,
@@ -225,7 +226,7 @@ bool SingleReqVllmOpenAiInferInterface::ValidToolCall(OrderedJson &toolCalls, st
             return false;
         }
         std::string functionName = function["name"].get<std::string>();
-        if (!std::regex_match(String2Wstring(functionName), FUNCTION_NAME_PATTERN)) {
+        if (!std::regex_match(String2Wstring(functionName), g_functionNamePattern)) {
             msg = "The name of function must be a-z, A-Z, 0-9, common chinese characters, underscores and dashe "
             "within max length of 64, unexpected function name: " + functionName;
             return false;
@@ -475,7 +476,7 @@ bool SingleReqVllmOpenAiInferInterface::CheckFunction(const OrderedJson &toolPar
         return false;
     }
     std::string functionName = func["name"].get<std::string>();
-    if (!std::regex_match(String2Wstring(functionName), FUNCTION_NAME_PATTERN)) {
+    if (!std::regex_match(String2Wstring(functionName), g_functionNamePattern)) {
         error = "The name of function must be a-z, A-Z, 0-9, common chinese characters, underscores and dashe "
         "within max length of 64, unexpected function name: " + functionName;
         return false;
@@ -1254,9 +1255,10 @@ std::unique_ptr<std::string> SingleReqVllmOpenAiInferInterface::BuildVllmOpenAIR
     if (request_->topK.has_value()) {
         newReqJsonObj["top_k"] = request_->topK.value();
     }
-    if (request_->stopStrings.has_value() && request_->stopStrings.value() != "") {
+        std::string stopStr = request_->stopStrings.has_value() ? request_->stopStrings.value() : "";
+    if (stopStr != "") {
         try {
-            newReqJsonObj["stop"] = nlohmann::json::parse(request_->stopStrings.value());
+            newReqJsonObj["stop"] = nlohmann::json::parse(stopStr, CheckJsonDepthCallbackUlog);
         } catch(...) {
             ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SINGLE_INFERENCE,
                 JSON_PARSE_ERROR), "Failed to parse stopStrings");

@@ -9,6 +9,7 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
+#include "single_req_vllm_openai_completions_infer_interface.h"
 #include "endpoint_def.h"
 #include "parse_protocol.h"
 #include "http_rest_resource.h"
@@ -17,7 +18,7 @@
 #include "common_util.h"
 #include "base64_util.h"
 #include "config_manager_impl.h"
-#include "single_req_vllm_openai_completions_infer_interface.h"
+#include "safe_io.h"
 
 using OrderedJson = nlohmann::ordered_json;
 
@@ -716,9 +717,10 @@ std::unique_ptr<std::string> SingleReqVllmOpenAiCompletionsInferInterface::Build
     if (request_->seed.has_value()) {
         newReqJsonObj["seed"] = request_->seed.value();
     }
-    if (request_->stopStrings.has_value() && request_->stopStrings.value() != "") {
+    std::string stopStr = request_->stopStrings.has_value() ? request_->stopStrings.value() : "";
+    if (stopStr != "") {
         try {
-            newReqJsonObj["stop"] = nlohmann::json::parse(request_->stopStrings.value());
+            newReqJsonObj["stop"] = nlohmann::json::parse(stopStr, CheckJsonDepthCallbackUlog);
         } catch(...) {
             ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SINGLE_INFERENCE,
                 JSON_PARSE_ERROR), "Failed to parse stopStrings");

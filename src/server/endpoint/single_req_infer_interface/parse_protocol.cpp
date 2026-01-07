@@ -9,6 +9,7 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
+#include "parse_protocol.h"
 #include <cmath>
 #include <climits>
 #include <codecvt>
@@ -19,7 +20,7 @@
 #include "common_util.h"
 #include "check_utils.h"
 #include "config_manager_impl.h"
-#include "parse_protocol.h"
+#include "safe_io.h"
 
 #ifdef UT_ENABLED
 #define LOCAL_API
@@ -221,7 +222,7 @@ uint32_t JsonParse::GetInferTypeFromJsonStr(const std::string &jsonStr, uint16_t
                 JSON_PARSE_ERROR), "Decode request string to json error.");
             return EP_PARSE_JSON_ERR;
         }
-        OrderedJson jsonData = OrderedJson::parse(wjsonStr);
+        OrderedJson jsonData = OrderedJson::parse(wjsonStr, CheckOrderedJsonDepthCallback);
         auto code = GetInferTypeFromJson(jsonData, inferType);
         if (code != EP_OK) {
             ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SINGLE_INFERENCE,
@@ -247,7 +248,7 @@ uint32_t JsonParse::DecodeFaultRecoveryCmd(const std::string &jsonStr, FaultReco
                 JSON_PARSE_ERROR), "Decode FaultRecoveryCmd string to json error.");
             return EP_PARSE_JSON_ERR;
         }
-        OrderedJson jsonData = OrderedJson::parse(wjsonStr);
+        OrderedJson jsonData = OrderedJson::parse(wjsonStr, CheckOrderedJsonDepthCallback);
         auto code = GetFaultRecoveryCmdType(jsonData, cmdType, cmdStr);
         if (code != EP_OK) {
             ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_FAULT_CONTROL,
@@ -274,7 +275,7 @@ uint32_t JsonParse::DecodeGeneralTGIStreamMode(const std::string &jsonStr, bool 
             error = "Failed to parse context to json body";
             return EP_PARSE_JSON_ERR;
         }
-        OrderedJson jsonData = OrderedJson::parse(wjsonStr);
+        OrderedJson jsonData = OrderedJson::parse(wjsonStr, CheckOrderedJsonDepthCallback);
         if (!jsonData.contains("stream") || jsonData["stream"].is_null()) {
             streamMode = false;
             return EP_OK;
@@ -781,7 +782,7 @@ bool JsonParse::GetContextJsonBody(const ReqCtxPtr &ctx, OrderedJson &body)
                 JSON_PARSE_ERROR), "Convert string to json object exception, cbId is " << ctx->CallbackId());
             return false;
         }
-        body = OrderedJson::parse(converted);
+        body = OrderedJson::parse(converted, CheckOrderedJsonDepthCallback);
     } catch(...) {
         ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SINGLE_INFERENCE,
             JSON_PARSE_ERROR), "Convert string to json object exception, cbId is " << ctx->CallbackId());
@@ -927,7 +928,7 @@ void from_json(const OrderedJson& jsonBody, TokenizerContents& contents)
 TokenizerContents JsonParse::ParseContentFromJson(const std::string& jsonStr)
 {
     try {
-        OrderedJson jsonBody = OrderedJson::parse(jsonStr);
+        OrderedJson jsonBody = OrderedJson::parse(jsonStr, CheckOrderedJsonDepthCallback);
         TokenizerContents contents;
         from_json(jsonBody, contents);
         return contents;
