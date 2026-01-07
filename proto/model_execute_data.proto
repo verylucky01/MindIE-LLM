@@ -167,7 +167,7 @@ message IntPair {
 // The following messages are defined for requests in normal scenario.
 message ExecuteModelRequest {
   repeated SequenceGroupMetadata seq_group_metadata_list = 1;
-  repeated IntPair blocks_to_swap_in = 2; // CPU->GPU block number
+  repeated IntPair blocks_to_swap_in = 2; // CPU->NPU block number
   repeated IntPair blocks_to_swap_out = 3;
   repeated IntPair blocks_to_copy = 4;
   int32 virtual_engine = 5;

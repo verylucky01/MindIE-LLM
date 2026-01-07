@@ -104,7 +104,7 @@ int LayerwiseFcfsPolicy::GeneratePrefillBatch(SchedulingBudget &budget,
     } else if (canAllocate == AllocStatus::NEVER) {
         /** 当前mindie逻辑应该不存在这种场景
             * 1、如果prompt长度很长，则在add request的时候就做长度校验，返回添加失败。
-            * 2、decode阶段，text generator判断长度等于maxSeqLen时就结束请求。maxSeqLen不可能比gpu最大可用的内存大。
+            * 2、decode阶段，text generator判断长度等于maxSeqLen时就结束请求。maxSeqLen不可能比npu最大可用的内存大。
             *  */
         throw std::runtime_error("Prompt sequence too long.");
     }
