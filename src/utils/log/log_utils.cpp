@@ -15,10 +15,6 @@
 #include <fstream>
 #include <iostream>
 
-#include <spdlog/details/file_helper.h>
-#include <spdlog/details/os.h>
-#include <spdlog/sinks/base_sink.h>
-
 #include "file_utils.h"
 #include "log_config.h"
 #include "log_utils.h"

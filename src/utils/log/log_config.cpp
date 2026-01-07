@@ -11,7 +11,6 @@
  */
 
 #include <fcntl.h>
-#include "spdlog/details/os.h"
 #include "common_util.h"
 #include "check_utils.h"
 #include "file_system.h"

@@ -108,7 +108,7 @@ public:
 
     virtual bool AsyncTGCleanup(TGCleanupRequestPtr &TGCleanupRequest) = 0;
 
-    virtual bool AsyncEOSCleanup(TGCleanupRequestPtr &TGCleanupRequest) {return false;};
+    virtual bool AsyncEOSCleanup(TGCleanupRequestPtr &TGCleanupRequest) = 0;
 
     virtual bool ExecutorParseConfigAndInitGRPC(std::map<std::string, std::string> &configFromManager,
                                                 bool isMultiNodesInfer, size_t rankIdx) = 0;

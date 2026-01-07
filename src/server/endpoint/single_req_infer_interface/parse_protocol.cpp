@@ -73,7 +73,7 @@ static const std::unordered_map<OrderedJson::value_t, std::string> JSON_TYPE_MAP
 
 static const uint16_t VERSION_LENGTH = 256;
 
-LOCAL_API std::string CheckVersionInfo(std::string &version)
+std::string CheckVersionInfo(std::string &version)
 {
     std::string baseVersion = "1.0.0";
     if (version.empty() || version.length() > VERSION_LENGTH) {

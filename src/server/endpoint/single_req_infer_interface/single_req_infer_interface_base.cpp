@@ -223,7 +223,7 @@ void SingleReqInferInterfaceBase::ConvertTokenToMap(const std::vector<BestNToken
 
     for (const auto &item : decodeResult) {
         // The ids larger than 2 ** 63 - 1 has been reserved for the eos sequences of beam search.
-        if (item.seqId > (std::numeric_limits<uint64_t>::max() >> 1)) {
+        if (item.seqId > (std::numeric_limits<SequenceId>::max())) {
             if (stoppedSeqIdMap.count(item.parentSeqId) == 0) {
                 stoppedSeqIdMap[item.parentSeqId] = {};
             }

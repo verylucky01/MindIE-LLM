@@ -16,9 +16,7 @@
 #include <regex>
 #include <stdexcept>
 
-#include "spdlog/sinks/stdout_sinks.h"
-#include "spdlog/sinks/rotating_file_sink.h"
-#include "spdlog/details/os.h"
+#include "spdlog.h"
 
 #include "common_util.h"
 #include "log_utils.h"

@@ -22,10 +22,7 @@
 #include <unordered_set>
 #include <vector>
 
-#include <spdlog/common.h>
-#include <spdlog/details/file_helper.h>
-#include <spdlog/details/log_msg.h>
-#include <spdlog/sinks/base_sink.h>
+#include "spdlog.h"
 
 #include "log_config.h"
 

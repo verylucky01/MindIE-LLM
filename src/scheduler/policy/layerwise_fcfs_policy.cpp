@@ -149,6 +149,8 @@ PrefillOutputs LayerwiseFcfsPolicy::ApplyToWaitingQueue(SchedulingBudget &budget
     std::vector<std::shared_ptr<ScheduledSequenceGroup>> seqGroups;
     std::deque<SequenceGroupSPtr> leftOverSeqGroups;
 
+    ((void)enableChunking);
+
     // 组prefill batch重置变量
     int curCount = 0;
     curBatchLen_ = 0;
@@ -213,7 +215,6 @@ RunningOutputs LayerwiseFcfsPolicy::ApplyToRunningQueue(SchedulingBudget &budget
 
         queuesCollection_->running_.pop_front();
         bool canAppend = true;
-        int preempteCount = 0;
         while (!policyHelper_.CanAppendSlots(seqGroup) ||
                !AllocBlocks4ParallelSeqGrp(seqGroup, runningOutput.blocksToCopy_)) {
             // 2. try to pop back seqgroup of running queue to preempt

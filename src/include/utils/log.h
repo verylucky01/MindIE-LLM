@@ -17,9 +17,6 @@
 #include <sstream>
 #include <mutex>
 #include <unordered_map>
-#include "spdlog/async.h"
-#include "spdlog/common.h"
-#include "spdlog/spdlog.h"
 #include "log_config.h"
 #include "log_level_dynamic_handler.h"
 #include "logger_def.h"

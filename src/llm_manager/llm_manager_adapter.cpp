@@ -168,6 +168,9 @@ void CreateScalarTensor(const std::string &tensorName, std::vector<size_t> tenso
     }
     auto responseTensor = std::make_shared<InferTensor>(tensorName, tensorType, tensorShapeAsInt64);
     auto ret = tensors.insert(std::make_pair(responseTensor->GetName(), responseTensor));
+    if (!ret.second) {
+        MINDIE_LLM_LOG_ERROR("The tensor " + responseTensor->GetName() + " already exists!");
+    }
     // 重新分配内存
     // 解决 infer engine 回调与 endpoint 层超时撞上，引起内存释放后使用问题, from commit 9446b0b
     if (!responseTensor->Allocate(tensorSize)) {

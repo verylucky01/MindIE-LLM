@@ -16,7 +16,7 @@
 #include <sys/stat.h>
 
 #include "nlohmann/json.hpp"
-#include "spdlog/common.h"
+#include "spdlog.h"
 
 namespace mindie_llm {
 

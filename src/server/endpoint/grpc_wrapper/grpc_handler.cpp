@@ -70,7 +70,7 @@ void HandleDecodeRequest(const prefillAndDecodeCommunication::DecodeParameters &
 
     // pdRole flex是纯P节点时候不接收流量
     std::string pdRoleName = GetInferInstance()->GetPDRole();
-    int maxFlexPPercentage = 100;
+    uint32_t maxFlexPPercentage = 100;
     if (pdRoleName == "flex" &&
         FlexPPercentageProcessor::GetInstance().GetPdRoleFlexPPercentage() == maxFlexPPercentage) {
         response.set_errormessage("failed to register decode request handler, pdRole flex p_percentage = 100.");

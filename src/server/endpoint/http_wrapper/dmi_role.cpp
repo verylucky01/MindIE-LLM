@@ -131,7 +131,7 @@ void DmiRole::ProcessInitInfo(const ordered_json &body, GlobalIpInfo &globalIpIn
         }
         globalIpInfo.hostIpInfo[globalIpInfo.localInstanceId] = globalIpInfo.localHostIpList;
         localInstanceId_ = globalIpInfo.localInstanceId;
-        for (const Json &deviceInfo : body["local"]["device"]) {
+        for (const auto &deviceInfo : body["local"]["device"]) {
             globalIpInfo.localDeviceIps.emplace_back(deviceInfo["device_ip"]);
             globalIpInfo.localDeviceLogicalIds.emplace_back(deviceInfo["device_logical_id"]);
             globalIpInfo.localDevicePhysicalIds.emplace_back(deviceInfo["device_id"]);
@@ -166,11 +166,11 @@ void DmiRole::ProcessInitInfoV2(const ordered_json &body, GlobalIpInfo &globalIp
             globalIpInfo.localSuperPodId = firstNodeInfo["super_pod_id"];
         }
 
-        for (const Json &nodeInfo : body["local"]) {
+        for (const auto &nodeInfo : body["local"]) {
             globalIpInfo.localHostIpList.emplace_back(nodeInfo["host_ip"]);
-            for (const Json& dpGroupInfo : nodeInfo["dp_inst_list"]) {
+            for (const auto& dpGroupInfo : nodeInfo["dp_inst_list"]) {
                 globalIpInfo.localDpInstanceIds.emplace_back(dpGroupInfo["dp_inst_id"]);
-                for (const Json &deviceInfo : dpGroupInfo["device"]) {
+                for (const auto &deviceInfo : dpGroupInfo["device"]) {
                     globalIpInfo.localDeviceIps.emplace_back(deviceInfo["device_ip"]);
                     globalIpInfo.localDeviceLogicalIds.emplace_back(deviceInfo["device_logical_id"]);
                     globalIpInfo.localDevicePhysicalIds.emplace_back(deviceInfo["device_id"]);
@@ -220,7 +220,7 @@ bool DmiRole::UpdatePDSwitchInfo(const std::string &roleName, const ordered_json
     try {
         std::map<uint64_t, std::vector<DeviceInfo>> currentLinkIpInfo{};
         std::string superPodId;
-        for (const Json &serverInfo : body["peers"]) {
+        for (const auto &serverInfo : body["peers"]) {
             if (serverInfo.contains("super_pod_id")) {
                 superPodId = serverInfo["super_pod_id"];
                 globalIpInfo.superPodIdInfo[serverInfo["id"]] = serverInfo["super_pod_id"];
@@ -230,7 +230,7 @@ bool DmiRole::UpdatePDSwitchInfo(const std::string &roleName, const ordered_json
             globalIpInfo.hostIpInfo[instanceId] = {serverInfo["host_ip"]};
             instanceIdToServerIp_[instanceId] = serverInfo["server_ip"];
             std::vector<DeviceInfo> linkDeviceIp;
-            for (const Json &deviceInfo : serverInfo["device"]) {
+            for (const auto &deviceInfo : serverInfo["device"]) {
                 DeviceInfo device;
                 device.deviceIp = deviceInfo["device_ip"].get<std::string>();
                 device.devicePhysicalId = std::stoi(deviceInfo["device_id"].get<std::string>());
@@ -266,19 +266,19 @@ bool DmiRole::UpdatePDSwitchInfoV2(const std::string &roleName, const ordered_js
         globalIpInfo.unlinkIpInfo = this->successLinkIP_;
     }
     try {
-        for (const Json &nodeInfo : body["local"]) {
-            for (const Json& dpGroupInfo : nodeInfo["dp_inst_list"]) {
+        for (const auto &nodeInfo : body["local"]) {
+            for (const auto& dpGroupInfo : nodeInfo["dp_inst_list"]) {
                 globalIpInfo.localDpInstanceIds.emplace_back(dpGroupInfo["dp_inst_id"]);
             }
         }
-        for (const Json &peerInfo : body["peers"]) {
-            for (const Json &nodeInfo : peerInfo) {
+        for (const auto &peerInfo : body["peers"]) {
+            for (const auto &nodeInfo : peerInfo) {
                 auto ret = ReverseDpInstId(nodeInfo["dp_inst_list"][0]["dp_inst_id"]);
                 uint32_t instanceId = ret.first;
                 globalIpInfo.spInfo[instanceId] = nodeInfo.value("sp_size", 1);
                 globalIpInfo.cpInfo[instanceId] = nodeInfo.value("cp_size", 1);
                 instanceIdToServerIp_[instanceId] = nodeInfo["server_ip"];
-                for (const Json &dpGroupInfo : nodeInfo["dp_inst_list"]) {
+                for (const auto &dpGroupInfo : nodeInfo["dp_inst_list"]) {
                     auto dpInstanceId = dpGroupInfo["dp_inst_id"];
                     if (globalIpInfo.hostIpInfo.count(dpInstanceId) != 0) {
                         globalIpInfo.hostIpInfo[dpInstanceId].emplace_back(nodeInfo["host_ip"]);
@@ -290,7 +290,7 @@ bool DmiRole::UpdatePDSwitchInfoV2(const std::string &roleName, const ordered_js
                     }
                     remoteNodeLinkStatus_[dpInstanceId] = {"None", false};
                     std::vector<DeviceInfo> linkDeviceIp;
-                    for (const Json &deviceInfo : dpGroupInfo["device"]) {
+                    for (const auto &deviceInfo : dpGroupInfo["device"]) {
                         DeviceInfo device;
                         device.deviceIp = deviceInfo["device_ip"].get<std::string>();
                         device.devicePhysicalId = std::stoi(deviceInfo["device_id"].get<std::string>());
@@ -329,13 +329,13 @@ bool DmiRole::UpdatePDNotSwitchInfo(const std::string &roleName, const ordered_j
     std::string superPodId = "";
     std::map<uint64_t, std::vector<DeviceInfo>> currentLinkIpInfo{};
     try {
-        for (const Json serverInfo : body["peers"]) {
+        for (const auto &serverInfo : body["peers"]) {
             uint32_t instanceId = serverInfo["id"];
             globalIpInfo.localHostIpList.emplace_back(body["local"]["host_ip"]);
             globalIpInfo.hostIpInfo[instanceId] = {serverInfo["host_ip"]};
             instanceIdToServerIp_[instanceId] = serverInfo["server_ip"];
             std::vector<DeviceInfo> linkDeviceIp;
-            for (const Json &deviceInfo : serverInfo["device"]) {
+            for (const auto &deviceInfo : serverInfo["device"]) {
                 DeviceInfo device;
                 device.deviceIp = deviceInfo["device_ip"].get<std::string>();
                 device.devicePhysicalId = std::stoi(deviceInfo["device_id"].get<std::string>());
@@ -418,20 +418,20 @@ bool DmiRole::UpdatePDNotSwitchInfoV2(const std::string &roleName, const ordered
     std::map<uint64_t, std::vector<DeviceInfo>> tempLinkIpInfo{};
     std::map<uint64_t, std::vector<std::string>> tempHostIpInfo{};
     try {
-        for (const Json &nodeInfo : body["local"]) {
-            for (const Json& dpGroupInfo : nodeInfo["dp_inst_list"]) {
+        for (const auto &nodeInfo : body["local"]) {
+            for (const auto& dpGroupInfo : nodeInfo["dp_inst_list"]) {
                 globalIpInfo.localDpInstanceIds.emplace_back(dpGroupInfo["dp_inst_id"]);
             }
         }
-        for (const Json &peerInfo : body["peers"]) {
-            for (const Json &nodeInfo : peerInfo) {
+        for (const auto &peerInfo : body["peers"]) {
+            for (const auto &nodeInfo : peerInfo) {
                 auto ret = ReverseDpInstId(nodeInfo["dp_inst_list"][0]["dp_inst_id"]);
                 uint32_t instanceId = ret.first;
                 globalIpInfo.spInfo[instanceId] = nodeInfo.value("sp_size", 1);
                 globalIpInfo.cpInfo[instanceId] = nodeInfo.value("cp_size", 1);
                 instanceIdToServerIp_[instanceId] = nodeInfo["server_ip"];
 
-                for (const Json &dpGroupInfo : nodeInfo["dp_inst_list"]) {
+                for (const auto &dpGroupInfo : nodeInfo["dp_inst_list"]) {
                     std::vector<DeviceInfo> linkDeviceIp;
                     auto dpInstanceId = dpGroupInfo["dp_inst_id"];
                     globalIpInfo.hostIpInfo[dpInstanceId] = {nodeInfo["host_ip"]};
@@ -439,7 +439,7 @@ bool DmiRole::UpdatePDNotSwitchInfoV2(const std::string &roleName, const ordered
                         superPodId = nodeInfo["super_pod_id"];
                         globalIpInfo.superPodIdInfo[dpInstanceId] = superPodId;
                     }
-                    for (const Json &deviceInfo : dpGroupInfo["device"]) {
+                    for (const auto &deviceInfo : dpGroupInfo["device"]) {
                         DeviceInfo device;
                         device.deviceIp = deviceInfo["device_ip"].get<std::string>();
                         device.devicePhysicalId = std::stoi(deviceInfo["device_id"].get<std::string>());

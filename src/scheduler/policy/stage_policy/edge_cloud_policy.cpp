@@ -20,6 +20,7 @@ PDPriorityType EdgeCloudPolicy::Apply(ConcurrentDeque<SequenceGroupSPtr> &waitin
                                       ConcurrentDeque<SequenceGroupSPtr> &running,
                                       ConcurrentDeque<SequenceGroupSPtr> &swapped)
 {
+    ((void)swapped);
     if (prefillBatchCount_ == 0 && decodeBatchCount_ == 0) {
         // 00
         if (!waiting.Empty()) {
