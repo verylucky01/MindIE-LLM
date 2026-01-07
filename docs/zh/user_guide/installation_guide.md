@@ -14,10 +14,10 @@ MindIE LLM的安装包含镜像,源码和pip install方式。各安装方案的�
 
 | **硬件** | **操作系统** |
 |-----|-----|
-| Atlas 800I A3 超节点服务器 | AArch64：</br>openEuler 22.03，CULinux 3.0，Kylin V10 SP3 2403 |
-| Atlas 800I A2 推理服务器 | AArch64：</br>CentOS 7.6，Ubuntu 24.04 LTS，openEuler 22.03 LTS，openEuler 22.03 LTS SP4，openEuler 24.03 LTS SP1，</br>BCLinux 21.10 U4，CTYunOS 23.01，CULinux 3.0，Kylin V10 GFB，Kylin V10 SP2，Kylin V10 SP3，AliOS3 |
-| Atlas 300I Duo 推理卡 + Atlas 800 推理服务器（型号 3000）| AArch64：</br>Ubuntu 20.04，Ubuntu 22.04，openEuler 22.03 LTS SP4，openEuler 24.03 SP1，</br>BCLinux 21.10，Debian 10.8，Kylin V10 SP1，UOS20-1020e |
-| Atlas 300I Duo 推理卡 + Atlas 800 推理服务器（型号 3010）| X86_64：</br>Ubuntu 22.04 |
+| Atlas 800I A3 超节点服务器 | AArch64：<br>openEuler 22.03，CULinux 3.0，Kylin V10 SP3 2403 |
+| Atlas 800I A2 推理服务器 | AArch64：<br>CentOS 7.6，Ubuntu 24.04 LTS，openEuler 22.03 LTS，openEuler 22.03 LTS SP4，openEuler 24.03 LTS SP1，<br>BCLinux 21.10 U4，CTYunOS 23.01，CULinux 3.0，Kylin V10 GFB，Kylin V10 SP2，Kylin V10 SP3，AliOS3 |
+| Atlas 300I Duo 推理卡 + Atlas 800 推理服务器（型号 3000）| AArch64：<br>Ubuntu 20.04，Ubuntu 22.04，openEuler 22.03 LTS SP4，openEuler 24.03 SP1，<br>BCLinux 21.10，Debian 10.8，Kylin V10 SP1，UOS20-1020e |
+| Atlas 300I Duo 推理卡 + Atlas 800 推理服务器（型号 3010）| X86_64：<br>Ubuntu 22.04 |
 
 可通过以下命令查询当前操作系统：
 

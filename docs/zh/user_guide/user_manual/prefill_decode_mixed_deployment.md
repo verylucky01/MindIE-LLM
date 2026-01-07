@@ -11,12 +11,12 @@
 - 若使用容器化部署启动，要求共享内存设置不小于1GB。
 - Server对于Python的环境要求为Python3.10.x或者Python3.11.x。此处以Python3.10.13为例，如果环境中的Python3.10.13不是默认版本，需要参考如下方法添加环境变量（Python路径根据实际路径进行修改）。
 
-```bash
+   ```bash
 
-export LD_LIBRARY_PATH=/usr/local/python3.10.13/lib:$LD_LIBRARY_PATH
-export PATH=/usr/local/python3.10.13/bin:$PATH
+   export LD_LIBRARY_PATH=/usr/local/python3.10.13/lib:$LD_LIBRARY_PATH
+   export PATH=/usr/local/python3.10.13/bin:$PATH
 
-```
+   ```
 
 ### 操作步骤
 
@@ -194,7 +194,7 @@ export PATH=/usr/local/python3.10.13/bin:$PATH
 
 4. （可选）若开启了HTTPS认证（即“httpsEnabled” : true时，默认开启）。
 
-   a. 则使用Service的证书导入脚本导入证书，各证书信息如表1所示。  
+   a. 则使用Service的证书导入脚本导入证书，各证书信息如[表1](#table1)所示。  
 
    > [!NOTE]说明
    > - HTTPS使用三面隔离时，HTTPS的业务面和管理面不建议使用同一套安全证书，使用同一套安全证书会存在较高的网络安全风险。
@@ -205,15 +205,15 @@ export PATH=/usr/local/python3.10.13/bin:$PATH
    
    
 
-   表1 证书文件清单
+      表1 证书文件清单  <a id="table1"></a>
 
-   | 证书文件               | 默认目标路径                                             | 说明                                              |
-   | ---------------------- | -------------------------------------------------------- | ------------------------------------------------- |
-   | 根证书                 | *{MindIE安装目录}*/latest/mindie-service/security/ca/    | 支持多个CA证书。<br/><br/>开启HTTPS后必选。       |
-   | 服务证书               | *{MindIE安装目录}*/latest/mindie-service/security/certs/ | 开启HTTPS后必选。                                 |
-   | 服务证书私钥           | *{MindIE安装目录}*/latest/mindie-service/security/keys/  | 支持私钥文件加密场景。<br/><br/>开启HTTPS后必选。 |
-   | 服务证书吊销列表       | {MindIE安装目录}/latest/mindie-service/security/certs/   | 开启HTTPS后可选。                                 |
-   | 服务证书私钥的加密口令 | *{MindIE安装目录}*/latest/mindie-service/security/pass/  | 可选。                                            |
+      | 证书文件               | 默认目标路径                                             | 说明                                              |
+      | ---------------------- | -------------------------------------------------------- | ------------------------------------------------- |
+      | 根证书                 | *{MindIE安装目录}*/latest/mindie-service/security/ca/    | 支持多个CA证书。<br/><br/>开启HTTPS后必选。       |
+      | 服务证书               | *{MindIE安装目录}*/latest/mindie-service/security/certs/ | 开启HTTPS后必选。                                 |
+      | 服务证书私钥           | *{MindIE安装目录}*/latest/mindie-service/security/keys/  | 支持私钥文件加密场景。<br/><br/>开启HTTPS后必选。 |
+      | 服务证书吊销列表       | {MindIE安装目录}/latest/mindie-service/security/certs/   | 开启HTTPS后可选。                                 |
+      | 服务证书私钥的加密口令 | *{MindIE安装目录}*/latest/mindie-service/security/pass/  | 可选。                                            |
 
    b. 在{MindIE安装目录}/latest下执行以下命令修改证书文件的用户权限。
       
@@ -608,7 +608,7 @@ ranktable.json文件权限需要设置为640，详细内容请根据以下样例
 > - 服务启动报缺失lib*.so依赖的错误时，处理方法请参见启动MindIE Motor服务时，出现找不到libboost_thread.so.1.82.0报错章节。
 > - 不建议在同一容器中反复拉起服务，重复拉起前请清理容器“/dev/shm/”目录下的*llm_backend_*和llm_tokenizer_shared_memory_*文件，参考命令如下：
 
-```bash
-find /dev/shm -name '*llm_backend_*' -type f -delete
-find /dev/shm -name 'llm_tokenizer_shared_memory_*' -type f -delete
-```
+   ```bash
+   find /dev/shm -name '*llm_backend_*' -type f -delete
+   find /dev/shm -name 'llm_tokenizer_shared_memory_*' -type f -delete
+   ```

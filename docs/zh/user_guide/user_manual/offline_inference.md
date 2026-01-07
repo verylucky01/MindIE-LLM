@@ -7,8 +7,8 @@
 已在环境上安装CANN、PyTorch、Torch-NPU和ATB Models，详情请参见《MindIE安装指南》。
 
 > [!NOTE]说明 
->本次样例参考以下安装路径进行：
->安装ATB Models并初始化ATB Models环境变量。模型仓set\_env.sh脚本中有初始化“\$\{ATB\_SPEED\_HOME\_PATH\}”环境变量的操作，所以source模型仓中set\_env.sh脚本时会同时初始化“\$\{ATB\_SPEED\_HOME\_PATH\}”环境变量。
+> 本次样例参考以下安装路径进行：
+> 安装ATB Models并初始化ATB Models环境变量。模型仓set\_env.sh脚本中有初始化“\$\{ATB\_SPEED\_HOME\_PATH\}”环境变量的操作，所以source模型仓中set\_env.sh脚本时会同时初始化“\$\{ATB\_SPEED\_HOME\_PATH\}”环境变量。
 
 ### 约束
 
@@ -87,7 +87,7 @@
         ```
 
         > [!NOTE]说明
-        > 环境变量说明见[环境变量说明](environment_variable.md)。
+        > 环境变量说明请参见[环境变量说明](environment_variable.md)。
 
     -  用户可以通过传入Token id的方式进行推理。
 
@@ -118,48 +118,48 @@
         torchrun --nproc_per_node 8 --master_port 20030 -m examples.run_pa --model_path /data/Llama-3-8b --input_ids 1,15043,2787 1,306,626,2691 --max_batch_size 2
         ```
 
-    **表 2**  run\_pa.py脚本参数说明  <a id="table2"></a>
+        **表 2**  run\_pa.py脚本参数说明  <a id="table2"></a>
 
-|参数名称|是否为必选|类型|默认值|描述|
-|--|--|--|--|--|
-|--model_path|是|string|""|模型权重路径。该路径会进行安全校验，必须使用绝对路径，且和执行推理用户的属组和权限保持一致。|
-|--input_texts|否|string|"What's deep learning?"|推理文本或推理文本路径，多条推理文本间使用空格分割。|
-|--input_ids|否|string|None|推理文本经过模型分词器处理后得到的token id列表，多条推理请求间使用空格分割，单个推理请求内每个token使用逗号隔开。|
-|--input_file|否|string|None|仅支持jsonl格式文件，每一行必须为List[Dict]格式的按时间顺序排序的对话数据，每个Dict字典中需要至少包含"role"和"content"两个字段。|
-|--input_dict|否|parse_list_of_json|None|推理文本以及对应的adapter名称。格式形如：'[{"prompt": "A robe takes 2 bolts of blue fiber and half that much white fiber.  How many bolts in total does it take?", "adapter": "adapter1"}, {"prompt": "What is deep learning?", "adapter": "base"}]'|
-|--max_prefill_batch_size|否|int或者None|None|模型推理最大Prefill Batch Size。|
-|--max_position_embeddings|否|int或者None|None|模型可接受的最大上下文长度。当此值为None时，则从模型权重文件中读取。|
-|--max_input_length|否|int|1024|推理文本最大token数。|
-|--max_output_length|否|int|20|推理结果最大token数。|
-|--max_prefill_tokens|否|int|-1|模型Prefill推理阶段最大可接受的token数。若输入为-1，则max_prefill_tokens = max_batch_size * (max_input_length + max_output_length)|
-|--max_batch_size|否|int|1|模型推理最大batch size。|
-|--block_size|否|int|128|KV Cache分块存储，每块存储的最大token数，默认为128。|
-|--chat_template|否|string或者None|None|对话模型的prompt模板。|
-|--ignore_eos|否|bool|store_true|当推理结果中遇到eos token（句子结束标识符）时，是否结束推理。若传入此参数，则忽略eos token。|
-|--is_chat_model|否|bool|store_true|是否支持对话模式。若传入此参数，则进入对话模式。|
-|--is_embedding_model|否|bool|store_true|是否为embedding类模型。默认为因果推断类模型，若传入此参数，则为embedding类模型。|
-|--load_tokenizer|否|bool|True|是否加载tokenizer。若传入False，则必须传入input_ids参数，且推理输出为token id。|
-|--enable_atb_torch|否|bool|store_true|是否使用Python组图。默认使用C++组图，若传入此参数，则使用Python组图。|
-|--kw_args|否|string|""|扩展参数，支持用户通过扩展参数进行功能扩展。|
-|--trust_remote_code|否|bool|store_true|是否信任模型权重路径下的自定义代码文件。默认不执行。若传入此参数，则transformers会执行用户权重路径下的自定义代码文件，这些代码文件的功能的安全性需由用户保证，请提前做好安全性检查。|
-|--dp|否|int|-1|数据并行数，默认不进行数据并行。|
-|--tp|否|int|-1|整网张量并行数，若值为“-1”，默认张量并行数为worldSize值。|
-|--sp|否|int|-1|序列并行数，默认不进行序列并行。若开启序列并行数，一般与张量并行数保持一致。|
-|--cp|否|int|-1|文本并行数，默认不进行文本并行。|
-|--moe_tp|否|int|-1|稀疏模型MoE模块中的张量并行数，默认等于“tp”数。若同时配置“tp”参数，则“moe_tp”参数优先级高于“tp”参数。|
-|--moe_ep|否|int|-1|稀疏模型MoE模块中的专家并行数，默认无专家并行。|
-|--lora_modules|否|string|None|定义需要加载的Lora权重名以及对应的Lora权重路径。例如：'{"adapter1": "/path/to/lora1", "adapter2": "/path/to/lora2"}'。默认不加载Lora权重。|
-|--max_loras|否|int|0|LoRA场景中，定义最多可存储的LoRA数量。动态LoRA场景下必须配置，静态LoRA场景中可以不配置。若传入数值过大，由于预留了过多权重空间，会出现out_of_memory报错信息，例如: "RuntimeError: NPU out of memory. Tried to allocate xxx GiB."|
-|--max_lora_rank|否|int|0|动态加载卸载LoRA场景中，定义最大LoRA秩。动态LoRA场景下必须配置，静态LoRA场景中可以不配置。若传入数值过大，由于预留了过多权重空间，会出现out_of_memory报错信息，例如: "RuntimeError: NPU out of memory. Tried to allocate xxx GiB."|
+        |参数名称|是否为必选|类型|默认值|描述|
+        |--|--|--|--|--|
+        |--model_path|是|string|""|模型权重路径。该路径会进行安全校验，必须使用绝对路径，且和执行推理用户的属组和权限保持一致。|
+        |--input_texts|否|string|"What's deep learning?"|推理文本或推理文本路径，多条推理文本间使用空格分割。|
+        |--input_ids|否|string|None|推理文本经过模型分词器处理后得到的token id列表，多条推理请求间使用空格分割，单个推理请求内每个token使用逗号隔开。|
+        |--input_file|否|string|None|仅支持jsonl格式文件，每一行必须为List[Dict]格式的按时间顺序排序的对话数据，每个Dict字典中需要至少包含"role"和"content"两个字段。|
+        |--input_dict|否|parse_list_of_json|None|推理文本以及对应的adapter名称。格式形如：'[{"prompt": "A robe takes 2 bolts of blue fiber and half that much white fiber.  How many bolts in total does it take?", "adapter": "adapter1"}, {"prompt": "What is deep learning?", "adapter": "base"}]'|
+        |--max_prefill_batch_size|否|int或者None|None|模型推理最大Prefill Batch Size。|
+        |--max_position_embeddings|否|int或者None|None|模型可接受的最大上下文长度。当此值为None时，则从模型权重文件中读取。|
+        |--max_input_length|否|int|1024|推理文本最大token数。|
+        |--max_output_length|否|int|20|推理结果最大token数。|
+        |--max_prefill_tokens|否|int|-1|模型Prefill推理阶段最大可接受的token数。若输入为-1，则max_prefill_tokens = max_batch_size * (max_input_length + max_output_length)|
+        |--max_batch_size|否|int|1|模型推理最大batch size。|
+        |--block_size|否|int|128|KV Cache分块存储，每块存储的最大token数，默认为128。|
+        |--chat_template|否|string或者None|None|对话模型的prompt模板。|
+        |--ignore_eos|否|bool|store_true|当推理结果中遇到eos token（句子结束标识符）时，是否结束推理。若传入此参数，则忽略eos token。|
+        |--is_chat_model|否|bool|store_true|是否支持对话模式。若传入此参数，则进入对话模式。|
+        |--is_embedding_model|否|bool|store_true|是否为embedding类模型。默认为因果推断类模型，若传入此参数，则为embedding类模型。|
+        |--load_tokenizer|否|bool|True|是否加载tokenizer。若传入False，则必须传入input_ids参数，且推理输出为token id。|
+        |--enable_atb_torch|否|bool|store_true|是否使用Python组图。默认使用C++组图，若传入此参数，则使用Python组图。|
+        |--kw_args|否|string|""|扩展参数，支持用户通过扩展参数进行功能扩展。|
+        |--trust_remote_code|否|bool|store_true|是否信任模型权重路径下的自定义代码文件。默认不执行。若传入此参数，则transformers会执行用户权重路径下的自定义代码文件，这些代码文件的功能的安全性需由用户保证，请提前做好安全性检查。|
+        |--dp|否|int|-1|数据并行数，默认不进行数据并行。|
+        |--tp|否|int|-1|整网张量并行数，若值为“-1”，默认张量并行数为worldSize值。|
+        |--sp|否|int|-1|序列并行数，默认不进行序列并行。若开启序列并行数，一般与张量并行数保持一致。|
+        |--cp|否|int|-1|文本并行数，默认不进行文本并行。|
+        |--moe_tp|否|int|-1|稀疏模型MoE模块中的张量并行数，默认等于“tp”数。若同时配置“tp”参数，则“moe_tp”参数优先级高于“tp”参数。|
+        |--moe_ep|否|int|-1|稀疏模型MoE模块中的专家并行数，默认无专家并行。|
+        |--lora_modules|否|string|None|定义需要加载的Lora权重名以及对应的Lora权重路径。例如：'{"adapter1": "/path/to/lora1", "adapter2": "/path/to/lora2"}'。默认不加载Lora权重。|
+        |--max_loras|否|int|0|LoRA场景中，定义最多可存储的LoRA数量。动态LoRA场景下必须配置，静态LoRA场景中可以不配置。若传入数值过大，由于预留了过多权重空间，会出现out_of_memory报错信息，例如: "RuntimeError: NPU out of memory. Tried to allocate xxx GiB."|
+        |--max_lora_rank|否|int|0|动态加载卸载LoRA场景中，定义最大LoRA秩。动态LoRA场景下必须配置，静态LoRA场景中可以不配置。若传入数值过大，由于预留了过多权重空间，会出现out_of_memory报错信息，例如: "RuntimeError: NPU out of memory. Tried to allocate xxx GiB."|
 
 
-    > [!NOTE]说明 
-    > 此章节中的run\_pa.py脚本用于纯模型快速测试，脚本中未增加强校验，出现异常情况时，会直接抛出异常信息。例如：
-    >-  nput\_texts、input\_ids、input\_file、input\_dict参数包含推理内容，程序进行数据处理的时间和传入数据量成正比。同时这些输入会被转换成token id搬运至NPU，传入数据量过大可能会导致这些NPU tensor占用显存过大，而出现由out of memory导致的报错信息，例如："req: xx input length: xx is too long, max\_prefill\_tokens: xx"等报错信息。
-    >-  chat\_template参数可以使用两种形式输入：模板文本或模板文件的路径。当以模板文本输入时，若文本长度过大，可能会导致运行缓慢。
-    >-  脚本会基于max\_batch\_size、max\_input\_length、max\_output\_length、max\_prefill\_batch\_size和max\_prefill\_tokens等参数申请推理输入及KV Cache，若用户传入数值过大，会出现由out of memory导致的报错信息，例如："RuntimeError: NPU out of memory. Tried to allocate xxx GiB."。
-    >-  脚本会基于max\_position\_embeddings参数，申请旋转位置编码和attention mask等NPU tensor，若用户传入数值过大，会出现由out of memory导致的报错信息，例如："RuntimeError: NPU out of memory. Tried to allocate xxx GiB."。
-    >-  block\_size参数若小于张量并行场景下每张卡实际分到的注意力头个数，会出现由shape不匹配导致的报错（"Setup fail, enable log: export ASDOPS\_LOG\_LEVEL=ERROR, export ASDOPS\_LOG\_TO\_STDOUT=1 to find the first error. For more details, see the MindIE official document."），需开启日志查看详细信息。
+        > [!NOTE]说明 
+        > 此章节中的run\_pa.py脚本用于纯模型快速测试，脚本中未增加强校验，出现异常情况时，会直接抛出异常信息。例如：
+        > - nput\_texts、input\_ids、input\_file、input\_dict参数包含推理内容，程序进行数据处理的时间和传入数据量成正比。同时这些输入会被转换成token id搬运至NPU，传入数据量过大可能会导致这些NPU tensor占用显存过大，而出现由out of memory导致的报错信息，例如："req: xx input length: xx is too long, max\_prefill\_tokens: xx"等报错信息。
+        > - chat\_template参数可以使用两种形式输入：模板文本或模板文件的路径。当以模板文本输入时，若文本长度过大，可能会导致运行缓慢。
+        > - 脚本会基于max\_batch\_size、max\_input\_length、max\_output\_length、max\_prefill\_batch\_size和max\_prefill\_tokens等参数申请推理输入及KV Cache，若用户传入数值过大，会出现由out of memory导致的报错信息，例如："RuntimeError: NPU out of memory. Tried to allocate xxx GiB."。
+        > - 脚本会基于max\_position\_embeddings参数，申请旋转位置编码和attention mask等NPU tensor，若用户传入数值过大，会出现由out of memory导致的报错信息，例如："RuntimeError: NPU out of memory. Tried to allocate xxx GiB."。
+        > - block\_size参数若小于张量并行场景下每张卡实际分到的注意力头个数，会出现由shape不匹配导致的报错（"Setup fail, enable log: export ASDOPS\_LOG\_LEVEL=ERROR, export ASDOPS\_LOG\_TO\_STDOUT=1 to find the first error. For more details, see the MindIE official document."），需开启日志查看详细信息。
 
 7.  测试性能。
 

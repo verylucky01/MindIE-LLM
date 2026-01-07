@@ -33,14 +33,14 @@ Prefix Cache通过哈希表保留session结束后的KV Cache，新的session请�
 
 |配置项|取值类型|取值范围|配置说明|
 |--|--|--|--|
-|plugin_params|std::string|"{\"plugin_type\":\"prefix_cache\"}"|设置为"{\"plugin_type\":\"prefix_cache\"}"，表示执行Prefix Cache。不需要生效任何插件功能时，请删除该配置项字段。|
+|plugin_params|std::string|"{\"plugin_type\":\"prefix_cache\"}"|<ul><li>设置为"{\"plugin_type\":\"prefix_cache\"}"，表示执行Prefix Cache。</li><li>不需要生效任何插件功能时，请删除该配置项字段。</li></ul>|
 
 
 **表 2**  Prefix Cache特性补充参数2：**ScheduleConfig的参数**  <a id="table2"></a>
 
 |配置项|取值类型|取值范围|配置说明|
 |--|--|--|--|
-|enablePrefixCache|-|-|该字段已无需配置，目前版本按老版本方式配置无影响。该字段预计日落时间：2026年Q1版本。|
+|enablePrefixCache|-|-|该字段已无需配置，目前版本按老版本方式配置无影响。<br>该字段预计日落时间：2026年Q1版本。|
 
 
 **表 3**  Prefix Cache特性补充参数3：**ModelConfig中的models参数**  <a id="table3"></a>
@@ -49,7 +49,7 @@ Prefix Cache通过哈希表保留session结束后的KV Cache，新的session请�
 |--|--|--|--|
 |deepseekv2|
 |kv_cache_option|
-|enable_nz|bool|truefalse|是否开启KV Cache NZ格式。仅DeepSeek-R1、DeepSeek-V3和DeepSeek-V3.1模型支持此特性。FA3量化场景下自动使能NZ格式。DeepSeek-R1、DeepSeek-V3和DeepSeek-V3.1模型必须开启此开关，其余模型关闭。默认值：false|
+|enable_nz|bool|<ul><li>true</li><li>false</li></ul>|是否开启KV Cache NZ格式。<br><ul><li>仅DeepSeek-R1、DeepSeek-V3和DeepSeek-V3.1模型支持此特性。FA3量化场景下自动使能NZ格式。</li><li>DeepSeek-R1、DeepSeek-V3和DeepSeek-V3.1模型必须开启此开关，其余模型关闭。</li><li>默认值：false</li></ul>|
 
 
 ## 执行推理

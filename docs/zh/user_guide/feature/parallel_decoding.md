@@ -41,35 +41,35 @@
 
 |配置项|取值类型|取值范围|配置说明|
 |--|--|--|--|
-|plugin_params|std::string|plugin_type：memory_decodingdecoding_length：[1, 16]dynamic_algo：true或false|plugin_type配置memory_decoding，表示当前选择memory_decoding并行解码。decoding_length为memory_decoding算法中的参数，表示候选token的最大长度，默认值16。dynamic_algo为可选参数，配为true时表示开启动态自适应候选长度功能，默认值False。不需要生效任何插件功能时，请删除该配置项字段。配置示例：{\"plugin_type\":\"memory_decoding\",\"decoding_length\": 16,\"dynamic_algo\": true}或{\"plugin_type\":\"memory_decoding\",\"decoding_length\": 16}|
+|plugin_params|std::string|plugin_type：memory_decoding<br>decoding_length：[1, 16]<br>dynamic_algo：true或false|<ul><li>plugin_type配置memory_decoding，表示当前选择memory_decoding并行解码。</li><li>decoding_length为memory_decoding算法中的参数，表示候选token的最大长度，默认值16。</li><li>dynamic_algo为可选参数，配为true时表示开启动态自适应候选长度功能，默认值False。</li><li>不需要生效任何插件功能时，请删除该配置项字段。</li><li>配置示例：{\"plugin_type\":\"memory_decoding\",\"decoding_length\": 16,\"dynamic_algo\": true}或{\"plugin_type\":\"memory_decoding\",\"decoding_length\": 16}</li></ul>|
 
 
 **表 3**  memory\_decoding补充参数2：**ModelDeployConfig的参数**
 
 |配置项|取值类型|取值范围|配置说明|
 |--|--|--|--|
-|speculationGamma|uint32_t|与plugin参数配置有关|memory_decoding时，该值配置应大于等于decoding_length。建议值：等于decoding_length。|
+|speculationGamma|uint32_t|与plugin参数配置有关|memory_decoding时，该值配置应大于等于decoding_length。<br>建议值：等于decoding_length。|
 
 
 **表 4**  memory\_decoding补充参数3：**ScheduleConfig的参数**
 
 |配置项|取值类型|取值范围|配置说明|
 |--|--|--|--|
-|maxIterTimes|uint32_t|与plugin参数配置有关|如果dynamic_algo为true，该值需大于等于期望输出的长度+speculationGamma的值。例：期望最大输出长度为512，则该值需要配置>=512+speculationGamma。|
+|maxIterTimes|uint32_t|与plugin参数配置有关|如果dynamic_algo为true，该值需大于等于期望输出的长度+speculationGamma的值。<br>例：期望最大输出长度为512，则该值需要配置>=512+speculationGamma。|
 
 
 **表 5**  lookahead补充参数1：**ModelDeployConfig中的ModelConfig参数**
 
 |配置项|取值类型|取值范围|配置说明|
 |--|--|--|--|
-|plugin_params|std::string|plugin_type：lalevel ：[3, 16]window ：[1, 16]guess_set_size ：[1, 16]|plugin_type配置la，表示当前选择lookahead并行解码。level/window/guess_set_size为lookahead算法中的N/W/G参数，默认值为4/5/5，且每个参数可配置的上限不超过16。配置示例："{\"plugin_type\":\"la\",\"level\": 4,\"window\": 5,\"guess_set_size\": 5}"|
+|plugin_params|std::string|plugin_type：la<br>level ：[3, 16]<br>window ：[1, 16]<br>guess_set_size ：[1, 16]|plugin_type配置la，表示当前选择lookahead并行解码。<br>level/window/guess_set_size为lookahead算法中的N/W/G参数，默认值为4/5/5，且每个参数可配置的上限不超过16。配置示例："{\"plugin_type\":\"la\",\"level\": 4,\"window\": 5,\"guess_set_size\": 5}"|
 
 
 **表 6**  lookahead补充参数2：**ModelDeployConfig的参数**  <a id="table6"></a>
 
 |配置项|取值类型|取值范围|配置说明|
 |--|--|--|--|
-|speculationGamma|uint32_t|与plugin参数配置有关|lookahead中，配置值应大于等于(N-1)*(W+G)建议值：等于(N-1)*(W+G)。|
+|speculationGamma|uint32_t|与plugin参数配置有关|lookahead中，配置值应大于等于(N-1)*(W+G)<br>建议值：等于(N-1)*(W+G)。|
 
 
 ## 执行推理<a name="section1788515529541"></a>
@@ -81,7 +81,7 @@
     vi conf/config.json
     ```
 
-2. 配置服务化参数。在Server的config.json文件中按照**表2**~**表6**添加相应参数，服务化参数说明请参见[配置参数说明（服务化）](../user_manual/service_parameter_configuration.md)章节，参数配置示例如下。
+2. 配置服务化参数。在Server的config.json文件中按照[表2](#table1)~[表6](#table6)添加相应参数，服务化参数说明请参见[配置参数说明（服务化）](../user_manual/service_parameter_configuration.md)章节，参数配置示例如下。
 
     memory\_decoding算法的并行解码配置样例：
 

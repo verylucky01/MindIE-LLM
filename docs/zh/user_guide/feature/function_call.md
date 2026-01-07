@@ -33,9 +33,9 @@
 
 |配置项|取值类型|取值范围|配置说明|
 |--|--|--|--|
-|chat_template|string|.jinja格式的文件路径""|传入自定义的对话模板，替换模型默认的对话模板。默认值：""DeepSeek系列模型，tokenizer_config.json中的默认chat_template不支持工具调用，可以使用该参数传入支持工具调用的chat_template。DeepSeek系列、Qwen系列（大语言模型），ChatGLM系列，LLaMA系列模型支持使用该参数传入自定义模板。|
+|chat_template|string|.jinja格式的文件路径""|传入自定义的对话模板，替换模型默认的对话模板。<ul><li>默认值：""</li><li>DeepSeek系列模型，tokenizer_config.json中的默认chat_template不支持工具调用，可以使用该参数传入支持工具调用的chat_template。</li><li>DeepSeek系列、Qwen系列（大语言模型），ChatGLM系列，LLaMA系列模型支持使用该参数传入自定义模板。</li></ul>|
 |tool_call_options|
-|tool_call_parser|string|表2 已注册ToolsCallProcessor中的“可选注册名称”""|使能Function Call时，选择工具的解析方式。默认值：""当未配置或配置错误值时，将使用当前模型所对应的默认工具解析方式。DeepSeek-V3.1模型使用Function Call时，必须配置为"deepseek_v31"，其余模型使用默认值。与chat_template配合使用，根据chat_template中指定的Function Call调用格式选择相应的ToolsCallProcessor。|
+|tool_call_parser|string|表2 已注册ToolsCallProcessor中的“可选注册名称”<br>""|使能Function Call时，选择工具的解析方式。<br><ul><li>默认值：""</li><li>当未配置或配置错误值时，将使用当前模型所对应的默认工具解析方式。</li><li>DeepSeek-V3.1模型使用Function Call时，必须配置为"deepseek_v31"，其余模型使用默认值。</li><li>与chat_template配合使用，根据chat_template中指定的Function Call调用格式选择相应的ToolsCallProcessor。|</li></ul>
 
 
 **表 2**  已注册ToolsCallProcessor   <a id="table2"></a>
@@ -116,7 +116,7 @@
 
     **请求样例：**
 
-    ```bash
+    ```
     curl -H "Accept: application/json" -H "Content-type: application/json" --cacert ca.pem --cert client.pem  --key client.key.pem -X POST -d '{
         "model": "dsv31",
         "messages": [
@@ -196,7 +196,7 @@
 
     根据模型返回的tool\_calls调用相关的本地工具，使用assistant角色关联[4](#step4)中接口返回的tool\_calls和id，并使用tool角色关联工具执行的结果和[4](#step4)中接口返回的id，向大模型发送请求。
 
-    ```bash
+    ```
     curl -H "Accept: application/json" -H "Content-type: application/json" --cacert ca.pem --cert client.pem  --key client.key.pem -X POST -d '{
         "model": "dsv31",
         "messages": [

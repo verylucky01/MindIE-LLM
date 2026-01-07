@@ -21,7 +21,7 @@
 
 |配置项|取值类型|取值范围|配置说明|
 |--|--|--|--|
-|kvPoolConfig|std::string|{"backend"："*kv_pool_backend_name*", "configPath":"*/path/to/your/config/file*"}|backend为指定的KV Cache池化后端。设置为“”，表示关闭KV Cache池化。设置为对应池化后端的名称，表示开启KV Cache池化。configPath为传入池化后端所需的配置文件路径。|
+|kvPoolConfig|std::string|{"backend"："*kv_pool_backend_name*", <br>"configPath":"*/path/to/your/config/file*"}|backend为指定的KV Cache池化后端。<ul><li>设置为“”，表示关闭KV Cache池化。</li><li>设置为对应池化后端的名称，表示开启KV Cache池化。</li></ul><br>configPath为传入池化后端所需的配置文件路径。|
 
 
 ## 执行推理
@@ -35,7 +35,7 @@
 
 2. 配置服务化参数。使用KV Cache池化特性时，必须打开Prefix Cache特性。
 
-    请根据[表1](prefix_cache.md#table1)\~[表3](prefix_cache.md#table3)外，和[表1](#table1)，在Server的config.json文件添加相应参数。其他服务化参数说明请参见[配置参数说明（服务化）](../user_manual/service_parameter_configuration.md)
+    请根据[表1](prefix_cache.md#table1)\~[表3](prefix_cache.md#table3)，和[表1](#table1)，在Server的config.json文件添加相应参数。其他服务化参数说明请参见[配置参数说明（服务化）](../user_manual/service_parameter_configuration.md)
 
     下面以DeepSeek-R1模型, 开启Prefix Cache+KV Cache池化为例：
 

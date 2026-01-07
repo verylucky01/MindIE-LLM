@@ -25,10 +25,10 @@ SLO（Service Level Objective，服务级别目标）指在设定时间段内为
 
 |配置项|取值类型|取值范围|配置说明|
 |--|--|--|--|
-|stageSelectPolicy|uint32_t|[0,2]|Prefill和Decode选择策略。0：prefill优先1：吞吐优先2：基于TTFT/TPOT时延预测和LLF算法的PD阶段选择算法选填，默认值：0。|
-|dynamicBatchSizeEnable|bool|truefalse|是否开启动态BatchSize调整算法。选填，默认值：false。|
-|prefillExpectedTime|uint32_t|[0,10000]|Prefill阶段Token生成的SLO期望时延。选填，默认值：1500。|
-|decodeExpectedTime|uint32_t|[0,10000]|Decode阶段Token生成的SLO期望时延。选填，默认值：50。|
+|stageSelectPolicy|uint32_t|[0,2]|Prefill和Decode选择策略。<br><ul><li>0：prefill优先</li><li>1：吞吐优先</li><li>2：基于TTFT/TPOT时延预测和LLF算法的PD阶段选择算法</li></ul><br>选填，默认值：0。|
+|dynamicBatchSizeEnable|bool|<ul><li>true</li><li>false</li></ul>|是否开启动态BatchSize调整算法。<br>选填，默认值：false。|
+|prefillExpectedTime|uint32_t|[0,10000]|Prefill阶段Token生成的SLO期望时延。<br>选填，默认值：1500。|
+|decodeExpectedTime|uint32_t|[0,10000]|Decode阶段Token生成的SLO期望时延。<br>选填，默认值：50。|
 
 
 ## 执行推理
@@ -57,7 +57,7 @@ SLO（Service Level Objective，服务级别目标）指在设定时间段内为
     ./bin/mindieservice_daemon
     ```
 
-4. 以AISBench工具、gsm8k数据集和并发500为例展示调优方式。AISBench工具配置如下，详情请参见《MindIE Motor开发指南》中的“性能测试”章节。
+4. 以AISBench工具、gsm8k数据集和并发500为例展示调优方式。AISBench工具配置如下，详情请参见《MindIE Motor开发指南》中的“快速入门 > [性能测试](https://gitcode.com/Ascend/MindIE-Motor/blob/master/docs/zh/User_Guide/quick_start.md)”章节。
 
     ```
     models = [

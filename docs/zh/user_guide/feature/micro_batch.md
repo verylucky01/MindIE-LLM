@@ -24,7 +24,7 @@ Micro Batch即在批处理过程中，将数据切分为更小粒度的多个bat
 |配置项|取值类型|取值范围|配置说明|
 |--|--|--|--|
 |stream_options|
-|micro_batch|bool|truefalse|开启通信计算双流掩盖特性。默认值：false（关闭）|
+|micro_batch|bool|<ul><li>true</li><li>false</li></ul>|开启通信计算双流掩盖特性。<br>默认值：false（关闭）|
 
 
 ## 执行推理
