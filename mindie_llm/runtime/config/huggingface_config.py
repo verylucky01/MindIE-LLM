@@ -12,8 +12,9 @@ from dataclasses import dataclass, field, fields
 from typing import Any
 
 from transformers.configuration_utils import PretrainedConfig
+
 from mindie_llm.runtime.utils.distributed import get_parallel_info_manager
-from mindie_llm.runtime.utils.parameter_validators import (
+from mindie_llm.runtime.utils.helpers.parameter_validators import (
     IntParameterValidator, FloatParameterValidator, RangeParamaterValidator, Field,
     CompositeParameterValidator, ListParameterValidator
 )

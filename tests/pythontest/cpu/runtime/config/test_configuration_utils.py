@@ -13,7 +13,7 @@ import json
 import tempfile
 import unittest
 from mindie_llm.runtime.config.configuration_utils import LLMConfig
-from mindie_llm.runtime.utils.parameter_validators import (
+from mindie_llm.runtime.utils.helpers.parameter_validators import (
     DictionaryParameterValidator, BooleanParameterValidator, RangeParamaterValidator
 )
 

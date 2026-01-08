@@ -13,7 +13,7 @@ from unittest.mock import patch, mock_open, MagicMock
 from pathlib import Path
 
 from mindie_llm.runtime.layers.quantization.quantization_config_base import QuantizationConfigBase
-from mindie_llm.runtime.utils.npu_utils import PlatformInfo
+from mindie_llm.runtime.utils.npu.device_utils import _NPUNodeInfo
 from mindie_llm.runtime.config.mindie_llm_config import MindIELLMConfig
 
 
@@ -23,7 +23,7 @@ class TestMindIELLMConfig(unittest.TestCase):
         self.llm_config = MagicMock()
         self.generation_config = MagicMock()
 
-    @patch("mindie_llm.runtime.utils.npu_utils.PlatformInfo")
+    @patch("mindie_llm.runtime.utils.npu.device_utils._NPUNodeInfo")
     @patch("mindie_llm.runtime.layers.quantization.ms_model_slim.quantization_config.QuantizationConfig")
     @patch("mindie_llm.runtime.utils.helpers.safety.file.safe_open", new_callable=mock_open, \
         read_data='{"quant_method": "ms_model_slim", "weight_bits": 8}')
@@ -45,9 +45,7 @@ class TestMindIELLMConfig(unittest.TestCase):
                 generation_config=self.generation_config
             )
 
-            self.assertIsInstance(config.soc_info, PlatformInfo)
-
-    @patch("mindie_llm.runtime.utils.npu_utils.PlatformInfo")
+    @patch("mindie_llm.runtime.utils.npu.device_utils._NPUNodeInfo")
     @patch("mindie_llm.runtime.layers.quantization.ms_model_slim.quantization_config.QuantizationConfig")
     def test_init_quant_config_no_files(self, mock_quant_cls, mock_platform_info):
         mock_platform_info.return_value = MagicMock()
@@ -67,7 +65,7 @@ class TestMindIELLMConfig(unittest.TestCase):
 
             self.assertIsNone(config.quant_config)
 
-    @patch("mindie_llm.runtime.utils.npu_utils.PlatformInfo")
+    @patch("mindie_llm.runtime.utils.npu.device_utils._NPUNodeInfo")
     @patch("mindie_llm.runtime.layers.quantization.ms_model_slim.quantization_config.QuantizationConfig")
     def test_init_quant_config_model_path_is_not_dir(self, mock_quant_cls, mock_platform_info):
         mock_platform_info.return_value = MagicMock()
@@ -97,7 +95,6 @@ class TestMindIELLMConfig(unittest.TestCase):
         self.assertIs(config.llm_config, self.llm_config)
         self.assertIs(config.generation_config, self.generation_config)
         self.assertIsNone(config.quant_config)
-        self.assertIsInstance(config.soc_info, PlatformInfo)
 
 
 if __name__ == '__main__':

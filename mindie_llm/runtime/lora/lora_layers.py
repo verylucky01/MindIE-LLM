@@ -18,7 +18,7 @@ import torch.nn.functional as F
 from torch.nn import Parameter
 
 
-from mindie_llm.runtime.utils.npu_utils import get_platform_info, AscendDeviceType
+from mindie_llm.runtime.utils.npu.device_utils import get_npu_node_info, DeviceType
 from mindie_llm.runtime.layers.custom_layer import CustomLayer
 from mindie_llm.runtime.config.mindie_llm_config import LoraModelConfig
 from mindie_llm.runtime.layers.linear.linear import (
@@ -107,7 +107,7 @@ class ParallelLinearWithLoRA(BaseLayerWithLoRA):
         self.device = device
         if self.dtype not in [torch.float16, torch.bfloat16]:
             raise RuntimeError("LoRA only supports float16 and bfloat16 currently.")
-        if get_platform_info().get_device_type() == AscendDeviceType.ASCEND_310P:
+        if get_npu_node_info().get_device_type() == DeviceType.ASCEND_310P:
             self.need_nz = True
         max_loras = lora_model_config.max_loras
         max_lora_rank = lora_model_config.max_lora_rank

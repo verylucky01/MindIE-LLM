@@ -16,9 +16,9 @@ from mindie_llm.runtime.config.huggingface_config import HuggingFaceConfig, Gene
 from mindie_llm.runtime.config.configuration_utils import LLMConfig
 from mindie_llm.runtime.layers.quantization.quantization_config_base import QuantizationConfigBase
 from mindie_llm.runtime.layers.quantization.ms_model_slim.quantization_config import QuantizationConfig
-from mindie_llm.runtime.utils.parameter_validators import ParameterValidator, IntParameterValidator, Field
+from mindie_llm.runtime.utils.helpers.parameter_validators import ParameterValidator, IntParameterValidator, Field
 from mindie_llm.runtime.utils.helpers.safety.file import safe_open
-from mindie_llm.runtime.utils.npu_utils import PlatformInfo
+from mindie_llm.runtime.utils.npu.device_utils import get_npu_node_info
 from mindie_llm.utils.log.logging import logger
 
 
@@ -62,7 +62,6 @@ class MindIELLMConfig:
     lora_model_config: LoraModelConfig | None = None
 
     def __post_init__(self):
-        self.soc_info = PlatformInfo()
         self.quant_config = self._init_quant_config()
 
     def _init_quant_config(self) -> QuantizationConfigBase | None:

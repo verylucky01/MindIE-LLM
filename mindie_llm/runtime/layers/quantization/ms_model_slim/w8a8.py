@@ -23,7 +23,7 @@ from mindie_llm.runtime.layers.parameter import (
     PerTensorScaleParameter,
 )
 from mindie_llm.runtime.layers.quantization.ms_model_slim.quant_type import InferenceMode
-from mindie_llm.runtime.utils.npu_utils import get_platform_info
+from mindie_llm.runtime.utils.npu.device_utils import get_npu_node_info
 from mindie_llm.runtime.utils.distributed.utils import even_divide
 from mindie_llm.utils.log.logging import logger
 
@@ -132,7 +132,7 @@ class W8A8PerTensorLinearMethod(LinearMethodBase):
             layer.input_offset.data.repeat(expanding_factor).to(layer.weight_dtype).contiguous().npu()
         layer.weight.data = layer.weight.data.transpose(0, 1).contiguous()
 
-        soc_name = get_platform_info().soc_name
+        soc_name = get_npu_node_info().soc_name
         if soc_name in SUPPORT_NZ_NPU_LIST: 
             layer.weight.data = torch_npu.npu_format_cast(layer.weight.data, 29)
             logger.debug("Convert weight to FRACTAL_NZ done, current format is %s", 
@@ -214,7 +214,7 @@ class W8A8PerTokenLinearMethod(LinearMethodBase):
         layer.weight.data = layer.weight.data.transpose(0, 1).contiguous()
         layer.weight_scale.data = layer.weight_scale.data.flatten()
 
-        soc_name = get_platform_info().soc_name
+        soc_name = get_npu_node_info().soc_name
         if soc_name in SUPPORT_NZ_NPU_LIST:
             layer.weight.data = torch_npu.npu_format_cast(layer.weight.data, 29)
             logger.debug("Convert weight to FRACTAL_NZ done, current format is %s", 
@@ -285,7 +285,7 @@ class W8A8MixLinearMethod(LinearMethodBase):
         layer.weight.data = layer.weight.data.transpose(0, 1).contiguous()
         layer.weight_scale.data = layer.weight_scale.data.flatten()
 
-        soc_name = get_platform_info().soc_name
+        soc_name = get_npu_node_info().soc_name
         if soc_name in SUPPORT_NZ_NPU_LIST:
             layer.weight.data = torch_npu.npu_format_cast(layer.weight.data, 29)
             logger.debug("Convert weight to FRACTAL_NZ done, current format is %s", 
