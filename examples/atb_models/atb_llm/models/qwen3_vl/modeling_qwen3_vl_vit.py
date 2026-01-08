@@ -33,15 +33,12 @@ from atb_llm.utils.layers import (
 )
 from atb_llm.utils.quantize.quant_type import QuantType
 
-PADDING_HEAD_DIM = 128
 OUT_DATA_TYPE = {
     torch.bfloat16: "ACL_BF16",
     torch.float16: "ACL_FLOAT16"
 }
-INITIAL_MAX_H = 136  # Correspond to 4K image grid_h
-INITIAL_MAX_W = 256  # Correspond to 4K image grid_w
 INITIAL_MAX_POS_EMBEDS = 8192
-WEIGHT_HALF_DIM_PAD_VALUE = 28
+ATTN_PADDED_HEAD_DIM = 128
 
 
 class LayerNorm(nn.Module):
@@ -167,11 +164,11 @@ class Qwen3VLVisionAttention(nn.Module):
         self.tp_world_size = process_group.size()
         self.dtype = weights.dtype
         self.num_heads = config.num_heads
-        self.hidden_size = config.hidden_size
         self.embed_dim = config.hidden_size
-        self.head_dim_ori = self.embed_dim // self.num_heads
-        self.head_dim = PADDING_HEAD_DIM
-        self.scaling = self.head_dim_ori ** -0.5
+        self.original_head_dim = self.embed_dim // self.num_heads
+        self.padded_head_dim = ATTN_PADDED_HEAD_DIM
+        self.pad_size = (self.padded_head_dim - self.original_head_dim) // 2
+        self.scaling = self.original_head_dim ** -0.5
         self.num_heads_pre_rank = (self.num_heads + self.tp_world_size - 1) // self.tp_world_size
         if config.quantize == QuantType.W8A8SC:
             self.qkv = TensorParallelColumnLinear.load(
@@ -196,7 +193,7 @@ class Qwen3VLVisionAttention(nn.Module):
             prefix=f"{self.prefix}.proj",
             weights=weights,
             bias=True,
-            gqa_size=self.head_dim_ori,
+            gqa_size=self.original_head_dim,
         )
 
     def get_weights(self):
@@ -283,7 +280,7 @@ class Qwen3VLVisionAttention(nn.Module):
         graph = rope_builder.build(graph, rope_tensor_map)
 
     def reshape_qkv(self, org_shape):
-        return [org_shape[0], self.num_heads_pre_rank, self.head_dim]
+        return [org_shape[0], self.num_heads_pre_rank, self.padded_head_dim]
 
     def reshape_out(self, org_shape):
         return [org_shape[0], org_shape[1] * org_shape[2]]
@@ -348,54 +345,33 @@ class Qwen3VLVisionAttention(nn.Module):
         )
 
     def _pad_qkv_weight(self, weight):
-        """Pad QKV weight tensor for dimension matching (static pad).
-
-        Reshape QKV weight to 4D, static pad 28 zeros to 3rd dim (36→64), 
-        then reshape back to 2D to match operator input dimension requirements.
-
-        Args:
-            weight (torch.Tensor): Input QKV weight tensor
-
-        Returns:
-            torch.Tensor: Padded QKV weight tensor
+        """
+        Pad QKV weight tensor for dimension matching (static pad).
         """
         weight = torch.nn.functional.pad(
-                weight.reshape(3, self.num_heads_pre_rank * 2, 36, self.embed_dim), (0, 0, 0, WEIGHT_HALF_DIM_PAD_VALUE)
-            ).reshape(self.num_heads_pre_rank * 128 * 3, self.embed_dim)
+                weight.reshape(3, self.num_heads_pre_rank * 2, self.original_head_dim // 2, self.embed_dim),
+                (0, 0, 0, self.pad_size)
+            ).reshape(self.num_heads_pre_rank * self.padded_head_dim * 3, self.embed_dim)
         return weight
 
     def _pad_qkv_bias(self, bias):
-        """Pad QKV bias tensor for dimension matching (static pad).
-
-        Reshape QKV bias to 3D, static pad 28 zeros to last dim (36→64), 
-        then reshape back to 1D to match operator input dimension requirements.
-
-        Args:
-            bias (torch.Tensor): Input QKV bias tensor
-
-        Returns:
-            torch.Tensor: Padded QKV bias tensor
+        """
+        Pad QKV bias tensor for dimension matching (static pad).
         """
         bias = torch.nn.functional.pad(
-                bias.reshape(3, self.num_heads_pre_rank * 2, 36), (0, WEIGHT_HALF_DIM_PAD_VALUE)
-            ).reshape(3 * self.num_heads_pre_rank * 128)
+                bias.reshape(3, self.num_heads_pre_rank * 2, self.original_head_dim // 2),
+                (0, self.pad_size)
+            ).reshape(3 * self.num_heads_pre_rank * self.padded_head_dim)
         return bias
 
     def _pad_out_weight(self, weight):
-        """Pad attention output weight tensor for dimension matching (static pad).
-
-        Reshape output weight to 3D, static pad 28 zeros to last dim (36→64), 
-        then reshape back to 2D to match operator input dimension requirements.
-
-        Args:
-            weight (torch.Tensor): Input attention output weight tensor
-
-        Returns:
-            torch.Tensor: Padded attention output weight tensor
+        """
+        Pad attention output weight tensor for dimension matching (static pad).
         """
         weight = torch.nn.functional.pad(
-                weight.reshape(self.embed_dim, self.num_heads_pre_rank * 2, 36), (0, WEIGHT_HALF_DIM_PAD_VALUE)
-            ).reshape(self.embed_dim, self.num_heads_pre_rank * 128)
+                weight.reshape(self.embed_dim, self.num_heads_pre_rank * 2, self.original_head_dim // 2),
+                (0, self.pad_size)
+            ).reshape(self.embed_dim, self.num_heads_pre_rank * self.padded_head_dim)
         return weight                 
 
 
@@ -681,67 +657,15 @@ class Qwen3VLVisionPatchMerger(nn.Module):
             graph.add_reshape(f"{self.prefix}.input_reshape", input_tensor_name[0], self.reshape_back)
 
 
-class Qwen3VLPosEmbedCache(nn.Module):
-    """
-    A cache for positional embeddings in Qwen3VL model that supports dynamic grid interpolation.
-    
-    This class efficiently caches and manages positional embeddings for visual-language models,
-    using bilinear interpolation to handle varying input sizes while maintaining performance.
-    It dynamically expands the cache when encountering larger spatial dimensions than previously seen.
-    """
-    def __init__(self, num_grid_per_side: int):
-        super().__init__()
-        self.max_h = INITIAL_MAX_H
-        self.max_w = INITIAL_MAX_W
-        self.num_grid_per_side = num_grid_per_side
-        self.pos_embed_table_cache = None
-        
-    def update_pos_embed_table_cache(self, pos_emb, h, w):
-        if self.pos_embed_table_cache is None or h > self.max_h or w > self.max_w:
-            self.max_h = max(h, self.max_h)
-            self.max_w = max(w, self.max_w)
-            device = pos_emb.weight.device
-            h_idxs = torch.linspace(0, self.num_grid_per_side - 1, self.max_h)
-            w_idxs = torch.linspace(0, self.num_grid_per_side - 1, self.max_w)
-
-            h_idxs_floor = h_idxs.int()
-            w_idxs_floor = w_idxs.int()
-            h_idxs_ceil = (h_idxs.int() + 1).clip(max=self.num_grid_per_side - 1)
-            w_idxs_ceil = (w_idxs.int() + 1).clip(max=self.num_grid_per_side - 1)
-
-            dh = h_idxs - h_idxs_floor
-            dw = w_idxs - w_idxs_floor
-
-            base_h = h_idxs_floor * self.num_grid_per_side
-            base_h_ceil = h_idxs_ceil * self.num_grid_per_side
-
-            indices = [
-                (base_h[None].T + w_idxs_floor[None]).flatten(),
-                (base_h[None].T + w_idxs_ceil[None]).flatten(),
-                (base_h_ceil[None].T + w_idxs_floor[None]).flatten(),
-                (base_h_ceil[None].T + w_idxs_ceil[None]).flatten(),
-            ]
-
-            weights = [
-                ((1 - dh)[None].T * (1 - dw)[None]).flatten(),
-                ((1 - dh)[None].T * dw[None]).flatten(),
-                (dh[None].T * (1 - dw)[None]).flatten(),
-                (dh[None].T * dw[None]).flatten(),
-            ]
-            idx_tensor = torch.stack(indices).long().to(device)
-            weight_tensor = torch.stack(weights).to(pos_emb.weight.dtype).to(device)
-            pos_embeds = pos_emb(idx_tensor) * weight_tensor[:, :, None]
-            self.pos_embed_table_cache = pos_embeds[0] + pos_embeds[1] + pos_embeds[2] + pos_embeds[3]
-        return self.pos_embed_table_cache
-
-
 class Qwen3VLVisionModel(nn.Module):
     def __init__(self, config, weights):
         super().__init__()
         self.config = config
         if not hasattr(self.config, "quantize"):
             setattr(self.config, "quantize", None)
-        if config.quantize == QuantType.W8A8SC:
+        if self.config.quantize == QuantType.W8A8_DYNAMIC:
+            self.config.quantize = QuantType.W8A8
+        if self.config.quantize == QuantType.W8A8SC:
             self.prefix = "visual"
         else:
             self.prefix = "model.visual"
@@ -755,6 +679,7 @@ class Qwen3VLVisionModel(nn.Module):
         self.pos_embed.weight.data = weights.get_tensor(f"{self.prefix}.pos_embed.weight")
         self.num_grid_per_side = int(config.num_position_embeddings ** 0.5)
         head_dim = self.config.hidden_size // self.config.num_heads
+        self.rope_pad_size = (ATTN_PADDED_HEAD_DIM - head_dim) // 2
         self.rotary_pos_emb = Qwen3VLVisionRotaryEmbedding(head_dim // 2)
         self.blocks = nn.ModuleList([Qwen3VLVisionBlock(
             self.config,
@@ -777,7 +702,6 @@ class Qwen3VLVisionModel(nn.Module):
         self.graph_outputs = defaultdict(dict)
         self.graph_param = defaultdict(dict)
         self.weight = OrderedDict()
-        self.pos_emb_cache = Qwen3VLPosEmbedCache(self.num_grid_per_side)
     
     def get_weights(self):
         weights_dict = OrderedDict()
@@ -850,88 +774,13 @@ class Qwen3VLVisionModel(nn.Module):
                 dtype=self.dtype,
                 device="npu"
             )
-
-    def rot_pos_emb(self, grid_thw: torch.Tensor) -> torch.Tensor:
-        """
-        Compute rotary positional embeddings for spatiotemporal grid positions.
-        
-        This method generates rotary positional embeddings for tokens arranged in a 3D grid
-        (Time × Height × Width), handling both spatial and temporal dimensions with proper
-        coordinate mapping and block merging for efficiency.
-
-        """
-        merge_size = self.spatial_merge_size
-
-        max_hw = int(grid_thw[:, 1:].max().item())
-        freq_table = self.rotary_pos_emb(max_hw)  # (max_hw, dim // 2)
-        device = freq_table.device
-
-        total_tokens = int(torch.prod(grid_thw, dim=1).sum().item())
-        pos_ids = torch.empty((total_tokens, 2), dtype=torch.long, device=device)
-
-        offset = 0
-        for num_frames, height, width in grid_thw:
-            merged_h, merged_w = height // merge_size, width // merge_size
-
-            block_rows = torch.arange(merged_h, device=device)  # block row indices
-            block_cols = torch.arange(merged_w, device=device)  # block col indices
-            intra_row = torch.arange(merge_size, device=device)  # intra-block row offsets
-            intra_col = torch.arange(merge_size, device=device)  # intra-block col offsets
-
-            # Compute full-resolution positions
-            row_idx = block_rows[:, None, None, None] * merge_size + intra_row[None, None, :, None]
-            col_idx = block_cols[None, :, None, None] * merge_size + intra_col[None, None, None, :]
-
-            row_idx = row_idx.expand(merged_h, merged_w, merge_size, merge_size).reshape(-1)
-            col_idx = col_idx.expand(merged_h, merged_w, merge_size, merge_size).reshape(-1)
-
-            coords = torch.stack((row_idx, col_idx), dim=-1)
-
-            if num_frames > 1:
-                coords = coords.repeat(num_frames, 1)
-
-            num_tokens = coords.shape[0]
-            pos_ids[offset: offset + num_tokens] = coords
-            offset += num_tokens
-
-        embeddings = freq_table[pos_ids]  # lookup rotary embeddings
-        embeddings = embeddings.flatten(1)
-        embeddings = torch.nn.functional.pad(embeddings, (0, WEIGHT_HALF_DIM_PAD_VALUE))
-        return embeddings
-
-    def fast_pos_embed_interpolate(self, grid_thw):
-        """
-        Efficiently interpolates positional embeddings for spatiotemporal grids using cached embeddings.
-        
-        This method provides fast positional embedding generation by leveraging pre-computed embeddings
-        from the cache and applying spatial-temporal transformations for batched grid inputs.
-
-        """
-        grid_ts, grid_hs, grid_ws = grid_thw[:, 0], grid_thw[:, 1], grid_thw[:, 2]
-        max_h, max_w = grid_thw[:, 1].max(), grid_thw[:, 2].max()
-        pos_embed_table = self.pos_emb_cache.update_pos_embed_table_cache(self.pos_embed, max_h, max_w)
-        merge_size = self.config.spatial_merge_size
-        patch_pos_embeds = []
-        for i, (t, h, w) in enumerate(zip(grid_ts, grid_hs, grid_ws)):
-            start_idx = sum([prev_h * prev_w for prev_h, prev_w in zip(grid_thw[:i, 1], grid_thw[:i, 2])])
-            end_idx = start_idx + h * w
-            pos_embed = pos_embed_table[start_idx:end_idx]
-            pos_embed = pos_embed.repeat(t, 1)
-            pos_embed = (
-                pos_embed.view(t, h // merge_size, merge_size, w // merge_size, merge_size, -1)
-                .permute(0, 1, 3, 2, 4, 5)
-                .flatten(0, 4)
-            )
-            patch_pos_embeds.append(pos_embed)
-        patch_pos_embeds = torch.cat(patch_pos_embeds)
-        return patch_pos_embeds
     
     @lru_cache(maxsize=128)
     def get_patch_pos_embed(self, grid_thw):
         grid_thw = torch.tensor(np.array(json.loads(grid_thw)))
-        patch_pos_embeds = self.fast_pos_embed_interpolate(grid_thw)
+        patch_pos_embeds = self._fast_pos_embed_interpolate(grid_thw)
         seq_len, _ = patch_pos_embeds.size()
-        rotary_pos_emb = self.rot_pos_emb(grid_thw)
+        rotary_pos_emb = self._rot_pos_emb(grid_thw)
         rotary_pos_emb = rotary_pos_emb.reshape(seq_len, -1)
         emb = torch.cat((rotary_pos_emb, rotary_pos_emb), dim=-1)
         position_embeddings = (emb.cos(), emb.sin())
@@ -940,7 +789,6 @@ class Qwen3VLVisionModel(nn.Module):
         seqlens = cu_seqlens[1:] - cu_seqlens[:-1]
         return seqlens, position_embeddings, patch_pos_embeds
 
-    
     @torch.no_grad()
     def forward(self, hidden_states: torch.Tensor, grid_thw: torch.Tensor) -> torch.Tensor:
         grid_thw = json.dumps(grid_thw.tolist())
@@ -952,3 +800,118 @@ class Qwen3VLVisionModel(nn.Module):
         deepstack_feature_1 = graph_out["deepstack_feature_1"]
         deepstack_feature_2 = graph_out["deepstack_feature_2"]
         return hidden_states, [deepstack_feature_0, deepstack_feature_1, deepstack_feature_2]
+
+    def _rot_pos_emb(self, grid_thw: torch.Tensor) -> torch.Tensor:
+        """
+        Compute rotary positional embeddings for spatiotemporal grid positions.
+        
+        This method generates rotary positional embeddings for tokens arranged in a 3D grid
+        (Time × Height × Width), handling both spatial and temporal dimensions with proper
+        coordinate mapping and block merging for efficiency.
+
+        """
+        merge_size = self.spatial_merge_size
+        max_hw = int(grid_thw[:, 1:].max().item())
+        freq_table = self.rotary_pos_emb(max_hw)  # (max_hw, dim // 2)
+        device = freq_table.device
+        total_tokens = int(torch.prod(grid_thw, dim=1).sum().item())
+        pos_ids = torch.empty((total_tokens, 2), dtype=torch.long, device=device)
+        offset = 0
+        for num_frames, height, width in grid_thw:
+            merged_h, merged_w = height // merge_size, width // merge_size
+            block_rows = torch.arange(merged_h, device=device)  # block row indices
+            block_cols = torch.arange(merged_w, device=device)  # block col indices
+            intra_row = torch.arange(merge_size, device=device)  # intra-block row offsets
+            intra_col = torch.arange(merge_size, device=device)  # intra-block col offsets
+            row_idx = block_rows[:, None, None, None] * merge_size + intra_row[None, None, :, None]
+            col_idx = block_cols[None, :, None, None] * merge_size + intra_col[None, None, None, :]
+            row_idx = row_idx.expand(merged_h, merged_w, merge_size, merge_size).reshape(-1)
+            col_idx = col_idx.expand(merged_h, merged_w, merge_size, merge_size).reshape(-1)
+            coords = torch.stack((row_idx, col_idx), dim=-1)
+            if num_frames > 1:
+                coords = coords.repeat(num_frames, 1)
+            num_tokens = coords.shape[0]
+            pos_ids[offset: offset + num_tokens] = coords
+            offset += num_tokens
+        embeddings = freq_table[pos_ids]
+        embeddings = embeddings.flatten(1)
+        embeddings = torch.nn.functional.pad(embeddings, (0, self.rope_pad_size))
+        return embeddings
+
+    def _fast_pos_embed_interpolate(self, grid_thw):
+        """
+        Efficiently interpolates positional embeddings for spatiotemporal grids using cached embeddings.
+        
+        This method provides fast positional embedding generation by leveraging pre-computed embeddings
+        from the cache and applying spatial-temporal transformations for batched grid inputs.
+
+        """
+        device = self.pos_embed.weight.device
+        grid_ts, grid_hs, grid_ws = grid_thw[:, 0], grid_thw[:, 1], grid_thw[:, 2]
+        all_indices, all_weights = self._batch_compute_grid_interpolation(grid_hs.numpy(), grid_ws.numpy())
+        idx_tensor = torch.tensor(all_indices, dtype=torch.long, device=device)
+        weight_tensor = torch.tensor(all_weights, dtype=self.pos_embed.weight.dtype, device=device)
+
+        pos_embeds = self.pos_embed(idx_tensor) * weight_tensor[:, :, None]
+        patch_pos_embeds = pos_embeds.sum(dim=0)
+
+        split_sizes = [h * w for h, w in zip(grid_hs, grid_ws)]
+        patch_pos_embeds_list = torch.split(patch_pos_embeds, split_sizes, dim=0)
+
+        patch_pos_embeds_permute = []
+
+        for pos_embed, t, h, w in zip(patch_pos_embeds_list, grid_ts, grid_hs, grid_ws):
+            t, h, w = int(t), int(h), int(w)
+            pos_embed = pos_embed.repeat(t, 1)
+            pos_embed = (
+                pos_embed.view(t, h // self.spatial_merge_size, self.spatial_merge_size,
+                            w // self.spatial_merge_size, self.spatial_merge_size, -1)
+                .permute(0, 1, 3, 2, 4, 5)
+                .flatten(0, 4)
+            )
+            patch_pos_embeds_permute.append(pos_embed)
+        return torch.cat(patch_pos_embeds_permute)
+    
+    def _batch_compute_grid_interpolation(self, grid_hs, grid_ws):
+        """
+        Batch computation of bilinear interpolation indices and weights.
+        
+        For each grid size in the batch, computes the four corner indices and weights
+        needed for bilinear interpolation from a base grid to the target resolution.
+
+        Args:
+            grid_hs: Iterable of target grid heights
+            grid_ws: Iterable of target grid widths
+        """
+        all_h_coords = []
+        all_w_coords = []
+        for h, w in zip(grid_hs, grid_ws):
+            h_coords = np.linspace(0, self.num_grid_per_side - 1, h, dtype=np.float32)
+            w_coords = np.linspace(0, self.num_grid_per_side - 1, w, dtype=np.float32)
+            h_grid, w_grid = np.meshgrid(h_coords, w_coords, indexing='ij')
+            all_h_coords.append(h_grid.ravel())
+            all_w_coords.append(w_grid.ravel())
+
+        h_coords = np.concatenate(all_h_coords)
+        w_coords = np.concatenate(all_w_coords)
+
+        h_floor = np.floor(h_coords).astype(np.int32)
+        w_floor = np.floor(w_coords).astype(np.int32)
+        h_ceil = np.minimum(h_floor + 1, self.num_grid_per_side - 1)
+        w_ceil = np.minimum(w_floor + 1, self.num_grid_per_side - 1)
+        dh = h_coords - h_floor
+        dw = w_coords - w_floor
+
+        weights = np.vstack([
+            (1 - dh) * (1 - dw),
+            (1 - dh) * dw,
+            dh * (1 - dw),
+            dh * dw
+        ])
+        indices = np.vstack([
+            h_floor * self.num_grid_per_side + w_floor,
+            h_floor * self.num_grid_per_side + w_ceil,
+            h_ceil * self.num_grid_per_side + w_floor,
+            h_ceil * self.num_grid_per_side + w_ceil
+        ])
+        return indices, weights

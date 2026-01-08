@@ -144,8 +144,6 @@ class BaseRouter:
             self.model_type_cap = self.model_type_cap.replace('_', '')
         if self.model_type_cap == "Qwen2_vl":
             self.model_type_cap = self.model_type_cap.replace('_', '')
-        if self.model_type_cap == "Qwen3_vl":
-            self.model_type_cap = self.model_type_cap.replace('_', '')
         if self.model_type_cap == "Minicpm_qwen2_v2":
             self.model_type_cap = self.model_type_cap.replace('_', '')
         if self.model_type_cap == "Ernie_moe":

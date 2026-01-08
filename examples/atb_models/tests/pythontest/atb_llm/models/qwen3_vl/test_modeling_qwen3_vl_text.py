@@ -51,6 +51,7 @@ class MockTextConfig:
     rms_norm_eps: float = 1e-6
     quantize: str = None
     quantization_config: dict = None
+    tie_word_embeddings: bool = False
     
     def __post_init__(self):
         if self.rope_scaling is None:

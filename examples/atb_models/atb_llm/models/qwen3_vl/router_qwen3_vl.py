@@ -43,6 +43,11 @@ messages_template = [
 class Qwen3vlRouter(BaseRouter):
     _processor: Any = None
 
+    def __post_init__(self):
+        super().__post_init__()
+        self.model_type = "qwen3_vl"
+        self.model_type_cap = "Qwen3vl"
+
     @property
     def processor(self):
         if not hasattr(self, "_processor") or self._processor is None:
