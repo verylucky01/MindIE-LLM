@@ -60,6 +60,7 @@ class RopeScaling:
     beta_fast: Optional[int] = 32
     beta_slow: Optional[int] = 1
     mrope_section: Optional[Any] = None
+    mrope_interleaved: Optional[bool] = False
 
     def to_dict(self):
         """Convert the object's attributes to a dictionary"""
@@ -77,6 +78,7 @@ class RopeScaling:
             "beta_fast": self.beta_fast,
             "beta_slow": self.beta_slow,
             "mrope_section": self.mrope_section,
+            "mrope_interleaved": self.mrope_interleaved
         }
 
 
