@@ -8,123 +8,160 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 
-from dataclasses import dataclass
-from typing import Any, Dict, Optional, Union, List
+from dataclasses import dataclass, field, fields
+from typing import Any
 
 from transformers.configuration_utils import PretrainedConfig
-
+from mindie_llm.runtime.utils.distributed import get_parallel_info_manager
 from mindie_llm.runtime.utils.parameter_validators import (
-    IntParameterValidator, FloatParameterValidator, RangeParamaterValidator, Field
+    IntParameterValidator, FloatParameterValidator, RangeParamaterValidator, Field,
+    CompositeParameterValidator, ListParameterValidator
 )
+from mindie_llm.utils.log.logging import logger
 
 
 @dataclass
 class GenerationConfig:
-    """A base class used to store model generation configuration.
+    """Model generation configuration parameters."""
+    pad_token_id: int | None = None
+    bos_token_id: int | None = None
+    eos_token_id: int | list[int | list[int]] = None
 
-    Attributes:
-        pad_token_id: ID of the padding token.
-        eos_token_id: ID(s) of the end-of-sequence token(s), can be an int, a list of ints, or a list of lists of ints.
-    """
-    pad_token_id: Optional[int] = None
-    eos_token_id: Union[int, List[Union[int, List[int]]]] = None
+    @classmethod
+    def from_dict(cls, config_dict: dict[str, Any]):
+        field_names = {field.name for field in fields(cls)}
+        filtered_dict = {k: v for k, v in config_dict.items() if k in field_names}
+        return cls(**filtered_dict)
+
+    def validate(self, vocab_size: int):
+        """Validate token IDs against vocabulary size."""
+        if not isinstance(vocab_size, int):
+            logger.error("`vocab_size` in the config.json from model weight path must be an integer.")
+            raise ValueError("`vocab_size` in the config.json from model weight path must be an integer.")
+        validators = {
+            'pad_token_id': IntParameterValidator(Field(ge=-1, le=vocab_size), allow_none=True),
+            'bos_token_id': IntParameterValidator(Field(ge=0, le=vocab_size - 1), allow_none=True),
+            'eos_token_id': CompositeParameterValidator({
+                int: IntParameterValidator(Field(ge=0, le=vocab_size - 1)),
+                list: ListParameterValidator(CompositeParameterValidator({
+                    int: IntParameterValidator(Field(ge=0, le=vocab_size - 1)),
+                    list: ListParameterValidator(IntParameterValidator(Field(ge=0, le=vocab_size - 1)),
+                    Field(min_length=0, max_length=2147483647))
+                }), Field(min_length=0, max_length=2147483647))
+            }, allow_none=True)
+        }
+
+        for key, validator in validators.items():
+            value = getattr(self, key)
+            validator.validate(value, key)
 
 
 @dataclass
 class RopeScaling:
-    """A base class containing the scaling configuration for the RoPE embeddings.
-
-    Attributes:
-        factor:  In most scaling types, a factor of x will enable the model to handle
-            sequences of length x original maximum pre-trained length.
-        rope_type: The sub-variant of RoPE to use.
-        original_max_position_embeddings: The original max position embeddings used during pretraining.
-        beta_fast: Only Used with `type` equals to `yarn`.
-            Parameter to set the boundary for extrapolation (only) in the linear ramp function.
-        beta_slow: Only Used with `type` equals to `yarn`.
-            Parameter to set the boundary for extrapolation (only) in the linear ramp function
-    """
-    factor: float = 1.0
-    rope_type: str = 'linear'
-
-    original_max_position_embeddings: Optional[Any] = None
-    beta_fast: Optional[int] = 32
-    beta_slow: Optional[int] = 1
+    """RoPE embedding scaling configuration."""
+    factor: float = field(default=1.0, metadata={
+        'validator': FloatParameterValidator(Field(ge=-65504, le=65504))})
+    rope_type: str = field(default='linear', metadata={
+        'validator': RangeParamaterValidator(['linear', 'dynamic', 'yarn'])})
+    original_max_position_embeddings: int | None = field(default=None, metadata={
+        'validator': IntParameterValidator(Field(ge=1, le=2147483647), allow_none=True)})
+    beta_fast: int | None = field(default=32, metadata={
+        'validator': IntParameterValidator(Field(ge=1, le=2147483647))})
+    beta_slow: int | None = field(default=1, metadata={
+        'validator': IntParameterValidator(Field(ge=1, le=2147483647))})
 
 
 @dataclass
 class HuggingFaceConfig(PretrainedConfig):
-    """A base class used to store model configuration information.
-
-    This class defines some common fields that will be called by higher-level components. Each model should implement a
-    subclass that inherits from this class to initialize its specific configuration. This approach ensures that the
-    fields called by higher-level components are guaranteed to exist in the configuration object's attributes, thereby
-    preventing exceptions during calls. Additionally, this base class performs security checks on common parameters,
-    eliminating the need for each model to implement its own security validation functions.
-    Note: Whether using the base class or subclass, the `from_dict` method should be used to construct the object.
-    Otherwise, parameter validation will be bypassed, potentially leaving security risks caused by invalid parameters.
-    The `from_pretrained` method in this class is only used to perform security validation on the model_path passed in
-    case the method is called unexpectedly. This helps prevent security risks caused by tampered weight files. Under no
-    circumstances should `from_pretrained` be considered the primary method to construct a configuration object.
-
-    Attributes:
-        rope_scaling: A dict or an object of `RopeScaling` class of rope scaling configuration information, detailed in
-            the `RopeScaling` class. The default value is None.
-    """
+    """Base configuration class for models with validation."""
+    vocab_size: int | None = field(default=None, metadata={
+        'validator': IntParameterValidator(Field(gt=0), allow_none=True)})
+    hidden_size: int | None = field(default=None, metadata={
+        'validator': IntParameterValidator(Field(ge=1, le=2147483647), allow_none=True)})
+    intermediate_size: int | None = field(default=None, metadata={
+        'validator': IntParameterValidator(Field(ge=1, le=2147483647), allow_none=True)})
+    num_attention_heads: int | None = field(default=None, metadata={
+        'validator': IntParameterValidator(Field(ge=1, le=10000), allow_none=True)})
+    num_key_value_heads: int | None = field(default=None, metadata={
+        'validator': IntParameterValidator(Field(ge=1, le=10000), allow_none=True)})
+    head_dim: int | None = field(default=None, metadata={
+        'validator': IntParameterValidator(Field(ge=1, le=1000), allow_none=True)})
+    rms_norm_eps: float | None = field(default=None, metadata={
+        'validator': FloatParameterValidator(Field(ge=0, le=1), allow_none=True)})
+    num_hidden_layers: int | None = field(default=None, metadata={
+        'validator': IntParameterValidator(Field(ge=1, le=1000), allow_none=True)})
+    max_position_embeddings: int | None = field(default=None, metadata={
+        'validator': IntParameterValidator(Field(gt=0), allow_none=True)})
+    pad_token_id: int | None = None
+    bos_token_id: int | None = None
+    eos_token_id: int | list[int | list[int]] = None
+    
     rope_scaling: RopeScaling | None = None
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self._parse_obj()
+        if self.rope_scaling is None:
+            self.rope_scaling = {}
+        self.rope_scaling = RopeScaling(**self.rope_scaling)
 
     @classmethod
-    def from_dict(cls, config_dict: Dict[str, Any], **kwargs) -> 'HuggingFaceConfig':
-        """Method used to construct an object of this class.
-
-        This method is used to construct an object from a dictionary, which allows additional parameters to be passed
-        via kwargs.
-
-        Args:
-            config_dict: A dictionary containing configuration parameters.
-            **kwargs: Additional configuration parameters which override the configuration parameters in `config_dict`.
-        """
-        config_dict.update(kwargs)
+    def from_dict(cls, config_dict: dict[str, Any]) -> 'HuggingFaceConfig':
+        """Create validated config from dictionary."""
         config = cls(**config_dict)
         config.validate()
         return config
 
     def validate(self):
+        """Validate configuration parameters."""
         self._validate_config()
         self._validate_rope_scaling()
-    
-    def _parse_obj(self):
-        # rope scaling
-        if self.rope_scaling is None:
-            self.rope_scaling = {}
-        self.rope_scaling = RopeScaling(**self.rope_scaling)
-        
+
+    def get_num_attention_heads_per_rank(self) -> int:
+        """Returns the number of attention heads per rank."""
+        mapping = get_parallel_info_manager()
+        num_attention_heads = self.num_attention_heads
+        return (num_attention_heads + mapping.attn_tp.group_size - 1) // mapping.attn_tp.group_size
+
+    def get_num_kv_heads_per_rank(self) -> int:
+        """Returns the number of kv heads per rank."""
+        mapping = get_parallel_info_manager()
+        tp_size = mapping.attn_tp.group_size
+        num_key_value_heads = self.num_key_value_heads
+        if num_key_value_heads < tp_size:
+            repeat_times = tp_size // num_key_value_heads
+        else:
+            repeat_times = 1
+        return (num_key_value_heads * repeat_times + tp_size - 1) // tp_size
 
     def _validate_config(self):
+        """Validate common configuration parameters."""
+        for field_name, field_value in self.__dataclass_fields__.items():
+            validator = field_value.metadata.get('validator')
+            if validator:
+                validator.validate(getattr(self, field_name), field_name)
+
         validators = {
-            "max_position_embeddings": IntParameterValidator(Field(gt=0)),
-            "vocab_size": IntParameterValidator(Field(gt=0)),
+            'pad_token_id': IntParameterValidator(Field(ge=-1, le=self.vocab_size), allow_none=True),
+            'bos_token_id': IntParameterValidator(Field(ge=0, le=self.vocab_size - 1), allow_none=True),
+            'eos_token_id': CompositeParameterValidator({
+                int: IntParameterValidator(Field(ge=0, le=self.vocab_size - 1)),
+                list: ListParameterValidator(CompositeParameterValidator({
+                    int: IntParameterValidator(Field(ge=0, le=self.vocab_size - 1)),
+                    list: ListParameterValidator(IntParameterValidator(Field(ge=0, le=self.vocab_size - 1)),
+                    Field(min_length=0, max_length=2147483647))
+                }), Field(min_length=0, max_length=2147483647))
+            }, allow_none=True),
         }
         for key, validator in validators.items():
             value = getattr(self, key)
             validator.validate(value, key)
 
     def _validate_rope_scaling(self):
+        """Validate rope scaling configuration."""
         if self.rope_scaling is None:
             return
 
-        validators = {
-            "factor": FloatParameterValidator(Field(ge=-65504, le=65504)),
-            "rope_type": RangeParamaterValidator(['linear', 'yarn']),
-            "original_max_position_embeddings": IntParameterValidator(Field(ge=1, le=2147483647), allow_none=True),
-            "beta_fast": IntParameterValidator(Field(ge=1, le=2147483647), allow_none=True),
-            "beta_slow": IntParameterValidator(Field(ge=1, le=2147483647), allow_none=True),
-        }
-
-        for key, validator in validators.items():
-            value = getattr(self.rope_scaling, key)
-            validator.validate(value, key)
+        for local_field in fields(self.rope_scaling):
+            validator = local_field.metadata.get('validator')
+            if validator:
+                validator.validate(getattr(self.rope_scaling, local_field.name), local_field.name)
