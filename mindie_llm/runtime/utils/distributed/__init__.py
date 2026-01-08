@@ -51,6 +51,9 @@ def init_distributed(
         llm_config : Configuration for the LLM model. Defaults to None.
         server_config : Configuration for the serving system. Defaults to None.
     """
+    if dist.is_initialized():
+        return
+
     master_ip = ENV.master_ip
     if not master_ip:
         raise ValueError("Master IP address is not set, use export MASTER_IP=xxx.xxx.xxx.xxx to solve")
