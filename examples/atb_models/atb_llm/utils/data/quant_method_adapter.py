@@ -45,7 +45,7 @@ class QuantizationConfig:
         self.default_quant_method_cls = default_quant_method_cls
 
     @staticmethod
-    def _get_method_adpater(quant_method: QuantizationMethodBase):
+    def _get_method_adapter(quant_method: QuantizationMethodBase) -> QuantizationMethodBase | None:
         quant_method_cls_adapter_map = {
             UnquantizedLinearMethodAdaptee: UnquantizedLinearMethod,
             UnquantizedEmbeddingMethodAdaptee: UnquantizedEmbeddingMethod,
@@ -60,7 +60,7 @@ class QuantizationConfig:
                 return adapter_cls(quant_method)
         raise NotImplementedError(f"Cannot found the adapter class for `{quant_method}`")
 
-    def get_quant_type_by_weight_name(self, *args, **kwargs) -> QuantizationMethodBase | None:
+    def get_quant_type_by_weight_name(self, *args, **kwargs) -> str:
         if self.adaptee is None:
             raise ValueError(f"NoneType adaptee doesn't support `get_quant_type_by_weight_name`.")
         return self.adaptee.get_quant_type_by_weight_name(*args, **kwargs)
@@ -72,7 +72,7 @@ class QuantizationConfig:
             quant_method = self.adaptee.get_quant_method(layer, prefix)
         else:
             quant_method = self.default_quant_method_cls()
-        return self._get_method_adpater(quant_method)
+        return self._get_method_adapter(quant_method)
 
 
 class MethodSupportAtbGraph(ABC):
@@ -81,13 +81,13 @@ class MethodSupportAtbGraph(ABC):
     def __init__(self, adaptee: QuantizationMethodBase):
         self.adaptee = adaptee
 
-    def create_weights(self, *args, **kwargs):
+    def create_weights(self, *args, **kwargs) -> None:
         self.adaptee.create_weights(*args, **kwargs)
 
-    def apply(self, *args, **kwargs):
+    def apply(self, *args, **kwargs) -> None:
         self.adaptee.apply(*args, **kwargs)
 
-    def process_weights_after_loading(self, *args, **kwargs):
+    def process_weights_after_loading(self, *args, **kwargs) -> None:
         self.adaptee.process_weights_after_loading(*args, **kwargs)
 
     @abstractmethod
@@ -121,7 +121,7 @@ class LinearMethodSupportAtbGraph(MethodSupportAtbGraph):
     def get_weight_transpose_type(self, layer: LinearBase) -> list[TransposeType]:
         pass
 
-    def _check_transpose(self, weight_shape):
+    def _check_transpose(self, weight_shape: torch.Size) -> TransposeType:
         if self._soc_info is None:
             raise ValueError("``NPUSocInfo` is not set in `LinearMethodSupportAtbGraph`.")
 
@@ -132,8 +132,8 @@ class LinearMethodSupportAtbGraph(MethodSupportAtbGraph):
             # transpose weights to [k, n] when using nz format
             return TransposeType.NOT_TRANSPOSE
 
-        is_k_divisible = weight_shape[-1] % 256 == 0
-        is_n_divisible = weight_shape[-2] % 256 == 0
+        is_k_divisible = weight_shape[-1] % 256 == 0  # Input dimension (k) alignment check
+        is_n_divisible = weight_shape[-2] % 256 == 0  # Output dimension (n) alignment check
         if not is_k_divisible and is_n_divisible and len(weight_shape) != 3:
             return TransposeType.NOT_TRANSPOSE
         return TransposeType.TRANSPOSE

@@ -131,7 +131,7 @@ class TestW8A8PerTensorLinearMethod(unittest.TestCase):
         layer.deq_scale.data = torch.randn(1024).to(torch.int64)
         layer.quant_bias.data = torch.randn(1024).to(torch.int32)
 
-        x = torch.randn(2, 3, 512)
+        x = torch.randn(2, 3, 512, dtype=torch.float16)
 
         # Mock npu functions
         mock_quantized_tensor = torch.randn(2, 3, 512)
@@ -143,10 +143,10 @@ class TestW8A8PerTensorLinearMethod(unittest.TestCase):
         # Verify npu_quantize was called
         mock_npu_quantize.assert_called_once()
         call_args = mock_npu_quantize.call_args
-        self.assertIs(call_args[0][0], x)
-        self.assertTrue(torch.equal(call_args[0][1], layer.input_scale.data))
-        self.assertTrue(torch.equal(call_args[0][2], layer.input_offset.data))
-        self.assertEqual(call_args[0][3], torch.qint8)
+        self.assertIs(call_args.kwargs['input'], x)
+        self.assertTrue(torch.equal(call_args.kwargs['scales'], layer.input_scale.data))
+        self.assertTrue(torch.equal(call_args.kwargs['zero_points'], layer.input_offset.data))
+        self.assertEqual(call_args.kwargs['dtype'], torch.qint8)
 
         # Verify npu_quant_matmul was called
         mock_npu_quant_matmul.assert_called_once()
@@ -263,7 +263,7 @@ class TestW8A8PerTokenLinearMethod(unittest.TestCase):
         layer.weight_scale.data = torch.randn(1024, 1, dtype=torch.float32)
         layer.weight_offset.data = torch.randn(1024, 1, dtype=torch.float16)
 
-        x = torch.randn(2, 3, 512)
+        x = torch.randn(2, 3, 512, dtype=torch.float16)
 
         # Mock npu functions
         mock_quantized_tensor = torch.randn(2, 3, 512)

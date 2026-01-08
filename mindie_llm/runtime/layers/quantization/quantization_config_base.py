@@ -29,20 +29,24 @@ class QuantizationConfigBase(ABC):
     @staticmethod
     @abstractmethod
     def get_config_filenames() -> list[str]:
+        """List of quantization config filenames in the model directory."""
         raise NotImplementedError
 
     @classmethod
     @abstractmethod
     def from_config(cls, config: dict[str, Any]) -> "QuantizationConfigBase":
+        """Create quantization config instance from model's quantization config file."""
         raise NotImplementedError
 
     @abstractmethod
     def get_quant_method(
         self, layer: torch.nn.Module, prefix: str
     ) -> QuantizationMethodBase | None:
+        """Retrieve the appropriate quantization method for a given layer."""
         raise NotImplementedError
 
     @abstractmethod
     def get_quant_type_by_weight_name(
         self, prefix: str | list[str], suffix: str) -> str:
+        """Retrieve the quantization type for a specific weight parameter."""
         raise NotImplementedError

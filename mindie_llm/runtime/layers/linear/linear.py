@@ -92,13 +92,13 @@ class LinearBase(CustomLayer):
         self._post_init()
         self._create_weights()
 
-    def weight_loader(self, param: BaseParameter, loaded_weight: torch.Tensor, **kwargs):
+    def weight_loader(self, param: BaseParameter, loaded_weight: torch.Tensor, **kwargs) -> None:
         param.load_weight(loaded_weight=loaded_weight)
 
-    def _post_init(self):
+    def _post_init(self) -> None:
         pass
 
-    def _create_weights(self):
+    def _create_weights(self) -> None:
         """Initializes weights and bias based on quantization method."""
         self.quant_method.create_weights(
             layer=self,
@@ -230,7 +230,7 @@ class RowParallelLinear(LinearBase):
             parallel_info=parallel_info
         )
 
-    def weight_loader(self, param: BaseParameter, loaded_weight: torch.Tensor):
+    def weight_loader(self, param: BaseParameter, loaded_weight: torch.Tensor) -> None:
         if isinstance(param, RowParameter):
             param.load_row_parallel_weight(loaded_weight=loaded_weight, tp_rank=self.tp_rank)
         else:
@@ -272,7 +272,7 @@ class RowParallelLinear(LinearBase):
         s += f", tp_size={self.tp_size}"
         return s
 
-    def _post_init(self):
+    def _post_init(self) -> None:
         self.input_size_per_partition = even_divide(self.input_size, self.tp_size)
         self.output_partition_sizes = [self.output_size]
 
@@ -327,9 +327,7 @@ class ColumnParallelLinear(LinearBase):
             parallel_info=parallel_info
         )
 
-        
-
-    def weight_loader(self, param: BaseParameter, loaded_weight: torch.Tensor):
+    def weight_loader(self, param: BaseParameter, loaded_weight: torch.Tensor) -> None:
         if isinstance(param, ColumnParameter):
             param.load_column_parallel_weight(loaded_weight=loaded_weight, tp_rank=self.tp_rank)
         else:
@@ -366,14 +364,14 @@ class ColumnParallelLinear(LinearBase):
         s += f", gather_output={self.gather_output}"
         return s
 
-    def _post_init(self):
+    def _post_init(self) -> None:
         self.output_partition_sizes = [even_divide(self.output_size, self.tp_size)]
 
         if self.parallel_info is not None:
             self.tp_rank = self.parallel_info.rank
             self.tp_size = self.parallel_info.group_size
 
-    def _create_weights(self):
+    def _create_weights(self) -> None:
         self.quant_method.create_weights(
             layer=self,
             input_size_per_partition=self.input_size_per_partition,
@@ -437,7 +435,7 @@ class MergedColumnParallelLinear(ColumnParallelLinear):
         param: BaseParameter,
         loaded_weight: torch.Tensor,
         loaded_shard_id: int | None = None,
-    ):
+    ) -> None:
         """
         Loads weights for a specific shard of the merged linear layer.
         
@@ -446,11 +444,14 @@ class MergedColumnParallelLinear(ColumnParallelLinear):
             loaded_weight: The weight tensor to load.
             loaded_shard_id: The index of the shard (corresponding to the index in output_sizes).
         """
+
+        # Validate shard ID
         if loaded_shard_id >= len(self.output_sizes):
             raise ValueError(
                 f"The parameter `loaded_shard_id` {loaded_shard_id} exceeds the valid range of "
                 f"indices for the `output_sizes` array {self.output_sizes} defined in `MergedColumnParallelLinear`.")
 
+        # Obtain a tensor slice of size `shard_size` starting from `shard_offset` in self.output_sizes
         shard_offset = sum(self.output_sizes[:loaded_shard_id]) // self.tp_size
         shard_size = self.output_sizes[loaded_shard_id] // self.tp_size
 
@@ -464,7 +465,7 @@ class MergedColumnParallelLinear(ColumnParallelLinear):
         else:
             param.load_weight(loaded_weight=loaded_weight)
 
-    def _post_init(self):
+    def _post_init(self) -> None:
         for output_size in self.output_sizes:
             if output_size % self.tp_size != 0:
                 raise ValueError(f"All `output_sizes` {self.output_sizes} in `MergedColumnParallelLinear` "
@@ -524,6 +525,7 @@ class QKVParallelLinear(ColumnParallelLinear):
             self.num_kv_heads = even_divide(self.total_num_kv_heads, tp_size)
             self.num_kv_head_replicas = 1
 
+        # 2: K and V each need their own heads (K has self.num_kv_heads, V has self.num_kv_heads)
         output_size = (
             (self.num_heads + 2 * self.num_kv_heads) * tp_size * self.head_size
         )
@@ -547,7 +549,7 @@ class QKVParallelLinear(ColumnParallelLinear):
         param: BaseParameter,
         loaded_weight: torch.Tensor,
         loaded_shard_id: int | None = None,
-    ):
+    ) -> None:
         """
         Loads weights for Q, K, or V projections.
         
@@ -582,7 +584,7 @@ class QKVParallelLinear(ColumnParallelLinear):
             self.num_kv_heads * self.head_size,  # v
         ]
 
-    def _get_shard_offset_mapping(self, loaded_shard_id: str):
+    def _get_shard_offset_mapping(self, loaded_shard_id: str) -> int:
         """Returns the offset in the weight matrix for a given shard ID."""
         shard_offset_mapping = {
             0: 0,
@@ -592,7 +594,7 @@ class QKVParallelLinear(ColumnParallelLinear):
         }
         return shard_offset_mapping.get(loaded_shard_id)
 
-    def _get_shard_size_mapping(self, loaded_shard_id: str):
+    def _get_shard_size_mapping(self, loaded_shard_id: str) -> int:
         """Returns the size of the shard for a given shard ID."""
         shard_size_mapping = {
             0: self.num_heads * self.head_size,

@@ -61,7 +61,7 @@ class LLMConfig:
             "".join(section_reprs) + \
             "\n)"
 
-    def update(self, config_dict: Dict[str, Any], allow_new_keys: bool = False, current_path: str = ''):
+    def update(self, config_dict: Dict[str, Any], allow_new_keys: bool = False, current_path: str = '') -> None:
         """
         Update configuration values with provided keyword arguments
         Args:
@@ -73,7 +73,7 @@ class LLMConfig:
             return
         self._recursive_update(base=self, update=config_dict, allow_new_keys=allow_new_keys, current_path=current_path)
 
-    def merge_models_config(self, model_name: str):
+    def merge_models_config(self, model_name: str) -> None:
         """merge model.model_name config to llm config"""
         if not hasattr(self, 'models'):
             return
@@ -123,7 +123,7 @@ class LLMConfig:
         return current
 
     def _init_default_config(self):
-        """初始化默认配置结构"""
+        """Initialize the default configuration structure"""
         self._apply_config(self._DEFAULT_CONFIG)
 
     def _load_config(self) -> None:

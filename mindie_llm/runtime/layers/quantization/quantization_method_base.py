@@ -19,27 +19,18 @@ from torch import nn
 
 
 class QuantizationMethodBase(ABC):
-    """Base class for different quantized methods."""
+    """Base class for quantized methods."""
 
     @abstractmethod
-    def create_weights(self, layer: torch.nn.Module, *weight_args, **extra_weight_attrs):
-        """Create weights for a layer.
-
-        The weights will be set as attributes of the layer.
-        """
+    def create_weights(self, layer: torch.nn.Module, *weight_args, **extra_weight_attrs) -> None:
+        """Create layer weights."""
         raise NotImplementedError
 
     @abstractmethod
     def apply(self, layer: torch.nn.Module, *args, **kwargs) -> torch.Tensor:
-        """Apply the weights in layer to the input tensor.
-
-        Expects create_weights to have been called before on the layer.
-        """
+        """Apply layer weights to input tensor."""
         raise NotImplementedError
 
     def process_weights_after_loading(self, layer: nn.Module) -> None:
-        """Process the weight after loading.
-
-        This can be used for example, to transpose weights for computation.
-        """
+        """Process weights after loading, e.g. transpose weights for computation."""
         return

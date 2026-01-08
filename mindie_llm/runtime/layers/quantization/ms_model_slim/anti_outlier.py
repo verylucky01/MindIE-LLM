@@ -26,7 +26,7 @@ class AntiOutlierNormMethod(QuantizationMethodBase):
         hidden_size: int,
         params_dtype: torch.dtype,
         **extra_weight_attrs,
-    ):
+    ) -> None:
         """
         Args:
             layer: The layer instance to register weights to

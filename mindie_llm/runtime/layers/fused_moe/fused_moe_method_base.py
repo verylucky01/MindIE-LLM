@@ -31,7 +31,7 @@ class FusedMoEMethodBase(QuantizationMethodBase):
         intermediate_size_per_partition: int,
         params_dtype: torch.dtype,
         **extra_weight_attrs,
-    ):
+    ) -> None:
         raise NotImplementedError
 
 

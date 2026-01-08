@@ -196,5 +196,5 @@ class RMSNorm(RMSNormAdaptee, LayerSupportAtbGraph):
             kwargs.get("quant_config"), UnquantizedNormMethod)
         super().__init__(*args, **kwargs)
 
-    def get_weights_for_atb_graph(self, padding: bool = True):
+    def get_weights_for_atb_graph(self, padding: bool = True) -> list[torch.Tensor]:
         return self.quant_method.get_weights_for_atb_graph(self, padding=padding)

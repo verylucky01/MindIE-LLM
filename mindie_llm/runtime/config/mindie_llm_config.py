@@ -65,7 +65,7 @@ class MindIELLMConfig:
         self.soc_info = PlatformInfo()
         self.quant_config = self._init_quant_config()
 
-    def _init_quant_config(self):
+    def _init_quant_config(self) -> QuantizationConfigBase | None:
         # get quant config class
         # NOTE: Since only `ms_model_slim.QuantizationConfig` is currently supported.
         # This is a straightforward implementation. A dispatch mechanism

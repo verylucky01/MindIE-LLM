@@ -28,7 +28,7 @@ from mindie_llm.runtime.utils.distributed.utils import even_divide
 from mindie_llm.utils.log.logging import logger
 
 
-SUPPORT_NZ_NPU_LIST = ("Ascend910B3", "Ascend910B4_1", "Ascend910_9381", "Ascend910_9372")
+SUPPORT_NZ_NPU_LIST = ("Ascend910B3", "Ascend910B4_1", "Ascend910_9382", "Ascend910_9362")
 MXFP8_GROUP_SIZE = 32
 
 
@@ -45,7 +45,7 @@ class W8A8PerTensorLinearMethod(LinearMethodBase):
         weight_dtype: torch.dtype,
         bias_dtype: torch.dtype,
         **extra_weight_attrs,
-    ):
+    ) -> None:
         """
         Creates and registers quantized weights and scales.
 
@@ -80,6 +80,7 @@ class W8A8PerTensorLinearMethod(LinearMethodBase):
             deq_scale_dtype = torch.float32
         else:
             raise ValueError(f"Dtype {weight_dtype} is not supported in `W8A8PerTensorLinearMethod`.")
+
         deq_scale = PerTensorScaleParameter(data=torch.empty(sum(output_partition_sizes), dtype=deq_scale_dtype))
         deq_scale.add_attrs({self.OUTPUT_DIM: 0, **extra_weight_attrs})
 
@@ -112,13 +113,15 @@ class W8A8PerTensorLinearMethod(LinearMethodBase):
         #   layer.input_scale.data: Scale factor for quantization (per-tensor)
         #   layer.input_offset.data: Zero-point offset for non-symmetric quantization
         #   torch.qint8: Target quantization data type (8-bit signed integer)
-        #   -1: Quantization axis (whole tensor, no per-dimension quantization)
-        #   False: Non-symmetric quantization flag (uses offset; True would be symmetric)
+        #   axis=-1: Quantize along the LAST dimension (last axis) of the input tensor
+        #   div_mode=False: Use MULTIPLICATION (not division) for scale application in quantization.
         input_tensor_quant = torch_npu.npu_quantize(
-            x, layer.input_scale.data, layer.input_offset.data, torch.qint8, -1, False)
+            input=x, scales=layer.input_scale.data,
+            zero_points=layer.input_offset.data,
+            dtype=torch.qint8, axis=-1, div_mode=False)
         out = torch_npu.npu_quant_matmul(
             input_tensor_quant, layer.weight.data, layer.deq_scale.data,
-            bias=layer.quant_bias.data, output_dtype=layer.weight_dtype)
+            bias=layer.quant_bias.data, output_dtype=x.dtype)
         return out
 
     def process_weights_after_loading(self, layer: nn.Module) -> None:
@@ -202,12 +205,12 @@ class W8A8PerTokenLinearMethod(LinearMethodBase):
         input_tensor_quant, pertoken_scale = torch_npu.npu_dynamic_quant(x)
         out = torch_npu.npu_quant_matmul(
             input_tensor_quant, layer.weight.data, layer.weight_scale.data,
-            pertoken_scale=pertoken_scale, bias=None, output_dtype=layer.weight_dtype)
+            pertoken_scale=pertoken_scale, bias=None, output_dtype=x.dtype)
         if layer.bias is not None:
             out = out + layer.bias.data
         return out
 
-    def process_weights_after_loading(self, layer):
+    def process_weights_after_loading(self, layer: nn.Module) -> None:
         layer.weight.data = layer.weight.data.transpose(0, 1).contiguous()
         layer.weight_scale.data = layer.weight_scale.data.flatten()
 
@@ -273,7 +276,7 @@ class W8A8MixLinearMethod(LinearMethodBase):
             result = self.quant_method[InferenceMode.DECODE].apply(layer, x)
         return result
 
-    def process_weights_after_loading(self, layer: nn.Module):
+    def process_weights_after_loading(self, layer: nn.Module) -> None:
         expanding_factor = layer.weight.data.shape[1]
         layer.input_scale.data = \
             1 / layer.input_scale.data.repeat(expanding_factor).to(layer.weight_dtype).contiguous().npu()

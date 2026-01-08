@@ -47,7 +47,7 @@ class QuantizationConfig(QuantizationConfigBase):
     def from_config(cls, config: dict[str, Any]) -> QuantizationConfigBase:
         return cls(config)
 
-    def get_quant_type_by_weight_name(self, prefix: str | list[str], suffix: str) -> QuantizationMethodBase | None:
+    def get_quant_type_by_weight_name(self, prefix: str | list[str], suffix: str) -> str:
         """
         Retrieve the quantization type for a specific weight parameter.
         Args:

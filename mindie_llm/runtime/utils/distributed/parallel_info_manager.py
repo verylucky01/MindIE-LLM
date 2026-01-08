@@ -149,7 +149,7 @@ class ParallelInfoManager:
         return list(range(num_layers))
 
     @staticmethod
-    def has_pp():
+    def has_pp() -> bool:
         """Checks if pipeline parallelism is enabled (always False)."""
         # (Note): depreciated, with change to parallelInfoManager.get(ParallelType.PP).is_enabled()
         return False
@@ -216,7 +216,7 @@ class ParallelInfoManager:
         # (Note): depreciated, with change to parallelInfoManager.get(ParallelType.MOE_EP).is_enabled()
         return self.get(ParallelType.MOE_EP).is_enabled()
 
-    def get(self, parallel_type: ParallelType):
+    def get(self, parallel_type: ParallelType) -> ParallelInfo:
         if parallel_type not in self._parallel_type_map:
             raise KeyError(f"Unsupported ParallelType: {parallel_type}")
         return self._parallel_type_map[parallel_type]

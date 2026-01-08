@@ -10,7 +10,7 @@
 
 import os
 import json
-from typing import List, Generator, Any, Tuple
+from typing import List, Any, Tuple
 from pathlib import Path
 
 import torch
@@ -65,18 +65,21 @@ class WeightsFileHandler:
         raise FileNotFoundError("The input model id is not exists or not a directory")
     
     def release_file_handler(self) -> None:
+        """Release all file handlers"""
         if self._handlers:
             del self._handlers
             self._handlers = {}
 
 
     def get_tensor(self, tensor_name: str) -> Any:
+        """Get tensor by full name."""
         filename, tensor_name = self._get_filename(tensor_name)
         f = self._get_handler(filename)
         tensor = f.get_tensor(tensor_name)
         return tensor
 
     def _get_handler(self, filename: str) -> Any:
+        """Get file handler by filename."""
         if filename not in self._handlers:
             # Note: manually call the release_file_handler method after use.
             f = safetensors.safe_open(filename, framework="pytorch")
@@ -85,12 +88,14 @@ class WeightsFileHandler:
         return self._handlers[filename]
   
     def _get_filename(self, tensor_name: str) -> Tuple[str, str]:
+        """Get file name for tensor name."""
         filename = self._routing.get(tensor_name)
         if filename is None:
             raise ValueError(f"Weight file was not found for tensor named with {tensor_name}.")
         return str(filename), tensor_name
 
     def _load_weight_file_routing(self) -> dict:
+        """Build routing of weight files."""
         routing = {}
         for filename in self._filenames:
             filename = standardize_path(str(filename), check_link=False)

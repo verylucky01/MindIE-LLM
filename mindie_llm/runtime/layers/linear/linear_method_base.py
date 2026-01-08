@@ -30,7 +30,7 @@ class LinearMethodBase(QuantizationMethodBase):
         weight_dtype: torch.dtype,
         bias_dtype: torch.dtype,
         **extra_weight_attrs,
-    ):
+    ) -> None:
         """Creates weights for the linear layer.
 
         Args:

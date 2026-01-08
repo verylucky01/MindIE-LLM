@@ -31,7 +31,7 @@ class UnquantizedLinearMethod(LinearMethodBase):
         weight_dtype: torch.dtype,
         bias_dtype: torch.dtype,
         **extra_weight_attrs,
-    ):
+    ) -> None:
         weight = ModelWeightParameter(
             data=torch.empty(
                 sum(output_partition_sizes),
@@ -42,6 +42,9 @@ class UnquantizedLinearMethod(LinearMethodBase):
         weight.add_attrs({"input_dim": 1, "output_dim": 0, **extra_weight_attrs})
         layer.register_parameter("weight", weight)
 
+        # Determine if the anti-outlier feature is active by checking whether "norm.bias" parameters are present
+        # in the weight files. If the bias tensor is added in the normalization module, it must be subtracted 
+        # from the subsequent linear module to ensure precision.
         if layer.quant_config is not None:
             enable_anti_outlier = True
             try:
@@ -81,7 +84,7 @@ class UnquantizedEmbeddingMethod(QuantizationMethodBase):
         output_size: int,
         params_dtype: torch.dtype,
         **extra_weight_attrs,
-    ):
+    ) -> None:
         weight = ModelWeightParameter(
             torch.empty(
                 input_size_per_partition,
@@ -107,7 +110,7 @@ class UnquantizedNormMethod(QuantizationMethodBase):
         hidden_size: int,
         params_dtype: torch.dtype,
         **extra_weight_attrs,
-    ):
+    ) -> None:
         weight = BaseParameter(torch.ones(hidden_size, dtype=params_dtype))
         weight.add_attrs(extra_weight_attrs)
         layer.register_parameter("weight", weight)
@@ -133,7 +136,7 @@ class UnquantizedLayerNormBiasMethod(QuantizationMethodBase):
         hidden_size: int,
         params_dtype: torch.dtype,
         **extra_weight_attrs,
-    ):
+    ) -> None:
         weight = BaseParameter(torch.ones(hidden_size, dtype=params_dtype))
         weight.add_attrs(extra_weight_attrs)
         layer.register_parameter("weight", weight)
@@ -147,5 +150,5 @@ class UnquantizedLayerNormBiasMethod(QuantizationMethodBase):
         layer: torch.nn.Module,
         x: torch.Tensor,
         dim
-    ):
+    ) -> torch.Tensor:
         return torch.nn.functional.layer_norm(x, (dim,), layer.weight.data, layer.bias.data, layer.variance_epsilon)
