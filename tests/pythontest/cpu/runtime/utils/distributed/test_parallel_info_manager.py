@@ -40,13 +40,14 @@ def mock_torch_distributed():
 
 @pytest.fixture
 def mock_server_config():
+    # world_size = 8, so moe_tp * moe_ep must = 8
     return {
-        "tp": 2,
-        "dp": 4,
-        "cp": 2,
-        "moe_tp": 2,
-        "moe_ep": 2,
-        "sp": 2
+        "tp": 2,      # TP: 4 groups of 2
+        "dp": 4,      # DP: 2 groups of 4 (strided)
+        "cp": 2,      # CP: 4 groups of 2 (strided)
+        "moe_tp": 2,  # MoE TP: group_size=2
+        "moe_ep": 4,  # MoE EP: group_size=4 → 2*4=8
+        "sp": 2       # SP: 4 groups of 2
     }
 
 

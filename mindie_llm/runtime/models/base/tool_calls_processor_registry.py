@@ -29,11 +29,6 @@ def register_all_tool_calls_processors():
     from mindie_llm.runtime.models.qwen3.tool_calls_processor_qwen3 import ToolCallsProcessorQwen3
     logger.debug("Successfully imported Qwen3 ToolCallProcessors")
 
-    # DeepSeekV3
-    from mindie_llm.runtime.models.deepseek_v32.tool_calls_processor_deepseekv32 import (
-        ToolCallsProcessorDeepseekv32
-    )
-    logger.debug("Successfully imported DeepSeekV3.2 ToolCallProcessors")
 
 
 register_all_tool_calls_processors()

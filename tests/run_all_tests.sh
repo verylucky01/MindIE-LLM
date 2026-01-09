@@ -129,8 +129,7 @@ function fn_run_pythontest()
         --ignore=${PROJECT_DIR}/tests/pythontest/npu/text_generator/test_plugins/test_plugin_manager_edge.py \
         --ignore=${PROJECT_DIR}/tests/pythontest/npu/text_generator/separate_deployment_engine/test_generator_pd_separate.py \
         --ignore=${PROJECT_DIR}/tests/pythontest/npu/text_generator/separate_deployment_engine/test_separate_deployment_engine.py \
-        --ignore=${PROJECT_DIR}/tests/pythontest/npu/test_block_copy.py \
-        --ignore=${PROJECT_DIR}/tests/pythontest/cpu/runtime ;
+        --ignore=${PROJECT_DIR}/tests/pythontest/npu/test_block_copy.py ;
     done
 
     export MINDIE_LLM_FRAMEWORK_BACKEND='ms'

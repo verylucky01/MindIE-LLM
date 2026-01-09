@@ -14,6 +14,7 @@ from typing import Any
 from transformers.configuration_utils import PretrainedConfig
 
 from mindie_llm.runtime.utils.distributed import get_parallel_info_manager
+from mindie_llm.runtime.utils.distributed.parallel_info_manager import ParallelType
 from mindie_llm.runtime.utils.helpers.parameter_validators import (
     IntParameterValidator, FloatParameterValidator, RangeParamaterValidator, Field,
     CompositeParameterValidator, ListParameterValidator
@@ -119,14 +120,15 @@ class HuggingFaceConfig(PretrainedConfig):
 
     def get_num_attention_heads_per_rank(self) -> int:
         """Returns the number of attention heads per rank."""
-        mapping = get_parallel_info_manager()
+        parallel_info_manager = get_parallel_info_manager()
         num_attention_heads = self.num_attention_heads
-        return (num_attention_heads + mapping.attn_tp.group_size - 1) // mapping.attn_tp.group_size
+        group_size = parallel_info_manager.get(ParallelType.ATTN_TP).group_size
+        return (num_attention_heads + group_size - 1) // group_size
 
     def get_num_kv_heads_per_rank(self) -> int:
         """Returns the number of kv heads per rank."""
-        mapping = get_parallel_info_manager()
-        tp_size = mapping.attn_tp.group_size
+        parallel_info_manager = get_parallel_info_manager()
+        tp_size = parallel_info_manager.get(ParallelType.ATTN_TP).group_size
         num_key_value_heads = self.num_key_value_heads
         if num_key_value_heads < tp_size:
             repeat_times = tp_size // num_key_value_heads

@@ -8,6 +8,8 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 
+from dataclasses import dataclass
+from typing import List
 from enum import Enum, unique
 
 import torch
@@ -17,6 +19,8 @@ from torch.distributed import ProcessGroup
 import torch.distributed as dist
 import torch_npu._C._distributed_c10d as dist_c
 from mindie_llm.runtime.utils.distributed.utils import even_divide
+
+
 DEFAULT_BUFFER_SIZE = 128
 
 
@@ -36,6 +40,7 @@ class ParallelType(str, Enum):
     MOE_EP = "moe_ep"
 
 
+@dataclass
 class ParallelInfo:
     """Encapsulates metadata for a specific parallel group.
 
@@ -63,7 +68,7 @@ class ParallelInfo:
     current_group_id: int | None = None
     rank: int | None = None
     process_group: ProcessGroup | None = None
-    cpu_process_group: ProcessGroup | None = None 
+    cpu_process_group: ProcessGroup | None = None
 
     def is_enabled(self) -> bool:
         """Checks if this parallel group is active (group_size > 1)."""
@@ -100,22 +105,27 @@ class ParallelInfoManager:
         self.rank = torch.distributed.get_rank()
         self.local_rank = local_rank
 
-        # --- Legacy convenience attributes (deprecated) begin---
+        # NOTE: --- Legacy convenience attributes (deprecated) begin---
         # Resolve parallel config
         self.world = self._init_tp_parallel_info(self.world_size)
         self.attn_tp = self._init_tp_parallel_info(server_config.get("tp", self.world_size))
         self.attn_dp = self._init_dp_parallel_info(server_config.get("dp", -1))
         self.attn_cp = self._init_dp_parallel_info(server_config.get("cp", -1))
-        self.moe_tp = self._init_tp_parallel_info(server_config.get("moe_tp", self.world_size))
-        self.moe_ep = self._init_dp_parallel_info(server_config.get("moe_ep", -1))
-        self.moe_ep_mc2 = self._init_dp_parallel_info(server_config.get("moe_ep", -1))
+        # NOTE: buffer_size needs to be calculated by a formula
+        moe_tp_buffer_size = 64 if self.parallel_config is None else self.parallel_config.hccl_moe_tp_buffer
+        self.moe_tp = self._init_tp_parallel_info(server_config.get("moe_tp", -1), moe_tp_buffer_size)
+        moe_ep_buffer_size = 512 if self.parallel_config is None else self.parallel_config.hccl_moe_ep_buffer
+        self.moe_ep = self._init_dp_parallel_info(server_config.get("moe_ep", -1), moe_ep_buffer_size)
+        if self.moe_tp.group_size * self.moe_ep.group_size != self.world_size:
+            error_msg = (
+                f"MoE parallel strategy process number mismatch: "
+                f"global world_size({self.world_size}) != "
+                f"moe_tp.group_size({self.moe_tp.group_size}) × moe_ep.group_size({self.moe_ep.group_size})"
+            )
+            raise ValueError(error_msg)
+        self.moe_ep_mc2 = self._init_dp_parallel_info(server_config.get("moe_ep", -1), moe_ep_buffer_size)
+        # NOTE: --- Legacy convenience attributes (deprecated) end---
 
-        # --- Legacy convenience attributes (deprecated) end---
-
-        # Set MoE-specific buffer sizes
-        self.moe_tp.buffer_size = 64 if self.parallel_config is None else self.parallel_config.hccl_moe_tp_buffer
-        self.moe_ep.buffer_size = 512 if self.parallel_config is None else self.parallel_config.hccl_moe_ep_buffer
-        self.moe_ep_mc2.buffer_size = 512 if self.parallel_config is None else self.parallel_config.hccl_moe_ep_buffer
         group_size = server_config.get("sp", -1)
         group_size = 1 if group_size == -1 else group_size
         self.attn_inner_sp = self._init_tp_parallel_info(group_size)
@@ -140,7 +150,7 @@ class ParallelInfoManager:
 
     @staticmethod
     def pp_layers(num_layers: int) -> list[int]: 
-        # Legacy convenience methods (deprecated)
+        # NOTE: Legacy convenience methods (deprecated)
         """Returns layer-to-stage mapping for pipeline parallelism.
 
         Note:
@@ -151,7 +161,7 @@ class ParallelInfoManager:
     @staticmethod
     def has_pp() -> bool:
         """Checks if pipeline parallelism is enabled (always False)."""
-        # (Note): depreciated, with change to parallelInfoManager.get(ParallelType.PP).is_enabled()
+        # NOTE: deprecated, will change to parallelInfoManager.get(ParallelType.PP).is_enabled()
         return False
 
     @staticmethod
@@ -189,41 +199,49 @@ class ParallelInfoManager:
         return cur_process_group
 
     def has_attn_cp(self) -> bool:
-        # (Note): depreciated, with change to parallelInfoManager.get(ParallelType.ATTN_CP).is_enabled()
+        # NOTE: deprecated, will change to parallelInfoManager.get(ParallelType.ATTN_CP).is_enabled()
         return self.get(ParallelType.ATTN_CP).is_enabled()
 
     def has_attn_inner_sp(self) -> bool:
-        # (Note): depreciated, with change to parallelInfoManager.get(ParallelType.ATTN_INNER_SP).is_enabled()
+        # NOTE: deprecated, will change to parallelInfoManager.get(ParallelType.ATTN_INNER_SP).is_enabled()
         return self.get(ParallelType.ATTN_INNER_SP).is_enabled()
 
     def has_attn_o_proj_tp(self) -> bool:
-        # (Note): depreciated, with change to parallelInfoManager.get(ParallelType.ATTN_O_PROJ_TP).is_enabled()
+        # NOTE: deprecated, will change to parallelInfoManager.get(ParallelType.ATTN_O_PROJ_TP).is_enabled()
         return self.get(ParallelType.ATTN_O_PROJ_TP).is_enabled()
 
     def has_dp(self) -> bool:
-        # (Note): depreciated, with change to parallelInfoManager.get(ParallelType.ATTN_DP).is_enabled()
+        # NOTE: deprecated, will change to parallelInfoManager.get(ParallelType.ATTN_DP).is_enabled()
         return self.get(ParallelType.ATTN_DP).is_enabled()
 
     def has_attn_tp(self) -> bool:
-        # (Note): depreciated, with change to parallelInfoManager.get(ParallelType.ATTN_TP).is_enabled()
+        # NOTE: deprecated, will change to parallelInfoManager.get(ParallelType.ATTN_TP).is_enabled()
         return self.get(ParallelType.ATTN_TP).is_enabled()
 
     def has_moe_tp(self) -> bool:
-        # (Note): depreciated, with change to parallelInfoManager.get(ParallelType.MOE_TP).is_enabled()
+        # NOTE: deprecated, will change to parallelInfoManager.get(ParallelType.MOE_TP).is_enabled()
         return self.get(ParallelType.MOE_TP).is_enabled()
 
     def has_moe_ep(self) -> bool:
-        # (Note): depreciated, with change to parallelInfoManager.get(ParallelType.MOE_EP).is_enabled()
+        # NOTE: deprecated, will change to parallelInfoManager.get(ParallelType.MOE_EP).is_enabled()
         return self.get(ParallelType.MOE_EP).is_enabled()
+
+    def has_lm_head_local_tp(self) -> bool:
+        return self.get(ParallelType.LM_HEAD_TP).group_size < self.world_size
 
     def get(self, parallel_type: ParallelType) -> ParallelInfo:
         if parallel_type not in self._parallel_type_map:
             raise KeyError(f"Unsupported ParallelType: {parallel_type}")
         return self._parallel_type_map[parallel_type]
 
-    def _init_tp_parallel_info(self, group_size: int = None) -> ParallelInfo:
+
+    def _init_tp_parallel_info(
+        self,
+        group_size: int = None,
+        hccl_buffersize: int = DEFAULT_BUFFER_SIZE
+    ) -> ParallelInfo:
         """Initializes tensor-parallel-style groups (contiguous ranks)."""
-        parallel_info = ParallelInfo()
+        parallel_info = ParallelInfo(buffer_size=hccl_buffersize)        
         if group_size is None or group_size == -1:
             group_size = self.world_size
 
@@ -240,9 +258,14 @@ class ParallelInfoManager:
         parallel_info.process_group = self._create_npu_process_group(parallel_info)
         return parallel_info
 
-    def _init_dp_parallel_info(self, group_size: int = None) -> ParallelInfo: 
+
+    def _init_dp_parallel_info(
+        self,
+        group_size: int = None,
+        hccl_buffersize: int = DEFAULT_BUFFER_SIZE
+    ) -> ParallelInfo:
         """Initializes data-parallel-style groups (strided ranks)."""
-        parallel_info = ParallelInfo()
+        parallel_info = ParallelInfo(buffer_size=hccl_buffersize)        
         if group_size is not None and group_size != -1:
             parallel_info.group_size = group_size
 
