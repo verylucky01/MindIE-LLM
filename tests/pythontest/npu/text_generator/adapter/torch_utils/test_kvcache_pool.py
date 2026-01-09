@@ -36,6 +36,8 @@ class DummyKVCacheSettings:
         self.npu_row_bytes = 128
         self.is_separated_pd = False  # 对应原来的sepd_worker
         self.npu_info = MockNpuInfo()
+        self.index_head_dim = None
+        self.index_block_shape = (32, 32)
 
 
 class TestCreateAlignedTensor(unittest.TestCase):
@@ -103,6 +105,23 @@ class TestKVCachePoolAllocation(unittest.TestCase):
                              f"NPU key 块形状应为 {expected_key_shape}, 实际为 {key_blocks.shape}")
             self.assertEqual(value_blocks.shape, expected_value_shape,
                              f"NPU value 块形状应为 {expected_value_shape}, 实际为 {value_blocks.shape}")
+
+    def test_allocate_npu_kvcache_with_index_head_dim(self):
+        self.kvcache_settings.index_head_dim = 1
+        self.kvcache_pool.allocate_npu_kvcache()
+        self.assertEqual(len(self.kvcache_pool.npu_cache), self.kvcache_settings.num_layers,
+                         "npu_cache 层数不符合预期")
+
+        for key_blocks, value_blocks, index_block in self.kvcache_pool.npu_cache:
+            expected_key_shape = (self.kvcache_settings.num_npu_blocks, *self.kvcache_settings.k_block_shape)
+            expected_value_shape = (self.kvcache_settings.num_npu_blocks, *self.kvcache_settings.v_block_shape)
+            expected_index_shape = (self.kvcache_settings.num_npu_blocks, *self.kvcache_settings.index_block_shape)
+            self.assertEqual(key_blocks.shape, expected_key_shape,
+                             f"NPU key 块形状应为 {expected_key_shape}, 实际为 {key_blocks.shape}")
+            self.assertEqual(value_blocks.shape, expected_value_shape,
+                             f"NPU value 块形状应为 {expected_value_shape}, 实际为 {value_blocks.shape}")
+            self.assertEqual(index_block.shape, expected_index_shape,
+                             f"NPU value 块形状应为 {expected_index_shape}, 实际为 {index_block.shape}")
 
     def test_allocate_npu_kvcache_with_negative_blocks(self):
         negative_settings = DummyKVCacheSettings()

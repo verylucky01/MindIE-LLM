@@ -28,6 +28,8 @@ class MockModelInfo:
     kvcache_quant_layers: list = None
     dtype: type = torch.float16
     enable_nz: bool = False
+    index_head_dim: int = None
+    num_index_heads: int = None
 
     def __post_init__(self):
         if self.kvcache_quant_layers is None:
@@ -142,6 +144,8 @@ class TestKVCacheSettings(unittest.TestCase):
         mock_get_soc.return_value = "910A"  # 支持NZ
         base_model_info = self.get_base_model_info()
         base_model_info.enable_nz = True
+        base_model_info.index_head_dim = 16
+        base_model_info.num_index_heads = 2
         settings = KVCacheSettings(
             rank=0,
             model_info=base_model_info,
@@ -152,11 +156,12 @@ class TestKVCacheSettings(unittest.TestCase):
             is_separated_pd=False
         )
 
-        total, k_total, v_total, k_quant_total = settings._cal_kv_total_head_size()
+        total, k_total, v_total, k_quant_total, index_total = settings._cal_kv_total_head_size()
         self.assertEqual(total, 256)
         self.assertEqual(k_total, 256)
         self.assertEqual(v_total, 256)
         self.assertEqual(k_quant_total, 256)
+        self.assertEqual(index_total, 32)
 
     @patch("acl.get_soc_name")
     def test_cal_set_kv_block_shapes(self, mock_get_soc):
@@ -176,6 +181,28 @@ class TestKVCacheSettings(unittest.TestCase):
 
         self.assertEqual(settings.block_shape, (16, 16, 16))
         self.assertEqual(settings.k_block_shape, (16, 16, 16))
+
+    @patch("acl.get_soc_name")
+    def test_cal_set_kv_block_shapes_with_index_head_dim(self, mock_get_soc):
+        mock_get_soc.return_value = "910A"
+        base_model_info = self.get_base_model_info()
+        base_model_info.enable_nz = True
+        base_model_info.index_head_dim = 16
+        base_model_info.num_index_heads = 2
+        settings = KVCacheSettings(
+            rank=0,
+            model_info=base_model_info,
+            cpu_mem=1024 ** 3,
+            npu_mem=2 * 1024 ** 3,
+            block_size=16,
+            backend_type=BackendType.ATB,
+            is_separated_pd=False
+        )
+        settings._cal_set_kv_block_shapes()
+
+        self.assertEqual(settings.block_shape, (16, 16, 16))
+        self.assertEqual(settings.k_block_shape, (16, 16, 16))
+        self.assertEqual(settings.index_block_shape, (2, 16, 16))
 
     def test_dtype_to_str(self):
         # 测试数据类型转换

@@ -31,6 +31,7 @@ class KVCachePool:
         "k_blocks_addrs",
         "v_blocks_addrs",
         "k_blocks_quant_addrs",
+        "index_blocks_addrs",
         "swapper",
         "swap_kvcache_method",
         "use_mb_swapper",  # memory bridges swapper
@@ -67,6 +68,7 @@ class KVCachePool:
         self.k_blocks_addrs = []
         self.v_blocks_addrs = []
         self.k_blocks_quant_addrs = []
+        self.index_blocks_addrs = []
         if self.use_mb_swapper:
             logger.debug(">>>You are using mb swapper.")
             self.npu_blocks_addrs = []  # 各个block的 K起始地址和V起始地址 [(k0,v0),(k1,v1),...]
@@ -348,7 +350,16 @@ class KVCachePool:
                         self.v_blocks_addrs.append(value_blocks.data_ptr())
                     else:
                         value_blocks = torch.empty((1,), dtype=self.kvcache_settings.dtype, device=self.device)
-                    self.npu_cache.append((key_blocks, value_blocks))
+
+                    if self.kvcache_settings.index_head_dim is not None:
+                        index_blocks = self._create_aligned_tensor(
+                            (self.kvcache_settings.num_npu_blocks, *self.kvcache_settings.index_block_shape),
+                            self.kvcache_settings.dtype
+                        ) 
+                        self.index_blocks_addrs.append(index_blocks.data_ptr())
+                        self.npu_cache.append((key_blocks, value_blocks, index_blocks))
+                    else:
+                        self.npu_cache.append((key_blocks, value_blocks))
                 # K npu_cache model_id is 0, V npu_cache model_id is 1, K int8 npu_cache model_id is 2
                 # move sepd worker set in generator !!!!
             else:
@@ -380,7 +391,14 @@ class KVCachePool:
                     self.kvcache_settings.dtype) \
                     if self.kvcache_settings.v_head_size > 0 \
                     else torch.empty((1,), dtype=self.kvcache_settings.dtype, device=self.device)
-                self.npu_cache.append((key_blocks, value_blocks))
+                if self.kvcache_settings.index_head_dim is not None:
+                    index_blocks = self._create_aligned_tensor(
+                        (self.kvcache_settings.num_npu_blocks, *self.kvcache_settings.index_block_shape),
+                        self.kvcache_settings.dtype
+                    )
+                    self.npu_cache.append((key_blocks, value_blocks, index_blocks))
+                else:
+                    self.npu_cache.append((key_blocks, value_blocks))
         else:
             for _, dtype in zip(range(self.kvcache_settings.num_layers), per_layer_k_cache_dtype):
                 k_block_shape = self.kvcache_settings.k_block_shape if dtype != torch.int8 \
@@ -399,4 +417,13 @@ class KVCachePool:
                     acl_format=self.acl_format
                 ) if self.kvcache_settings.v_head_size > 0 \
                     else torch.empty((1,), dtype=self.kvcache_settings.dtype, device=self.device)
-                self.npu_cache.append((key_blocks, value_blocks))
+                if self.kvcache_settings.index_head_dim is not None:
+                    index_blocks = torch_npu.empty_with_format(
+                        size=(self.kvcache_settings.num_npu_blocks, *self.kvcache_settings.index_block_shape),
+                        dtype=self.kvcache_settings.dtype,
+                        device=self.device,
+                        acl_format=self.acl_format
+                    )
+                    self.npu_cache.append((key_blocks, value_blocks, index_blocks))
+                else:
+                    self.npu_cache.append((key_blocks, value_blocks))

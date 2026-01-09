@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # coding=utf-8
-# Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+# Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 # MindIE is licensed under Mulan PSL v2.
 # You can use this software according to the terms and conditions of the Mulan PSL v2.
 # You may obtain a copy of Mulan PSL v2 at:
@@ -188,13 +188,18 @@ class DmiConfig(BaseConfig):
                 d_to_p[rank_d] = [i * params.tp_p // params.sp_p for i in range(params.sp_p * params.cp_p)]
         else:
             # 标准模式的映射逻辑
-            if params.tp_d == 0 or params.tp_p % params.tp_d != 0:
+            if params.tp_d == 0 or params.tp_p == 0:
                 raise ValueError(
-                    f"Invalid tp mapping: tp_p ({params.tp_p}) must be divisible by tp_d ({params.tp_d})."
+                    f"Invalid tp mapping: tp_p ({params.tp_p}) and tp_d ({params.tp_d}) must not equal 0")
+            if params.tp_p % params.tp_d != 0 and params.tp_d % params.tp_p != 0:
+                raise ValueError(
+                    f"Invalid tp mapping: tp_p ({params.tp_p}) must be divisible by tp_d ({params.tp_d}) or "
+                    f"tp_d ({params.tp_d}) must be divisible by tp_p ({params.tp_p})"
                 )
-            factor = params.tp_p // params.tp_d
+            factor = params.tp_p // params.tp_d if params.tp_p >= params.tp_d else params.tp_d // params.tp_p
             for rank_d in range(params.tp_d):
-                d_to_p[rank_d] = [rank_d * factor + i for i in range(0, params.cp_p * params.tp_p, params.tp_p)]
+                rank_d_base = rank_d // factor if params.tp_d >= params.tp_p else rank_d * factor
+                d_to_p[rank_d] = [rank_d_base + i for i in range(0, params.cp_p * params.tp_p, params.tp_p)]
 
         # 如果是 DECODER 角色，直接返回 d_to_p
         if params.role == DmiModeNodeRole.DECODER:
