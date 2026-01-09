@@ -21,7 +21,7 @@
 -  当前ChatGLM3-6B、Qwen3-32B、Qwen3-235B-A22B、Qwen3-30B-A3B、DeepSeek-R1-0528、Qwen2.5-Instruct和DeepSeek-V3.1系列模型支持此特性。
 -  使用Function Call特性，DeepSeek-V3.1系列模型必须配置[参数说明](#table1)中参数，其余模型可以不配置。
 -  当前仅支持OpenAI chat接口。
--  Function Call特性支持与量化、长序列、多机推理、PD分离、MoE、Multi-LoRA、SplitFuse、并行解码、专家并行、MTP、Prefix Cache、思考解析（DeepSeek-V3.1模型除外）、张量并行、MLA特性进行叠加，其中SplitFuse、并行解码、MTP特性暂不支持在流式推理下叠加Function call特性。
+-  Function Call特性支持与量化、长序列、多机推理、PD分离、MoE、Multi-LoRA、SplitFuse、并行解码、专家并行、MTP、Prefix Cache、思考解析（DeepSeek-V3.1模型除外，DeepSeek-V3.1模型能力不支持一条请求同时使能Function Call和思考解析）、张量并行、MLA特性进行叠加，其中SplitFuse、并行解码、MTP特性暂不支持在流式推理下叠加Function call特性。
 -  Function Call特性当前暂不支持include\_stop\_str\_in\_output、stop、best\_of、n、use\_beam\_search和logprobs后处理参数；当temperature设置较高（导致采样随机性较高），可能会影响触发Function Call的稳定性。
 -  Function Call特性支持非流式推理，仅Qwen3-32B、Qwen3-235B-A22B、Qwen3-30B-A3B和DeepSeek-R1-0528模型的Function Call特性支持流式推理。
 

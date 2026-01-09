@@ -21,7 +21,7 @@
 
 |配置项|取值类型|取值范围|配置说明|
 |--|--|--|--|
-|enable_reasoning|bool|truefalse|是否开启模型思考解析，将输出分别解析为“reasoning_content”和“content”两个字段。false：关闭<br>true：开启<br>必填，默认值：false。|
+|enable_reasoning|bool|true<br>false|是否开启模型思考解析，将输出分别解析为“reasoning_content”和“content”两个字段。false：关闭<br>true：开启<br>必填，默认值：false。|
 
 
 ## 执行推理
