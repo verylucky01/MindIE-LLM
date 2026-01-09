@@ -14,7 +14,7 @@ import torch
 import torch_npu
 from torch import nn
 
-
+from mindie_llm.runtime.layers.fused_moe.fused_moe_method_base import FusedMoEMethodBase
 from mindie_llm.runtime.layers.linear.linear_method_base import LinearMethodBase
 from mindie_llm.runtime.layers.parameter import (
     BiasParameter,
@@ -290,7 +290,7 @@ class W8A8MixLinearMethod(LinearMethodBase):
             layer.weight.data = torch_npu.npu_format_cast(layer.weight.data, 29)
             logger.debug("Convert weight to FRACTAL_NZ done, current format is %s", 
                        torch_npu.get_npu_format(layer.weight.data))
-            
+
 
 class W8A8MXFP8PerGroupLinearMethod(LinearMethodBase):
     """
@@ -341,7 +341,7 @@ class W8A8MXFP8PerGroupLinearMethod(LinearMethodBase):
         layer.register_parameter("weight", weight)
         layer.register_parameter("weight_scale", weight_scale)
         layer.register_parameter("bias", None)
-    
+
     def apply(
         self,
         layer: torch.nn.Module,
@@ -370,3 +370,120 @@ class W8A8MXFP8PerGroupLinearMethod(LinearMethodBase):
         layer.weight_scale.data = layer.weight_scale.data.reshape(n_dim, even_divide(k_dim, 2), 2)
         layer.weight.data = layer.weight.data.transpose(0, 1)
         layer.weight_scale.data = layer.weight_scale.data.transpose(0, 1)
+
+
+class W8A8PerTokenFusedMoEMethod(FusedMoEMethodBase):
+    def create_weights(
+            self,
+            layer: torch.nn.Module,
+            num_experts: int,
+            hidden_size: int,
+            intermediate_size_per_partition: int,
+            weight_dtype: torch.dtype,
+            bias_dtype: torch.dtype,
+            **extra_weight_attrs,
+    ):
+        gate_up_weight = ModelWeightParameter(
+            torch.empty(num_experts,
+                        2 *
+                        intermediate_size_per_partition,
+                        hidden_size,
+                        dtype=torch.int8,
+                        ),
+        )
+        gate_up_weight.add_attrs({
+            self.INPUT_DIM: 1,
+            self.OUTPUT_DIM: 0,
+            **extra_weight_attrs
+        })
+        layer.register_parameter("gate_up_weight", gate_up_weight)
+
+        down_weight = ModelWeightParameter(
+            torch.empty(num_experts,
+                        hidden_size,
+                        intermediate_size_per_partition,
+                        dtype=torch.int8,
+                        ),
+        )
+        down_weight.add_attrs({
+            self.INPUT_DIM: 1,
+            self.OUTPUT_DIM: 0,
+            **extra_weight_attrs
+        })
+        layer.register_parameter("down_weight", down_weight)
+
+        weight_scale_type = torch.float32 if weight_dtype == torch.float16 else torch.bfloat16
+        gate_up_weight_scale = ModelWeightParameter(
+            torch.empty(num_experts,
+                        2 * intermediate_size_per_partition,
+                        1,
+                        dtype=weight_scale_type,
+                        ),
+        )
+        gate_up_weight_scale.add_attrs({
+            self.OUTPUT_DIM: 0,
+            **extra_weight_attrs
+        })
+        layer.register_parameter("gate_up_weight_scale", gate_up_weight_scale)
+
+        down_weight_scale = ModelWeightParameter(
+            torch.empty(num_experts,
+                        hidden_size,
+                        1,
+                        dtype=weight_scale_type,
+                        ),
+        )
+        down_weight_scale.add_attrs({
+            self.INPUT_DIM: 0,
+            **extra_weight_attrs
+        })
+        layer.register_parameter("down_weight_scale", down_weight_scale)
+
+    def apply(self,
+              layer: torch.nn.Module,
+              x: torch.Tensor,
+              group_list: torch.Tensor,
+              group_list_type: int = 1) -> torch.Tensor:
+        _output_dtype = x.dtype
+        x, pertoken_scale = torch_npu.npu_dynamic_quant(x)
+
+        hidden_states = torch_npu.npu_grouped_matmul(
+            x=[x],
+            weight=[layer.gate_up_weight],
+            split_item=2,                     # output a single tensor
+            group_list_type=group_list_type,
+            group_type=0,                     # the axis to group
+            group_list=group_list,
+            output_dtype=torch.int32)[0]
+
+        hidden_states, swiglu_out_scale = torch_npu.npu_dequant_swiglu_quant(
+            x=hidden_states,
+            weight_scale=layer.gate_up_weight_scale,
+            activation_scale=pertoken_scale,
+            bias=None,
+            quant_scale=None,
+            quant_offset=None,
+            group_index=group_list,
+            activate_left=True,  # whether to left-activate
+            quant_mode=1,        # 0: static quant, 1: dynamic quant
+        )
+
+        hidden_states = torch_npu.npu_grouped_matmul(
+            x=[hidden_states],
+            weight=[layer.down_weight],
+            scale=[layer.down_weight_scale],
+            bias=None,
+            per_token_scale=[swiglu_out_scale],
+            split_item=2,
+            group_list_type=group_list_type,
+            group_type=0,
+            group_list=group_list,
+            output_dtype=_output_dtype)[0]
+
+        return hidden_states
+
+    def process_weights_after_loading(self, layer):
+        layer.gate_up_weight.data = layer.gate_up_weight.data.transpose(-2, -1).contiguous()
+        layer.down_weight.data = layer.down_weight.data.transpose(-2, -1).contiguous()
+        layer.gate_up_weight_scale.data = layer.gate_up_weight_scale.data.squeeze(-1).to(torch.float32)
+        layer.down_weight_scale.data = layer.down_weight_scale.data.squeeze(-1)

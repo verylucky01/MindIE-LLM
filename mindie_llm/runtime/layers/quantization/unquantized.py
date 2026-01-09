@@ -152,3 +152,74 @@ class UnquantizedLayerNormBiasMethod(QuantizationMethodBase):
         dim
     ) -> torch.Tensor:
         return torch.nn.functional.layer_norm(x, (dim,), layer.weight.data, layer.bias.data, layer.variance_epsilon)
+
+
+class UnquantizedFusedMoEMethod(FusedMoEMethodBase):
+    def create_weights(
+            self,
+            layer: torch.nn.Module,
+            num_experts: int,
+            hidden_size: int,
+            intermediate_size_per_partition: int,
+            weight_dtype: torch.dtype,
+            bias_dtype: torch.dtype,
+            **extra_weight_attrs,
+    ):
+        gate_up_weight = ModelWeightParameter(
+            torch.empty(num_experts,
+                        2 *
+                        intermediate_size_per_partition,
+                        hidden_size,
+                        dtype=weight_dtype,
+                        ),
+        )
+        gate_up_weight.add_attrs({
+            self.INPUT_DIM: 1,
+            self.OUTPUT_DIM: 0,
+            **extra_weight_attrs
+        })
+        layer.register_parameter("gate_up_weight", gate_up_weight)
+
+        down_weight = ModelWeightParameter(
+            torch.empty(num_experts,
+                        hidden_size,
+                        intermediate_size_per_partition,
+                        dtype=weight_dtype,
+                        ),
+        )
+        down_weight.add_attrs({
+            self.INPUT_DIM: 1,
+            self.OUTPUT_DIM: 0,
+            **extra_weight_attrs
+        })
+        layer.register_parameter("down_weight", down_weight)
+
+    def apply(self,
+              layer: torch.nn.Module,
+              x: torch.Tensor,
+              group_list: torch.Tensor,
+              group_list_type: int = 1) -> torch.Tensor:
+        gate_up_out = torch_npu.npu_grouped_matmul(
+            x=[x],
+            weight=[layer.gate_up_weight],
+            split_item=2,                     # output a single tensor
+            group_list_type=group_list_type,
+            group_type=0,                     # the axis to group
+            group_list=group_list,
+        )[0]
+
+        gate_up_out = torch_npu.npu_swiglu(gate_up_out)
+
+        hidden_states = torch_npu.npu_grouped_matmul(
+            x=[gate_up_out],
+            weight=[layer.down_weight],
+            split_item=2,
+            group_list_type=group_list_type,
+            group_type=0,
+            group_list=group_list,
+        )[0]
+        return hidden_states
+
+    def process_weights_after_loading(self, layer):
+        layer.gate_up_weight.data = layer.gate_up_weight.data.transpose(-2, -1).contiguous()
+        layer.down_weight.data = layer.down_weight.data.transpose(-2, -1).contiguous()

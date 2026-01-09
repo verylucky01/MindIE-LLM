@@ -16,9 +16,6 @@ from mindie_llm.runtime.layers.quantization.quantization_method_base import Quan
 
 
 class LinearMethodBase(QuantizationMethodBase):
-    INPUT_DIM: str = "input_dim"
-    OUTPUT_DIM: str = "output_dim"
-    BIAS: str = "bias"
 
     @abstractmethod
     def create_weights(

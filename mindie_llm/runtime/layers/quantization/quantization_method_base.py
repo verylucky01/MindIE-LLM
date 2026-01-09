@@ -21,6 +21,10 @@ from torch import nn
 class QuantizationMethodBase(ABC):
     """Base class for quantized methods."""
 
+    INPUT_DIM: str = "input_dim"
+    OUTPUT_DIM: str = "output_dim"
+    BIAS: str = "bias"
+
     @abstractmethod
     def create_weights(self, layer: torch.nn.Module, *weight_args, **extra_weight_attrs) -> None:
         """Create layer weights."""

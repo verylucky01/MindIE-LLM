@@ -20,8 +20,8 @@ from mindie_llm.runtime.layers.parameter import (
 )
 
 from mindie_llm.runtime.layers.quantization.unquantized import (
-    UnquantizedLinearMethod, UnquantizedEmbeddingMethod, UnquantizedNormMethod, 
-    UnquantizedLayerNormBiasMethod
+    UnquantizedLinearMethod, UnquantizedEmbeddingMethod, UnquantizedNormMethod,
+    UnquantizedLayerNormBiasMethod, UnquantizedFusedMoEMethod
 )
 
 
@@ -41,11 +41,9 @@ class MockModule_withBias(MockModule):
         self.bias = None
 
 
-class MockModule_FusedMoed(MockModule):
+class MockFusedMoE(MockModule):
     def __init__(self):
         super().__init__()
-        self.gate_up_weight = None
-        self.down_weight = None
 
 
 class TestUnquantizedLinearMethod(unittest.TestCase):
@@ -357,6 +355,87 @@ class TestUnquantizedLayerNormBiasMethod(unittest.TestCase):
             as mock_torch_functional_layernorm:
             self.method.apply(self.layer_for_apply, x, dim)
             mock_torch_functional_layernorm.assert_called_once()
+
+
+class TestUnquantizedFusedMoEMethod(unittest.TestCase):
+
+    def setUp(self):
+        self.layer = MockFusedMoE()
+        self.num_experts = 64
+        self.hidden_size = 1024
+        self.intermediate_size_per_partition = 128
+        self.weight_dtype = torch.float16
+        self.extra_attrs = {}
+        self.method = UnquantizedFusedMoEMethod()
+
+    def test_create_weights(self):
+        self.method.create_weights(
+            layer=self.layer,
+            num_experts=self.num_experts,
+            hidden_size=self.hidden_size,
+            intermediate_size_per_partition=self.intermediate_size_per_partition,
+            weight_dtype=self.weight_dtype,
+            bias_dtype=self.weight_dtype,
+            **self.extra_attrs
+        )
+
+        self.assertTrue(hasattr(self.layer, 'gate_up_weight'))
+        self.assertEqual(self.layer.gate_up_weight.data.shape, (64, 256, 1024))
+        self.assertEqual(self.layer.gate_up_weight.data.dtype, self.weight_dtype)
+        self.assertEqual(self.layer.gate_up_weight.input_dim, 1)
+        self.assertEqual(self.layer.gate_up_weight.output_dim, 0)
+
+        self.assertTrue(hasattr(self.layer, 'down_weight'))
+        self.assertEqual(self.layer.down_weight.data.shape, (64, 1024, 128))
+        self.assertEqual(self.layer.down_weight.data.dtype, self.weight_dtype)
+        self.assertEqual(self.layer.down_weight.input_dim, 1)
+        self.assertEqual(self.layer.down_weight.output_dim, 0)
+
+    @patch("torch_npu.npu_grouped_matmul")
+    @patch("torch_npu.npu_swiglu")
+    def test_apply(self, mock_npu_swiglu, mock_npu_grouped_matmul):
+        """Test apply method."""
+
+        self.layer.gate_up_weight = torch.randint(-100, 100, (64, 1024, 256)).to(torch.int8)
+        self.layer.down_weight = torch.randint(-100, 100, (64, 128, 1024)).to(torch.int8)
+
+        x = torch.randn(100, 1024, dtype=torch.float16)
+        group_list = torch.randint(0, 100, (64,)).to(torch.int8)
+
+        mock_act_out = torch.randn(100, 256, dtype=torch.float16)
+        mock_npu_swiglu.return_value = mock_act_out
+
+        mock_gate_up_out = torch.randn(100, 256, dtype=torch.float16)
+        mock_down_out = torch.randn(100, 1024, dtype=torch.float16)
+        mock_npu_grouped_matmul.side_effect = [
+            [mock_gate_up_out],
+            [mock_down_out]
+        ]
+
+        output = self.method.apply(self.layer, x, group_list)
+
+        mock_npu_swiglu.assert_called_once_with(mock_gate_up_out)
+        self.assertEqual(mock_npu_grouped_matmul.call_count, 2)
+
+        first_call_args = mock_npu_grouped_matmul.call_args_list[0]
+        self.assertTrue(torch.equal(first_call_args[1]["x"][0], x))
+        self.assertTrue(torch.equal(first_call_args[1]["weight"][0], self.layer.gate_up_weight))
+        self.assertTrue(torch.equal(first_call_args[1]["group_list"], group_list))
+
+        second_call_args = mock_npu_grouped_matmul.call_args_list[1]
+        self.assertTrue(torch.equal(second_call_args[1]["x"][0], mock_act_out))
+        self.assertTrue(torch.equal(second_call_args[1]["weight"][0], self.layer.down_weight))
+        self.assertTrue(torch.equal(second_call_args[1]["group_list"], group_list))
+
+        self.assertEqual(output.shape, (100, 1024))
+
+    def test_process_weights_after_loading(self):
+        self.layer.gate_up_weight = ModelWeightParameter(torch.randn(64, 256, 1024))
+        self.layer.down_weight = ModelWeightParameter(torch.randn(64, 1024, 128))
+        self.method.process_weights_after_loading(self.layer)
+        self.assertEqual(self.layer.gate_up_weight.data.shape, (64, 1024, 256))
+        self.assertEqual(self.layer.down_weight.data.shape, (64, 128, 1024))
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -9,31 +9,24 @@
 # See the Mulan PSL v2 for more details.
 
 import unittest
-from unittest.mock import MagicMock, patch, Mock
+from unittest.mock import MagicMock, patch
+
 import torch
-import torch.distributed as dist
+import torch.nn as nn
 import torch_npu
 
-from mindie_llm.runtime.layers.linear.linear import (
-    LinearBase,
-    ReplicatedLinear,
-    RowParallelLinear,
-    ColumnParallelLinear,
-    MergedColumnParallelLinear,
-    QKVParallelLinear,
-)
-from mindie_llm.runtime.layers.quantization.unquantized import UnquantizedLinearMethod
+from mindie_llm.runtime.layers.linear.linear import ReplicatedLinear
+from mindie_llm.runtime.layers.parameter import ModelWeightParameter
+from mindie_llm.runtime.layers.quantization.ms_model_slim.quant_type import QuantType
+from mindie_llm.runtime.layers.quantization.ms_model_slim.quantization_config import QuantizationConfig
 from mindie_llm.runtime.layers.quantization.ms_model_slim.w8a8 import (
     W8A8PerTensorLinearMethod,
     W8A8PerTokenLinearMethod,
     W8A8MixLinearMethod,
+    W8A8PerTokenFusedMoEMethod,
     W8A8MXFP8PerGroupLinearMethod,
 )
-from mindie_llm.runtime.layers.quantization.ms_model_slim.quantization_config import QuantizationConfig
-from mindie_llm.runtime.layers.quantization.ms_model_slim.quant_type import QuantType, InferenceMode
-from mindie_llm.runtime.layers.parameter import BaseParameter, RowParameter, ColumnParameter, BiasParameter
 from mindie_llm.runtime.utils.distributed import set_parallel_info_manager
-
 
 
 class TestW8A8PerTensorLinearMethod(unittest.TestCase):
@@ -509,6 +502,113 @@ class TestW8A8MXFP8PerGroupLinearMethod(unittest.TestCase):
         self.assertEqual(matmul_call_args[1]['output_dtype'], torch.float16)
 
         self.assertEqual(output.shape, (2, 3, 1024))
+
+
+class TestW8A8PerTokenFusedMoEMethod(unittest.TestCase):
+    """Test cases for W8A8PerTokenFusedMoEMethod."""
+
+    def setUp(self):
+        self.layer = nn.Module()
+        self.num_experts = 64
+        self.hidden_size = 1024
+        self.intermediate_size_per_partition = 128
+        self.weight_dtype = torch.float16
+        self.extra_attrs = {}
+        self.method = W8A8PerTokenFusedMoEMethod()
+
+    def test_create_weights(self):
+        """Test create_weights method."""
+        self.method.create_weights(
+            layer=self.layer,
+            num_experts=self.num_experts,
+            hidden_size=self.hidden_size,
+            intermediate_size_per_partition=self.intermediate_size_per_partition,
+            weight_dtype=self.weight_dtype,
+            bias_dtype=self.weight_dtype,
+            **self.extra_attrs
+        )
+
+        self.assertTrue(hasattr(self.layer, 'gate_up_weight'))
+        self.assertEqual(self.layer.gate_up_weight.data.shape, (64, 256, 1024))
+        self.assertEqual(self.layer.gate_up_weight.data.dtype, torch.int8)
+        self.assertEqual(self.layer.gate_up_weight.input_dim, 1)
+        self.assertEqual(self.layer.gate_up_weight.output_dim, 0)
+
+        self.assertTrue(hasattr(self.layer, 'down_weight'))
+        self.assertEqual(self.layer.down_weight.data.shape, (64, 1024, 128))
+        self.assertEqual(self.layer.down_weight.data.dtype, torch.int8)
+        self.assertEqual(self.layer.down_weight.input_dim, 1)
+        self.assertEqual(self.layer.down_weight.output_dim, 0)
+
+        self.assertTrue(hasattr(self.layer, 'gate_up_weight_scale'))
+        self.assertEqual(self.layer.gate_up_weight_scale.data.shape, (64, 256, 1))
+        self.assertEqual(self.layer.gate_up_weight_scale.data.dtype, torch.float32)
+        self.assertEqual(self.layer.gate_up_weight_scale.output_dim, 0)
+
+        self.assertTrue(hasattr(self.layer, 'down_weight_scale'))
+        self.assertEqual(self.layer.down_weight_scale.data.shape, (64, 1024, 1))
+        self.assertEqual(self.layer.down_weight_scale.data.dtype, torch.float32)
+        self.assertEqual(self.layer.down_weight_scale.input_dim, 0)
+
+    @patch("torch_npu.npu_dynamic_quant")
+    @patch("torch_npu.npu_grouped_matmul")
+    @patch("torch_npu.npu_dequant_swiglu_quant")
+    def test_apply(self, mock_npu_dequant_swiglu_quant, mock_npu_grouped_matmul, mock_npu_dynamic_quant):
+        """Test apply method."""
+
+        self.layer.gate_up_weight = torch.randint(-100, 100, (64, 1024, 256)).to(torch.int8)
+        self.layer.down_weight = torch.randint(-100, 100, (64, 128, 1024)).to(torch.int8)
+        self.layer.gate_up_weight_scale = torch.randn(64, 256, dtype=torch.float32)
+        self.layer.down_weight_scale = torch.randn(64, 1024, dtype=torch.float32)
+
+        x = torch.randn(100, 1024, dtype=torch.float16)
+        group_list = torch.randint(0, 100, (64,)).to(torch.int8)
+
+        mock_quantized_tensor = torch.randint(-100, 100, (100, 1024)).to(torch.int8)
+        mock_pertoken_scale = torch.randn(100, dtype=torch.float32)
+        mock_npu_dynamic_quant.return_value = (mock_quantized_tensor, mock_pertoken_scale)
+
+        mock_act_out = torch.randint(-100, 100, (100, 256)).to(torch.int8)
+        mock_down_scale = torch.randn(100, dtype=torch.float32)
+        mock_npu_dequant_swiglu_quant.return_value = (mock_act_out, mock_down_scale)
+
+        mock_gate_up_out = torch.randint(-100, 100, (100, 256)).to(torch.int32)
+        mock_down_out = torch.randn(100, 1024, dtype=torch.float16)
+        mock_npu_grouped_matmul.side_effect = [
+            [mock_gate_up_out],
+            [mock_down_out]
+        ]
+
+        output = self.method.apply(self.layer, x, group_list)
+
+        mock_npu_dynamic_quant.assert_called_once_with(x)
+        self.assertEqual(mock_npu_grouped_matmul.call_count, 2)
+        mock_npu_dequant_swiglu_quant.assert_called_once()
+
+        first_call_args = mock_npu_grouped_matmul.call_args_list[0]
+        self.assertTrue(torch.equal(first_call_args[1]["x"][0], mock_quantized_tensor))
+        self.assertTrue(torch.equal(first_call_args[1]["weight"][0], self.layer.gate_up_weight))
+        self.assertTrue(torch.equal(first_call_args[1]["group_list"], group_list))
+
+        second_call_args = mock_npu_grouped_matmul.call_args_list[1]
+        self.assertTrue(torch.equal(second_call_args[1]["x"][0], mock_act_out))
+        self.assertTrue(torch.equal(second_call_args[1]["weight"][0], self.layer.down_weight))
+        self.assertTrue(torch.equal(second_call_args[1]["group_list"], group_list))
+
+        self.assertEqual(output.shape, (100, 1024))
+
+    def test_process_weights_after_loading(self):
+        """Test process_weights_after_loading method."""
+        self.layer.gate_up_weight = ModelWeightParameter(torch.randn(64, 256, 1024))
+        self.layer.down_weight = ModelWeightParameter(torch.randn(64, 1024, 128))
+        self.layer.gate_up_weight_scale = ModelWeightParameter(torch.randn(64, 256, 1))
+        self.layer.down_weight_scale = ModelWeightParameter(torch.randn(64, 1024, 1))
+        self.method.process_weights_after_loading(self.layer)
+        self.assertEqual(self.layer.gate_up_weight.data.shape, (64, 1024, 256))
+        self.assertEqual(self.layer.down_weight.data.shape, (64, 128, 1024))
+        self.assertEqual(self.layer.gate_up_weight_scale.data.shape, (64, 256))
+        self.assertEqual(self.layer.gate_up_weight_scale.data.dtype, torch.float32)
+        self.assertEqual(self.layer.down_weight_scale.data.shape, (64, 1024))
 
 
 if __name__ == '__main__':
