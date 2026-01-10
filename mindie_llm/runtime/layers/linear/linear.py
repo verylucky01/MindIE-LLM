@@ -16,6 +16,7 @@ from mindie_llm.runtime.layers.parameter import BaseParameter, RowParameter, Col
 from mindie_llm.runtime.layers.quantization.ms_model_slim.quantization_config import QuantizationConfig
 from mindie_llm.runtime.layers.quantization.quantization_config_base import QuantizationConfigBase
 from mindie_llm.runtime.layers.linear.linear_method_base import LinearMethodBase
+from mindie_llm.runtime.layers.linear.linear_op import get_linear_custom_op
 from mindie_llm.runtime.layers.quantization.unquantized import UnquantizedLinearMethod
 from mindie_llm.runtime.utils.distributed import get_parallel_info_manager
 from mindie_llm.runtime.utils.distributed.utils import even_divide
@@ -91,6 +92,18 @@ class LinearBase(CustomLayer):
 
         self._post_init()
         self._create_weights()
+
+    def __call__(self, *args, **kwargs):
+        """
+        Select an appropriate method to replace the forward implementation,
+        typically related to features under runtime.
+        """
+        custom_op = get_linear_custom_op(self)
+        if custom_op is not None:
+            custom_op.update_attrs()
+            return custom_op(*args, **kwargs)
+        
+        return super().__call__(*args, **kwargs)
 
     def weight_loader(self, param: BaseParameter, loaded_weight: torch.Tensor, **kwargs) -> None:
         param.load_weight(loaded_weight=loaded_weight)

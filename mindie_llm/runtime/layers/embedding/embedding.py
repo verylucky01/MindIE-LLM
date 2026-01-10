@@ -10,6 +10,8 @@
 
 import torch
 import torch.distributed as dist
+import torch.nn.functional as F
+
 from mindie_llm.runtime.layers.custom_layer import CustomLayer
 from mindie_llm.runtime.layers.quantization.quantization_config_base import QuantizationConfigBase
 from mindie_llm.runtime.layers.quantization.quantization_method_base import QuantizationMethodBase
@@ -17,6 +19,7 @@ from mindie_llm.runtime.layers.quantization.unquantized import UnquantizedEmbedd
 from mindie_llm.runtime.layers.parameter import BaseParameter, ColumnParameter
 from mindie_llm.runtime.utils.distributed import get_parallel_info_manager
 from mindie_llm.runtime.utils.distributed.utils import even_divide
+from mindie_llm.runtime.model_runner.forward_context import get_forward_context
 
 
 class VocabParallelEmbedding(CustomLayer):
@@ -113,6 +116,7 @@ class VocabParallelEmbedding(CustomLayer):
         else:
             hidden_state = embed_out
 
+        hidden_state = maybe_slice_cross_tp(hidden_state, self.parallel_info)
         return hidden_state
 
     def extra_repr(self) -> str:
@@ -282,3 +286,21 @@ class ParallelLMHead(VocabParallelEmbedding):
             })
         else:
             self.register_parameter("bias", None)
+
+
+def maybe_slice_cross_tp(input_, parallel_info):
+    # After enabling flash_comm, slice hidden_states from the attn_tp range onto each device.
+    forward_context = get_forward_context()
+    if not forward_context.enable_flash_comm:
+        return input_
+
+    world_size = parallel_info.group_size
+    if world_size <= 1:
+        return input_
+    
+    pad_size = (world_size - (input_.shape[0] % world_size)) % world_size
+    if pad_size > 0:
+        input_ = F.pad(input_, (0, 0, 0, pad_size))
+    output_ = input_.view(world_size, -1, *input_.shape[1:])[parallel_info.rank]
+
+    return output_
