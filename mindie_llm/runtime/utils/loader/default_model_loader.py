@@ -9,6 +9,7 @@
 # See the Mulan PSL v2 for more details.
 
 import time
+from itertools import product
 
 import torch
 from torch import nn
@@ -17,11 +18,15 @@ from tqdm.auto import tqdm
 from mindie_llm.runtime.layers.fused_moe.fused_moe import FusedMoE
 from mindie_llm.runtime.utils.loader.weight_utils import WeightsFileHandler
 from mindie_llm.runtime.layers.quantization.quantization_method_base import QuantizationMethodBase
+from mindie_llm.runtime.layers.attention.backend.abstract import AttentionImpl
 from mindie_llm.runtime.utils.distributed import get_parallel_info_manager
 from mindie_llm.utils.log.logging import logger
 
 
 _BAR_FORMAT = "{desc}: {l_bar}{bar}| Completed | {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]"
+
+
+_global_param_dict: dict | None = None
 
 
 class DefaultModelLoader:
@@ -63,9 +68,14 @@ class DefaultModelLoader:
             for weight_suffix, param in module.named_parameters():
                 if param is None:
                     continue
+
                 full_param_name = f"{weight_prefix}.{weight_suffix}"
+                if check_and_reuse_global_param_dict(param, full_param_name):
+                    continue
+
                 loaded_weight = self._weight_file_handler.get_tensor(full_param_name)
                 param.weight_loader(param, loaded_weight, shard_id)
+                update_global_param_dict(full_param_name, param)
 
     def _load_single_prefix_module(self, module: nn.Module, prefix: str) -> None:
         """Load weights for single-prefix modules."""
@@ -73,6 +83,9 @@ class DefaultModelLoader:
             if param is None:
                 continue
             full_param_name = f"{prefix}.{weight_suffix}"
+            if check_and_reuse_global_param_dict(param, full_param_name):
+                continue
+
             try:
                 loaded_weight = self._weight_file_handler.get_tensor(full_param_name)
             except ValueError as e:
@@ -81,8 +94,7 @@ class DefaultModelLoader:
                     full_param_name = f"{module.prefix}.{weight_suffix}"
                     loaded_weight = self._weight_file_handler.get_tensor(full_param_name)
             param.weight_loader(param, loaded_weight)
-            if isinstance(module, FusedMoE):
-                module.weight_loader(loaded_weight, full_param_name)
+            update_global_param_dict(full_param_name, param)
     
     def _load_modules_with_progress(self, modules_dict: dict, pbar: tqdm,) -> None:
         """Load weights for modules with progress."""
@@ -90,6 +102,19 @@ class DefaultModelLoader:
             # Handling multi-prefix modules
             if hasattr(module, "prefix") and isinstance(module.prefix, list):
                 self._load_multi_prefix_module(module)
+            elif isinstance(module, FusedMoE):
+                # Handle weights (and optionally scale/bias) for every local expert.
+                # Note: Will be optimized later, should not depend on specific classes.
+                expert_list = module.expert_list
+                weight_components_suffix = module.get_weight_components_suffix()
+                for expert_id, module_suffix, weight_suffix in product(
+                    expert_list,
+                    module.suffix,
+                    weight_components_suffix
+                ):
+                    full_param_name = f"{prefix}.{expert_id}.{module_suffix}.{weight_suffix}"
+                    loaded_weight = self._weight_file_handler.get_tensor(full_param_name)
+                    module.weight_loader(loaded_weight, full_param_name)
             else:  # Processing single prefix Module
                 self._load_single_prefix_module(module, prefix)
 
@@ -97,6 +122,11 @@ class DefaultModelLoader:
             quant_method = getattr(module, "quant_method", None)
             if isinstance(quant_method, QuantizationMethodBase):
                 quant_method.process_weights_after_loading(module)
+
+            # Note: a common process_weights_after_loading method for module is needed.
+            attn_impl = getattr(module, "impl", None)
+            if isinstance(attn_impl, AttentionImpl):
+                attn_impl.process_weights_after_loading()
         
             pbar.update(1)
 
@@ -112,3 +142,20 @@ class DefaultModelLoader:
         
         self._load_modules_with_progress(leaf_modules_dict, pbar)
         pbar.close()
+
+
+def update_global_param_dict(full_param_name: str, param):
+    # Note: rm _global_param_dict after load weight
+    global _global_param_dict
+    _global_param_dict[full_param_name] = param
+
+
+def check_and_reuse_global_param_dict(target_param, full_param_name: str):
+    global _global_param_dict
+    if _global_param_dict is None:
+        _global_param_dict = {}
+    if full_param_name in _global_param_dict:
+        source_param = _global_param_dict[full_param_name]
+        target_param.data = source_param.data
+        return True
+    return False

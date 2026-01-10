@@ -96,7 +96,9 @@ class LinearBase(CustomLayer):
     def __call__(self, *args, **kwargs):
         """
         Select an appropriate method to replace the forward implementation,
-        typically related to features under runtime.
+        typically related to features.
+
+        Note: should be optimized, the op_cls object could be only init once.
         """
         custom_op = get_linear_custom_op(self)
         if custom_op is not None:

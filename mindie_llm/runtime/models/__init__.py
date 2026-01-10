@@ -14,7 +14,7 @@ import os
 from mindie_llm.runtime.config.load_config import LoadConfig
 from mindie_llm.runtime.utils.helpers.safety.file import check_file_permission, safe_listdir
 from mindie_llm.runtime.utils.helpers.safety.hf import safe_get_config_dict
-from mindie_llm.runtime.models.base import tool_call_processors_registry
+from mindie_llm.runtime.models.base import tool_calls_processor_registry
 
 
 def get_router_ins(load_config: LoadConfig):
