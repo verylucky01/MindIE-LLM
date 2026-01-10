@@ -15,7 +15,7 @@ from .sparse_attention import SfaBackend
 
 
 def get_attn_backend(
-    use_mla=False, # (wy): Interfaces to be redesigned
+    use_mla=False, # NOTE: Interfaces to be redesigned
     use_sfa=False
 ) -> type[AttentionBackend]:
     if use_mla:

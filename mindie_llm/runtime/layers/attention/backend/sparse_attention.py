@@ -184,14 +184,14 @@ class SfaBackend(AttentionBackend):
 
 @dataclass
 class SfaMetadata(AttentionMetadata):
-    # (wy):This class is used for building attention metadata in the future.
+    # NOTE: This class is used for building attention metadata in the future.
     actual_seq_lengths_kv: torch.Tensor | None = None
     actual_seq_lengths_query: torch.Tensor | None = None
     cp_input_dict: Dict | None = None
 
 
 class SfaMetadataBuilder: 
-    # (wy):This class is used for building attention metadata in the future.
+    # NOTE: This class is used for building attention metadata in the future.
     @staticmethod
     def build(
         common_attn_metadata: AttentionMetadata,
@@ -285,7 +285,7 @@ class SfaBackendImpl(SelectAttentionImpl):
         self.kv_cache = None
         self.pe_cache = None
         self.index_cache = None
-        self.block_size = 128   # (wy):currently hard-coding.
+        self.block_size = 128   # NOTE: currently hard-coding.
         self.prefix = prefix
         self.parallel_info = get_parallel_info_manager()
         self.cp_size = self.parallel_info.attn_cp.group_size
@@ -726,7 +726,7 @@ class SfaBackendImpl(SelectAttentionImpl):
         forward_context: ForwardContext,
         attn_metadata: AttentionMetadata
     ):
-        if self.kv_cache is None:
+        if self.kv_cache is None or id(self.kv_cache) != id(kv_cache[0]):
             self.kv_cache, self.pe_cache, self.index_cache = kv_cache[0], kv_cache[1], kv_cache[2]
 
         decode_preprocess_res = None

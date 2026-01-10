@@ -53,7 +53,7 @@ class FiaAttentionBackend(AttentionBackend):
 
 @dataclass
 class FiaAttentionMetadata(AttentionMetadata):
-    # (wy):This class is used for building attention metadata in the future.
+    # NOTE: This class is used for building attention metadata in the future.
     seq_lens: torch.Tensor
     seq_lens_list: list | None = None
 
@@ -67,7 +67,7 @@ class FiaAttentionMetadata(AttentionMetadata):
 
 
 class FiaAttentionMetadataBuilder: 
-    # (wy):This class is used for building attention metadata in the future.
+    # NOTE: This class is used for building attention metadata in the future.
 
     @staticmethod
     def build(
@@ -108,7 +108,7 @@ class FiaAttentionBackendImpl(AttentionImpl):
         self.num_queries_per_kv = self.num_heads // self.num_kv_heads
         self.key_cache = None
         self.value_cache = None
-        self.block_size = 128   # (xsx):currently hard-coding.
+        self.block_size = 128   # NOTE: currently hard-coding.
 
     def reshape_and_cache(
         self,
@@ -117,7 +117,7 @@ class FiaAttentionBackendImpl(AttentionImpl):
         kv_cache: Tuple[torch.Tensor],
         attn_metadata: AttentionMetadata,
     ):
-        if self.key_cache is None:
+        if self.key_cache is None or id(self.key_cache) != id(kv_cache[0]):
             self.key_cache, self.value_cache = kv_cache[0], kv_cache[1]
         torch_npu._npu_reshape_and_cache(
             key=key,
@@ -237,7 +237,7 @@ class FiaAttentionBackendImpl(AttentionImpl):
 
     def forward(
         self,
-        layer: AttentionLayer, # (wy): C8 will use this param in the future.
+        layer: AttentionLayer, # NOTE: C8 will use this param in the future.
         query: torch.Tensor,
         key: torch.Tensor,
         value: torch.Tensor,

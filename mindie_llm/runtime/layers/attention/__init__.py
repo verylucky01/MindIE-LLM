@@ -21,3 +21,14 @@ def update_global_attn_dict(prefix, attn):
 
 def get_global_attn_dict():
     return _global_attn_dict
+
+
+def clear_global_attn_dict():
+    global _global_attn_dict
+    _global_attn_dict.clear()
+
+
+def flush_global_attn_dict(attns):
+    global _global_attn_dict
+    _global_attn_dict.clear()
+    _global_attn_dict.update(attns)
