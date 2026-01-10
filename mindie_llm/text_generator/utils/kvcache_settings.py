@@ -234,7 +234,7 @@ class KVCacheSettings:
 
     @staticmethod
     def dtype_to_str(backend_type: BackendType, dtype) -> str:
-        if backend_type == BackendType.ATB:
+        if backend_type != BackendType.MS:
             dtype_map = torch_dtype_map
         else:
             import mindspore

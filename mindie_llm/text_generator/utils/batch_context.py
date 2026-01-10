@@ -428,7 +428,7 @@ class BatchContext:
 
             return ms.Tensor(data) if data.size > 0 else None
 
-        if context_params.generator_backend_type == BackendType.ATB:
+        if context_params.generator_backend_type != BackendType.MS:
             self.to_tensor = torch_to_tensor
         else:
             self.to_tensor = mindspore_to_tensor

@@ -336,7 +336,7 @@ class Generator(PDInterface):
             self.async_inference,
             self.distributed_enable,
             self.max_generated_tokens,
-            BackendType.ATB if self.backend_type == "atb" else BackendType.MS,
+            {"atb": BackendType.ATB, "ms": BackendType.MS}.get(self.backend_type, BackendType.TORCH),
             self.layerwise_disaggregated,
             self.layerwise_disaggregated_role_type
         )
