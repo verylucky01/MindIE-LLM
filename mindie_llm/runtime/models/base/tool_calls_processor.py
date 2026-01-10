@@ -154,10 +154,6 @@ class ToolCallsProcessorWithXml(ToolCallsProcessor):
             tool_calls = []
         return tool_calls
 
-    # NOTE waiting to move somewhere else
-    def parse_tool_calls_v32(self, text):
-        raise NotImplementedError("Subclasses must implement the 'parse_tool_calls_v32' property.")
-
     def decode(self, content: str) -> dict[str, Any]:
         """
         example content:
