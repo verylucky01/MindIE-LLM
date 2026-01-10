@@ -101,6 +101,23 @@ def set_device(rank: int, npu_id: int = None) -> torch.device:
         device = get_device_from_ranktable(rank, rank_table)
     else:
         device = torch.device(f"npu:{npu_id}")
-    torch.npu.set_device(device)
+    
+    # Try to set device, it will retry 12 times when it failed.
+    retry_max = 12
+    for i in range(retry_max):
+        try:
+            torch.npu.set_device(device)
+        except Exception as e:
+            if i == retry_max - 1:
+                err_msg = f"Set device {device} for rank {rank} fails, {str(e)}"
+                logger.error(err_msg)
+                raise RuntimeError(err_msg) from e
+
+            warning_msg = f"Set device {device} for rank {rank} fails." \
+                f"Now wait 5 seconds to retry setting, retry times: {i + 1} / 12"
+            logger.warning(warning_msg)
+            time.sleep(5) # Wait 5s to retry setting
+            continue
+        break
     logger.info(f"Device {device} has been set to rank {rank}.")
     return device
