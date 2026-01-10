@@ -12,6 +12,7 @@ from typing import Optional, Any
 from dataclasses import dataclass
 
 from mindie_llm.runtime.config.huggingface_config import HuggingFaceConfig
+from mindie_llm.runtime.utils.helpers.parameter_validators import IntParameterValidator, Field
 from mindie_llm.utils.log.error_code import ErrorCode
 from mindie_llm.utils.log.logging import logger
 
@@ -58,23 +59,19 @@ class DeepseekV3Config(HuggingFaceConfig):
     def validate(self):
         super().validate()
         
-        attribute_ranges = {
-            "num_experts_per_tok": (1, 256),
-            "n_shared_experts": (0, 256),
-            "first_k_dense_replace": (0, 61),
-            "n_routed_experts ": (2, 256),
-            "q_lora_rank": (1, 1536),
-            "qk_nope_head_dim": (1, 128),
-            "qk_rope_head_dim": (1, 64),
+        validators = {
+            'num_experts_per_tok': IntParameterValidator(Field(ge=1, le=256), allow_none=True),
+            'n_shared_experts': IntParameterValidator(Field(ge=0, le=256), allow_none=True),
+            'first_k_dense_replace': IntParameterValidator(Field(ge=0, le=61), allow_none=False),
+            'n_routed_experts': IntParameterValidator(Field(ge=2, le=256), allow_none=True),
+            'q_lora_rank': IntParameterValidator(Field(ge=1, le=1536), allow_none=True),
+            'qk_nope_head_dim': IntParameterValidator(Field(ge=1, le=128), allow_none=True),
+            'qk_rope_head_dim': IntParameterValidator(Field(ge=1, le=64), allow_none=True)
         }
-        for attr, (min_val, max_val) in attribute_ranges.items():
-            if not hasattr(self, attr) or getattr(self, attr) is None:
-                continue
-            value = getattr(self, attr)
-            if value < min_val or value > max_val:
-                msg = f"self.{attr} = {value}, must be between {min_val} and {max_val}"
-                logger.error(msg, ErrorCode.ATB_MODELS_PARAM_OUT_OF_RANGE)
-                raise ValueError(msg)
+
+        for key, validator in validators.items():
+            value = getattr(self, key)
+            validator.validate(value, key)         
 
         if getattr(self, "num_experts_per_tok") > getattr(self, "n_routed_experts"):
             msg = f"self.num_experts_per_tok should be less than self.n_routed_experts, " \
