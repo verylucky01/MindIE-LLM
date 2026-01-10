@@ -4,9 +4,7 @@
 
 **MindIE-LLM** 是与昇腾系列产品高度亲和的大模型推理框架，安装时请注意版本号一致。
 
-MindIE LLM的安装包含镜像,源码和pip install方式。各安装方案的使用场景如下所示，请根据实际场景选择合适的安装方式。
-
-
+MindIE LLM 的安装包含镜像、源码和 `pip install xxx` 方式。各安装方案的使用场景如下所示，请根据实际场景选择合适的安装方式。
 
 ## 2 安装前准备
 
@@ -27,9 +25,12 @@ uname -m && cat /etc/*release
 
 ### 2.2 软件环境
 
+> [!NOTE]说明
+>- 使用 Docker 镜像安装 MindIE-LLM 时，无需安装软件环境，了解即可。
+
 | 软件 | 版本 |
 | ---- | ----- |
-| [Python](https://www.python.org/) | 3.10 ~ 3.13 |
+| [Python](https://www.python.org/) | 3.10 ~ 3.11 |
 | [GCC](https://gcc.gnu.org/) | 需支持 C++17 标准 |
 | [Cmake](https://cmake.org/) | 版本不能低于 3.19 |
 | [git](https://git-scm.com/) | 推荐稳定版本 2.34.x - 2.42.x |
