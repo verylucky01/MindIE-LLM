@@ -197,12 +197,17 @@ void SingleLLMPrefillReqHandler::GetSingleLLMPrefillReqHandlerId()
 
 void SingleLLMPrefillReqHandler::SetBackManagerCallBack(RequestSPtr request)
 {
-    auto self = shared_from_this();
+    // 使用weak_ptr避免因request与handler之间循环引用导致的内存泄漏
+    std::weak_ptr<SingleLLMPrefillReqHandler> weakSelf = shared_from_this();
     std::string dTargetAddr = ctx->Req().get_header_value("d-target");
     bool containPort = dTargetAddr.find(IP_PORT_DELIMITER) != std::string::npos;
     GetPNodeAddr(containPort);
     GetSingleLLMPrefillReqHandlerId();
-    request->serverResponseCallback_ = [self, dTargetAddr](ResponseSPtr response) {
+    request->serverResponseCallback_ = [weakSelf, dTargetAddr](ResponseSPtr response) {
+        auto self = weakSelf.lock();
+        if (!self) {
+            return;
+        }
         std::unique_lock lock(self->prefillCbMutex);
         if (response == nullptr) {
             ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SPLITWISE,

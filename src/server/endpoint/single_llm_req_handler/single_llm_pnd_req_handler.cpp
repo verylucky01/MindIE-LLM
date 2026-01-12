@@ -118,9 +118,14 @@ void SingleLLMPnDReqHandler::Process(RequestSPtr request, const std::string &inp
 
 void SingleLLMPnDReqHandler::SetBackManagerCallBack(RequestSPtr request)
 {
-    auto self = shared_from_this();
+    // 使用weak_ptr避免因request与handler之间循环引用导致的内存泄漏
+    std::weak_ptr<SingleLLMPnDReqHandler> weakSelf = shared_from_this();
     auto requestId = request->requestId;
-    request->serverResponseCallback_ = [self, requestId](ResponseSPtr response) {
+    request->serverResponseCallback_ = [weakSelf, requestId](ResponseSPtr response) {
+        auto self = weakSelf.lock();
+        if (!self) {
+            return;
+        }
         if (response == nullptr) {
             ULOG_ERROR(SUBMODLE_NAME_ENDPOINT,
                        GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SINGLE_INFERENCE, CHECK_ERROR),
@@ -171,9 +176,14 @@ void SingleLLMPnDReqHandler::SimulateProcess(RequestSPtr request, const std::str
 
 void SingleLLMPnDReqHandler::SetSimulateBackManagerCallBack(RequestSPtr request)
 {
-    auto self = shared_from_this();
+    // 使用weak_ptr避免因request与handler之间循环引用导致的内存泄漏
+    std::weak_ptr<SingleLLMPnDReqHandler> weakSelf = shared_from_this();
     auto requestId = request->requestId;
-    request->serverResponseCallback_ = [self, requestId](ResponseSPtr response) {
+    request->serverResponseCallback_ = [weakSelf, requestId](ResponseSPtr response) {
+        auto self = weakSelf.lock();
+        if (!self) {
+            return;
+        }
         if (response == nullptr) {
             ULOG_ERROR(SUBMODLE_NAME_ENDPOINT,
                        GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SINGLE_INFERENCE, CHECK_ERROR),

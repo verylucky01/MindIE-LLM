@@ -74,6 +74,7 @@ RequestIdNew SingleReqInferInterfaceBase::GetRequestId() { return requestId_; }
 
 SingleReqInferInterfaceBase::~SingleReqInferInterfaceBase()
 {
+    singleLLMReqHandlerBase_ = nullptr;
     try {
         ULOG_DEBUG(SUBMODLE_NAME_ENDPOINT,
                    "Delete SingleReqInferInterfaceBase #" << (++g_numDeleteSingleReqInferInterfaceBase));
