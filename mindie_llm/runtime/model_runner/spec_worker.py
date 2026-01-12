@@ -188,10 +188,10 @@ class MtpWorker(BaseWorkerProxy):
         lm_head_indices = sub_model_inputs.prefill_head_indices
         slots = sub_model_inputs.slots
 
-        hidden_states_mtp = draft_kwargs.get("hidden_states")
+        hidden_states_mtp_input = draft_kwargs.get("hidden_states")
         q_lens = draft_kwargs.get("q_lens")
         slot_list = self.mtp_iter_slot_calc(slots)
-        draft_kwargs["last_hidden_states"] = hidden_states_mtp
+        draft_kwargs["last_hidden_states"] = hidden_states_mtp_input
         # draft forward
         for mtp_idx in range(self.num_speculative_tokens):
             slot_mapping = slot_list[mtp_idx]
@@ -200,7 +200,7 @@ class MtpWorker(BaseWorkerProxy):
             draft_kwargs.update({"input_lengths": seq_lens})
             draft_kwargs.update({"block_tables": block_tables})
             draft_kwargs.update({"slot_mapping": slot_mapping})
-            draft_kwargs.update({"last_hidden_states": hidden_states_mtp})
+            draft_kwargs.update({"last_hidden_states": hidden_states_mtp_input})
             draft_kwargs.update({"lm_head_indices": lm_head_indices})
 
             logits_mtp, hidden_states_mtp = self.draft_model_runner.forward(**draft_kwargs)
@@ -234,6 +234,8 @@ class MtpWorker(BaseWorkerProxy):
                         hidden_states_mtp=hidden_states_mtp,
                         seq_lens=q_lens,
                         lm_head_indices=lm_head_indices_for_dp_update)
+                    
+                    hidden_states_mtp_input = hidden_states_mtp
 
         if self.num_speculative_tokens > 1:
             all_logits_mtp = torch.stack(all_logits_mtp, dim=1)

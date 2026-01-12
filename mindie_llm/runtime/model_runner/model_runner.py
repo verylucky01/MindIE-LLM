@@ -165,8 +165,9 @@ class ModelRunner:
         
         # we store tensors here, decide not to use auto padding now.
         if self.enable_acl_graph:
-            max_graph_batch_size = self.max_batch_size if self.max_batch_size > 0 else 128
-            self.graph_batch_sizes = [1, 2, 4] + list(range(8, max_graph_batch_size + 1, 8))
+            max_graph_batch_size = self.max_batch_size * \
+                (self.num_speculative_tokens + 1) if self.max_batch_size > 0 else 128 
+            self.graph_batch_sizes = [1, 2, 4] + list(range(8, max_graph_batch_size + 8, 8))
             max_num_token = self.graph_batch_sizes[-1] * (self.num_speculative_tokens + 1)
             self.input_ids = torch.zeros(max_num_token, dtype=torch.int32, device=self.device)
             self.position_ids = torch.zeros(max_num_token, dtype=torch.int64, device=self.device)
@@ -388,24 +389,24 @@ class ModelRunner:
             logger.info(f"Current batch size {num_tokens} is larger than {self.graph_batch_sizes[-1]},"
                         " using eager mode.")
             return input_ids, position_ids, input_metadata
-        
+
+        num_reqs = num_actual_tokens // (self.num_speculative_tokens + 1)
         self.input_ids[:num_actual_tokens].copy_(input_ids[:num_actual_tokens])
         self.position_ids[:num_actual_tokens].copy_(position_ids[:num_actual_tokens])
-        self.seq_lens[:num_actual_tokens].copy_(seq_lens[:num_actual_tokens])
+        self.seq_lens[:num_reqs].copy_(seq_lens[:num_reqs])
 
         max_len = seq_lens.max().item()
         max_seq_pages = (max_len + self.block_size - 1) // self.block_size
         
-        self.block_tables[:num_actual_tokens, :block_tables.shape[-1]].copy_(block_tables)
-        self.block_tables[:num_tokens, max_seq_pages:].fill_(0)
-        self.block_tables[num_tokens:, :].fill_(0)
+        self.block_tables[:num_reqs, :block_tables.shape[-1]].copy_(block_tables)
+        self.block_tables[:num_reqs, max_seq_pages:].fill_(0)
+        self.block_tables[num_reqs:, :].fill_(0)
         self.slot_mapping[:num_actual_tokens].copy_(slot_mapping[:num_actual_tokens])
 
         
         input_ids = self.input_ids[:num_tokens]
         position_ids = self.position_ids[:num_tokens]
         seq_lens = self.seq_lens[:num_tokens]
-        block_tables = self.block_tables[:num_tokens, :]
         slot_mapping = self.slot_mapping[:num_tokens]
 
         actual_len, last_req_tokens = \
