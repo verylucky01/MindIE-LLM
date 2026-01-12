@@ -42,6 +42,10 @@ class OutputFilter:
         self.layerwise_disaggregated = tg_infer_context.context_params.layerwise_disaggregated
         self.layerwise_disaggregated_role_type = tg_infer_context.context_params.layerwise_disaggregated_role_type
 
+        # Warm up: Numba JIT compilation is triggered on the first call and can make the first request slow.
+        # Trigger compilation here with a minimal input to reduce first-request latency.
+        check_column_equals_numba(np.zeros((2, 2), dtype=np.int64), np.zeros(2, dtype=np.int64), 0)
+
     def decode_one(self, input_tokens, skip_special_tokens):
         pre_index = len(input_tokens) - 1
         start_index = max(pre_index - self.tokenizer_sliding_window_size, 0)
