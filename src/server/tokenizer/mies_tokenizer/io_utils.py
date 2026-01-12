@@ -17,9 +17,11 @@ import shutil
 import time
 from io import BytesIO
 from multiprocessing import shared_memory
+import re
 import psutil
 import requests
 from PIL import Image
+from urllib3.util import parse_url
 from . import file_utils
 
 logger = file_utils.get_tokenizer_logger()
@@ -30,6 +32,32 @@ _TOKENIZER_ENCODE_TIMEOUT = "TOKENIZER_ENCODE_TIMEOUT"
 _CONNECT_TIMEOUT = 5
 _READ_TIMEOUT = 30
 _MAX_TOKENIZER_NUMBER = 32
+
+_STANDARD_S3_PATTERNS = [
+    re.compile(r'^[a-z0-9.\-]+\.s3[.-][a-z0-9\-]+\.amazonaws\.com$'),
+    re.compile(r'^s3[.-][a-z0-9\-]+\.amazonaws\.com$'),
+    re.compile(r'^[a-z0-9.\-]+\.s3\.amazonaws\.com$'),
+    re.compile(r'^s3\.amazonaws\.com$'),
+    re.compile(r'^[a-z0-9.\-]+\.s3-website[.-][a-z0-9\-]+\.amazonaws\.com$'),
+]
+_S3_COMPATIBLE_PATTERNS = [
+    re.compile(r'^[a-z0-9.\-]+\.([a-z0-9\-]+\.)?digitaloceanspaces\.com$'),
+    re.compile(r'^[a-z0-9.\-]+\.minio([-.][a-z0-9\-]+)?\.[a-z0-9\-]+$'),
+    re.compile(r'^[a-z0-9.\-]+\.([a-z0-9\-]+\.)?(storage|objectstorage|s3)\.[a-z0-9\-]+\.[a-z0-9\-]+$')
+]
+_S3_SIGNATURE_PATTERNS = frozenset([
+    'x-amz-algorithm',
+    'x-amz-credential',
+    'x-amz-date',
+    'x-amz-expires',
+    'x-amz-signedheaders',
+    'x-amz-signature',
+    'awsaccesskeyid',
+    'signature',
+    'x-amz-security-token'
+])
+_S3_DOMAINS = frozenset(['s3.amazonaws.com', 's3.us-east-1.amazonaws.com'])
+_S3_KEYWORDS = frozenset(['amazonaws', 's3', 'storage', 'objectstorage', 'spaces', 'minio'])
 
 
 def fetch_media_url(image_url, input_type: str, ext: str, limit_params: tuple,
@@ -234,3 +262,98 @@ def clear_meida_cache(dir_path: str):
         raise IOError("Clear cache media failed.") from os_error
     except Exception as e:
         raise IOError("Clear cache media failed.") from e
+
+
+def is_s3_compatible_url(url):
+    """
+    Check if a URL is S3-compatible, including standard S3 URLs and pre-signed URLs.
+    This function identifies S3-compatible URLs by checking:
+    1. Standard S3 URL patterns (virtual-hosted and path-style)
+    2. S3 signature parameters in query string for pre-signed URLs
+    3. S3-like domain patterns or bucket structure
+    Args:
+        url (str): The URL to check
+    Returns:
+        bool: True if the URL is S3-compatible, False otherwise
+    """
+    try:
+        parsed_url = parse_url(url)
+        scheme = parsed_url.scheme or ''
+        netloc = parsed_url.netloc or ''
+        query = parsed_url.query or ''
+        path = parsed_url.path or ''
+        netloc_lower = netloc.lower()
+        query_lower = query.lower()
+        path_count = sum(1 for p in path.strip('/').split('/') if p)
+        if not scheme or not netloc:
+            logger.warning(f"Invalid URL structure: {url}")
+            return False
+        # 1. Check for standard S3 URL patterns using regex
+        if any(pattern.match(netloc_lower) for pattern in _STANDARD_S3_PATTERNS):
+            logger.info(f"Standard S3 URL detected: {url}")
+            return True
+        # 2. Check for S3 signature parameters in query string (pre-signed URLs)
+        if any(pattern in query_lower for pattern in _S3_SIGNATURE_PATTERNS):
+            logger.info(f"S3 pre-signed URL detected: {url}")
+            return True
+        # 3. Check for S3-compatible services (MinIO, DigitalOcean Spaces, etc.)
+        if any(pattern.match(netloc_lower) for pattern in _S3_COMPATIBLE_PATTERNS):
+            logger.info(f"S3-compatible service URL detected: {url}")
+            return True
+        # 4. Check for bucket-like path structure in path-style URLs
+        if netloc_lower in _S3_DOMAINS and path_count >= 2:
+            logger.warning(f"Path-style S3 URL detected: {url}")
+            return True
+        # 5. Fallback check for S3-like keywords in domain
+        if (any(keyword in netloc_lower for keyword in _S3_KEYWORDS) and path_count >= 2):
+            logger.info(f"S3-like domain detected: {url}")
+            return True
+        logger.info("This URL is not S3-compatible.")
+        return False
+    except Exception as e:
+        logger.warning(f"Invalid URL: {url}, error: {e}")
+        return False
+
+
+def extract_s3file_extension(url):
+    """
+    Extract the file extension from a URL including the dot.
+    Args:
+        url (str): The URL to extract file extension from
+    Returns:
+        str: The extracted file extension including the dot in lowercase, or empty string if none
+    """
+    try:
+        parsed_url = parse_url(url)
+        path = parsed_url.path or ''
+        if not path:
+            return ''
+        filename = path.rstrip('/').split('/')[-1]
+        if not filename:
+            return ''
+        last_dot_index = filename.rfind('.')
+        if last_dot_index > 0 and last_dot_index < len(filename) - 1:
+            file_extension = filename[last_dot_index:].lower()
+            return file_extension
+        return ''
+    except Exception as e:
+        logger.warning(f"Invalid URL: {url}, error: {e}")
+        return ''
+
+
+def extract_extension_from_url(ext):
+    """
+    Determine whether the input ext represents a regular file path or an S3 URL, and extract the file extension.
+    """
+    if not isinstance(ext, str) or not ext:
+        return ''
+    if is_s3_compatible_url(ext):
+        extension = extract_s3file_extension(ext)
+        if extension:
+            logger.info(f"Extracted extension from S3 URL: {extension}")
+            return extension
+        else:
+            return "Failed to extract file extension"
+    else:
+        _, extension = os.path.splitext(ext)
+        return extension

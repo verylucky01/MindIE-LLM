@@ -17,10 +17,11 @@ import signal
 import multiprocessing
 import threading
 import time
-from urllib.parse import urlparse
 import re
 import traceback
 import numpy as np
+from urllib3.util import parse_url
+from urllib3.exceptions import LocationParseError
 
 from mindie_llm.modeling.model_wrapper import get_tokenizer_wrapper
 from . import io_utils
@@ -141,10 +142,18 @@ class IbisTokenizer:
 
     @staticmethod
     def _process_url_path(media_url, ext, input_type, cache_dir, total_start_time):
-        parsed_url = urlparse(media_url)
-        if parsed_url.scheme not in ("http", "https"):
-            logger.error("Invalid HTTP URL.")
-            raise ValueError("Invalid HTTP URL.")
+        try:
+            parsed_url = parse_url(media_url)
+            scheme = parsed_url.scheme if parsed_url.scheme else ""
+            if scheme not in ("http", "https"):
+                logger.error("Invalid HTTP URL.")
+                raise ValueError("Invalid HTTP URL.")
+        except LocationParseError as e:
+            logger.error(f"Failed to parse URL: {media_url}")
+            raise ValueError(f"Invalid URL: {media_url}") from e
+        except Exception as e:
+            logger.error(f"Failed to parse URL: {media_url}")
+            raise ValueError(f"Invalid URL: {media_url}") from e
 
         limit_params = (_SIZE_LIMITS, total_start_time)
         media_content, media_size = io_utils.fetch_media_url(media_url, input_type, ext, limit_params, _MEDIA_TYPE)
@@ -206,10 +215,17 @@ class IbisTokenizer:
         """
         Extract normalized domain (hostname) from a URL.
         """
-        parsed = urlparse(url)
-        if not parsed.scheme or not parsed.hostname:
-            raise ValueError(f"Invalid URL: {url}")
-        return parsed.hostname.lower()
+        try:
+            parsed = parse_url(url)
+            if not parsed.scheme or not parsed.host:
+                raise ValueError(f"Invalid URL: {url}")
+            return parsed.host.lower()
+        except LocationParseError as e:
+            logger.error(f"Invalid URL: {url}")
+            raise ValueError(f"Invalid URL: {url}") from e
+        except Exception as e:
+            logger.error(f"Invalid URL: {url}")
+            raise ValueError(f"Invalid URL: {url}") from e
 
     @staticmethod
     def _load_allowed_media_domains() -> set[str]:
@@ -536,7 +552,7 @@ class IbisTokenizer:
             logger.error(f"Input of {input_type} should be str or dict.")
             raise ValueError(f"Input of {input_type} should be str or dict.")
 
-        _, ext = os.path.splitext(media_url)
+        ext = io_utils.extract_extension_from_url(media_url)
         cache_dir = self.media_cache_dirs.get(input_type)
 
         if media_url.startswith("http://") or media_url.startswith("https://"):  # http or https
