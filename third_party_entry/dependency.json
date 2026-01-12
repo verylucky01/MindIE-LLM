@@ -90,10 +90,10 @@
         "sha256": "2eec31f2ac0e126ff68d8107891ef534159c4fcfb095365d4cd4dc57d82616ee"
     },
     "http": {
-        "url": "https://mindie.obs.cn-north-4.myhuaweicloud.com/open_source/cpp-httplib/v0.28.0.zip",
+        "url": "https://mindie.obs.cn-north-4.myhuaweicloud.com/open_source/cpp-httplib/v0.30.0.zip",
         "type": "file",
         "fileName": "cpp-httplib.zip",
-        "sha256": "7f60ac8599abf8193eaad4be09f17116b8930dcbe84a42ca7e2c302db1354c42"
+        "sha256": "109f114dfbf73a44db13fda037712ecd8814cbd9f6d24647ae24aa6943f096cb"
     },
     "prometheus-cpp": {
         "url": "https://mindie.obs.cn-north-4.myhuaweicloud.com/open_source/prometheus-cpp/v1.3.0/prometheus-cpp-with-submodules.tar.gz",
