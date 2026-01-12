@@ -5,18 +5,20 @@ Sequence Parallel（SP，序列并行）通过对KV Cache进行切分，使得�
 ## 限制与约束
 
 -  Atlas 800I A2 推理服务器和Atlas 800I A3 超节点服务器支持此特性。
--  当前仅DeepSeek-R1的W8A8量化模型支持此特性。
+-  当前仅DeepSeek-R1/V3.1模型支持此特性。
 -  支持PD分离场景和PD混部场景。
 -  SP必须等于TP。
 -  PD混部场景时：
-    -  该特性可以和DP、TP同时使用，DP和TP的乘积等于Worldsize。
-    -  该特性支持与MTP=1、异步调度特性叠加使用。
+    -  该特性可以和DP(data parallel)、TP(tensor parallel)同时使用，DP和TP的乘积等于Worldsize。
+    -  该特性可以和CP(context parallel)、TP、MTP同时使用，CP和TP的乘积等于Worldsize。
+    -  该特性支持与MTP=1、异步调度、prefixcache特性叠加使用。
 
 -  PD分离场景时：
     -  仅支持在P节点开启SP特性，该特性可以和DP、TP、MTP同时使用 ，DP和TP的乘积等于Worldsize。
-    -  该特性支持与MTP、异步调度特性叠加使用。
+    -  仅支持在P节点开启SP特性，该特性可以和CP、TP、MTP同时使用，CP和TP的乘积等于Worldsize。
+    -  该特性支持与MTP、异步调度、prefixcache特性叠加使用。
 
--  该特性只支持FP16，不支持BF16。
+-  该特性不支持BF16。
 
 ## 参数说明
 
