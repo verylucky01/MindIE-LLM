@@ -51,7 +51,6 @@ SAMPLING_DTYPE = [
     ("top_logprobs", SAMPLING_PARAMS_DTYPE),
 ]
 
-CP_LOAD_BALANCE_LEN = 4
 PLACEHOLDER_TOKEN = -1
 
 
@@ -263,7 +262,8 @@ def convert_execute_model_request_to_input_metadata_composite(
         block_size,
         convert_para=ConvertPara(),
         is_mix_model=False,
-        layerwise_disaggregated_exe_stage=None
+        layerwise_disaggregated_exe_stage=None,
+        config=None
 ) -> InputMetadataComposite:
     """
     将ExecuteModelRequest转换为InputMetadataComposite。
@@ -301,8 +301,9 @@ def convert_execute_model_request_to_input_metadata_composite(
     ibis_batch_is_append_block = []
     ibis_batch_prefill_block_rank_id = []
     ibis_batch_block_rank_id = []
-    is_sp = False
-    is_cp = False
+    is_sp_enable = False
+    is_cp_enable = False
+    is_mtp_enable = False
     is_req_prefill = []
     is_req_last_chunk = []
     split_start_pos = []
@@ -328,18 +329,19 @@ def convert_execute_model_request_to_input_metadata_composite(
         ibis_max_output_len.extend([max_output_len for _ in range(seq_num)])
         ibis_batch_seed.append(abs(sampling_params.seed))
         ibis_batch_dp_rank_ids.append(seq_group_metadata.dp_rank_id)
-        is_sp = seq_group_metadata.is_sp
-        is_cp = seq_group_metadata.is_cp
-        is_mtp = seq_group_metadata.is_mtp
+        if config is not None:
+            is_sp_enable = config.sp_size > 1
+            is_cp_enable = config.cp_size > 1
+            is_mtp_enable = config.enable_mtp
         seq_blocks = convert_bytes_to_list(seq_group_metadata.block_tables)
 
-        if is_sp or is_cp:
+        if is_sp_enable or is_cp_enable:
             block_max_len = max(block_max_len, len(seq_blocks))
             ibis_batch_sp_tokens.append(list(seq_group_metadata.sp_rank_token_num))
             ibis_batch_sp_rank_id.append(seq_group_metadata.sp_rank_id)
             ibis_batch_block_rank_id.append(seq_group_metadata.append_block_rank_id)
             sp_rank_block_num = list(seq_group_metadata.sp_rank_block_num)
-            if is_mtp:
+            if is_mtp_enable:
                 ibis_batch_is_append_block.append(seq_group_metadata.is_append_block)
                 if is_prefill:
                     ibis_batch_prefill_block_rank_id.append(list(seq_group_metadata.prefill_block_rank_id))
@@ -363,7 +365,7 @@ def convert_execute_model_request_to_input_metadata_composite(
     seq_lens = parse_all_dp_batches_seq_lens(request.all_dp_batches_seq_lens)
 
     padded = []
-    if is_sp or is_cp:
+    if is_sp_enable or is_cp_enable:
         for sp_rows in ibis_block_tables:
             padded_sp_rows = [sp_row + [-1] * (block_max_len - len(sp_row)) for sp_row in sp_rows]
             padded.append(padded_sp_rows)
@@ -390,7 +392,7 @@ def convert_execute_model_request_to_input_metadata_composite(
     if len(ibis_batch_block_rank_id) > 0:
         batch_block_rank_id = np.array(ibis_batch_block_rank_id) 
     if is_prefill:
-        prefill_params = parse_para_is_prefill(request.seq_group_metadata_list, block_size)
+        prefill_params = parse_para_is_prefill(request.seq_group_metadata_list, block_size, config)
         batch_sampling = prefill_params["batch_sampling"]
         batch_input_ids = prefill_params["batch_input_ids"]
         batch_stop_token_ids = prefill_params["batch_stop_token_ids"]
@@ -494,7 +496,8 @@ def convert_execute_model_request_to_input_metadata_composite(
 def convert_pull_kv_request_to_input_metadata_composite(
         request: PullKVRequest,
         num_npu_blocks,
-        block_size
+        block_size,
+        config=None
 ) -> InputMetadataComposite:
     batch_tools = []
     batch_tool_choice = []
@@ -509,8 +512,8 @@ def convert_pull_kv_request_to_input_metadata_composite(
     ibis_batch_dp_rank_ids = []
     ibis_batch_sp_tokens = []
 
-    is_sp = False
-    is_cp = False
+    is_sp_enable = False
+    is_cp_enable = False
 
     # prefix cache
     batch_computed_block_order = None
@@ -529,11 +532,12 @@ def convert_pull_kv_request_to_input_metadata_composite(
         ibis_max_output_len.extend([max_output_len for _ in range(seq_num)])
         ibis_batch_seed.append(abs(sampling_params.seed))
         ibis_batch_dp_rank_ids.append(pull_kv_info.seq_group_metadata.dp_rank_id)
-        is_sp = pull_kv_info.seq_group_metadata.is_sp
-        is_cp = pull_kv_info.seq_group_metadata.is_cp
+        if config is not None:
+            is_sp_enable = config.sp_size > 1
+            is_cp_enable = config.cp_size > 1
         seq_blocks = convert_bytes_to_list(pull_kv_info.seq_group_metadata.block_tables)
 
-        if is_sp or is_cp:
+        if is_sp_enable or is_cp_enable:
             block_max_len = max(block_max_len, len(seq_blocks))
             ibis_batch_sp_tokens.append(list(pull_kv_info.seq_group_metadata.sp_rank_token_num))
 
@@ -550,7 +554,7 @@ def convert_pull_kv_request_to_input_metadata_composite(
             block_max_len = max(block_max_len, len(ibis_block_tables[-1]))
 
     padded = []
-    if is_sp or is_cp:
+    if is_sp_enable or is_cp_enable:
         for sp_rows in ibis_block_tables:
             padded_sp_rows = [sp_row + [-1] * (block_max_len - len(sp_row)) for sp_row in sp_rows]
             padded.append(padded_sp_rows)
@@ -567,7 +571,7 @@ def convert_pull_kv_request_to_input_metadata_composite(
 
     seq_group_metadata_list = [pull_kv_info.seq_group_metadata for pull_kv_info in request.pull_kv_infos]
 
-    prefill_params = parse_para_is_prefill(seq_group_metadata_list, block_size)
+    prefill_params = parse_para_is_prefill(seq_group_metadata_list, block_size, config)
     batch_sampling = prefill_params["batch_sampling"]
     batch_input_ids = prefill_params["batch_input_ids"]
     batch_stop_token_ids = prefill_params["batch_stop_token_ids"]
@@ -634,13 +638,13 @@ def convert_pull_kv_request_to_input_metadata_composite(
     return input_metadata_composite
 
 
-def pad_input_ids(input_ids: list):
+def pad_input_ids(input_ids: list, cp_size):
     in_lens = len(input_ids)
-    pad_num = CP_LOAD_BALANCE_LEN - (in_lens % CP_LOAD_BALANCE_LEN)
+    pad_num = cp_size * 2 - (in_lens % (cp_size * 2))
     input_ids += [PLACEHOLDER_TOKEN] * pad_num
 
 
-def parse_para_is_prefill(seq_group_metadata_list: List[SequenceGroupMetadata], block_size) -> dict:
+def parse_para_is_prefill(seq_group_metadata_list: List[SequenceGroupMetadata], block_size, config=None) -> dict:
     batch_sampling = []
     batch_input_ids = []
     batch_stop_token_ids = []
@@ -660,14 +664,16 @@ def parse_para_is_prefill(seq_group_metadata_list: List[SequenceGroupMetadata], 
     remote_computed = []
     computed_block_order = []
     scp_size = 1
-
+    cp_size = 1
+    if config is not None:
+        cp_size = config.cp_size
     for seq_group_metadata in seq_group_metadata_list:
         sampling_params = parse_sampling_parameters(seq_group_metadata)
         batch_sampling.append(sampling_params[0])
 
         input_ids = convert_bytes_to_list(seq_group_metadata.prompt_token_ids)
-        if seq_group_metadata.is_cp and len(input_ids) % CP_LOAD_BALANCE_LEN != 0:
-            pad_input_ids(input_ids)
+        if cp_size > 1 and len(input_ids) % (cp_size * 2) != 0:
+            pad_input_ids(input_ids, cp_size)
         batch_input_ids.extend(input_ids)
 
         stop_ids = list(seq_group_metadata.stop_token_ids)

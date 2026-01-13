@@ -51,6 +51,9 @@ class MockModelConfig:
     dp_size: int
     p_inst_enable_sp_cp: bool
     sp_size: int
+    cp_size: int
+    speculation_gamma: int
+    enable_mtp: bool
 
 
 class TestInputMetadataBuilder(unittest.TestCase):
@@ -85,8 +88,6 @@ class TestInputMetadataBuilder(unittest.TestCase):
 
         self.sp_seq_group_metadata = SequenceGroupMetadata()
         self.sp_seq_group_metadata.request_id = "2"
-        self.sp_seq_group_metadata.is_sp = True
-        self.sp_seq_group_metadata.is_cp = False
         self.sp_seq_group_metadata.sp_rank_token_num.extend([10, 20, 30])
         self.sp_seq_group_metadata.sp_rank_block_num.extend([2, 2, 2])
         sp_block_array = array.array('q', [1, 2, 3, 4, 5, 6])
@@ -208,7 +209,10 @@ class TestInputMetadataBuilder(unittest.TestCase):
             tp_size=1,
             dp_size=1,
             p_inst_enable_sp_cp=True,
-            sp_size=3
+            sp_size=3,
+            cp_size=1,
+            speculation_gamma=0,
+            enable_mtp=False
         )
         num_npu_blocks = 50
 
@@ -238,7 +242,10 @@ class TestInputMetadataBuilder(unittest.TestCase):
             tp_size=1,
             dp_size=4,
             p_inst_enable_sp_cp=False,
-            sp_size=2
+            sp_size=2,
+            cp_size=1,
+            speculation_gamma=0,
+            enable_mtp=False
         )
         num_npu_blocks = 20
 
@@ -316,8 +323,20 @@ class TestInputMetadataBuilder(unittest.TestCase):
         prompt_array = array.array('q',
                                    [151644, 8948, 198, 2610, 525, 1207, 16948, 11])
         sp_seq_group_metadata.prompt_token_ids = prompt_array.tobytes()
-        sp_seq_group_metadata.is_sp = True
-        sp_seq_group_metadata.is_cp = True
+        config = MockModelConfig(
+            max_seq_len=1024,
+            cache_block_size=64,
+            rank=0,
+            tp_size=1,
+            dp_size=1,
+            p_inst_enable_sp_cp=False,
+            sp_size=2,
+            cp_size=2,
+            speculation_gamma=0,
+            enable_mtp=False,
+        )
+        config.cp_size = 2
+        config.sp_size = 2
         sp_seq_group_metadata.do_sample = False
         sp_seq_group_metadata.sp_rank_token_num.extend([1, 1, 1, 1, 1, 1, 1, 1])
         sp_seq_group_metadata.sp_rank_block_num.extend([1, 1, 1, 1, 1, 1, 1, 1])
@@ -333,7 +352,8 @@ class TestInputMetadataBuilder(unittest.TestCase):
         composite = convert_execute_model_request_to_input_metadata_composite(
             request=request,
             num_npu_blocks=self.num_npu_blocks,
-            block_size=self.block_size
+            block_size=self.block_size,
+            config=config
         )
 
         self.assertTrue(hasattr(composite, "input_metadata"))
@@ -355,7 +375,6 @@ class TestInputMetadataBuilder(unittest.TestCase):
 
     def test_convert_pull_kv_request_to_input_metadata_composite(self):
         for pull_kv_info in self.pull_kv_request.pull_kv_infos:
-            pull_kv_info.seq_group_metadata.is_sp = False
             pull_kv_info.seq_group_metadata.sp_rank_block_num.clear()
 
         from mindie_llm.text_generator.utils.input_metadata import InputMetadata

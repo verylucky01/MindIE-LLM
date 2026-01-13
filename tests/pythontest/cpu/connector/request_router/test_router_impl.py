@@ -244,6 +244,7 @@ class TestRouterImpl(unittest.TestCase):
         self.router.config.p_inst_enable_sp_cp = False
         self.router.config.remote_sp_size = 1
         self.router.config.dp_inst_id_to_cluster_id = {1:[1001], 2:[1002]}
+        self.router.config.enable_mtp = False 
         self.mock_generator.kvcache_settings.num_npu_blocks = 10
 
         self.mock_generator.pull_kv.return_value = (MindieLlmStatusCode.SUCCESS, None)
@@ -256,7 +257,8 @@ class TestRouterImpl(unittest.TestCase):
         mock_convert.assert_called_once_with(
             mock_request.pull_kv_request,
             10,
-            64
+            64,
+            self.router.config
         )
 
         self.assertGreater(len(self.mock_generator.pull_kv.call_args[0][1]), 0)

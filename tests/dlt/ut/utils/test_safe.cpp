@@ -80,39 +80,39 @@ TEST_F(TestSafe, TestCheckJsonDepthCallback)
     ASSERT_EQ(true, CheckJsonDepthCallbackNoLogger(TestJsonDepth, Json::parse_event_t::object_end, dummObj));
     ASSERT_EQ(true, CheckJsonDepthCallbackNoLogger(TestJsonDepth, Json::parse_event_t::array_end, dummObj));
     ASSERT_EQ(true, CheckJsonDepthCallbackNoLogger(TestJsonDepth, Json::parse_event_t::key, dummObj));
-    ASSERT_EQ(true, CheckJsonDepthCallbackNoLogger(TestJsonDepth, Json::parse_event_t::valu, dummObj));
+    ASSERT_EQ(true, CheckJsonDepthCallbackNoLogger(TestJsonDepth, Json::parse_event_t::value, dummObj));
     ASSERT_EQ(false, CheckJsonDepthCallbackNoLogger(TestJsonDepth + 1, Json::parse_event_t::object_start, dummObj));
     ASSERT_EQ(false, CheckJsonDepthCallbackNoLogger(TestJsonDepth + 1, Json::parse_event_t::array_start, dummObj));
     ASSERT_EQ(true, CheckJsonDepthCallbackNoLogger(TestJsonDepth + 1, Json::parse_event_t::object_end, dummObj));
     ASSERT_EQ(true, CheckJsonDepthCallbackNoLogger(TestJsonDepth + 1, Json::parse_event_t::array_end, dummObj));
     ASSERT_EQ(true, CheckJsonDepthCallbackNoLogger(TestJsonDepth + 1, Json::parse_event_t::key, dummObj));
-    ASSERT_EQ(true, CheckJsonDepthCallbackNoLogger(TestJsonDepth + 1, Json::parse_event_t::valu, dummObj));
+    ASSERT_EQ(true, CheckJsonDepthCallbackNoLogger(TestJsonDepth + 1, Json::parse_event_t::value, dummObj));
 
     ASSERT_EQ(true, CheckJsonDepthCallback(TestJsonDepth, Json::parse_event_t::object_start, dummObj));
     ASSERT_EQ(true, CheckJsonDepthCallback(TestJsonDepth, Json::parse_event_t::array_start, dummObj));
     ASSERT_EQ(true, CheckJsonDepthCallback(TestJsonDepth, Json::parse_event_t::object_end, dummObj));
     ASSERT_EQ(true, CheckJsonDepthCallback(TestJsonDepth, Json::parse_event_t::array_end, dummObj));
     ASSERT_EQ(true, CheckJsonDepthCallback(TestJsonDepth, Json::parse_event_t::key, dummObj));
-    ASSERT_EQ(true, CheckJsonDepthCallback(TestJsonDepth, Json::parse_event_t::valu, dummObj));
+    ASSERT_EQ(true, CheckJsonDepthCallback(TestJsonDepth, Json::parse_event_t::value, dummObj));
     ASSERT_EQ(false, CheckJsonDepthCallback(TestJsonDepth + 1, Json::parse_event_t::object_start, dummObj));
     ASSERT_EQ(false, CheckJsonDepthCallback(TestJsonDepth + 1, Json::parse_event_t::array_start, dummObj));
     ASSERT_EQ(true, CheckJsonDepthCallback(TestJsonDepth + 1, Json::parse_event_t::object_end, dummObj));
     ASSERT_EQ(true, CheckJsonDepthCallback(TestJsonDepth + 1, Json::parse_event_t::array_end, dummObj));
     ASSERT_EQ(true, CheckJsonDepthCallback(TestJsonDepth + 1, Json::parse_event_t::key, dummObj));
-    ASSERT_EQ(true, CheckJsonDepthCallback(TestJsonDepth + 1, Json::parse_event_t::valu, dummObj));
+    ASSERT_EQ(true, CheckJsonDepthCallback(TestJsonDepth + 1, Json::parse_event_t::value, dummObj));
 
     ASSERT_EQ(true, CheckJsonDepthCallbackUlog(TestJsonDepth, Json::parse_event_t::object_start, dummObj));
     ASSERT_EQ(true, CheckJsonDepthCallbackUlog(TestJsonDepth, Json::parse_event_t::array_start, dummObj));
     ASSERT_EQ(true, CheckJsonDepthCallbackUlog(TestJsonDepth, Json::parse_event_t::object_end, dummObj));
     ASSERT_EQ(true, CheckJsonDepthCallbackUlog(TestJsonDepth, Json::parse_event_t::array_end, dummObj));
     ASSERT_EQ(true, CheckJsonDepthCallbackUlog(TestJsonDepth, Json::parse_event_t::key, dummObj));
-    ASSERT_EQ(true, CheckJsonDepthCallbackUlog(TestJsonDepth, Json::parse_event_t::valu, dummObj));
+    ASSERT_EQ(true, CheckJsonDepthCallbackUlog(TestJsonDepth, Json::parse_event_t::value, dummObj));
     ASSERT_EQ(false, CheckJsonDepthCallbackUlog(TestJsonDepth + 1, Json::parse_event_t::object_start, dummObj));
     ASSERT_EQ(false, CheckJsonDepthCallbackUlog(TestJsonDepth + 1, Json::parse_event_t::array_start, dummObj));
     ASSERT_EQ(true, CheckJsonDepthCallbackUlog(TestJsonDepth + 1, Json::parse_event_t::object_end, dummObj));
     ASSERT_EQ(true, CheckJsonDepthCallbackUlog(TestJsonDepth + 1, Json::parse_event_t::array_end, dummObj));
     ASSERT_EQ(true, CheckJsonDepthCallbackUlog(TestJsonDepth + 1, Json::parse_event_t::key, dummObj));
-    ASSERT_EQ(true, CheckJsonDepthCallbackUlog(TestJsonDepth + 1, Json::parse_event_t::valu, dummObj));
+    ASSERT_EQ(true, CheckJsonDepthCallbackUlog(TestJsonDepth + 1, Json::parse_event_t::value, dummObj));
 
     nlohmann::ordered_json dummObj2{};
     ASSERT_EQ(true, CheckOrderedJsonDepthCallback(TestJsonDepth, Json::parse_event_t::object_start, dummObj));
@@ -120,13 +120,13 @@ TEST_F(TestSafe, TestCheckJsonDepthCallback)
     ASSERT_EQ(true, CheckOrderedJsonDepthCallback(TestJsonDepth, Json::parse_event_t::object_end, dummObj));
     ASSERT_EQ(true, CheckOrderedJsonDepthCallback(TestJsonDepth, Json::parse_event_t::array_end, dummObj));
     ASSERT_EQ(true, CheckOrderedJsonDepthCallback(TestJsonDepth, Json::parse_event_t::key, dummObj));
-    ASSERT_EQ(true, CheckOrderedJsonDepthCallback(TestJsonDepth, Json::parse_event_t::valu, dummObj));
+    ASSERT_EQ(true, CheckOrderedJsonDepthCallback(TestJsonDepth, Json::parse_event_t::value, dummObj));
     ASSERT_EQ(false, CheckOrderedJsonDepthCallback(TestJsonDepth + 1, Json::parse_event_t::object_start, dummObj));
     ASSERT_EQ(false, CheckOrderedJsonDepthCallback(TestJsonDepth + 1, Json::parse_event_t::array_start, dummObj));
     ASSERT_EQ(true, CheckOrderedJsonDepthCallback(TestJsonDepth + 1, Json::parse_event_t::object_end, dummObj));
     ASSERT_EQ(true, CheckOrderedJsonDepthCallback(TestJsonDepth + 1, Json::parse_event_t::array_end, dummObj));
     ASSERT_EQ(true, CheckOrderedJsonDepthCallback(TestJsonDepth + 1, Json::parse_event_t::key, dummObj));
-    ASSERT_EQ(true, CheckOrderedJsonDepthCallback(TestJsonDepth + 1, Json::parse_event_t::valu, dummObj));
+    ASSERT_EQ(true, CheckOrderedJsonDepthCallback(TestJsonDepth + 1, Json::parse_event_t::value, dummObj));
 }
 
 TEST_F(TestSafe, TestCheckJsonDepthCallbackWithParse)

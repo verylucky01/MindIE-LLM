@@ -122,11 +122,7 @@ void ConstructExecuteRequest::ConstructProtoMeta(const SequenceGroupMetaData &me
 
     // 构造block table
     protoMeta.set_block_tables(metaData.blockIds_.data(), metaData.blockIds_.size() * sizeof(BlockId));
-
-    // construct sp cp param
-    protoMeta.set_is_sp(false);
-    protoMeta.set_is_cp(false);
-    protoMeta.set_is_mtp(false);
+    
     if (metaData.isSp_ or metaData.isCp_) {
         // sp & cp common part
         protoMeta.set_sp_rank_id(metaData.spRankId_);
@@ -143,17 +139,6 @@ void ConstructExecuteRequest::ConstructProtoMeta(const SequenceGroupMetaData &me
 
         for (size_t blockNum : metaData.spRankBlockNum_) {
             protoMeta.add_sp_rank_block_num(blockNum);
-        }
-        if (metaData.isMtp_) {
-            protoMeta.set_is_mtp(true);
-        }
-        // sp
-        if (metaData.isSp_) {
-            protoMeta.set_is_sp(true);
-        }
-        // cp
-        if (metaData.isCp_) {
-            protoMeta.set_is_cp(true);
         }
     }
     
