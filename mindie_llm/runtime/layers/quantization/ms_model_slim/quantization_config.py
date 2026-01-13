@@ -19,8 +19,10 @@ from mindie_llm.runtime.layers.quantization.ms_model_slim.w8a8 import (
     W8A8PerTokenLinearMethod,
     W8A8MixLinearMethod,
     W8A8MXFP8PerGroupLinearMethod,
+    W8A8PerTokenFusedMoEMethod
 )
-
+from mindie_llm.runtime.layers.quantization.ms_model_slim.w4a8 import W4A8PerTokenFusedMoEMethod
+from mindie_llm.runtime.layers.quantization.unquantized import UnquantizedFusedMoEMethod
 from mindie_llm.runtime.layers.quantization.ms_model_slim.anti_outlier import AntiOutlierNormMethod
 from mindie_llm.runtime.layers.quantization.unquantized import UnquantizedLinearMethod, UnquantizedEmbeddingMethod, \
     UnquantizedNormMethod
@@ -105,6 +107,7 @@ class QuantizationConfig(QuantizationConfigBase):
 
         quant_type = self.get_quant_type_by_weight_name(prefix, "weight")
         from mindie_llm.runtime.layers.linear.linear import LinearBase
+        from mindie_llm.runtime.layers.fused_moe.fused_moe import FusedMoE
         if isinstance(layer, LinearBase):
             if quant_type == QuantType.W8A8_MIX and self.model_quant_type != QuantType.W8A8_MIX:
                 quant_type = self.model_quant_type
@@ -120,6 +123,19 @@ class QuantizationConfig(QuantizationConfigBase):
                 logger.warning(f"Quantization type {quant_type} is not found in all the LinearMethods. "
                                f"Use `UnquantizedLinearMethod` instead.")
                 return UnquantizedLinearMethod()
+            else:
+                return quant_method_cls()
+        elif isinstance(layer, FusedMoE):
+            quant_type_method_cls_map = {
+                QuantType.FLOAT: UnquantizedFusedMoEMethod,
+                QuantType.W8A8_DYNAMIC: W8A8PerTokenFusedMoEMethod,
+                QuantType.W4A8_DYNAMIC: W4A8PerTokenFusedMoEMethod,
+            }
+            quant_method_cls = quant_type_method_cls_map.get(quant_type)
+            if quant_method_cls is None:
+                logger.warning(f"Quantization type {quant_type} is not found in all the FusedMoEMethods. "
+                                f"Use `UnquantizedFusedMoEMethod` instead.")
+                return UnquantizedFusedMoEMethod()
             else:
                 return quant_method_cls()
         elif isinstance(layer, ParallelLMHead):
