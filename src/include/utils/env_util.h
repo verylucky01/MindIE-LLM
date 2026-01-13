@@ -13,7 +13,7 @@
 #ifndef MIES_ENV_UTIL_H
 #define MIES_ENV_UTIL_H
 
-#include <iostream>
+#include <cstdint>
 #include <map>
 #include <string>
 
@@ -27,6 +27,14 @@ public:
     }
     const std::string& Get(const std::string& name) const;
     std::string GetEnvByName(const std::string& name) const;
+
+    /**
+     * @brief 获取指定环境变量并解析为 int32_t
+     * @param name 环境变量名称
+     * @param defaultValue 解析失败或环境变量不存在时返回的默认值
+     * @return 解析成功返回对应整数值；解析失败或不存在时返回 defaultValue
+     */
+    int32_t GetInt(const std::string& name, int32_t defaultValue = 0) const;
     void SetEnvVar(const std::string& name, const std::string& value);
     void ClearEnvVar(const std::string& name);
 

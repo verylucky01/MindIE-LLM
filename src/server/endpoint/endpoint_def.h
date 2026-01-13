@@ -101,6 +101,11 @@ struct BestNTokens {
     constexpr uint8_t PREFILL_CALLBACK_METRICS_TAG = 1;
     constexpr uint8_t DECODE_CALLBACK_METRICS_TAG = 2;
 
+    // MINDIE_LLM_BENCHMARK_ENABLE 环境变量取值常量
+    // 1: 同步enable; 2: 异步enable; 其他取值: 关闭
+    constexpr int32_t BENCHMARK_ENABLE_SYNC = 1;
+    constexpr int32_t BENCHMARK_ENABLE_ASYNC = 2;
+
     std::u16string GetU16Str(const std::string &inputStr, std::string *error = nullptr);
     std::wstring String2Wstring(const std::string& str, std::string *error = nullptr);
     std::string TransformTruncation(std::u16string inputStr, int64_t truncationStart, int64_t truncationEnd,
