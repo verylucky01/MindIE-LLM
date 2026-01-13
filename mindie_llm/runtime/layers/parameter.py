@@ -185,7 +185,7 @@ class ColumnParameter(BaseParameter):
 
         self._check_and_copy(param_data, loaded_weight)
 
-    def load_expert_column_weight(
+    def load_expert_column_parallel_weight(
             self, loaded_weight: torch.Tensor, expert_id: int,
             tp_rank: int, shard_offset: int, shard_size: int) -> None:
         """Load column weight for a specific expert in MoE models.
@@ -271,3 +271,17 @@ class PerTensorScaleParameter(ColumnParameter):
     bfloat16 precision.
     """
     pass
+
+
+class ExpertsParameter(BaseParameter):
+    """Parameter class for experts' parameters in MoE models."""
+    def load_expert_weight(self, loaded_weight: torch.Tensor, expert_id: int,) -> None:
+        """Load weight for a specific expert in MoE models.
+
+        Args:
+            loaded_weight: The full weight tensor read from file to load from.
+            expert_id: The ID of the expert to load weights for.
+        """
+
+        expert_data = self.data[expert_id]
+        self._check_and_copy(expert_data, loaded_weight)

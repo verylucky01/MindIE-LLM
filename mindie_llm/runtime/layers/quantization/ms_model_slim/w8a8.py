@@ -21,6 +21,9 @@ from mindie_llm.runtime.layers.parameter import (
     ModelWeightParameter,
     ScalerParameter,
     PerTensorScaleParameter,
+    ColumnParameter,
+    RowParameter,
+    ExpertsParameter
 )
 from mindie_llm.runtime.layers.quantization.ms_model_slim.quant_type import InferenceMode
 from mindie_llm.runtime.utils.npu.device_utils import get_npu_node_info
@@ -329,8 +332,8 @@ class W8A8MXFP8PerGroupLinearMethod(LinearMethodBase):
 
         weight_scale = ModelWeightParameter(
             data=torch.empty(sum(output_partition_sizes),
-                            even_divide(input_size_per_partition, MXFP8_GROUP_SIZE),
-                            dtype=torch.uint8),
+                             even_divide(input_size_per_partition, MXFP8_GROUP_SIZE),
+                             dtype=torch.uint8),
         )
         weight_scale.add_attrs({
             self.INPUT_DIM: 1,
@@ -383,7 +386,7 @@ class W8A8PerTokenFusedMoEMethod(FusedMoEMethodBase):
             bias_dtype: torch.dtype,
             **extra_weight_attrs,
     ):
-        gate_up_weight = ModelWeightParameter(
+        gate_up_weight = ColumnParameter(
             torch.empty(num_experts,
                         2 *
                         intermediate_size_per_partition,
@@ -398,7 +401,7 @@ class W8A8PerTokenFusedMoEMethod(FusedMoEMethodBase):
         })
         layer.register_parameter("gate_up_weight", gate_up_weight)
 
-        down_weight = ModelWeightParameter(
+        down_weight = RowParameter(
             torch.empty(num_experts,
                         hidden_size,
                         intermediate_size_per_partition,
@@ -413,7 +416,7 @@ class W8A8PerTokenFusedMoEMethod(FusedMoEMethodBase):
         layer.register_parameter("down_weight", down_weight)
 
         weight_scale_type = torch.float32 if weight_dtype == torch.float16 else torch.bfloat16
-        gate_up_weight_scale = ModelWeightParameter(
+        gate_up_weight_scale = ColumnParameter(
             torch.empty(num_experts,
                         2 * intermediate_size_per_partition,
                         1,
@@ -426,7 +429,7 @@ class W8A8PerTokenFusedMoEMethod(FusedMoEMethodBase):
         })
         layer.register_parameter("gate_up_weight_scale", gate_up_weight_scale)
 
-        down_weight_scale = ModelWeightParameter(
+        down_weight_scale = ExpertsParameter(
             torch.empty(num_experts,
                         hidden_size,
                         1,

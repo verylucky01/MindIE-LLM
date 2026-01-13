@@ -8,8 +8,181 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 
+import math
+from typing import List
+
+import torch
+import torch.distributed as dist
+
 from mindie_llm.runtime.layers.custom_layer import CustomLayer
+from mindie_llm.runtime.layers.fused_moe.moe_comm_method import (select_moe_comm_method,
+                                                                 setup_moe_comm_method,
+                                                                 get_cached_dispatcher,
+                                                                 MoECommType,
+                                                                 build_moe_comm_args)
+from mindie_llm.runtime.layers.parameter import RowParameter, ColumnParameter
+from mindie_llm.runtime.layers.quantization.ms_model_slim.w4a8 import W4A8PerTokenFusedMoEMethod
+from mindie_llm.runtime.layers.quantization.quantization_config_base import QuantizationConfigBase
+from mindie_llm.runtime.layers.quantization.unquantized import UnquantizedFusedMoEMethod
+from mindie_llm.runtime.utils.distributed import get_parallel_info_manager
+from mindie_llm.runtime.utils.distributed.parallel_info_manager import ParallelType
+from mindie_llm.runtime.utils.distributed.utils import even_divide
 
 
 class FusedMoE(CustomLayer):
-    pass
+    def __init__(
+        self,
+        num_experts: int,
+        topk_num: int,
+        hidden_size: int,
+        intermediate_size: int,
+        bias: bool = False,
+        weight_dtype: torch.dtype | None = None,
+        bias_dtype: torch.dtype | None = None,
+        quant_config: QuantizationConfigBase | None = None,
+        prefix: str = "",
+        suffix: List[str] = None,
+        activation: str = "silu",
+    ):
+        super().__init__()
+
+        self.parallel_info = get_parallel_info_manager()
+        self.moe_tp_rank = get_parallel_info_manager().get(ParallelType.MOE_TP).rank
+        self.moe_tp_size = get_parallel_info_manager().get(ParallelType.MOE_TP).group_size
+        self.moe_ep_rank = get_parallel_info_manager().get(ParallelType.MOE_EP).rank
+        self.moe_ep_size = get_parallel_info_manager().get(ParallelType.MOE_EP).group_size
+        self.hidden_size = hidden_size
+        self.intermediate_size = intermediate_size
+        self.intermediate_size_per_partition = even_divide(self.intermediate_size, self.moe_tp_size)
+        self.bias = bias
+        self.weight_dtype = weight_dtype or torch.get_default_dtype()
+        self.quant_config = quant_config
+        self.prefix = prefix
+        self.suffix = suffix
+        self.activation = activation
+        self.num_experts = num_experts
+        self.topk = topk_num
+        self.expert_list = assign_experts(self.num_experts, self.moe_ep_size)[self.moe_ep_rank]
+        self.num_local_experts = len(self.expert_list)
+        self.expert_map = torch.full(size=(self.num_experts,), fill_value=-1, device='npu')
+        self.expert_map[self.expert_list] = 1
+        if self.quant_config is None:
+            self.quant_method = UnquantizedFusedMoEMethod()
+        else:
+            # Get moe quant method through gate proj weights of expert 0
+            self.quant_method = self.quant_config.get_quant_method(self, prefix=f"{self.prefix}.0.{self.suffix[0]}")
+        setup_moe_comm_method()
+        self._create_weights()
+        self._post_init()
+
+    def weight_loader(
+        self,
+        loaded_weight: torch.Tensor,
+        expert_id: int,
+        module_suffix: str,
+        weight_name: str
+    ):
+        param = getattr(self, self.weight_map.get(module_suffix) + weight_name)
+        shard_size = self.intermediate_size_per_partition
+        loaded_expert_id = self.expert_list.index(expert_id)
+        if isinstance(self.quant_method, W4A8PerTokenFusedMoEMethod) and weight_name == "weight":
+            # w4a8 quantization: pack two int4 values into one int8 unit; shard size halved
+            shard_size = shard_size // 2
+        if isinstance(param, RowParameter):
+            param.load_expert_row_parallel_weight(loaded_weight, loaded_expert_id, self.moe_tp_rank)
+        elif isinstance(param, ColumnParameter):
+            if module_suffix == self.suffix[0]:
+                param.load_expert_column_parallel_weight(
+                    loaded_weight, loaded_expert_id, self.moe_tp_rank, 0, shard_size)
+            elif module_suffix == self.suffix[2]:
+                param.load_expert_column_parallel_weight(
+                    loaded_weight, loaded_expert_id, self.moe_tp_rank, shard_size, shard_size)
+        else:
+            param.load_expert_weight(loaded_weight, loaded_expert_id)
+
+    def forward(
+            self,
+            hidden_states: torch.Tensor,
+            topk_weights: torch.Tensor,
+            topk_ids: torch.Tensor,
+    ) -> torch.Tensor:
+        moe_comm_type = select_moe_comm_method(
+            quant_type=None
+        )
+
+        dispatcher = get_cached_dispatcher(moe_comm_type=moe_comm_type)
+
+        moe_comm_args = build_moe_comm_args(
+            moe_comm_type=moe_comm_type,
+            hidden_states=hidden_states,
+            topk_weights=topk_weights,
+            topk_ids=topk_ids,
+            top_k=self.topk,
+            num_experts=self.num_experts,
+            expert_list=self.expert_list,
+            expert_map=self.expert_map,
+            with_quant=False,
+            mc2_mask=None,
+            shared_experts=None,
+            quantized_x_for_share=None,
+            dynamic_scale_for_share=None,
+        )
+
+        moe_dispatch_output, ctx = dispatcher.token_dispatch(moe_comm_args)
+
+        moe_mlp_out = self.quant_method.apply(
+            self,
+            x=moe_dispatch_output["hidden_states"],
+            group_list=moe_dispatch_output["group_list"],
+            group_list_type=moe_dispatch_output["group_list_type"]
+        )
+
+        final_hidden_states = dispatcher.token_combine(
+            hidden_states=moe_mlp_out,
+            ctx=ctx
+        )
+
+        if moe_comm_type == MoECommType.ALLGATHER:
+            dist.all_reduce(final_hidden_states, group=self.parallel_info.attn_tp.process_group)
+        return final_hidden_states
+
+    def _post_init(self):
+        weight_name = set()
+        param_prefixes = ["gate_up_", "down_"]
+        for name, _ in self.named_parameters():
+            for prefix in param_prefixes:
+                if prefix in name:
+                    weight_name.add(name.replace(prefix, ""))
+                    break
+        self.weight_list = list(weight_name)
+        self.weight_map = {
+            self.suffix[0]: param_prefixes[0],
+            self.suffix[1]: param_prefixes[1],
+            self.suffix[2]: param_prefixes[0],
+        }
+
+    def _create_weights(self):
+        self.quant_method.create_weights(
+            layer=self,
+            num_experts=self.num_local_experts,
+            hidden_size=self.hidden_size,
+            intermediate_size_per_partition=self.intermediate_size_per_partition,
+            weight_dtype=self.weight_dtype,
+            bias_dtype=self.weight_dtype,
+            weight_loader=None,
+        )
+
+
+def assign_experts(expert_count, world_size):
+    per_device = math.ceil(expert_count / world_size)
+    assignment = []
+    if expert_count % world_size == 0:
+        for i in range(world_size):
+            assignment.append([i * per_device + j for j in range(per_device)])
+    else:
+        for i in range(world_size - 1):
+            assignment.append([i * per_device + j for j in range(per_device)])
+        assignment.append([])
+        for i in range(expert_count % world_size):
+            assignment[-1].append(per_device * (world_size - 1) + i)
+    return assignment

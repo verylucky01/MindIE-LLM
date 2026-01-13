@@ -106,15 +106,14 @@ class DefaultModelLoader:
                 # Handle weights (and optionally scale/bias) for every local expert.
                 # Note: Will be optimized later, should not depend on specific classes.
                 expert_list = module.expert_list
-                weight_components_suffix = module.get_weight_components_suffix()
-                for expert_id, module_suffix, weight_suffix in product(
+                for expert_id, module_suffix, weight_name in product(
                     expert_list,
                     module.suffix,
-                    weight_components_suffix
+                    module.weight_list
                 ):
-                    full_param_name = f"{prefix}.{expert_id}.{module_suffix}.{weight_suffix}"
+                    full_param_name = f"{prefix}.{expert_id}.{module_suffix}.{weight_name}"
                     loaded_weight = self._weight_file_handler.get_tensor(full_param_name)
-                    module.weight_loader(loaded_weight, full_param_name)
+                    module.weight_loader(loaded_weight, expert_id, module_suffix, weight_name)
             else:  # Processing single prefix Module
                 self._load_single_prefix_module(module, prefix)
 

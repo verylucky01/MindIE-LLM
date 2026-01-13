@@ -18,6 +18,8 @@ from mindie_llm.runtime.layers.parameter import (
     BaseParameter,
     ModelWeightParameter,
     BiasParameter,
+    ColumnParameter,
+    RowParameter
 )
 
 
@@ -165,7 +167,7 @@ class UnquantizedFusedMoEMethod(FusedMoEMethodBase):
             bias_dtype: torch.dtype,
             **extra_weight_attrs,
     ):
-        gate_up_weight = ModelWeightParameter(
+        gate_up_weight = ColumnParameter(
             torch.empty(num_experts,
                         2 *
                         intermediate_size_per_partition,
@@ -180,7 +182,7 @@ class UnquantizedFusedMoEMethod(FusedMoEMethodBase):
         })
         layer.register_parameter("gate_up_weight", gate_up_weight)
 
-        down_weight = ModelWeightParameter(
+        down_weight = RowParameter(
             torch.empty(num_experts,
                         hidden_size,
                         intermediate_size_per_partition,
