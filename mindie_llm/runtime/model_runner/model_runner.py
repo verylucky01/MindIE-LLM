@@ -8,14 +8,15 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 
-
 from typing import Iterable, Optional
 import os
 from tqdm.auto import tqdm
+import numpy as np
+
 import torch
 import torch.distributed as torch_dist
 import torch.nn.functional as F
-import numpy as np
+
 from mindie_llm.runtime.utils.helpers.env import ENV
 from mindie_llm.runtime.utils.cpu.affinity import bind_cpus
 from mindie_llm.runtime.utils.npu.device_utils import get_npu_hbm_info
@@ -29,8 +30,9 @@ from mindie_llm.runtime.utils.loader.default_model_loader import DefaultModelLoa
 from mindie_llm.runtime.utils.distributed import get_parallel_info_manager, init_distributed
 from mindie_llm.runtime.utils.distributed.parallel_info_manager import ParallelType
 from mindie_llm.runtime.utils.distributed.utils import set_device
-from mindie_llm.runtime.layers.attention import get_global_attn_dict
-from mindie_llm.runtime.compilation.acl_graph_wrapper import set_aclgraph_capturing_enabled, AclGraphWrapper
+from mindie_llm.runtime.layers.attention import get_global_attn_dict, clear_global_attn_dict, flush_global_attn_dict
+from mindie_llm.runtime.compilation.acl_graph_wrapper import set_aclgraph_capturing_enabled, AclGraphWrapper, \
+    set_global_graph_memory_pool
 from mindie_llm.runtime.config.mindie_llm_config import MindIELLMConfig
 from mindie_llm.runtime.config.load_config import LoadConfig
 from mindie_llm.utils.log.logging import logger, print_log
@@ -157,11 +159,12 @@ class ModelRunner:
         self.adapter_manager = None
         self.lora_adapter = None
 
-        self.has_warmup_done = False
-        self.has_init_kvcache = False
+        # All attention layers in model
+        self.attn_layers = None
 
-        # graph initialize
-        self.enable_acl_graph = ENV.torch_backend_type == 2
+        # 0: eager mode, 1: graph mode; 
+        # You can change 'self.enable_acl_graph' to 0 manually to enable eager mode, default is 1.
+        self.enable_acl_graph = 1
         
         # we store tensors here, decide not to use auto padding now.
         if self.enable_acl_graph:
@@ -225,6 +228,9 @@ class ModelRunner:
         self.index_head_dim = getattr(self.mindie_llm_config.hf_config, "index_head_dim", None)
         self.num_index_heads = getattr(self.mindie_llm_config.hf_config, "index_n_heads", None)
 
+        self.attn_layers = get_global_attn_dict().copy()
+        clear_global_attn_dict()
+
         # not equal k v length for mla
         if hasattr(self.model, 'kv_lora_rank') and hasattr(self.model, 'qk_rope_head_dim'):   # deepseekv2/v3/r1
             self.num_kv_heads = 1
@@ -243,7 +249,6 @@ class ModelRunner:
 
     def warm_up_and_compile(self, **kwargs):
         if not self.enable_acl_graph:
-            self.has_warmup_done = True
             return
 
         max_memory = get_npu_hbm_info().get_hbm_capacity()
@@ -251,6 +256,8 @@ class ModelRunner:
         logger.info(f"Before capturing, {current_memory=}")
 
         set_aclgraph_capturing_enabled(True)
+        set_global_graph_memory_pool(None)
+        self.model.graphs.clear()
         for num_tokens in tqdm(
             list(reversed(self.graph_batch_sizes)),
             desc="Capturing acl graph",
@@ -258,7 +265,6 @@ class ModelRunner:
         ):
             self._dummy_run(num_tokens)
         set_aclgraph_capturing_enabled(False)
-        self.has_warmup_done = True
 
         current_memory = int(max_memory * get_npu_hbm_info().get_hbm_usage()) / (1024 ** 3)
         logger.info(f"After capturing, {current_memory=}")
@@ -277,15 +283,16 @@ class ModelRunner:
         return position_ids
 
     def forward(self, **kwargs):
-        if not self.has_init_kvcache:
-            bind_kv_cache(kwargs.get("kv_cache", None))
-            self.has_init_kvcache = True
-        
-        if not self.has_warmup_done:
+        # NOTE: This will be removed after get_rope is ready
+        flush_global_attn_dict(self.attn_layers)
+        kv_cache = kwargs.get("kv_cache", None)
+        # When the address of kv_cache changes, we will recapture graphs.
+        if id(next(iter(self.attn_layers.values())).key_cache) != id(kv_cache[0][0]):
+            bind_kv_cache(kv_cache, self.attn_layers)
             self.warm_up_and_compile(**kwargs)
 
         input_ids, position_ids, input_metadata = self._prepare_inputs(**kwargs)
-        attn_metadata_dict = build_layerwise_attn_metadata(input_metadata)
+        attn_metadata_dict = build_layerwise_attn_metadata(input_metadata, self.attn_layers)
         forward_context = create_forward_context(input_metadata)
         forward_context.attn_metadata = attn_metadata_dict
         # NOTE: this flag will be update to FlashCommMetaData()
@@ -408,32 +415,34 @@ class ModelRunner:
         position_ids = self.position_ids[:num_tokens]
         seq_lens = self.seq_lens[:num_tokens]
         slot_mapping = self.slot_mapping[:num_tokens]
+        block_tables = self.block_tables[:num_tokens, :]
 
-        actual_len, last_req_tokens = \
-            get_speculative_reqs_padding_length(
-                num_tokens=num_tokens,
-                num_actual_tokens=self.num_speculative_tokens + 1
-            )
+        if actual_seq_lengths_kv is not None:
+            actual_len, last_req_tokens = \
+                get_speculative_reqs_padding_length(
+                    num_tokens=num_tokens,
+                    num_actual_tokens=self.num_speculative_tokens + 1
+                )
 
-        reqs_padding_length = actual_len - actual_seq_lengths_kv.shape[0]
-        actual_seq_lengths_kv_pad = \
-            torch.tensor([self.num_speculative_tokens + 1] * reqs_padding_length, dtype=torch.int32).npu()
-        actual_seq_lengths_kv = torch.cat([actual_seq_lengths_kv, actual_seq_lengths_kv_pad])
-        if last_req_tokens > 0:
-            actual_seq_lengths_kv[-1] = last_req_tokens
-        actual_seq_lengths_query = torch.cumsum(actual_seq_lengths_kv, dim=0, dtype=torch.int32).npu()
+            reqs_padding_length = actual_len - actual_seq_lengths_kv.shape[0]
+            actual_seq_lengths_kv_pad = \
+                torch.tensor([self.num_speculative_tokens + 1] * reqs_padding_length, dtype=torch.int32).npu()
+            actual_seq_lengths_kv = torch.cat([actual_seq_lengths_kv, actual_seq_lengths_kv_pad])
+            if last_req_tokens > 0:
+                actual_seq_lengths_kv[-1] = last_req_tokens
+            actual_seq_lengths_query = torch.cumsum(actual_seq_lengths_kv, dim=0, dtype=torch.int32).npu()
 
-        seq_lens_pad = torch.tensor([0] * reqs_padding_length, dtype=torch.int32).npu()
-        seq_lens = torch.cat([seq_lens, seq_lens_pad])
+            seq_lens_pad = torch.tensor([0] * reqs_padding_length, dtype=torch.int32).npu()
+            seq_lens = torch.cat([seq_lens, seq_lens_pad])
 
-        block_tables = self.block_tables[:actual_len, :]
+            block_tables = self.block_tables[:actual_len, :]
 
-        self.seq_lens[:actual_len].copy_(seq_lens[:actual_len])
-        self.actual_seq_lengths_kv[:actual_len].copy_(actual_seq_lengths_kv[:actual_len])
-        self.actual_seq_lengths_query[:actual_len].copy_(actual_seq_lengths_query[:actual_len])
-        actual_seq_lengths_kv = self.actual_seq_lengths_kv[:actual_len]
-        actual_seq_lengths_query = self.actual_seq_lengths_query[:actual_len]
-        seq_lens = self.seq_lens[:actual_len]
+            self.seq_lens[:actual_len].copy_(seq_lens[:actual_len])
+            self.actual_seq_lengths_kv[:actual_len].copy_(actual_seq_lengths_kv[:actual_len])
+            self.actual_seq_lengths_query[:actual_len].copy_(actual_seq_lengths_query[:actual_len])
+            actual_seq_lengths_kv = self.actual_seq_lengths_kv[:actual_len]
+            actual_seq_lengths_query = self.actual_seq_lengths_query[:actual_len]
+            seq_lens = self.seq_lens[:actual_len]
 
         # MTP
         hidden_states_mtp = input_metadata["last_hidden_states"]
@@ -464,7 +473,7 @@ class ModelRunner:
             raise ValueError("Dummy run failed for capture batch size is larger than max input_len.")
         input_ids, position_ids, input_metadata = self._generate_dummy_inputs(num_tokens)
 
-        attn_metadata_dict = build_layerwise_attn_metadata(input_metadata)
+        attn_metadata_dict = build_layerwise_attn_metadata(input_metadata, self.attn_layers)
         forward_context = create_forward_context(input_metadata=input_metadata,
                                                  capturing=True)
         forward_context.attn_metadata = attn_metadata_dict
@@ -518,9 +527,8 @@ class ModelRunner:
         return input_ids, position_ids, input_metadata
 
 
-def bind_kv_cache(kv_caches):
+def bind_kv_cache(kv_caches, attns):
     # the location of this function will be adjusted in the future
-    attns = get_global_attn_dict()
     for i, prefix in enumerate(attns):
         attn_layer = attns[prefix]
         attn_layer.key_cache = kv_caches[i][0]
@@ -529,9 +537,8 @@ def bind_kv_cache(kv_caches):
             attn_layer.index_cache = kv_caches[i][2]
 
 
-def build_layerwise_attn_metadata(input_metadata):
+def build_layerwise_attn_metadata(input_metadata, attns):
     common_attn_metadata = AttentionMetadata.from_dict(input_metadata)
-    attns = get_global_attn_dict()
     attn_metadata_dict = {}
     for _, prefix in enumerate(attns):
         attn_layer = attns[prefix]
