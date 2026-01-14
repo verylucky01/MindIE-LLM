@@ -22,7 +22,7 @@ std::string TestCreatNestedJson(int depth)
     for (int i = 0; i < depth; i++) {
         out += "{\"a\":";
     }
-    out += "b";
+    out += "\"b\"";
     for (int i = 0; i < depth; i++) {
         out += "}";
     }
@@ -35,7 +35,7 @@ std::string TestCreatNestedArrayJson(int depth)
     for (int i = 0; i < depth; i++) {
         out += "[";
     }
-    out += "b";
+    out += "\"b\"";
     for (int i = 0; i < depth; i++) {
         out += "]";
     }
@@ -48,24 +48,24 @@ int TestGetJsonDepth(const nlohmann::json& j)
         int maxLevel = 0;
         for (auto& element : j.items()) {
             if (element.value().is_object()) {
-                int subLevel = TestGetJsonDepth(element.value()) + 1;
+                int subLevel = TestGetJsonDepth(element.value());
                 if (subLevel > maxLevel) {
                     maxLevel = subLevel;
                 }
             }
         }
-        return maxLevel;
+        return maxLevel + 1;
     } else if (j.is_array()) {
         int maxLevel = 0;
         for (auto& element : j) {
-            if (element.is_object()) {
-                int subLevel = TestGetJsonDepth(element) + 1;
+            if (element.is_array()) {
+                int subLevel = TestGetJsonDepth(element);
                 if (subLevel > maxLevel) {
                     maxLevel = subLevel;
                 }
             }
         }
-        return maxLevel;
+        return maxLevel + 1;
     } else {
         // 如果不是对象或数组，返回0（基本类型不增加嵌套层次）
         return 0;
@@ -115,18 +115,18 @@ TEST_F(TestSafe, TestCheckJsonDepthCallback)
     ASSERT_EQ(true, CheckJsonDepthCallbackUlog(TestJsonDepth + 1, Json::parse_event_t::value, dummObj));
 
     nlohmann::ordered_json dummObj2{};
-    ASSERT_EQ(true, CheckOrderedJsonDepthCallback(TestJsonDepth, Json::parse_event_t::object_start, dummObj));
-    ASSERT_EQ(true, CheckOrderedJsonDepthCallback(TestJsonDepth, Json::parse_event_t::array_start, dummObj));
-    ASSERT_EQ(true, CheckOrderedJsonDepthCallback(TestJsonDepth, Json::parse_event_t::object_end, dummObj));
-    ASSERT_EQ(true, CheckOrderedJsonDepthCallback(TestJsonDepth, Json::parse_event_t::array_end, dummObj));
-    ASSERT_EQ(true, CheckOrderedJsonDepthCallback(TestJsonDepth, Json::parse_event_t::key, dummObj));
-    ASSERT_EQ(true, CheckOrderedJsonDepthCallback(TestJsonDepth, Json::parse_event_t::value, dummObj));
-    ASSERT_EQ(false, CheckOrderedJsonDepthCallback(TestJsonDepth + 1, Json::parse_event_t::object_start, dummObj));
-    ASSERT_EQ(false, CheckOrderedJsonDepthCallback(TestJsonDepth + 1, Json::parse_event_t::array_start, dummObj));
-    ASSERT_EQ(true, CheckOrderedJsonDepthCallback(TestJsonDepth + 1, Json::parse_event_t::object_end, dummObj));
-    ASSERT_EQ(true, CheckOrderedJsonDepthCallback(TestJsonDepth + 1, Json::parse_event_t::array_end, dummObj));
-    ASSERT_EQ(true, CheckOrderedJsonDepthCallback(TestJsonDepth + 1, Json::parse_event_t::key, dummObj));
-    ASSERT_EQ(true, CheckOrderedJsonDepthCallback(TestJsonDepth + 1, Json::parse_event_t::value, dummObj));
+    ASSERT_EQ(true, CheckOrderedJsonDepthCallback(TestJsonDepth, Json::parse_event_t::object_start, dummObj2));
+    ASSERT_EQ(true, CheckOrderedJsonDepthCallback(TestJsonDepth, Json::parse_event_t::array_start, dummObj2));
+    ASSERT_EQ(true, CheckOrderedJsonDepthCallback(TestJsonDepth, Json::parse_event_t::object_end, dummObj2));
+    ASSERT_EQ(true, CheckOrderedJsonDepthCallback(TestJsonDepth, Json::parse_event_t::array_end, dummObj2));
+    ASSERT_EQ(true, CheckOrderedJsonDepthCallback(TestJsonDepth, Json::parse_event_t::key, dummObj2));
+    ASSERT_EQ(true, CheckOrderedJsonDepthCallback(TestJsonDepth, Json::parse_event_t::value, dummObj2));
+    ASSERT_EQ(false, CheckOrderedJsonDepthCallback(TestJsonDepth + 1, Json::parse_event_t::object_start, dummObj2));
+    ASSERT_EQ(false, CheckOrderedJsonDepthCallback(TestJsonDepth + 1, Json::parse_event_t::array_start, dummObj2));
+    ASSERT_EQ(true, CheckOrderedJsonDepthCallback(TestJsonDepth + 1, Json::parse_event_t::object_end, dummObj2));
+    ASSERT_EQ(true, CheckOrderedJsonDepthCallback(TestJsonDepth + 1, Json::parse_event_t::array_end, dummObj2));
+    ASSERT_EQ(true, CheckOrderedJsonDepthCallback(TestJsonDepth + 1, Json::parse_event_t::key, dummObj2));
+    ASSERT_EQ(true, CheckOrderedJsonDepthCallback(TestJsonDepth + 1, Json::parse_event_t::value, dummObj2));
 }
 
 TEST_F(TestSafe, TestCheckJsonDepthCallbackWithParse)
