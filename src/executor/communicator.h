@@ -55,7 +55,8 @@ public:
 
 private:
     std::unique_ptr<IPCCommunicator> InitSingleIPCCommunicator(const std::string &sharedMemName,
-                                                               uint32_t localWorldSize) const;
+                                                              uint32_t localWorldSize,
+                                                              const ShmSizeConfig &shmSizeConfig) const;
 
     bool RegisterAndStartIPCHandler(std::shared_ptr<IPCCommunicator> ipcCommunicator, ResponseHandler handler) const;
 

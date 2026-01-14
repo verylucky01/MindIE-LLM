@@ -9,10 +9,11 @@ target_include_directories(mindie_executor
 )
 target_link_libraries(mindie_executor
     mindie_llm_utils
-    mindie_grpc
+    ${PROTOBUF_SO_FILES}
+    ${RE2_SO_FILES}
     ${GRPC_SO_FILES}
     mindie_protobuf
-    ${PROTOBUF_SO_FILES}
+    mindie_grpc
     ${Boost_LIBRARIES}
     stdc++fs
     config_manager

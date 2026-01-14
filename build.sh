@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+set -e
 export CODE_ROOT=$(cd $(dirname -- $0); pwd)
 SCRIPT_DIR=$CODE_ROOT/scripts
 
@@ -129,7 +130,7 @@ function fn_main()
     case "${arg1}" in
         "debug")
             COMPILE_OPTIONS="${COMPILE_OPTIONS} -DCMAKE_BUILD_TYPE=Debug -DDOMAIN_LAYERED_TEST=OFF"
-            set -ex
+            set -x
             fn_build
             fn_make_run_package
             ;;

@@ -21,16 +21,9 @@ namespace fs = std::experimental::filesystem;
 constexpr mode_t FULL_PERMISSION_MASK = 0777;
 constexpr mode_t REQUIRED_PERMISSION = 0600;
 namespace mindie_llm {
-static constexpr uint64_t MAX_REQUEST_BUF_SIZE =
-    DEFAULT_SHARED_MEMORY_SIZE - sizeof(uint32_t); // 8MB - 4 bytes for size
-
 bool SerializeExecuteMessage(ExecuteRequest &request, std::string &buf)
 {
     const size_t msgSize = request.ByteSizeLong();
-    if (msgSize > MAX_REQUEST_BUF_SIZE) {
-        MINDIE_LLM_LOG_ERROR("The message size cannot be greater than " << MAX_REQUEST_BUF_SIZE);
-        return false;
-    }
     try {
         buf.resize(msgSize + sizeof(uint32_t));
         if (!request.SerializeToArray(buf.data(), msgSize)) {
@@ -90,10 +83,10 @@ bool IPCCommunicator::WriteMessage(const char *message, uint32_t length)
     return true;
 }
 
-bool IPCCommunicator::CreateSharedMemory(IPCSharedMemory &iPCSharedMemory) const
+bool IPCCommunicator::CreateSharedMemory(IPCSharedMemory &iPCSharedMemory, const size_t sharedMemorySize) const
 {
     iPCSharedMemory.sharedMemory = std::make_unique<SharedMemory>();
-    if (!iPCSharedMemory.sharedMemory->Create(iPCSharedMemory.sharedMemoryName, DEFAULT_SHARED_MEMORY_SIZE)) {
+    if (!iPCSharedMemory.sharedMemory->Create(iPCSharedMemory.sharedMemoryName, sharedMemorySize)) {
         MINDIE_LLM_LOG_ERROR("Failed to create shared memory.");
         return false;
     }
@@ -147,13 +140,15 @@ void IPCCommunicator::CreateSemaphores(IPCSharedMemory &iPCSharedMemory) const
     }
 }
 
-bool IPCCommunicator::SetupChannel()
+bool IPCCommunicator::SetupChannel(const ShmSizeConfig &shmSizeConfig)
 {
-    if (!CreateSharedMemory(requestSharedMemory_) || !CreateSharedMemory(responseSharedMemory_)) {
+    if (!CreateSharedMemory(requestSharedMemory_, shmSizeConfig.requestShmSize) ||
+        !CreateSharedMemory(responseSharedMemory_, shmSizeConfig.responseShmSize)) {
         MINDIE_LLM_LOG_ERROR("Failed to create shared memory.");
         return false;
     }
-
+    requestShmSize_ = shmSizeConfig.requestShmSize;
+    responseShmSize_ = shmSizeConfig.responseShmSize;
     CreateSemaphores(requestSharedMemory_);
     CreateSemaphores(responseSharedMemory_);
 
@@ -209,7 +204,14 @@ bool IPCCommunicator::SendMessageViaSM(ExecuteRequest &request)
 {
     std::string buf;
     int profExecType = request.execute_type();
-    auto spanSerialize = PROF(INFO, Domain("Executor").SpanStart("SerializeRequests").Attr("execute_type", profExecType));
+    auto spanSerialize =
+        PROF(INFO, Domain("Executor").SpanStart("SerializeRequests").Attr("execute_type", profExecType));
+    const size_t msgSize = request.ByteSizeLong();
+    const size_t maxRequestBufSize = requestShmSize_ - sizeof(uint32_t); // 8MB - 4 bytes for size
+    if (msgSize > maxRequestBufSize) {
+        MINDIE_LLM_LOG_ERROR("The message size cannot be greater than " << maxRequestBufSize);
+        return false;
+    }
     if (!SerializeExecuteMessage(request, buf)) {
         MINDIE_LLM_LOG_ERROR("Failed to serialize execute message.");
         PROF(spanSerialize.SpanEnd());

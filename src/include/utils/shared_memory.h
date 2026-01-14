@@ -20,20 +20,26 @@ namespace mindie_llm {
 const size_t LLM_SHARED_MEMORY_MAX_NAME_LEN = 255;
 // Default size of single shared memory buffer is 8MB, which is sufficient for most use cases.
 const size_t DEFAULT_SHARED_MEMORY_SIZE = 1024 * 1024 * 8;
+ // For prefixcache in long sequence generation, one batch's shared memory may exceed 8MB.
+const size_t SHARED_MEMORY_256MB = 1024 * 1024 * 256;
+const size_t TOTAL_SHARED_MEMORY_PER_DP = 2 * SHARED_MEMORY_256MB + 4 * DEFAULT_SHARED_MEMORY_SIZE;
 // This is set to 0.5MB. Since a single machine can host up to 16 NPUs, the total maximum memory required is 0.5MB * 16
 // = 8MB, which aligns with DEFAULT_SHARED_MEMORY_SIZE.
 const size_t MODEL_INIT_RESP_SIZE = 1024 * 512;
 const size_t RECOVER_COMMAND_RESP_SIZE = 1024 * 512;
+struct ShmSizeConfig {
+    size_t requestShmSize;
+    size_t responseShmSize;
+};
 
 using FileDesc = int;
-
+bool SharedMemorySizeCheck(const uint64_t &pendingMemoryAllocationSize);
 class SharedMemory {
 public:
     SharedMemory() = default;
     ~SharedMemory();
     bool Create(const std::string &name, uint32_t size);
     bool Write(uint32_t dstOffset, const char *src, uint32_t size) const;
-    static bool SharedMemorySizeCheck(const uint32_t &pendingMemoryAllocationSize);
     static bool SharedMemoryNameChecker(const std::string &name);
     bool SharedMemoryUIDAndPermissionChecker(FileDesc mFd);
     char *GetBuf();

@@ -16,6 +16,7 @@ set(THIRD_PARTY_CACHE_DIR "${CMAKE_CURRENT_LIST_DIR}/../.cache/downloadCache")
 set(THIRD_PARTY_OUTPUT_DIR "${THIRD_PARTY_SRC_DIR}/output")
 
 file(GLOB PROTOBUF_SO_FILES "${THIRD_PARTY_OUTPUT_DIR}/protobuf/lib/*.so")
+file(GLOB RE2_SO_FILES "${THIRD_PARTY_OUTPUT_DIR}/re2/lib/*.so")
 set(PROTOBUF_PROTOC_EXECUTABLE "${THIRD_PARTY_OUTPUT_DIR}/protobuf/bin/protoc")
 file(GLOB GRPC_SO_FILES "${THIRD_PARTY_OUTPUT_DIR}/grpc/lib/*.so")
 set(GRPC_CPP_PLUGIN "${THIRD_PARTY_OUTPUT_DIR}/grpc/bin/grpc_cpp_plugin")
