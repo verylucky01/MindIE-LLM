@@ -20,7 +20,7 @@ from mindie_llm.runtime.layers.linear.linear import RowParallelLinear, MergedCol
 from mindie_llm.runtime.layers.embedding.embedding import VocabParallelEmbedding, ParallelLMHead
 from mindie_llm.runtime.layers.attention.sparse_attention_layer import SFA
 from mindie_llm.runtime.layers.fused_moe.experts_selector import select_experts
-from mindie_llm.runtime.layers.fused_moe.fused_moe import FusedMoE, assign
+from mindie_llm.runtime.layers.fused_moe.fused_moe import FusedMoE, assign_experts
 from mindie_llm.runtime.model_runner.forward_context import get_forward_context
 from mindie_llm.runtime.utils.distributed import get_parallel_info_manager
 from mindie_llm.runtime.layers.attention import get_global_attn_dict
@@ -129,7 +129,7 @@ class DeepseekV3Moe(nn.Module):
         self.topk_group = config.topk_group
         self.topk_num = config.num_experts_per_tok
         self.expert_num = config.n_routed_experts
-        self.expert_list = assign(config.n_routed_experts,
+        self.expert_list = assign_experts(config.n_routed_experts,
             parallel_info.moe_ep.group_size)[parallel_info.moe_ep.rank]
 
         self.experts = FusedMoE(
