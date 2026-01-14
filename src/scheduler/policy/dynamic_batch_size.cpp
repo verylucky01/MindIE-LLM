@@ -68,11 +68,11 @@ void DynamicBatchSize::AdjustBatchSize(size_t previousStage, size_t previousDeco
         return;
     }
 
-    MINDIE_LLM_LOG_INFO("[DynamicBatchSize] avg decode latency: " << avgDecodeLatency
+    MINDIE_LLM_LOG_INFO_REQUEST("[DynamicBatchSize] avg decode latency: " << avgDecodeLatency
                         << "ms, avg batch size:" << avgBatchSize);
     const uint16_t stageModulo = 2;
     stage_ = (stage_ + 1) % stageModulo;
-    MINDIE_LLM_LOG_INFO("[DynamicBatchSize] waiting size="
+    MINDIE_LLM_LOG_INFO_REQUEST("[DynamicBatchSize] waiting size="
                         << waitingSize << ", running size=" << runningSize << ", swapped size=" << swappedSize);
 
     if (stage_ % stageModulo == 0) {

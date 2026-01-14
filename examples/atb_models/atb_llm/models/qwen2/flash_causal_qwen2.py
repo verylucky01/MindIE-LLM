@@ -1,4 +1,4 @@
-# Copyright (c) Huawei Technologies Co., Ltd. 2024-2025. All rights reserved.
+# Copyright (c) Huawei Technologies Co., Ltd. 2023-2026. All rights reserved.
 # MindIE is licensed under Mulan PSL v2.
 # You can use this software according to the terms and conditions of the Mulan PSL v2.
 # You may obtain a copy of Mulan PSL v2 at:
@@ -7,17 +7,19 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
+
 import json
 from typing import Optional, List, Tuple
-from enum import Enum
 import copy
 import math
 import torch
 import torch_npu
 
-
+from atb_llm.utils.data.layer_adapter import ParallelLMHead
+from atb_llm.utils.data.quant_method_adapter import LinearMethodSupportAtbGraph
+from mindie_llm.runtime.layers.custom_layer import CustomLayer
 from .modeling_qwen2 import FlashQwenModel
-from .config_qwen2 import Qwen2Config
+from .modeling_qwen2_refactor import Qwen2Model
 from ..base.flash_causal_lm import FlashForCausalLM, DistributedType, LwdLayerStatus
 from ..base.graph_manager import ATBGraphManager, DapGraphWrapper, SpeculateGraphWrapper, \
     SplitFuseGraphWrapper, SingleLoraGraphWrapper, MultiLoraGraphWrapper, FlashCommGraphWrapper, \
@@ -68,6 +70,7 @@ class FlashQwen2ForCausalLM(FlashForCausalLM):
         self.aclnn_matmul_backend = False
         self._update_matmul_params(self.quantize)
         LinearUtils.soc_info = self.soc_info
+        self.prealloc_weight_mem_on_npu = kwargs.get("prealloc_weight_mem_on_npu", False)
         if self.layerwise_disaggregated:
             self.inference_mode.enable_prefill_pa = True
             self.layerwise.load_list = []
@@ -85,20 +88,33 @@ class FlashQwen2ForCausalLM(FlashForCausalLM):
                 attn_decode_backend=self.attn_decode_backend, load_list=self.layerwise.load_list,
                 layerwise_disaggregated=self.layerwise_disaggregated
             )
+        elif self.prealloc_weight_mem_on_npu:
+            LinearMethodSupportAtbGraph.set_soc_info(self.soc_info)
+            self.model = Qwen2Model(config, model_prefix, quant_config=kwargs.get("quant_config"))
         else:
             self.transformer = FlashQwenModel(
                 config, weights, model_prefix=model_prefix, lmhead_prefix=lmhead_prefix,
                 attn_decode_backend=self.attn_decode_backend
             )
 
-        if not transformer_wte_parallel:
+        if not self.prealloc_weight_mem_on_npu and not transformer_wte_parallel:
             self.transformer.wte = TensorEmbedding(
                 prefix=f"{model_prefix}.embed_tokens", weights=weights
             )
             for p in self.transformer.wte.parameters():
                 p.requires_grad = False
 
-        if self.quantize == "w8a8sc" or self.quantize == "w16a16sc":
+        if self.prealloc_weight_mem_on_npu:
+            self.lm_head = ParallelLMHead(
+                self.config.vocab_size,
+                self.config.hidden_size,
+                bias=False,
+                quant_config=kwargs.get("quant_config"),
+                prefix=f"lm_head",
+            )
+            if config.tie_word_embeddings:
+                self.lm_head = self.lm_head.tie_weights(self.model.embed_tokens)
+        elif self.quantize == "w8a8sc" or self.quantize == "w16a16sc":
             self.lm_head = TensorHead.load_weight(
                 config,
                 prefix="lm_head",
@@ -175,7 +191,8 @@ class FlashQwen2ForCausalLM(FlashForCausalLM):
             self.graph_manager = ATBGraphManager()
         self.flash_comm_modifier = FlashCommModifier(weights, self.hidden_size, self.flash_comm_gate(weights))
         self.qlen_modifier = QLenModifier()
-        self.lora_modifier = LoraModifier(weights, self)
+        self.lora_modifier = LoraModifier(weights, self, lora_adapter=kwargs.get("lora_adapter"), \
+            lora_model_config=kwargs.get("lora_model_config"))
         self.long_seq_modifier = LongSeqModifier(self.config)
         self.layerwise_modifier = LayerwiseModifier(self.layerwise)
 
@@ -222,8 +239,66 @@ class FlashQwen2ForCausalLM(FlashForCausalLM):
         weight_wrapper.register_model_norm(self.transformer.ln_f)
         weight_wrapper.register_model_lmhead(self.lm_head)
         return weight_wrapper
-    
-    
+
+    def get_model_weights(self, quant_type: QuantType = None):
+        weights = []
+        linear_descs = []
+        weight_transpose_type = []
+        weights.extend(self.model.embed_tokens.get_weights_for_atb_graph())  # length: 1
+
+        for i in range(self.num_layers):
+            layer = self.model.layers[i]
+            weights_per_layer, linear_descs_per_layer, weight_transpose_type_per_layer = \
+                self.get_layer_weights(layer, quant_type=quant_type)
+
+            weights.extend(weights_per_layer)
+            linear_descs.append(linear_descs_per_layer.copy())
+            linear_descs_per_layer.clear()
+            weight_transpose_type.append(weight_transpose_type_per_layer.copy())
+            weight_transpose_type_per_layer.clear()
+
+        weights.extend(self.model.norm.get_weights_for_atb_graph(padding=False))  # length: 1
+        weights.extend(self.lm_head.get_weights_for_atb_graph(padding=False))  # length: 1
+
+        return weights, linear_descs, weight_transpose_type
+
+    def get_layer_weights(self, layer: CustomLayer, quant_type: QuantType = None):
+        weights_per_layer = []
+        linear_descs_per_layer = []
+        weight_transpose_type_per_layer = []
+
+        weights_per_layer.extend(layer.input_layernorm.get_weights_for_atb_graph())  # length: 4
+
+        qkv_proj_adapter = layer.self_attn.qkv_proj
+        weights_per_layer.extend(qkv_proj_adapter.get_weights_for_atb_graph(quant_type=quant_type))  # length: 18
+        linear_descs_per_layer.extend(qkv_proj_adapter.get_linear_descs())  # length: 7
+        weight_transpose_type_per_layer.extend(qkv_proj_adapter.get_weight_transpose_type())  # length: 7
+
+        o_proj_adapter = layer.self_attn.o_proj
+        weights_per_layer.extend(o_proj_adapter.get_weights_for_atb_graph(quant_type=quant_type))  # length: 6
+        linear_descs_per_layer.extend(o_proj_adapter.get_linear_descs())  # length: 7
+        weight_transpose_type_per_layer.extend(o_proj_adapter.get_weight_transpose_type())  # length: 7
+
+        weights_per_layer.extend(layer.post_attention_layernorm.get_weights_for_atb_graph())  # length: 4
+
+        gate_up_proj_adapter = layer.mlp.gate_up_proj
+        weights_per_layer.extend(gate_up_proj_adapter.get_weights_for_atb_graph(quant_type=quant_type))  # length: 12
+        linear_descs_per_layer.extend(gate_up_proj_adapter.get_linear_descs())  # length: 7
+        weight_transpose_type_per_layer.extend(gate_up_proj_adapter.get_weight_transpose_type())  # length: 7
+
+        down_proj_adapter = layer.mlp.down_proj
+        weights_per_layer.extend(
+            down_proj_adapter.get_weights_for_atb_graph(
+                is_swiglu_quant_enabled=self.enable_swiglu_quant, quant_type=quant_type))  # length: 6
+        linear_descs_per_layer.extend(down_proj_adapter.get_linear_descs())  # length: 7
+        weight_transpose_type_per_layer.extend(down_proj_adapter.get_weight_transpose_type())  # length: 7
+
+        if self.config.use_qk_norm:
+            weights_per_layer.extend(layer.self_attn.q_norm.get_weights_for_atb_graph(padding=False))  # length: 1
+            weights_per_layer.extend(layer.self_attn.k_norm.get_weights_for_atb_graph(padding=False))  # length: 1
+
+        return weights_per_layer, linear_descs_per_layer, weight_transpose_type_per_layer
+
     def get_layerwsie_ascend_param(self, ascend_params, mode, linear_has_bias, wrapper: WeightWrapper):
         modify_ascend_params = copy.deepcopy(ascend_params)
         modify_ascend_params["linearTransposeType"] = wrapper.linear_transpose_types
@@ -311,13 +386,20 @@ class FlashQwen2ForCausalLM(FlashForCausalLM):
         return weight_wrapper
 
     def init_ascend_weight(self):
+        linear_types = None
+        pack_quant_configs = None
+        linear_descs_configs = None
+        linear_transpose_types = None
         if self.quantize == QuantType.W8A8_PDMIX:
-            weight_wrapper = self.get_weights(quantize_type=QuantType.W8A8_DYNAMIC)
-            decode_weight_wrapper = self.get_weights(quantize_type=QuantType.W8A8)
-            self.decode_weight = decode_weight_wrapper.weights
+            self.ascend_weight, linear_descs_configs, linear_transpose_types = self.get_model_weights(
+                quant_type=QuantType.W8A8_DYNAMIC)
+            self.decode_weight, _, _ = self.get_model_weights(quant_type=QuantType.W8A8)
         else:
             if not self.layerwise_disaggregated:
-                weight_wrapper = self.get_weights()
+                if self.prealloc_weight_mem_on_npu:
+                    self.ascend_weight, linear_descs_configs, linear_transpose_types = self.get_model_weights()
+                else:
+                    weight_wrapper = self.get_weights()
             else:
                 if self.layerwise.split_type == DistributedType.CLOUD:
                     self.layerwise.weight_wrappers = []
@@ -329,14 +411,14 @@ class FlashQwen2ForCausalLM(FlashForCausalLM):
                 else:
                     weight_wrapper_head = self.get_layerwise_weights(mode=LwdLayerStatus.EDGE_START_LAYER)
                     weight_wrapper_tail = self.get_layerwise_weights(mode=LwdLayerStatus.EDGE_END_LAYER)
-            
-        if not self.layerwise_disaggregated:    
+
+        if not self.prealloc_weight_mem_on_npu and not self.layerwise_disaggregated:    
             self.ascend_weight = weight_wrapper.weights
             linear_types = weight_wrapper.linear_type
             pack_quant_configs = weight_wrapper.pack_quant_type
             linear_descs_configs = weight_wrapper.linear_descs
             linear_transpose_types = weight_wrapper.linear_transpose_types  
-        elif self.layerwise.split_type == DistributedType.EDGE:
+        elif not self.prealloc_weight_mem_on_npu and self.layerwise.split_type == DistributedType.EDGE:
             self.layerwise.ascend_weight_head = weight_wrapper_head.weights            
             self.layerwise.ascend_weight_tail = weight_wrapper_tail.weights
 
@@ -354,14 +436,18 @@ class FlashQwen2ForCausalLM(FlashForCausalLM):
             linear_has_bias = [[self.config.attention_bias, False, False, False]] 
         else:
             linear_has_bias = [[True, False, False, False]]
+        if self.prealloc_weight_mem_on_npu:
+            lm_head_transpose_type = self.lm_head.get_weight_transpose_type()[0]
+        else:
+            lm_head_transpose_type = self.lm_head.linear.trans_flag
         acl_param_dict = {
             "isFA": False,
             "isBF16": self.dtype == torch.bfloat16,
             "skipWordEmbedding": self.skip_word_embedding,
             "isEmbeddingParallel": True,
             "isLmHeadParallel": True,
-            "linearTransposeType": linear_transpose_types if not self.layerwise_disaggregated else None, 
-            "lmHeadTransposeType": self.lm_head.linear.trans_flag,
+            "linearTransposeType": linear_transpose_types,
+            "lmHeadTransposeType": lm_head_transpose_type,
             "enableSwiGLU": False if self.soc_info.need_nz else True,
             "enableSwigluQuant": self.enable_swiglu_quant,
             "enablePreFetchWeight": False,
@@ -378,8 +464,6 @@ class FlashQwen2ForCausalLM(FlashForCausalLM):
             "worldSize": self.tp_world_size,
             "backend": self.soc_info.communication_backend,
             "attnBackend": self.attn_decode_backend,
-            "linearQuantType": linear_types if not self.layerwise_disaggregated else None,
-            "packQuantType": pack_quant_configs if not self.layerwise_disaggregated else None,
             "quantGroupSize": self.config.quantization_config.group_size,
             "enableKvQuant": self.config.quantization_config.kv_quant_type is not None,
             "isLongSeq": self.long_seq_enable,
@@ -404,12 +488,16 @@ class FlashQwen2ForCausalLM(FlashForCausalLM):
             "modelConfuscationFd": self.obfuscation_fd,
             "mapping": self.mapping.to_dict_v2(),
         }
+        if linear_types is not None:
+            acl_param_dict["linearQuantType"] = linear_types
+        if pack_quant_configs is not None:
+            acl_param_dict["packQuantType"] = pack_quant_configs
         encoder_param = {
             **acl_param_dict,
             "isPrefill": True,
             "enableLcoc": self.lcoc_enable,
             "enableMC2": ENV.enable_mc2,
-            "linearDescs": linear_descs_configs if not self.layerwise_disaggregated else None,
+            "linearDescs": linear_descs_configs,
             "enableRopeQuantKvcache": self.enable_rope_quant_kvcache and not self.omni_attention_enable,
         }
         decoder_param = {

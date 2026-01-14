@@ -31,7 +31,8 @@ FAKE_ROPE_SCALING_CONFIG = {
     'attention_factor': 1,
     'beta_fast': 32,
     'beta_slow': 1,
-    'mrope_section': [8, 12, 12]
+    'mrope_section': [8, 12, 12],
+    'mrope_interleaved': False
 }
 
 FAKE_QUANTIZATION_CONFIG = {

@@ -14,7 +14,10 @@ from ..backend_type import BackendType
 
 
 def get_model_wrapper(model_config, backend_type):
-    if backend_type == BackendType.ATB:
+    if backend_type == BackendType.TORCH:
+        from .aclgraph.aclgraph_model_wrapper import AclGraphModelWrapper
+        wrapper_cls = AclGraphModelWrapper
+    elif backend_type == BackendType.ATB:
         from .atb.atb_model_wrapper import ATBModelWrapper
         wrapper_cls = ATBModelWrapper
     elif backend_type == BackendType.MS:
@@ -27,7 +30,10 @@ def get_model_wrapper(model_config, backend_type):
 
 
 def get_tokenizer_wrapper(model_id: str, backend_type: str, **kwargs):
-    if backend_type == BackendType.ATB:
+    if backend_type == BackendType.TORCH:
+        from .aclgraph.aclgraph_tokenizer_wrapper import AclGraphTokenizerWrapper
+        wrapper_cls = AclGraphTokenizerWrapper
+    elif backend_type == BackendType.ATB:
         from .atb.atb_tokenizer_wrapper import ATBTokenizerWrapper
         wrapper_cls = ATBTokenizerWrapper
     elif backend_type == BackendType.MS:

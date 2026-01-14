@@ -73,14 +73,13 @@ BlockSpaceManagerSPtr BlockManagerFactory::CreateBlockSpaceManager(BlockManagerT
 
 size_t SelfAttnBlockManager::GetNumRequiredBlocks(size_t seqLen, size_t blockSize) const
 {
-    size_t num = -1;
-    if (blockSize > 0) {
-        num = (seqLen + blockSize - 1) / blockSize;
-        if (rankSize_ > 1) {
-            num += 1;
-        }
+    if (blockSize == 0) {
+        throw std::runtime_error("the blockSize should not be zero");
     }
-
+    size_t num = (seqLen + blockSize - 1) / blockSize;
+    if (rankSize_ > 1) {
+        num += 1;
+    }
     return num;
 }
 
@@ -150,7 +149,7 @@ bool SelfAttnBlockManager::Allocate(const SequenceGroupSPtr &seqGroup)
     return true;
 }
 
-/// 确定GPU的KV缓存中是否有足够的空间为指定sequence group生成序列，
+/// 确定NPU的KV缓存中是否有足够的空间为指定sequence group生成序列，
 /// 约定每个被Append slot的block都需要新分配。如果append的block数量少于空闲的block数量，则可以Append多个slot。
 bool SelfAttnBlockManager::CanAppendSlot(const SequenceGroupSPtr &seqGroup) const
 {
@@ -505,7 +504,7 @@ bool SelfAttnBlockManager::CanSwapOut(const SequenceGroupSPtr &seqGroup)
     return status == AllocStatus::OK;
 }
 
-/// 将给定的sequence group swap out后 返回BlockId的一个map（从GPU到CPU）
+/// 将给定的sequence group swap out后 返回BlockId的一个map（从NPU到CPU）
 /// \return: std::pair<PhysicalBlockId, PhysicalBlockId> {NPU BlockId, CPU BlockId}
 std::vector<std::pair<PhysicalBlockId, PhysicalBlockId>> SelfAttnBlockManager::SwapOut(
     const SequenceGroupSPtr &seqGroup)

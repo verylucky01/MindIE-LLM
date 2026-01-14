@@ -103,7 +103,7 @@ git checkout master
 
 1. 【共通】安装 `atb_llm` 和 `atb_speed`
 
-    说明：需要先source `ascend-toolkit` 及 `nnal` 环境变量
+    说明：需要先source `cann` 及 `nnal` 环境变量
 
     如果尝试导入 `atb_llm` 时出现 `ImportError`，则需要参考[【加速版本】编译模型仓](#加速版本编译模型仓)编译模型仓
 
@@ -323,7 +323,7 @@ NPU环境使用 `OM` 格式模型，GPU环境使用 `ONNX` 格式模型
 1. SoftmaxV2使能VectorCore：需要在以下路径的json文件中找到 `SoftmaxV2`
 
     ```text
-    /usr/local/Ascend/ascend-toolkit/latest/opp/built-in/op_impl/ai_core/tbe/config/ascend310p/aic-ascend310p-ops-info.json
+    /usr/local/Ascend/cann/opp/built-in/op_impl/ai_core/tbe/config/ascend310p/aic-ascend310p-ops-info-legacy.json
     ```
     
     加入使能VectorCore
@@ -337,7 +337,7 @@ NPU环境使用 `OM` 格式模型，GPU环境使用 `ONNX` 格式模型
 2. 并且在以下路径中把已经存在的 `softmax_v2` 改为其它名称，否则使能不生效
 
     ```shell
-    ascend-toolkit/latest/opp/built-in/op_impl/ai_core/tbe/kernel/ascend310p
+    cann/opp/built-in/op_impl/ai_core/tbe/kernel/ascend310p
     ```
 
 3. 重新进行ATC转换再进行性能测试即可

@@ -97,10 +97,11 @@ size_t QueueCounter::CountRunningTokens(SequenceGroupSPtr &seqgrp) const
 
 size_t QueueCounter::GetNumRequiredBlocks(size_t seqLen, size_t blockSize) const
 {
-    if (blockSize > 0) {
-        return (seqLen + blockSize - 1) / blockSize;
+    if (blockSize == 0) {
+        throw std::runtime_error("the blockSize should not be zero");
     }
-    return -1;
+
+    return (seqLen + blockSize - 1) / blockSize;
 }
 
 // 统计给定序列组所需的块（block）数量，根据序列状态采用不同的计算方式。
@@ -115,6 +116,9 @@ size_t QueueCounter::CountBlocks(SequenceGroupSPtr &seqgrp, SequenceStatus statu
     }
 
     // 情况2：其他状态（如WAITING、SWAPPED等），根据序列长度和块大小计算预估需要的块数量
+    if (seqgrp->seqs_.empty()) {
+        throw std::runtime_error("the sequenceGroup has no seq");
+    }
     return GetNumRequiredBlocks(seqgrp->seqs_[0]->GetTokenIds().size(), schedulerConfig_->cacheBlockSize);
 }
 } // namespace mindie_llm

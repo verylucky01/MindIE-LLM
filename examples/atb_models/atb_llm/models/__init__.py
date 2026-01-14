@@ -97,6 +97,10 @@ def get_model(model_name_or_path: str,
         model_type = model_type.replace('_', '')
     if model_type == "qwen2_vl":
         model_type = model_type.replace('_', '')
+    if model_type == "qwen3_vl":
+        model_type = model_type.replace('_', '')
+    if model_type == "qwen3_vl_moe":
+        model_type = model_type.replace('_', '')
     if model_type == "minicpm_qwen2_v2":
         model_type = model_type.replace('_', '')
     if model_type == "kimi_k2":

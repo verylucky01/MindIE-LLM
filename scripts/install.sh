@@ -46,7 +46,7 @@ function log() {
     if [ x"$log_file" = x ]; then
         echo -e "[mindie-llm] [$(date +%Y%m%d-%H:%M:%S)] [$1] $2"
     else
-        if [ $(stat -c %s $log_file) -gt $MAX_LOG_SIZE ];then 
+        if [ $(stat -c %s $log_file) -gt $MAX_LOG_SIZE ];then
             echo -e "[mindie-llm] [$(date +%Y%m%d-%H:%M:%S)] [$1] log file is bigger than $MAX_LOG_SIZE, stop write log to file"
         else
             echo -e "[mindie-llm] [$(date +%Y%m%d-%H:%M:%S)] [$1] $2" >>$log_file
@@ -64,7 +64,7 @@ function print() {
     if [ x"$log_file" = x ]; then
         echo -e "[mindie-llm] [$(date +%Y%m%d-%H:%M:%S)] [$1] $2"
     else
-        if [ $(stat -c %s $log_file) -gt $MAX_LOG_SIZE ];then 
+        if [ $(stat -c %s $log_file) -gt $MAX_LOG_SIZE ];then
             echo -e "[mindie-llm] [$(date +%Y%m%d-%H:%M:%S)] [$1] log file is bigger than $MAX_LOG_SIZE, stop write log to file"
             echo -e "[mindie-llm] [$(date +%Y%m%d-%H:%M:%S)] [$1] $2"
         else
@@ -128,7 +128,7 @@ function chmod_authority() {
     chmod_dir ${default_install_path} "550"
 }
 
-function chmod_file() { 
+function chmod_file() {
     chmod_recursion ${1} "550" "file" "*.sh"
     chmod_recursion ${1} "440" "file" "*.bin"
     chmod_recursion ${1} "440" "file" "*.h"
@@ -144,7 +144,7 @@ function chmod_file() {
 
 function chmod_dir() {
     chmod_recursion ${1} ${2} "dir"
-} 
+}
 
 function chmod_recursion() {
     local rights=$2
@@ -251,9 +251,10 @@ function install_python_whl() {
     else
         print "WARNING" "llm_manager_python_api_demo wheel not found, skipping installation"
     fi
-    chmod 440 ${log_file}
+    chmod 640 ${log_file}
     $python_interpreter -m pip install ${tokenizer_wheel_path} --log-file ${log_file} --force-reinstall || \
     { print "ERROR" "Failed to install tokenizer wheel in mindie-llm"; exit 1; }
+    chmod 440 ${log_file}
 }
 
 function install_to_path() {
@@ -281,7 +282,6 @@ function copy_files() {
     mkdir -p $install_dir/lib
     mkdir -p $install_dir/bin
     mkdir -p $install_dir/include
-    mkdir -p $install_dir/lib/grpc
     mkdir -p $install_dir/conf
     mkdir -p $install_dir/server/scripts
     cp -r ${sourcedir}/bin/mindieservice_daemon $install_dir/bin
@@ -290,8 +290,7 @@ function copy_files() {
     cp -r ${sourcedir}/include/* $install_dir/include
     cp -r ${sourcedir}/conf $install_dir
     cp -r ${sourcedir}/server/scripts/* $install_dir/server/scripts
-    cp ${sourcedir}/lib/*.so* $install_dir/lib
-    cp ${sourcedir}/lib/grpc/*.so* $install_dir/lib/grpc
+    cp -r ${sourcedir}/lib/* ${install_dir}/lib
     print "INFO" "debug install ${sourcedir}, install to ${install_dir}"
     cp ${sourcedir}/install.sh $install_dir
     cp ${sourcedir}/version.info $install_dir

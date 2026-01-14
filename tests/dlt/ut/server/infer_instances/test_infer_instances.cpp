@@ -143,17 +143,13 @@ protected:
         serverConfig_.tlsCaFile = {"ca.pem"};
         serverConfig_.tlsCert = "../../config_manager/conf/cert/server.pem";
         serverConfig_.tlsPk = "../../config_manager/conf/cert/server.key.pem";
-        serverConfig_.tlsPkPwd = "../../config_manager/conf/cert/key_pwd.txt";
         serverConfig_.tlsCrlPath = "../../config_manager/conf/cert/";
         serverConfig_.tlsCrlFiles = {"server_crl.pem"};
         serverConfig_.managementTlsCaFile = {"management_ca.pem"};
         serverConfig_.managementTlsCert = "../../config_manager/conf/cert/server.pem";
         serverConfig_.managementTlsPk = "../../config_manager/conf/cert/server.key.pem";
-        serverConfig_.managementTlsPkPwd = "../../config_manager/conf/cert/key_pwd.txt";
         serverConfig_.managementTlsCrlPath = "../../config_manager/conf/cert/";
         serverConfig_.managementTlsCrlFiles = {"server_crl.pem"};
-        serverConfig_.kmcKsfMaster = "../../config_manager/conf/ksfa";
-        serverConfig_.kmcKsfStandby = "../../config_manager/conf/ksfb";
         serverConfig_.inferMode = "standard";
         serverConfig_.interCommTLSEnabled = true;
         serverConfig_.interCommPort = 1121;
@@ -161,7 +157,6 @@ protected:
         serverConfig_.interCommTlsCaFiles = {"ca.pem"};
         serverConfig_.interCommTlsCert = "../../config_manager/conf/cert/server.pem";
         serverConfig_.interCommPk = "../../config_manager/conf/cert/server.key.pem";
-        serverConfig_.interCommPkPwd = "../../config_manager/conf/cert/key_pwd.txt";
         serverConfig_.interCommTlsCrlPath = "../../config_manager/conf/cert/";
         serverConfig_.interCommTlsCrlFiles = {"server_crl.pem"};
         serverConfig_.tokenTimeout = 5;
@@ -185,11 +180,8 @@ protected:
         backendConfig_.interNodeTlsCaFiles = "ca.pem";
         backendConfig_.interNodeTlsCert = "../../config_manager/conf/certs/server.pem";
         backendConfig_.interNodeTlsPk = "../../config_manager/conf/server.key.pem";
-        backendConfig_.interNodeTlsPkPwd = "../../config_manager/conf/mindie_server_key_pwd.txt";
         backendConfig_.interNodeTlsCrlPath = "../../config_manager/conf/certs/";
         backendConfig_.interNodeTlsCrlFiles = "server_crl.pem";
-        backendConfig_.interNodeKmcKsfMaster = "../../config_manager/conf/ksfa";
-        backendConfig_.interNodeKmcKsfStandby = "../../config_manager/conf/ksfb";
         backendConfig_.interNodeTlsCaFilesVec = {"ca.pem"};
         backendConfig_.interNodeTlsCrlFilesVec = {"ca.pem"};
 

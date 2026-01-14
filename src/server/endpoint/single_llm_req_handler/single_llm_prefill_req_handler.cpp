@@ -9,7 +9,7 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
+#include "single_llm_prefill_req_handler.h"
 #include <boost/thread/mutex.hpp>
 #include <boost/thread.hpp>
 #include <boost/thread/condition_variable.hpp>
@@ -25,7 +25,7 @@
 #include "env_util.h"
 #include "dmi_role.h"
 #include "config_manager_impl.h"
-#include "single_llm_prefill_req_handler.h"
+#include "safe_io.h"
 
 using namespace prefillAndDecodeCommunication;
 using OrderedJson = nlohmann::ordered_json;
@@ -99,7 +99,7 @@ bool SingleLLMPrefillReqHandler::GetContextJsonBody(OrderedJson& body)
                 JSON_PARSE_ERROR), "Convert string to json object exception. CallbackId is " << ctx->CallbackId());
             return false;
         }
-        body = OrderedJson::parse(converted);
+        body = OrderedJson::parse(converted, CheckOrderedJsonDepthCallback);
     } catch (...) {
         ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SPLITWISE,
             JSON_PARSE_ERROR), "Convert string to json object exception. CallbackId is " << ctx->CallbackId());
@@ -197,12 +197,17 @@ void SingleLLMPrefillReqHandler::GetSingleLLMPrefillReqHandlerId()
 
 void SingleLLMPrefillReqHandler::SetBackManagerCallBack(RequestSPtr request)
 {
-    auto self = shared_from_this();
+    // 使用weak_ptr避免因request与handler之间循环引用导致的内存泄漏
+    std::weak_ptr<SingleLLMPrefillReqHandler> weakSelf = shared_from_this();
     std::string dTargetAddr = ctx->Req().get_header_value("d-target");
     bool containPort = dTargetAddr.find(IP_PORT_DELIMITER) != std::string::npos;
     GetPNodeAddr(containPort);
     GetSingleLLMPrefillReqHandlerId();
-    request->serverResponseCallback_ = [self, dTargetAddr](ResponseSPtr response) {
+    request->serverResponseCallback_ = [weakSelf, dTargetAddr](ResponseSPtr response) {
+        auto self = weakSelf.lock();
+        if (!self) {
+            return;
+        }
         std::unique_lock lock(self->prefillCbMutex);
         if (response == nullptr) {
             ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SPLITWISE,

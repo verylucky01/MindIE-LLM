@@ -272,7 +272,7 @@ class FlashForCausalLM(BaseModel):
         """Preprocess adapter ids."""
         if self.adapter_manager is None:
             return []
-        effective_adapter_ids = self.adapter_manager.preprocess_adatper_ids(adapter_ids)
+        effective_adapter_ids = self.adapter_manager.preprocess_adapter_ids(adapter_ids)
         return effective_adapter_ids
 
     def prepare_adapter_weights(self, adapter_ids: None | List[str | None]) -> List[torch.Tensor]:

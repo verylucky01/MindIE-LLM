@@ -129,6 +129,14 @@ class RequestRouterEdge(RequestRouterLwd):
         self.is_last_do_chunk_prefill = False
         span_end(prof)
 
+    def do_clean_eos(self):
+        while self.clean_eos_queue.empty():
+            time.sleep(0.001)
+            self.get_all_request()
+
+        self.clean_eos_queue.get()  # 边侧推出eos会自动清理cache, 下eos请求下给云侧清理cache使用
+        logger.info(f"[layerwiseDisaggregated][python thread: infer] text generator clean eos, rank{self.rank}.")
+
     def recv_decode(self):
         self.ctrl_comm.recv_decode()
         self.decode_comm_finish = self.ctrl_comm.decode_comm_finish

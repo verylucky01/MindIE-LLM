@@ -82,9 +82,7 @@ class ATBModelWrapper(ModelWrapper):
             tls_pk=kwargs.get("interNodeTlsPk", ""),
             tls_crl_path=kwargs.get("interNodeTlsCrlPath", ""),
             tls_crl_files=kwargs.get("interNodeTlsCrlFiles", ""),
-            tls_pk_pwd=kwargs.get("interNodeTlsPkPwd", ""),
-            kmc_ksf_master=kwargs.get("interNodeKmcKsfMaster", ""),
-            kmc_ksf_standby=kwargs.get("interNodeKmcKsfStandby", "")
+            
         )
         self.config = self.model_runner.config
         self.config_dict = self.model_runner.config_dict

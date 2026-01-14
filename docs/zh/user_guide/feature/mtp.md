@@ -10,7 +10,7 @@ MTP（Multi-Token Prediction，多Token预测）是DeepSeek中提出的一种用
 
 |配置项|取值类型|取值范围|配置说明|
 |--|--|--|--|
-|plugin_params|std::string|plugin_type: mtpnum_speculative_tokens: [1,5]|**plugin_type**设置为“mtp”，表示选择mtp特性。**num_speculative_tokens**表示MTP的层数，取值范围1~5。不需要生效任何插件功能时，请删除该配置项字段。配置示例：{\"plugin_type\":\"mtp\",\"num_speculative_tokens\": 1}|
+|plugin_params|std::string|plugin_type: mtp<br>num_speculative_tokens: [1]|<ul><li>**plugin_type**设置为“mtp”，表示选择mtp特性。</li><li>**num_speculative_tokens**表示MTP的层数，可设置为1或2。</li><li>不需要生效任何插件功能时，请删除该配置项字段。</li></ul><br>配置示例：{\"plugin_type\":\"mtp\",\"num_speculative_tokens\": 1}<br>【注】num_speculative_tokens配置建议：对于低时延场景，可配置使用1或2，对于高吞吐场景，建议配置不超过1|
 
 
 ## 特性叠加

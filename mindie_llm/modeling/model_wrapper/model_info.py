@@ -20,7 +20,8 @@ class ModelInfo:
     k_head_size: int
     v_head_size: int
     enable_nz: bool
-
+    index_head_dim: int
+    num_index_heads: int
 
     def __init__(self, device, dtype, data_byte_size, num_layers, num_kv_heads, head_size, **kwargs):
         self.device = device
@@ -33,3 +34,5 @@ class ModelInfo:
         self.v_head_size = kwargs.get("v_head_size", self.head_size)
         self.enable_nz = kwargs.get("enable_nz", False)
         self.kvcache_quant_layers = kwargs.get("kvcache_quant_layers", None)
+        self.index_head_dim = kwargs.get("index_head_dim") 
+        self.num_index_heads = kwargs.get("num_index_heads")

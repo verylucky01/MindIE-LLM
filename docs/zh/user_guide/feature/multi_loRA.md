@@ -49,7 +49,7 @@ LoRA权重中需包含"adapter\_config.json"和"adapter\_model.safetensors"文�
 
     > [!NOTE]说明 
     > 本次样例参考以下安装路径进行：
-    > 安装ATB Models并初始化ATB Models环境变量。模型仓set\_env.sh脚本中有初始化“$\{ATB\_SPEED\_HOME\_PATH\}”环境变量的操作，所以source模型仓中set\_env.sh脚本时会同时初始化“$\{ATB\_SPEED\_HOME\_PATH\}”环境变量。
+    > 安装ATB Models并初始化ATB Models环境变量。模型仓set\_env.sh脚本中有初始化“\$\{ATB\_SPEED\_HOME\_PATH\}”环境变量的操作，所以source模型仓中set\_env.sh脚本时会同时初始化“\$\{ATB\_SPEED\_HOME\_PATH\}”环境变量。
 
     以LLaMA3.1-70B为例，下载基础模型和LoRA权重后，您可以使用以下指令执行对话测试，共3个请求组成Batch进行推理，每个推理请求中LoRA权重不同。run\_pa脚本参数参考[表2](../user_manual/offline_inference.md#table2)章节。
 
@@ -100,11 +100,8 @@ LoRA权重中需包含"adapter\_config.json"和"adapter\_model.safetensors"文�
                 "interNodeTlsCaFiles": ["ca.pem"],
                 "interNodeTlsCert": "security/grpc/certs/server.pem",
                 "interNodeTlsPk": "security/grpc/keys/server.key.pem",
-                "interNodeTlsPkPwd": "security/grpc/pass/mindie_server_key_pwd.txt",
                 "interNodeTlsCrlPath" : "security/grpc/certs/",
                 "interNodeTlsCrlfiles" : ["server_crl.pem"],
-                "interNodeKmcKsfMaster": "tools/pmt/master/ksfa",
-                "interNodeKmcKsfStandby": "tools/pmt/standby/ksfb",
                 "ModelDeployConfig":
                 {
                     "maxSeqLen" : 2560,
@@ -122,8 +119,8 @@ LoRA权重中需包含"adapter\_config.json"和"adapter\_model.safetensors"文�
                             "trustRemoteCode": false
                         }
                     ],
-                   "maxLoras": 4,
-                   "maxLoraRank": 296,
+                    "maxLoras": 4,
+                    "maxLoraRank": 296,
                     "LoraModules" :[{
                     "name" : "adapter1",
                     "path" : "/data/lora_model_weights/llama3.1-70b-lora",
@@ -157,7 +154,7 @@ LoRA权重中需包含"adapter\_config.json"和"adapter\_model.safetensors"文�
 
         ```bash
         curl -X POST 127.0.0.2:1026/v1/unload_lora_adapter -d '{
-        "lora_name": "adapter2"
+            "lora_name": "adapter2"
         }'
         ```
 

@@ -28,7 +28,7 @@ struct WordEmbeddingParam {
     /// Which axis to gather slices from input tensors.
     int axis = 0;
     /// A struct defined in `/fusion/linear/linear_parallel.h`. The vocabulary list will be split according to the
-    /// settings of the struct; under default parameters, even if the model runs on multiple GPUs,
+    /// settings of the struct; under default parameters, even if the model runs on multiple devices,
     /// the vocabulary will not be split.
     atb_speed::common::TensorParallelInfo tensorParallelInfo;
 };

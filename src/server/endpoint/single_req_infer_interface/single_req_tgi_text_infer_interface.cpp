@@ -9,7 +9,7 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
- 
+#include "single_req_tgi_text_infer_interface.h"
 #include <utility>
 #include <sstream>
 #include <regex>
@@ -21,7 +21,8 @@
 #include "http_rest_resource.h"
 #include "common_util.h"
 #include "base64_util.h"
-#include "single_req_tgi_text_infer_interface.h"
+#include "safe_io.h"
+
 using OrderedJson = nlohmann::ordered_json;
 
 namespace mindie_llm {
@@ -444,15 +445,21 @@ std::unique_ptr<std::string> SingleReqTgiTextInferInterface::BuildTgiReComputeBo
     if (request_->watermark.has_value()) {
         newReqJsonObj["parameters"]["watermark"] = request_->watermark.value();
     }
-    if (request_->stopStrings.has_value() && request_->stopStrings.value() != "") {
+    ParseStopString(newReqJsonObj);
+    return std::make_unique<std::string>(newReqJsonObj.dump());
+}
+
+void SingleReqTgiTextInferInterface::ParseStopString(nlohmann::ordered_json& newReqJsonObj)
+{
+    std::string stopStr = request_->stopStrings.has_value() ? request_->stopStrings.value() : "";
+    if (stopStr != "") {
         try {
-            newReqJsonObj["parameters"]["stop"] = nlohmann::json::parse(request_->stopStrings.value());
+            newReqJsonObj["parameters"]["stop"] = nlohmann::json::parse(stopStr, CheckJsonDepthCallbackUlog);
         } catch(...) {
             ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SINGLE_INFERENCE,
                 CHECK_ERROR), "Failed to parse stopStrings");
         }
     }
-    return std::make_unique<std::string>(newReqJsonObj.dump());
 }
 
 bool SingleReqGeneralTgiTextInferInterface::EncodeTGIResponse(RespBodyQueue &jsonStrs)

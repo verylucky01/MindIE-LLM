@@ -153,11 +153,8 @@ void ConstructBackendFuzzConfig(Json &jsonData, uint32_t &fuzzIndex)
     jsonData["BackendConfig"]["interNodeTlsCaFiles"] = {"ca.pem"};
     jsonData["BackendConfig"]["interNodeTlsCert"] = "security/grpc/certs/server.pem";
     jsonData["BackendConfig"]["interNodeTlsPk"] = "security/grpc/keys/server.key.pem";
-    jsonData["BackendConfig"]["interNodeTlsPkPwd"] = "security/grpc/pass/mindie_server_key_pwd.txt";
     jsonData["BackendConfig"]["interNodeTlsCrlPath"] = "security/grpc/certs/";
     jsonData["BackendConfig"]["interNodeTlsCrlFiles"] = {"server_crl.pem"};
-    jsonData["BackendConfig"]["interNodeKmcKsfMaster"] = "tools/pmt/master/ksfa";
-    jsonData["BackendConfig"]["interNodeKmcKsfStandby"] = "tools/pmt/standby/ksfb";
 }
 // 构造config.json
 void ConstructFuzzConfig(uint32_t &fuzzIndex, std::string &configPath)

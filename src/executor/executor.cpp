@@ -296,7 +296,7 @@ bool Executor::AsyncExecuteModel(ExecuteModelRequestPtr &modelRequest,
     request.set_execute_type(MODEL_INFER);
     request.mutable_execute_model_request()->CopyFrom(*modelRequest);
     RegisterExecuteModelResponseHandler(executeModelResponseHandler);
-    MINDIE_LLM_LOG_DEBUG("Ready to execute inference requests.");
+    MINDIE_LLM_LOG_DEBUG_REQUEST("Ready to execute inference requests.");
 
     if (!communicator_->SendAsyncRequest(request)) {
         MINDIE_LLM_LOG_ERROR("Failed to send execute message to local workers.");
@@ -311,7 +311,7 @@ bool Executor::AsyncTGCleanup(TGCleanupRequestPtr &TGCleanupRequest)
     request.set_execute_type(TEXT_GENERATOR_CLEANUP);
     request.mutable_text_generator_cleanup_request()->CopyFrom(*TGCleanupRequest);
 
-    MINDIE_LLM_LOG_DEBUG("Ready to execute clear cache requests.");
+    MINDIE_LLM_LOG_DEBUG_REQUEST("Ready to execute clear cache requests.");
     if (!communicator_->SendAsyncRequest(request)) {
         MINDIE_LLM_LOG_ERROR("Failed to send clear cache message to local workers.");
         return false;
@@ -373,7 +373,7 @@ bool Executor::ExecuteKVTransfer(PullKVRequestPtr &pullKVRequest, PullKVResponse
 
     RegisterPullKVResponseHandler(pullKVResponseHandler);
 
-    MINDIE_LLM_LOG_DEBUG("Ready to execute instance transfer request.");
+    MINDIE_LLM_LOG_DEBUG_REQUEST("Ready to execute instance transfer request.");
     if (!communicator_->SendAsyncRequest(request)) {
         MINDIE_LLM_LOG_ERROR("Failed to send transfer message to another local worker.");
         return false;

@@ -14,7 +14,7 @@ import sys
 import os
 
 from atb_llm.utils.loader import safetensor_file_loader
-operations = [
+patch_operations = [
     {
         'type': 'check_modified',
         'target_block': """    @property
@@ -92,7 +92,7 @@ operations = [
 ]
 
 
-def process_file(filename):
+def process_file(filename, operations):
     with open(filename, 'r') as f:
         content = f.read()
       
@@ -146,7 +146,7 @@ if __name__ == "__main__":
         print(f"Error: file {target_file} does not exists")
         sys.exit(1)
     print(f"Start processing the file: {target_file}")
-    success = process_file(target_file)
+    success = process_file(target_file, patch_operations)
     if success:
         print("All operations have been completed.!")
     else:

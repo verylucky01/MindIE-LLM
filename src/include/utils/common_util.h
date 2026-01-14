@@ -45,6 +45,12 @@ struct LogRotateParam {
 };
 constexpr uint32_t MAX_CONFIG_FILE_SIZE_LIMIT = 500 * 1024 * 1024; // 500 MB
 
+constexpr int MIN_PRIVATE_KEY_CONTENT_BIT_LEN = 3072; // RSA密钥长度要求大于3072
+constexpr int MAX_PRIVATE_KEY_CONTENT_BIT_LEN = 32768; // huge RSA秘钥位宽为32768
+
+constexpr int MIN_PRIVATE_KEY_CONTENT_BYTE_LEN = MIN_PRIVATE_KEY_CONTENT_BIT_LEN / 8; // 1个byte = 8bit
+constexpr int MAX_PRIVATE_KEY_CONTENT_BYTE_LEN = MAX_PRIVATE_KEY_CONTENT_BIT_LEN / 8; // 1个byte = 8bit
+
 const mode_t MAX_CONFIG_PERM = S_IRUSR | S_IWUSR | S_IRGRP;   // 640
 const mode_t MAX_HOME_DIR_PERM = S_IRWXU | S_IRGRP | S_IXGRP; // 750
 

@@ -11,7 +11,6 @@
  */
 
 #include <fcntl.h>
-#include "spdlog/details/os.h"
 #include "common_util.h"
 #include "check_utils.h"
 #include "file_system.h"
@@ -20,6 +19,24 @@
 
 namespace mindie_llm {
 
+const char*  MODULE_NAME_LLM = "llm";
+const char* MODULE_NAME_ATB = "llmmodels";
+const char* MODULE_NAME_SERVER = "server";
+const char* LOGGER_NAME_LLM_TOKEN = "llm-token";
+const char* LOGGER_NAME_LLM_REQUEST = "llm-request";
+const char* ALL_COMPONENT_NAME = "*";
+const std::unordered_map<LoggerType, std::string> LOGGER_NAME_MAP{
+    {LoggerType::MINDIE_LLM, MODULE_NAME_LLM},
+    {LoggerType::MINDIE_LLM_REQUEST, LOGGER_NAME_LLM_REQUEST},
+    {LoggerType::MINDIE_LLM_TOKEN, LOGGER_NAME_LLM_TOKEN},
+    {LoggerType::ATB, MODULE_NAME_ATB},
+    {LoggerType::SECURITY, MODULE_NAME_SERVER},
+    {LoggerType::DEBUG, MODULE_NAME_SERVER}};
+
+const std::unordered_map<LoggerType, std::string> MODULE_NAME_MAP{{LoggerType::MINDIE_LLM, MODULE_NAME_LLM},
+                                                                  {LoggerType::ATB, MODULE_NAME_ATB},
+                                                                  {LoggerType::SECURITY, MODULE_NAME_SERVER},
+                                                                  {LoggerType::DEBUG, MODULE_NAME_SERVER}};
 LogConfig::LogConfig(const LogConfig &config)
     : logToStdOut_(config.logToStdOut_),
       logToFile_(config.logToFile_),
@@ -102,6 +119,12 @@ void LogConfig::InitLogVerbose(LoggerType loggerType)
 
 void LogConfig::InitLogRotationParam(LoggerType loggerType)
 {
+    // customize log rotation for token
+    if (loggerType == LoggerType::MINDIE_LLM_TOKEN) {
+        logFileSize_ = 1 * 1024 * 1024; // 1 MB = 1024 KB = 1024 * 1024 B
+        logFileCount_ = 2;
+        return;
+    }
     const char *mindieLogRotate = std::getenv("MINDIE_LOG_ROTATE");
     if (mindieLogRotate != nullptr) {
         LogUtils::SetMindieLogParamString(loggerType, logRotateConfig_, mindieLogRotate);

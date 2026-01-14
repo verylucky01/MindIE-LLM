@@ -20,7 +20,7 @@ TP（Tensor Parallel，张量并行）是一种模型并行的策略，它通过
 |--|--|--|--|
 |deepseekv2 | 
 |parallel_options|
-|lm_head_local_tp|int|[1，worldSize / 节点数]|表示LmHead张量并行切分数。仅DeepSeek-R1、DeepSeek-V3和DeepSeek-V3.1模型支持此特性。默认值：-1。表示不开启切分|
+|lm_head_local_tp|int|[1，worldSize / 节点数]|表示LmHead张量并行切分数。<br><ul><li>仅DeepSeek-R1、DeepSeek-V3和DeepSeek-V3.1模型支持此特性。</li><li>默认值：-1。表示不开启切分</li></ul>|
 
 
 开启“O project矩阵local tp切分”，需要配置的参数如[表2](#table2)所示。
@@ -31,7 +31,7 @@ TP（Tensor Parallel，张量并行）是一种模型并行的策略，它通过
 |--|--|--|--|
 |deepseekv2|
 |parallel_options|
-|o_proj_local_tp|int|[1，worldSize / 节点数]|表示Attention O矩阵切分数。仅DeepSeek-R1、DeepSeek-V3和DeepSeek-V3.1模型支持此特性。默认值：-1，表示不开启切分|
+|o_proj_local_tp|int|[1，worldSize / 节点数]|表示Attention O矩阵切分数。<br><ul><li>仅DeepSeek-R1、DeepSeek-V3和DeepSeek-V3.1模型支持此特性。</li><li>默认值：-1，表示不开启切分</li></ul>|
 
 
 ## 执行推理

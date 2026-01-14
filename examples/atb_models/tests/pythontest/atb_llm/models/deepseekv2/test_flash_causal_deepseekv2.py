@@ -272,5 +272,41 @@ class TestFlashCausalDeepseekV2(unittest.TestCase):
         self.assertEqual(moe_ep_buffer_size, golden_moe_ep_buffer_size)
         self.assertEqual(moe_tp_buffer_size, golden_moe_tp_buffer_size)
 
+    @patch("atb_llm.models.base.flash_causal_lm.load_atb_speed")
+    @patch('atb_llm.models.deepseekv2.flash_causal_deepseekv2.FlashDeepseekV2Model', return_value=MagicMock())
+    def test_get_all2all_buffer_factor(self, mock_model, mock_init_so):
+        world_size = 16
+        moe_ep_size = 16
+        moe_tp_size = 1
+        alltoall_ep_buffer_scale_factors = [[0, 3]]
+
+        instance0 = FlashDeepseekv2ForCausalLM(self.config, self.weights)
+        instance0.mapping.world_size = world_size
+        instance0.mapping.moe_ep.group_size = moe_ep_size
+        instance0.mapping.moe_tp.group_size = moe_tp_size
+        num_tokens_per_rank = 128000
+        alltoall_buff_scale = instance0.get_all2all_buffer_factor(num_tokens_per_rank, is_prefill=True)
+        max_alltoall_buff_scale = 3
+        self.assertEqual(alltoall_buff_scale, max_alltoall_buff_scale)
+        num_tokens_per_rank = 1
+        alltoall_buff_scale = instance0.get_all2all_buffer_factor(1, is_prefill=True)
+        golden_alltoall_buff_scale = moe_ep_size * 2
+        self.assertEqual(alltoall_buff_scale, golden_alltoall_buff_scale)
+        num_tokens_per_rank = 128
+        alltoall_buff_scale = instance0.get_all2all_buffer_factor(num_tokens_per_rank, is_prefill=True)
+        max_scale = math.sqrt(moe_ep_size)
+        min_scale = max(1, max_scale / 2)
+        golden_alltoall_buff_scale = min_scale + (max_scale - min_scale) / (
+            1 + math.exp(math.log2(num_tokens_per_rank) - math.log2(moe_ep_size))
+        )
+        self.assertEqual(alltoall_buff_scale, golden_alltoall_buff_scale)
+        instance0.ds_config = MagicMock()
+        instance0.ds_config.alltoall_ep_buffer_scale_factors = alltoall_ep_buffer_scale_factors
+        num_tokens_per_rank = 4096
+        alltoall_buff_scale = instance0.get_all2all_buffer_factor(num_tokens_per_rank)
+        golden_alltoall_buff_scale = alltoall_ep_buffer_scale_factors[0][1]
+        self.assertEqual(alltoall_buff_scale, golden_alltoall_buff_scale)
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -211,7 +211,7 @@ class LoraManager(Singleton):
         revert_adapter_idx = [idx for idx, _ in sorted(enumerate(sorted_adapter_idx), key=lambda group: group[1])]
         return sorted_adapter_idx, revert_adapter_idx
 
-    def preprocess_adatper_ids(
+    def preprocess_adapter_ids(
             self, adapter_ids: None | List[str | None],
             model_name=None, model_id=None) -> List[str]:
         """Normalize and validate adapter IDs for processing

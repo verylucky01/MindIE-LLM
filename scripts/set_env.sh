@@ -22,12 +22,11 @@ if [[ -f "$path" ]] && [[ "$path" =~ set_env.sh ]];then
     export MINDIE_LLM_HOME_PATH="${mindie_llm_path}"
 
     export MINDIE_LLM_RECOMPUTE_THRESHOLD=0.5
-    export LD_LIBRARY_PATH=$MINDIE_LLM_HOME_PATH/lib:$LD_LIBRARY_PATH
     export PYTORCH_INSTALL_PATH="$(python3 -c 'import torch, os; print(os.path.dirname(os.path.abspath(torch.__file__)))')"
     if [ -n "$PYTORCH_INSTALL_PATH" ]; then
         export LD_LIBRARY_PATH="$PYTORCH_INSTALL_PATH/lib:$PYTORCH_INSTALL_PATH/../torch.libs:$LD_LIBRARY_PATH"
     fi
-    export LD_LIBRARY_PATH="$MINDIE_LLM_HOME_PATH/lib/grpc:$LD_LIBRARY_PATH"
+    export LD_LIBRARY_PATH=$(find "$MINDIE_LLM_HOME_PATH/lib" -type d | tr '\n' ':' | sed 's/:$//'):${LD_LIBRARY_PATH}
     export PYTHONPATH=$MINDIE_LLM_HOME_PATH:$PYTHONPATH
     export PYTHONPATH=$MINDIE_LLM_HOME_PATH/lib:$PYTHONPATH
 

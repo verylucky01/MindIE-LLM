@@ -52,7 +52,7 @@ MindIE当前支持两种负载均衡特性：静态冗余负载均衡和强制�
 
 采集热点信息后，每个NPU会生成一个.csv文件，文件中包含一个矩阵（num\_moe\_layer \* 单NPU专家数）。矩阵中的每个数字代表该layer中该专家所计算的token数，每8个token会在采集文件中追加该矩阵。
 
-根据采集的专家热点信息，可使用![msit工具][https://gitcode.com/Ascend/msit/blob/master/msit/docs/install/README.md]的“elb”组件生成冗余专家部署表。
+根据采集的专家热点信息，可使用[msit工具](https://gitcode.com/Ascend/msit/blob/master/msit/docs/install/README.md)的“elb”组件生成冗余专家部署表。
 
 1. 安装“elb”组件，安装方法如下所示。
 
@@ -73,12 +73,30 @@ MindIE当前支持两种负载均衡特性：静态冗余负载均衡和强制�
 
 2. 显示如下回显信息，表示安装成功。
 
-```text
-2025-07-16 15:08:58,488 - 36266 - msit_llm_logger - INFO - msit-elb
-2025-07-16 15:08:58,632 - 36266 - msit_llm_logger - INFO -   OK
-```
+    ```text
+    2025-07-16 15:08:58,383 - 36266 - msit_llm_logger - INFO - msit-surgeon
+    2025-07-16 15:08:58,395 - 36266 - msit_llm_logger - INFO -   not install yet.
+    2025-07-16 15:08:58,395 - 36266 - msit_llm_logger - INFO - msit-analyze
+    2025-07-16 15:08:58,407 - 36266 - msit_llm_logger - INFO -   not install yet.
+    2025-07-16 15:08:58,407 - 36266 - msit_llm_logger - INFO - msit-convert
+    2025-07-16 15:08:58,419 - 36266 - msit_llm_logger - INFO -   not install yet.
+    2025-07-16 15:08:58,419 - 36266 - msit_llm_logger - INFO - msit-profile
+    2025-07-16 15:08:58,431 - 36266 - msit_llm_logger - INFO -   not install yet.
+    2025-07-16 15:08:58,431 - 36266 - msit_llm_logger - INFO - msit-tensor-view
+    2025-07-16 15:08:58,443 - 36266 - msit_llm_logger - INFO -   not install yet.
+    2025-07-16 15:08:58,443 - 36266 - msit_llm_logger - INFO - msit-benchmark
+    2025-07-16 15:08:58,454 - 36266 - msit_llm_logger - INFO -   not install yet.
+    2025-07-16 15:08:58,454 - 36266 - msit_llm_logger - INFO - msit-compare
+    2025-07-16 15:08:58,465 - 36266 - msit_llm_logger - INFO -   not install yet.
+    2025-07-16 15:08:58,465 - 36266 - msit_llm_logger - INFO - msit-opcheck
+    2025-07-16 15:08:58,476 - 36266 - msit_llm_logger - INFO -   not install yet.
+    2025-07-16 15:08:58,476 - 36266 - msit_llm_logger - INFO - msit-graph
+    2025-07-16 15:08:58,488 - 36266 - msit_llm_logger - INFO -   not install yet.
+    2025-07-16 15:08:58,488 - 36266 - msit_llm_logger - INFO - msit-elb
+    2025-07-16 15:08:58,632 - 36266 - msit_llm_logger - INFO -   OK
+    ```
 
-3. 参见![负载均衡亲和专家寻优指南](https://gitcode.com/Ascend/msit/blob/master/msit/docs/expert_load_balancing/%E5%B7%A5%E5%85%B7-%E8%B4%9F%E8%BD%BD%E5%9D%87%E8%A1%A1%E4%BA%B2%E5%92%8C%E4%B8%93%E5%AE%B6%E5%AF%BB%E4%BC%98.md)，使用“elb”组件生成冗余专家部署表。8机64卡典型配置如下：
+3. 参见[负载均衡亲和专家寻优指南](https://gitcode.com/Ascend/msit/blob/master/msit/docs/expert_load_balancing/%E5%B7%A5%E5%85%B7-%E8%B4%9F%E8%BD%BD%E5%9D%87%E8%A1%A1%E4%BA%B2%E5%92%8C%E4%B8%93%E5%AE%B6%E5%AF%BB%E4%BC%98.md)，使用“elb”组件生成冗余专家部署表。8机64卡典型配置如下：
 
     ```
     msit elb -icp input_dir_path -o output_file_path -nre 0 -nd 8 -nn 64 -al 5 -dt a2
@@ -86,13 +104,13 @@ MindIE当前支持两种负载均衡特性：静态冗余负载均衡和强制�
 
     msit工具提供两种负载均衡算法：计算通信负载均衡算法（C2LB）和speculative-moe interface algorithm。当前speculative-moe level 2 混置算法（al 5）取得最优.
 
-> [!NOTE]说明 
->- PD分离场景，可分别单独生成Prefill和Decode的冗余专家部署表。
->- PD混合场景，只需生成Decode的冗余专家部署表，以提升Decode性能。
+    > [!NOTE]说明 
+    >- PD分离场景，可分别单独生成Prefill和Decode的冗余专家部署表。
+    >- PD混合场景，只需生成Decode的冗余专家部署表，以提升Decode性能。
 
 ### 负载均衡参数配置
 
-负载均衡参数，可通过修改atb-models安装目录下的_“\{ATB安装路径\}/atb-models/atb\_llm/conf/config.json”_进行配置。修改“models/deepseekv2/eplb”字段里的“level”、“expert\_map\_file”、“rep\_per\_rank”、"aggregate\_threshold"、"buffer\_expert\_layer\_num"、"num\_expert\_update\_ready\_countdown"参数，默认配置为不开启负载均衡。典型配置如下：
+负载均衡参数，可通过修改atb-models安装目录下的“\{ATB安装路径\}/atb-models/atb\_llm/conf/config.json”进行配置。修改“models/deepseekv2/eplb”字段里的“level”、“expert\_map\_file”、“rep\_per\_rank”、"aggregate\_threshold"、"buffer\_expert\_layer\_num"、"num\_expert\_update\_ready\_countdown"参数，默认配置为不开启负载均衡。典型配置如下：
 
 ```json
 {

@@ -43,6 +43,7 @@ protected:
     int32_t EncodeTGIStreamResponse(RespBodyQueue &jsonStrs);
     bool AssignAdapterId(const nlohmann::ordered_json &body, RequestSPtr tmpReq, std::string &error) const;
     std::unique_ptr<std::string> BuildTgiReComputeBody(const std::vector<BestNTokens>& tokens);
+    void ParseStopString(nlohmann::ordered_json& newReqJsonObj);
     std::string ChangeUtf8Str(std::string &input) const;
 
     bool decoderInputDetails{ false };

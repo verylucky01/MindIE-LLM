@@ -23,12 +23,14 @@
 
 using namespace mindie_llm;
 using namespace model_execute_data;
-
+// store total decode token num for logging
+std::atomic<int> g_decodeTokenCount = 0;
 ModelExecOutputHandler::ModelExecOutputHandler(ForwardRespToManagerCall cb, Role pdRole, SchedulerConfigSPtr &config,
-    std::shared_ptr<LatencyPredictor> latencypredictor, size_t localDPRank)
+                                               std::shared_ptr<LatencyPredictor> latencypredictor, size_t localDPRank)
     : role_(pdRole), forwardRespToManagerCall_(cb), schedulerConfig_(config),
       bufferResponseConfig_({config->bufferResponseEnabled, config->prefillExpectedTime, config->decodeExpectedTime}),
-      latencypredictor_(latencypredictor), localDPRank_(localDPRank), bufferedResponser_(cb, bufferResponseConfig_)
+      latencypredictor_(latencypredictor), localDPRank_(localDPRank), bufferedResponser_(cb, bufferResponseConfig_),
+      dpRankId_(config->dpRankId_)
 {
 }
 
@@ -59,8 +61,8 @@ void ModelExecOutputHandler::AsyncPublishPrefilledKvCache(ModelBatchResultSPtr &
             response->responseContents.resize(1);
             response->responseContents[0].srcBlockTable = seqGroup->pBlockTable;
             response->responseContents[0].singleLLMPrefillReqHandlerId = localDPRank_;
-            MINDIE_LLM_LOG_INFO("[LlmEngine|Request-Publish Complete] DP RankId: "
-                                << schedulerConfig_->dpRankId_ << ". Request Prefill Complete, requestId: "
+            MINDIE_LLM_LOG_INFO_REQUEST("[LlmEngine|Request-Publish Complete] DP RankId: "
+                                << dpRankId_ << ". Request Prefill Complete, requestId: "
                                 << seqGroup->metrics_.inferReqId_ << ", seqId: " << firstSample.seq_id()
                                 << ", pInstanceId:" << seqGroup->pInstanceId << ", localDPRank_:" << localDPRank_);
 
@@ -120,10 +122,17 @@ void ModelExecOutputHandler::Entry4Executor(ModelBatchResultSPtr &modelBatchResu
 
         if (response != nullptr) {
             if (discardChunkedPrefillReqToken) {
-                MINDIE_LLM_LOG_DEBUG("The output token of the chunked prefill request need to be discard.");
+                MINDIE_LLM_LOG_DEBUG_REQUEST("The output token of the chunked prefill request need to be discard.");
             } else {
                 queueWaitTimes.push_back(queueWaitTime);
                 responsesToCallback.push_back(response);
+                for (size_t i = 0; i < response->responseContents.size(); i++) {
+                    g_decodeTokenCount += response->responseContents[i].speculativeTokenNum;
+                }
+                MINDIE_LLM_LOG_INFO_TOKEN("[LlmEngine|Request-Response] DP RankId: "
+                                          << dpRankId_ << ". Response generated, requestId: " << response->reqId
+                                          << ", batchsize: " << modelBatchResult->outputs_size()
+                                          << ", total decoded tokens: " << g_decodeTokenCount);
                 prefixCachedTokenNums.push_back(currentPrefixCachedTokenNums);
             }
         }
@@ -185,7 +194,7 @@ void ModelExecOutputHandler::ProcessSequenceStatus(SequenceId seqId, int64_t fin
     if (finishReason == static_cast<int64_t>(InferStatusType::ITERATION_CONTINUE)) {
         return;
     }
-    MINDIE_LLM_LOG_INFO("[LlmEngine|Request-End] DP RankId: " << schedulerConfig_->dpRankId_
+    MINDIE_LLM_LOG_INFO_REQUEST("[LlmEngine|Request-End] DP RankId: " << dpRankId_
                                                               << ". Sequence finished. seqId: " << seqId
                                                               << "; finishReason: "
                                                               << finishReason);
@@ -346,7 +355,6 @@ void ModelExecOutputHandler::AddOutputsToResponse(ResponseSPtr response,
         if (trailingPlaceholderNum == tokenNum) {
             continue; // 没有有效的 token, 不需要返回给上层
         }
-
         // add new ParallelResponse for this sequence sample
         response->responseContents.emplace_back(ResponseContent{
             .seqId = sample.seq_id(),
@@ -383,7 +391,7 @@ ResponseSPtr ModelExecOutputHandler::ConvertSequenceGroupOutputToResponse(
     }
     if (seqGroup == nullptr) {
         // TBC 集中式时不同dp会返回全部的结果，导致找不到其他dp的seqGroup而日志刷屏，待修复
-        MINDIE_LLM_LOG_DEBUG("Can not find sequence group.");
+        MINDIE_LLM_LOG_DEBUG_REQUEST("Can not find sequence group.");
         return nullptr;
     }
 
@@ -426,7 +434,7 @@ void ModelExecOutputHandler::SetResponseFlags(const model_execute_data::Completi
         }));
     if (continueSeqCount == 0) {
         response->isEos = true;
-        MINDIE_LLM_LOG_INFO("[LlmEngine|Request-End] DP RankId: " << schedulerConfig_->dpRankId_
+        MINDIE_LLM_LOG_INFO_REQUEST("[LlmEngine|Request-End] DP RankId: " << dpRankId_
                                                                   << ". Send eos response. seqId: "
                                                                   << output.samples(0).seq_id());
     }

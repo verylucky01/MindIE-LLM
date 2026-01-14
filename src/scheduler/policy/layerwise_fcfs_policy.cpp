@@ -104,7 +104,7 @@ int LayerwiseFcfsPolicy::GeneratePrefillBatch(SchedulingBudget &budget,
     } else if (canAllocate == AllocStatus::NEVER) {
         /** 当前mindie逻辑应该不存在这种场景
             * 1、如果prompt长度很长，则在add request的时候就做长度校验，返回添加失败。
-            * 2、decode阶段，text generator判断长度等于maxSeqLen时就结束请求。maxSeqLen不可能比gpu最大可用的内存大。
+            * 2、decode阶段，text generator判断长度等于maxSeqLen时就结束请求。maxSeqLen不可能比npu最大可用的内存大。
             *  */
         throw std::runtime_error("Prompt sequence too long.");
     }
@@ -148,6 +148,8 @@ PrefillOutputs LayerwiseFcfsPolicy::ApplyToWaitingQueue(SchedulingBudget &budget
     std::vector<SequenceGroupSPtr> ignoredSeqGroups;
     std::vector<std::shared_ptr<ScheduledSequenceGroup>> seqGroups;
     std::deque<SequenceGroupSPtr> leftOverSeqGroups;
+
+    ((void)enableChunking);
 
     // 组prefill batch重置变量
     int curCount = 0;
@@ -213,7 +215,6 @@ RunningOutputs LayerwiseFcfsPolicy::ApplyToRunningQueue(SchedulingBudget &budget
 
         queuesCollection_->running_.pop_front();
         bool canAppend = true;
-        int preempteCount = 0;
         while (!policyHelper_.CanAppendSlots(seqGroup) ||
                !AllocBlocks4ParallelSeqGrp(seqGroup, runningOutput.blocksToCopy_)) {
             // 2. try to pop back seqgroup of running queue to preempt

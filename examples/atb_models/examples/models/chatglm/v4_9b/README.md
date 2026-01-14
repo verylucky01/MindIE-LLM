@@ -25,10 +25,10 @@
 - trust_remote_code为可选参数代表是否信任本地的可执行文件：默认不执行。传入此参数，则信任本地可执行文件。
 
 ## 量化权重导出
-量化权重可通过msmodelslim（昇腾压缩加速工具）实现。
+量化权重可通过msmodelslim（昇腾模型压缩工具）实现。
 
 ### 环境准备
-环境配置可参考msmodelslim官网：https://www.hiascend.com/document/detail/zh/canncommercial/70RC1/devtools/auxiliarydevtool/modelslim_0002.html
+请参考[msmodelslim](https://gitcode.com/Ascend/msit/blob/master/msmodelslim/docs/%E5%AE%89%E8%A3%85%E6%8C%87%E5%8D%97.md)安装msModelSlim量化工具
 
 ### 导出w8a8量化权重
 通过`${llm_path}/examples/models/chatglm/v4_9b/quant_glm4_w8a8.sh`文件导出模型的量化权重（注意量化权重不要和浮点权重放在同一个目录下）：
@@ -50,21 +50,14 @@ bash quant_glm4_w8a8.sh -src ${浮点权重路径} -dst ${量化权重保存路�
 4.如果生成权重时遇到`OpenBLAS Warning: Detect OpenMP Loop and this application may hang. Please rebuild the library with USE_OPENMP = 1 option`，可通过设置`export OMP_NUM_THREADS=1`来关闭多线程规避。
 
 ### 导出w8a8c8(kv cache量化)权重
-请参考msModelSlim量化工具[量化指导](https://gitcode.com/ascend/msit/tree/master/msmodelslim/example/GLM)
+请参考msModelSlim量化工具[量化指导](https://gitcode.com/Ascend/msit/tree/master/msmodelslim/example/GLM)
 
 ### 导出稀疏量化权重
 - 稀疏量化权重请使用以下指令生成
 
   校准数据集从 [Tsinghua Cloud](https://cloud.tsinghua.edu.cn/f/e84444333b6d434ea7b0/) 获取，解压后，使用解压目录下的 `CEval/val/Other/civil_servant.jsonl` 作为校准数据集。
-    > 运行前需要确保压缩工具编译过
-    >
-    > `cd /usr/local/Ascend/ascend-toolkit/latest/python/site-packages/msmodelslim/pytorch/weight_compression/compress_graph`
-    >
-    > `bash build.sh /usr/local/Ascend/ascend-toolkit/latest`
 
     ```shell
-    # 设置CANN包的环境变量
-    source /usr/local/Ascend/ascend-toolkit/set_env.sh
 
     cd ${llm_path}/examples/models/chatglm/v4_9b
     bash convert_quant_weights.sh ${浮点权重路径} ${W8A8S量化权重路径} ${校准数据集路径} ${TP_Size} ${指定生成量化权重的卡号(使用单卡单芯)} ${指定生成稀疏权重的卡号(根据TP数来选择几卡几芯)} -trust_remote_code

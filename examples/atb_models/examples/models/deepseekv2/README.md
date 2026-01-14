@@ -43,7 +43,7 @@
 - 当前DeepSeek-V2支持W8A16、W8A8 dynamic量化，通过以下命令生成量化权重：
 ```shell
 # 设置CANN包的环境变量
-source /usr/local/Ascend/ascend-toolkit/set_env.sh
+source /usr/local/Ascend/cann/set_env.sh
 cd ${llm_path}
 # 生成w8a16量化权重
 bash examples/models/deepseekv2/generate_quant_weight.sh -src {浮点权重路径} -dst {量化权重路径} -type deepseekv2_w8a16 -trust_remote_code
@@ -58,7 +58,7 @@ bash examples/models/deepseekv2/generate_quant_weight.sh -src {浮点权重路�
 - 若启用动态负载均衡特性场景，需要将量化后的权重再执行一次权重文件NZ转换
 ```shell
 # 设置CANN包的环境变量
-source /usr/local/Ascend/ascend-toolkit/set_env.sh
+source /usr/local/Ascend/cann/set_env.sh
 # 设置模型仓环境变量
 # 若使用编译好的包，则执行以下指令
 source ${llm_path}/set_env.sh

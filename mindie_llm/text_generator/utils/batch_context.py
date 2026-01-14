@@ -307,6 +307,8 @@ class NdarrayContext:
         return self.pool.pop()
 
     def _free_slot(self, slot_idx: int) -> None:
+        if self.context_params.layerwise_disaggregated and slot_idx == 0:
+            return
         self.pool.append(slot_idx)
 
     def _grow_capacity(self):
@@ -426,7 +428,7 @@ class BatchContext:
 
             return ms.Tensor(data) if data.size > 0 else None
 
-        if context_params.generator_backend_type == BackendType.ATB:
+        if context_params.generator_backend_type != BackendType.MS:
             self.to_tensor = torch_to_tensor
         else:
             self.to_tensor = mindspore_to_tensor

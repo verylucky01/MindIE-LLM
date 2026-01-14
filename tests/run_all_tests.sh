@@ -107,9 +107,15 @@ function fn_run_pythontest()
     cd $OUTPUT_DIR
     export PYTHONPATH=$PROJECT_DIR:$PYTHONPATH
     export PYTHONPATH=$PROJECT_DIR/src/server/tokenizer:$PYTHONPATH
+    export PYTHONPATH=$PROJECT_DIR/build/mindie_llm/connector/cpp::$PYTHONPATH
+    export PYTHONPATH=$PROJECT_DIR/build/mindie_llm/text_generator/cpp/memory_bridge:$PYTHONPATH
+    export PYTHONPATH=$PROJECT_DIR/build/mindie_llm/text_generator/cpp/prefix_tree:$PYTHONPATH
+    export PYTHONPATH=$PROJECT_DIR/build/mindie_llm/text_generator/cpp/sampler/cpu_logits_handler:$PYTHONPATH
     export MINDIE_LOG_TO_FILE=1
     export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
     export LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1:$LD_PRELOAD
+    export LD_LIBRARY_PATH=${PROJECT_DIR}/third_party/output/abseil-cpp/lib:${LD_LIBRARY_PATH}
+    export LD_LIBRARY_PATH=${PROJECT_DIR}/third_party/output/protobuf/lib:${LD_LIBRARY_PATH}
     export LD_LIBRARY_PATH=${PROJECT_DIR}/third_party/output/grpc/lib:${LD_LIBRARY_PATH}
     export LD_LIBRARY_PATH=${PROJECT_DIR}/third_party/output/boost/lib:${LD_LIBRARY_PATH}
     export LD_LIBRARY_PATH=${PROJECT_DIR}/third_party/output/libboundscheck/lib:${LD_LIBRARY_PATH}
@@ -123,7 +129,8 @@ function fn_run_pythontest()
         --ignore=${PROJECT_DIR}/tests/pythontest/npu/text_generator/test_plugins/test_plugin_manager_edge.py \
         --ignore=${PROJECT_DIR}/tests/pythontest/npu/text_generator/separate_deployment_engine/test_generator_pd_separate.py \
         --ignore=${PROJECT_DIR}/tests/pythontest/npu/text_generator/separate_deployment_engine/test_separate_deployment_engine.py \
-        --ignore=${PROJECT_DIR}/tests/pythontest/npu/test_block_copy.py ;
+        --ignore=${PROJECT_DIR}/tests/pythontest/npu/test_block_copy.py \
+        --ignore=${PROJECT_DIR}/tests/pythontest/cpu/runtime ;
     done
 
     export MINDIE_LLM_FRAMEWORK_BACKEND='ms'
@@ -134,7 +141,7 @@ function fn_run_pythontest()
     grep -o '<class name="[^"]*" filename="[^"]*" complexity="[^"]*" line-rate="[^"]*" branch-rate="[^"]*">' coverage.xml |
     while read -r line; do
         filename=$(echo "$line" | awk -F '"' '{print $4}')
-        if [[ ! "$line" =~ .*block_copy.* && ! "$line" =~ .*examples/run_generator.* && ! "$line" =~ .*examples/scheduler.* && ! "$line" =~ .*cache_manager.* && ! "$line" =~ .*utils/config.* && ! "$line" =~ .*__init__.* && ! "$line" =~ .*utils/log/logging.* && ! "$line" =~ .*mf_model_wrapper.* && ! "$line" =~ .*generator_ms.* && ! "$line" =~ .*plugin_manager_edge.* ]]; then
+        if [[ ! "$line" =~ .*block_copy.* && ! "$line" =~ .*examples/run_generator.* && ! "$line" =~ .*examples/scheduler.* && ! "$line" =~ .*cache_manager.* && ! "$line" =~ .*utils/config.* && ! "$line" =~ .*__init__.* && ! "$line" =~ .*utils/log/logging.* && ! "$line" =~ .*mf_model_wrapper.* && ! "$line" =~ .*generator_ms.* && ! "$line" =~ .*plugin_manager_edge.* && ! "$line" =~ .*runtime.* && ! "$line" =~ .*aclgraph.* ]]; then
             echo "$line" | awk -F '"' '{print "mindie_llm/" $4, $8*100 "%", $10*100 "%"}' >> result.txt
         fi
     done

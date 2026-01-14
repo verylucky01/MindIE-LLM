@@ -29,27 +29,22 @@ static std::vector<ParamSpec> g_serverParamsConstraint = {
     {"managementPort", "int32_t", false},
     {"maxLinkNum", "uint32_t", true},
     {"httpsEnabled", "bool", true},
-    {"kmcKsfMaster", "string", false},
-    {"kmcKsfStandby", "string", false},
     {"tlsCert", "string", false},
     {"tlsCrlPath", "string", false},
     {"tlsCrlFiles", "array", false},
     {"tlsCaPath", "string", false},
     {"tlsCaFile", "array", false},
     {"tlsPk", "string", false},
-    {"tlsPkPwd", "string", false},
     {"managementTlsCert", "string", false},
     {"managementTlsCrlPath", "string", false},
     {"managementTlsCrlFiles", "array", false},
     {"managementTlsCaFile", "array", false},
     {"managementTlsPk", "string", false},
-    {"managementTlsPkPwd", "string", false},
     {"metricsTlsCert", "string", false},
     {"metricsTlsCrlPath", "string", false},
     {"metricsTlsCrlFiles", "array", false},
     {"metricsTlsCaFile", "array", false},
     {"metricsTlsPk", "string", false},
-    {"metricsTlsPkPwd", "string", false},
     {"fullTextEnabled", "bool", false},
     {"inferMode", "string", true},
     {"allowAllZeroIpListening", "bool", true},
@@ -114,9 +109,6 @@ void ServerConfigManager::InitDMIHttpsConfigFromJson(Json &serveJsonData)
     if (serveJsonData.contains("interCommPk")) {
         serverConfig_.interCommPk = serveJsonData["interCommPk"];
     }
-    if (serveJsonData.contains("interCommPkPwd")) {
-        serverConfig_.interCommPkPwd = serveJsonData["interCommPkPwd"];
-    }
     if (serveJsonData.contains("interCommTlsCrlPath")) {
         serverConfig_.interCommTlsCrlPath = serveJsonData["interCommTlsCrlPath"];
     }
@@ -169,9 +161,6 @@ void ServerConfigManager::InitHttpsBusinessConfigFromJson(Json &serveJsonData)
     if (serveJsonData.contains("tlsPk")) {
         serverConfig_.tlsPk = serveJsonData["tlsPk"];
     }
-    if (serveJsonData.contains("tlsPkPwd")) {
-        serverConfig_.tlsPkPwd = serveJsonData["tlsPkPwd"];
-    }
 }
 
 void ServerConfigManager::InitHttpsManagementConfigFromJson(Json &serveJsonData)
@@ -207,9 +196,6 @@ void ServerConfigManager::InitHttpsManagementConfigFromJson(Json &serveJsonData)
     }
     if (serveJsonData.contains("managementTlsPk")) {
         serverConfig_.managementTlsPk = serveJsonData["managementTlsPk"];
-    }
-    if (serveJsonData.contains("managementTlsPkPwd")) {
-        serverConfig_.managementTlsPkPwd = serveJsonData["managementTlsPkPwd"];
     }
 }
 
@@ -298,9 +284,6 @@ void ServerConfigManager::InitHttpsMetricsConfigFromJson(Json &serveJsonData)
     if (serveJsonData.contains("metricsTlsPk")) {
         serverConfig_.metricsTlsPk = serveJsonData["metricsTlsPk"];
     }
-    if (serveJsonData.contains("metricsTlsPkPwd")) {
-        serverConfig_.metricsTlsPkPwd = serveJsonData["metricsTlsPkPwd"];
-    }
 }
 
 bool ServerConfigManager::InitFromJson()
@@ -341,12 +324,6 @@ bool ServerConfigManager::InitFromJson()
         serverConfig_.interCommPort = serverParamsJsonData["interCommPort"];
         CHECK_CONFIG_VALIDATION(initFlag, ParamChecker::CheckMaxMinValue<int32_t>(serverConfig_.interCommPort, 65535U,
                                                                                   1024U, "serverConfig.interCommPort"));
-    }
-    if (serverParamsJsonData.contains("kmcKsfMaster")) {
-        serverConfig_.kmcKsfMaster = serverParamsJsonData["kmcKsfMaster"];
-    }
-    if (serverParamsJsonData.contains("kmcKsfStandby")) {
-        serverConfig_.kmcKsfStandby = serverParamsJsonData["kmcKsfStandby"];
     }
     if (serverConfig_.interCommTLSEnabled) {
         InitDMIHttpsConfigFromJson(serverParamsJsonData);
@@ -424,11 +401,6 @@ bool ServerConfigManager::CheckHttpsConfig(bool loadManagementSSL)
         return false;
     }
     homePath += "/";
-    std::string kmcKsfMasterPath = homePath + serverConfig_.kmcKsfMaster;
-    CHECK_CONFIG_VALIDATION(checkRes, ParamChecker::CheckPath(kmcKsfMasterPath, homePath, "serverConfig.kmcKsfMaster"));
-    std::string kmcKsfStandbyPath = homePath + serverConfig_.kmcKsfStandby;
-    CHECK_CONFIG_VALIDATION(checkRes,
-                            ParamChecker::CheckPath(kmcKsfStandbyPath, homePath, "serverConfig.kmcKsfStandby"));
 
     CHECK_CONFIG_VALIDATION(checkRes, CheckBusinessHttpsParam());
     if (loadManagementSSL) {
@@ -485,10 +457,6 @@ bool ServerConfigManager::CheckBusinessHttpsParam()
 
     std::string tlsPkPath = homePath + serverConfig_.tlsPk;
     CHECK_CONFIG_VALIDATION(checkRes, ParamChecker::CheckPath(tlsPkPath, homePath, "serverConfig_.tlsPk"));
-    if (!serverConfig_.tlsPkPwd.empty()) {
-        std::string tlsPkPwdPath = homePath + serverConfig_.tlsPkPwd;
-        CHECK_CONFIG_VALIDATION(checkRes, ParamChecker::CheckPath(tlsPkPwdPath, homePath, "serverConfig_.tlsPkPwd"));
-    }
     return checkRes;
 }
 
@@ -549,11 +517,6 @@ bool ServerConfigManager::CheckManagementHttpsParam()
     std::string managementTlsPkPath = homePath + serverConfig_.managementTlsPk;
     CHECK_CONFIG_VALIDATION(checkRes,
                             ParamChecker::CheckPath(managementTlsPkPath, homePath, "ServerConfig.managementTlsPk"));
-    if (!serverConfig_.managementTlsPkPwd.empty()) {
-        std::string managementTlsPkPwdPath = homePath + serverConfig_.managementTlsPkPwd;
-        CHECK_CONFIG_VALIDATION(
-            checkRes, ParamChecker::CheckPath(managementTlsPkPwdPath, homePath, "ServerConfig.managementTlsPkPwd"));
-    }
     return checkRes;
 }
 
@@ -638,11 +601,6 @@ bool ServerConfigManager::CheckMetricsHttpsParam(std::string& homePath)
     std::string metricsTlsPkPath = homePath + serverConfig_.metricsTlsPk;
     CHECK_CONFIG_VALIDATION(checkRes,
                             ParamChecker::CheckPath(metricsTlsPkPath, homePath, "ServerConfig.metricsTlsPk"));
-    if (!serverConfig_.metricsTlsPkPwd.empty()) {
-        std::string metricsTlsPkPwdPath = homePath + serverConfig_.metricsTlsPkPwd;
-        CHECK_CONFIG_VALIDATION(
-            checkRes, ParamChecker::CheckPath(metricsTlsPkPwdPath, homePath, "ServerConfig.metricsTlsPkPwd"));
-    }
     return checkRes;
 }
 

@@ -215,7 +215,7 @@ PrefillOutputs FcfsPolicy::ApplyToWaitingQueue(SchedulingBudget &budget, const b
                 seqGroup->arriveTime).count());
             size_t maxFirstTokenWaitTime = schedulerConfig_->maxFirstTokenWaitTime;
             if (seqGroup->firstSeq->data_.outputTokenIds.size() == 0 && reqArriveTime > maxFirstTokenWaitTime) {
-                MINDIE_LLM_LOG_DEBUG("Request(requestId: " << seqGroup->metrics_.inferReqId_
+                MINDIE_LLM_LOG_DEBUG_REQUEST("Request(requestId: " << seqGroup->metrics_.inferReqId_
                     << ") exceeded first token wait time (" << reqArriveTime << " > " << maxFirstTokenWaitTime
                     << ", preempting current request, Only effective in the PD mix scenario.");
                 newRequestFirst_ = true;
@@ -224,7 +224,7 @@ PrefillOutputs FcfsPolicy::ApplyToWaitingQueue(SchedulingBudget &budget, const b
         } else if (canAllocate == AllocStatus::NEVER) {
             /** 当前mindie逻辑应该不存在这种场景
              * 1、如果prompt长度很长，则在add request的时候就做长度校验，返回添加失败。
-             * 2、decode阶段，text generator判断长度等于maxSeqLen时就结束请求。maxSeqLen不可能比gpu最大可用的内存大。
+             * 2、decode阶段，text generator判断长度等于maxSeqLen时就结束请求。maxSeqLen不可能比npu最大可用的内存大。
              *  */
             MINDIE_LLM_LOG_ERROR("Sequence can never be scheduled due to too long sequence len. seq id:"
                                  << seqGroup->firstSeq->seqId_ << "; seq len:" << seqGroup->firstSeq->GetLen());
@@ -396,7 +396,7 @@ SwappedInOutputs FcfsPolicy::ApplyToSwappedQueue(SchedulingBudget &budget, const
         } else if (allocStatus == AllocStatus::NEVER) {
             /** 当前mindie逻辑应该不存在这种场景
              * 1、如果prompt长度很长，则在add request的时候就做长度校验，返回添加失败。
-             * 2、decode阶段，text generator判断长度等于maxSeqLen时就结束请求。maxSeqLen不可能比gpu最大可用的内存大。
+             * 2、decode阶段，text generator判断长度等于maxSeqLen时就结束请求。maxSeqLen不可能比npu最大可用的内存大。
              *  */
             throw std::runtime_error("Sequence too long.");
         }
@@ -444,7 +444,7 @@ PreemptionMode FcfsPolicy::Preempt(SequenceGroupSPtr &seqGroup,
     }
     
     const int warningFrequency = 50;
-    MINDIE_LLM_LOG_WARN("Preemption num exceeds threshold. CumulativePreemptionNum:"
+    MINDIE_LLM_LOG_WARN_REQUEST("Preemption num exceeds threshold. CumulativePreemptionNum:"
                         << (numCumulativePreemption_ + 1) << "; warningFrequency:" << warningFrequency
                         << "; seqId: " << seqGroup->firstSeq->seqId_
                         << "; requestId: " << seqGroup->metrics_.inferReqId_

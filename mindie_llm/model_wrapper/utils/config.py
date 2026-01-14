@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # coding=utf-8
-# Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+# Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
 # MindIE is licensed under Mulan PSL v2.
 # You can use this software according to the terms and conditions of the Mulan PSL v2.
 # You may obtain a copy of Mulan PSL v2 at:
@@ -9,7 +9,9 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
-
+import subprocess
+import re
+from pathlib import Path
 import numpy as np
 from dataclasses import dataclass, fields
 from mindie_llm.text_generator.utils.separate_deployment_engine import DmiModeNodeRole
@@ -59,6 +61,20 @@ class BaseConfig():
 
         logger.info(">>model_config after initialize %s", model_config)
 
+    @staticmethod
+    def check_path_is_mounted(target_path: str) -> bool:
+        # 根据系统补充
+        shared_fs_types = ["nfs", "cifs", "smbfs", "glusterfs", "lustre", "panfs", "afs", "ceph", "dtfs"]
+        target_path = Path(target_path).resolve()
+        mount_output = subprocess.check_output(["/usr/bin/mount"], encoding="utf-8", stderr=subprocess.STDOUT)
+        mount_pattern = re.compile(r"^(.+?) on (.+?) type (.+?) \((.+?)\)$", re.MULTILINE)
+        for match in mount_pattern.finditer(mount_output):
+            _, mount_point, fs_type, _ = match.groups()
+            mount_point = Path(mount_point).resolve()
+            if (target_path == mount_point or target_path.is_relative_to(mount_point)) and fs_type in shared_fs_types:
+                return True
+        return False
+    
     def layerwise_disaggregated_initialize(self):
         self.layerwise_disaggregated = self.parse("layerwiseDisaggregated", required=False, default_value=None)
 
@@ -109,6 +125,11 @@ class BaseConfig():
                 value = default_value
         elif to_int:
             value = int(value)
+        if item_name == "model_id":
+            if BaseConfig.check_path_is_mounted(value):
+                error_msg = f"The model {value} resides in mounted directory, which could be a shared storage path. \
+                              If the I/O rate is too low, it may cause abnormal service startup."
+                logger.warning(error_msg)
         logger.info(f"The item {item_name} value is {value}.")
         return value
 
@@ -167,13 +188,18 @@ class DmiConfig(BaseConfig):
                 d_to_p[rank_d] = [i * params.tp_p // params.sp_p for i in range(params.sp_p * params.cp_p)]
         else:
             # 标准模式的映射逻辑
-            if params.tp_d == 0 or params.tp_p % params.tp_d != 0:
+            if params.tp_d == 0 or params.tp_p == 0:
                 raise ValueError(
-                    f"Invalid tp mapping: tp_p ({params.tp_p}) must be divisible by tp_d ({params.tp_d})."
+                    f"Invalid tp mapping: tp_p ({params.tp_p}) and tp_d ({params.tp_d}) must not equal 0")
+            if params.tp_p % params.tp_d != 0 and params.tp_d % params.tp_p != 0:
+                raise ValueError(
+                    f"Invalid tp mapping: tp_p ({params.tp_p}) must be divisible by tp_d ({params.tp_d}) or "
+                    f"tp_d ({params.tp_d}) must be divisible by tp_p ({params.tp_p})"
                 )
-            factor = params.tp_p // params.tp_d
+            factor = params.tp_p // params.tp_d if params.tp_p >= params.tp_d else params.tp_d // params.tp_p
             for rank_d in range(params.tp_d):
-                d_to_p[rank_d] = [rank_d * factor + i for i in range(0, params.cp_p * params.tp_p, params.tp_p)]
+                rank_d_base = rank_d // factor if params.tp_d >= params.tp_p else rank_d * factor
+                d_to_p[rank_d] = [rank_d_base + i for i in range(0, params.cp_p * params.tp_p, params.tp_p)]
 
         # 如果是 DECODER 角色，直接返回 d_to_p
         if params.role == DmiModeNodeRole.DECODER:

@@ -11,6 +11,7 @@
  */
 #define CPPHTTPLIB_OPENSSL_SUPPORT
 
+#include "http_handler.h"
 #include <unistd.h>
 #include <cstring>
 #include <ctime>
@@ -46,7 +47,7 @@
 #include "check_utils.h"
 #include "config_manager_impl.h"
 #include "health_checker.h"
-#include "http_handler.h"
+#include "safe_io.h"
 
 using namespace std;
 using json = nlohmann::json;
@@ -981,7 +982,6 @@ void HttpHandler::InitializeServiceMgmtV1(HttpsServerHelper &server)
             return;
         }
         std::string roleName = GetUriParameters(context->Req(), 1);
-        SingleReqInferInterfaceBase::refuseReqFlag.store(true);
         DmiRole::GetInstance()->HandlePDRoleV1(context, roleName);
         return;
     });
@@ -1097,7 +1097,6 @@ void HttpHandler::InitializeServiceMgmtV2(HttpsServerHelper &server)
             return;
         }
         std::string roleName = GetUriParameters(context->Req(), 1);
-        SingleReqInferInterfaceBase::refuseReqFlag.store(true);
         DmiRole::GetInstance()->HandlePDRoleV2(context, roleName);
         HandleUpdateNpuDeviceIds(context);
         return;
@@ -1115,7 +1114,7 @@ void HttpHandler::HandleUpdateNpuDeviceIds(const ReqCtxPtr &ctx)
                 JSON_PARSE_ERROR), "Convert string to json object failed, CallbackId is " << ctx->CallbackId());
             return;
         }
-        body = ordered_json::parse(msgBody);
+        body = ordered_json::parse(msgBody, CheckOrderedJsonDepthCallback);
         std::set<int> npuDeviceIds;
         for (auto item: body["local"][0]["dp_inst_list"][0]["device"]) {
             npuDeviceIds.insert(std::stoi(item["device_logical_id"].get<std::string>()));

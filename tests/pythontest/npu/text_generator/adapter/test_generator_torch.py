@@ -1131,7 +1131,7 @@ class TestGeneratorTorch(unittest.TestCase):
         generator_torch.model_wrapper.model_name = 'qwen'
         generator_torch.model_wrapper.model_id = [0, 1, 2, 3]
         generator_torch.adapter_manager = MagicMock()
-        generator_torch.adapter_manager.preprocess_adatper_ids = MagicMock(return_value=[0, 1, 2, 3])
+        generator_torch.adapter_manager.preprocess_adapter_ids = MagicMock(return_value=[0, 1, 2, 3])
         generator_torch.adapter_manager.check_adapter_ids_is_sorted = MagicMock(return_value=False)
         generator_torch.adapter_manager.sort_adapter_ids = MagicMock(return_value=([1, 0, 2, 3], [1, 0, 2, 3]))
 

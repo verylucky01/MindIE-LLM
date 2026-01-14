@@ -28,6 +28,7 @@
 #include "msServiceProfiler/msServiceProfiler.h"
 #include "infer_instances.h"
 #include "config_manager_impl.h"
+#include "safe_io.h"
 
 using Json = nlohmann::json;
 namespace py = pybind11;
@@ -55,14 +56,14 @@ void HandleResponse(ResponseSPtr response)
     // EOS or PUBLISH_KV_COMPLETE时，删除callback
     if (response->isEos || response->transferStatusFlag == TransferStatusType::PUBLISH_KV_COMPLETE) {
         InferInstance::GetCallbackMap().Erase(response->reqId);
-        MINDIE_LLM_LOG_INFO("[LlmManagerImpl] Remove SendResponsesCallback requestId: " + response->reqId +
+        MINDIE_LLM_LOG_INFO_REQUEST("[LlmManagerImpl] Remove SendResponsesCallback requestId: " + response->reqId +
                             " when encountering EOS or PUBLISH_KV_COMPLETE.");
     }
 
     if (serverResponseCallback.has_value()) {
         serverResponseCallback.value()(response);
     } else if (!InferInstance::IsPaused()) {
-        MINDIE_LLM_LOG_INFO("[LlmManagerImpl] SendResponsesCallback of requestId: " + response->reqId +
+        MINDIE_LLM_LOG_INFO_REQUEST("[LlmManagerImpl] SendResponsesCallback of requestId: " + response->reqId +
                             " is not exist.");
     }
     
@@ -378,9 +379,6 @@ static void InitbackendConfig(EngineConfig &engineConfig, const BackendConfig &b
     engineConfig.interNodeTlsPk = backendConfig.interNodeTlsPk;
     engineConfig.interNodeTlsCrlPath = backendConfig.interNodeTlsCrlPath;
     engineConfig.interNodeTlsCrlFiles = backendConfig.interNodeTlsCrlFiles;
-    engineConfig.interNodeTlsPkPwd = backendConfig.interNodeTlsPkPwd;
-    engineConfig.interNodeKmcKsfMaster = backendConfig.interNodeKmcKsfMaster;
-    engineConfig.interNodeKmcKsfStandby = backendConfig.interNodeKmcKsfStandby;
     engineConfig.kvPoolConfig = backendConfig.kvPoolConfig;
 }
 
@@ -394,7 +392,7 @@ static void UpdateFromEnv(std::set<size_t> &npuDeviceIds, uint32_t modelInstance
     RemoveSpaces(envNpuIds);
     Json jsonData;
     try {
-        jsonData["npuDeviceIds"] = Json::parse(envNpuIds);
+        jsonData["npuDeviceIds"] = Json::parse(envNpuIds, CheckJsonDepthCallback);
         MINDIE_LLM_LOG_INFO("Config data has been updated by env variable:" << ENV_NPU_DEVICE_IDS);
         
         npuDeviceIds.clear();
@@ -504,7 +502,7 @@ static bool GetPluginEnable(std::string pluginName, std::vector<ModelDeployConfi
         }
         nlohmann::json jstring;
         try {
-            jstring = nlohmann::json::parse(pluginParam);
+            jstring = nlohmann::json::parse(pluginParam, CheckJsonDepthCallback);
         } catch (const nlohmann::json::parse_error &e) {
             std::stringstream errMsg;
             errMsg << "Invalid plugin parameters. "
@@ -773,9 +771,6 @@ static void LLMSetMultiNodeConfig(std::map<std::string, std::string> &modelConfi
     modelConfig["interNodeTlsCrlPath"] = engineConfig.interNodeTlsCrlPath;
     modelConfig["interNodeTlsCrlFiles"] = engineConfig.interNodeTlsCrlFiles;
     modelConfig["interNodeTlsPk"] = engineConfig.interNodeTlsPk;
-    modelConfig["interNodeTlsPkPwd"] = engineConfig.interNodeTlsPkPwd;
-    modelConfig["interNodeKmcKsfMaster"] = engineConfig.interNodeKmcKsfMaster;
-    modelConfig["interNodeKmcKsfStandby"] = engineConfig.interNodeKmcKsfStandby;
     modelConfig["interNodeTlsCaPath"] = engineConfig.interNodeTlsCaPath;
     modelConfig["interNodeTlsCaFiles"] = engineConfig.interNodeTlsCaFiles;
 
@@ -855,9 +850,6 @@ static void LLMSetLayerwiseDisaggregatedModelConfig(std::map<std::string, std::s
     modelConfig["interNodeTlsPk"] = backendConfig.interNodeTlsPk;
     modelConfig["interNodeTlsCrlPath"] = backendConfig.interNodeTlsCrlPath;
     modelConfig["interNodeTlsCrlFiles"] = backendConfig.interNodeTlsCrlFiles;
-    modelConfig["interNodeTlsPkPwd"] = backendConfig.interNodeTlsPkPwd;
-    modelConfig["interNodeKmcKsfMaster"] = backendConfig.interNodeKmcKsfMaster;
-    modelConfig["interNodeKmcKsfStandby"] = backendConfig.interNodeKmcKsfStandby;
 }
 
 static void LLMSetModelConfig(std::map<std::string, std::string> &modelConfig, const std::string &homePath,
@@ -1323,7 +1315,7 @@ Status LlmManagerImpl::Init(uint32_t modelInstanceId, std::set<size_t> npuDevice
 
 Status LlmManagerImpl::ProcessRequests(RequestSPtr request)
 {
-    MINDIE_LLM_LOG_INFO("Get a new inferRequest from server, requestId: " << request->requestId);
+    MINDIE_LLM_LOG_WARN_REQUEST("Get a new inferRequest from server, requestId: " << request->requestId);
     return ForwardRequest(request);
 }
 
@@ -1364,7 +1356,7 @@ Status LlmManagerImpl::ForwardRequest(RequestSPtr request)
         return Status(Error::Code::ERROR, "Engine has been stopped. Cannot add request.");
     }
 
-    MINDIE_LLM_LOG_INFO("Insert a new inferRequest, requestId: " << request->requestId);
+    MINDIE_LLM_LOG_INFO_REQUEST("Insert a new inferRequest, requestId: " << request->requestId);
     return Status(Error::Code::OK, "Success");
 }
 
@@ -1413,7 +1405,7 @@ Status VerifyTopK(RequestSPtr &request)
     }
     if (topK > signedVocabSizeConfig || topK > g_maxTopKConfig) {
         request->topK = std::min(signedVocabSizeConfig, g_maxTopKConfig);
-        MINDIE_LLM_LOG_INFO("Request topK value has been set to " << request->topK.value()
+        MINDIE_LLM_LOG_INFO_REQUEST("Request topK value has been set to " << request->topK.value()
                             << ". Config the `top_k` value in the `generation_config.json` file of the model.");
     }
     return Status(Error::Code::OK, "Success");
@@ -1424,7 +1416,7 @@ static Status CheckReqInputIds(RequestSPtr &request, const uint32_t vocabSize)
     if (vocabSize == 0) { // 有些配置下（如多模态），vocabSize可能为0，表示不检查input_ids
         return Status(Error::Code::OK, "Success");
     }
-    MINDIE_LLM_LOG_DEBUG("Checking input ids from request in CheckReqInputIds function.");
+    MINDIE_LLM_LOG_DEBUG_REQUEST("Checking input ids from request in CheckReqInputIds function.");
     for (auto id : request->input_ids) {
         if (id >= vocabSize) {
             MINDIE_LLM_LOG_ERROR("Unexpect Input Id: " << id << ", vocab size: " << vocabSize);
@@ -1476,7 +1468,7 @@ void LlmManagerImpl::ControlRequest(const RequestIdNew &requestId, OperationV2 o
 {
     RequestId reqId = requestId;
     std::unordered_set<RequestId> reqIds = {reqId};
-    MINDIE_LLM_LOG_INFO("Get a new ControlRequest from server, requestId: " << reqId << ", with operation:"
+    MINDIE_LLM_LOG_INFO_REQUEST("Get a new ControlRequest from server, requestId: " << reqId << ", with operation:"
                                                                             << static_cast<int>(operation));
     if (operation == OperationV2::STOP) {
         llmEnginePtr_->AbortRequests(reqIds);

@@ -57,21 +57,15 @@ python examples/models/telechat/convert_quant_weights.py --model_path {浮点权
 ```
 
 ## 稀疏量化权重转换（W8A8SC）
-- 新增可选参数`trust_remote_code` 代表是否信任本地的可执行文件: 默认不执行，传入此参数，则信任本地可执行文件。
+请参考[msmodelslim](https://gitcode.com/Ascend/msit/blob/master/msmodelslim/docs/%E5%AE%89%E8%A3%85%E6%8C%87%E5%8D%97.md)安装msModelSlim量化工具
 - Step 1
     ```shell
-    # 设置CANN包的环境变量
-    source /usr/local/Ascend/ascend-toolkit/set_env.sh
     cd ${llm_path}
     python examples/models/telechat/convert_quant_weights.py --model_path {浮点权重路径} --save_directory {W8A8S量化权重路径} --w_bit 4 --a_bit 8 --calib_file ${llm_path}/examples/models/telechat/boolq.jsonl --fraction 0.011 --co_sparse True --trust_remote_code
     ```
+  - 新增可选参数`trust_remote_code` 代表是否信任本地的可执行文件: 默认不执行，传入此参数，则信任本地可执行文件。
 
 - Step 2：量化权重切分及压缩
-    > 运行前需要确保压缩工具编译过
-    >
-    > `cd /usr/local/Ascend/ascend-toolkit/latest/python/site-packages/msmodelslim/pytorch/weight_compression/compress_graph`
-    >
-    > `bash build.sh /usr/local/Ascend/ascend-toolkit/latest`
     ```shell
     torchrun --nproc_per_node {TP数} -m examples.convert.model_slim.sparse_compressor --model_path {W8A8S量化权重路径} --save_directory {W8A8SC量化权重路径}
     ```

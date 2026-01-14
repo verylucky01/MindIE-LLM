@@ -22,16 +22,15 @@
 #include <unordered_set>
 #include <vector>
 
-#include <spdlog/common.h>
-#include <spdlog/details/file_helper.h>
-#include <spdlog/details/log_msg.h>
-#include <spdlog/sinks/base_sink.h>
+#include "spdlog.h"
 
 #include "log_config.h"
 
 namespace mindie_llm {
 
 const size_t INTERVAL_OF_SLEEP = 100;
+const size_t LOG_FILE_SIZE_LIMIT = 524288000;
+const size_t LOG_FILE_NUM_LIMIT = 64;
 
 class LogUtils {
 public:
@@ -52,6 +51,8 @@ public:
     static void GetLogFileName(LoggerType loggerType, std::string &filename);
 
     static std::string GetModuleName(LoggerType loggerType);
+
+    static std::string GetLoggerNameStr(LoggerType loggerType);
 };
 
 class GenericRotationFileSink : public spdlog::sinks::base_sink<std::mutex> {

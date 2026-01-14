@@ -33,11 +33,9 @@ DeepSeek-R1-Distill-Qwen-14B 为Deepseek利用由 DeepSeek-R1 生成的推理数
 
 ## 权重量化
 ### Atlas 800I A2 w8a8量化
-W8A8量化权重可通过[msmodelslim](https://gitcode.com/ascend/msit/blob/master/msmodelslim/example/Qwen/README.md)（昇腾压缩加速工具）实现。
+W8A8量化权重可通过[msmodelslim Qwen](https://gitcode.com/Ascend/msit/blob/master/msmodelslim/example/Qwen/README.md)（昇腾模型压缩工具）实现。
 - 注意该量化方式仅支持在Atlas 800I A2服务器上运行
-- 环境配置请参考[使用说明](https://gitcode.com/ascend/msit/blob/master/msmodelslim/README.md)
-- git clone下载msit仓代码； `git clone https://gitcode.com/ascend/msit.git`
-- 进入到msit/msmodelslim的目录 `cd msit/msmodelslim`；并在进入的msmodelslim目录下，运行安装脚本 `bash install.sh`;
+- 请参考[msmodelslim](https://gitcode.com/Ascend/msit/blob/master/msmodelslim/docs/%E5%AE%89%E8%A3%85%E6%8C%87%E5%8D%97.md)安装msModelSlim量化工具
 - 进入到msit/msmodelslim/example/Qwen的目录 `cd msit/msmodelslim/example/Qwen`；并在进入的Qwen目录下，运行量化转换脚本
 ```bash
 python3 quant_qwen.py --model_path {浮点权重路径} --save_directory {W8A8量化权重路径} --calib_file ../common/teacher_qualification.jsonl --w_bit 8 --a_bit 8 --device_type npu  --anti_method m4
@@ -53,16 +51,10 @@ export PYTORCH_NPU_ALLOC_CONF=expandable_segments:False
   - Step 1
     - 注意该量化方式仅支持在Atlas 300I DUO/Atlas 300I Pro/Atlas 300V卡上运行
     - 修改模型权重config.json中`torch_dtype`字段为`float16`
-    - 环境配置请参考[使用说明](https://gitcode.com/ascend/msit/blob/master/msmodelslim/README.md)
-    - git clone下载msit仓代码； `git clone https://gitcode.com/ascend/msit.git`
-    - 进入到msit/msmodelslim的目录 `cd msit/msmodelslim`；并在进入的msmodelslim目录下，运行安装脚本 `bash install.sh`;
-    - 进入python环境下的site_packages包管理路径 `cd {python环境路径}/site-packages/msmodelslim/pytorch/weight_compression/compress_graph/`
-    可使用`find`查找: `find /usr/ -name compress_graph`; 以下是以/usr/local/为用户所在目录，以3.7.5为python版本的样例代码：
-    `cd usr/local/lib/python3.7/site-packages/msmodelslim/pytorch/weight_compression/compress_graph/`
-    - 编译weight_compression组件 sudo bash build.sh {CANN包安装路径}/ascend-toolkit/latest
-    - 上一步编译操作会得到bulid文件夹，给build文件夹相关权限 chmod -R 550 build
+    - 请参考[msmodelslim](https://gitcode.com/Ascend/msit/blob/master/msmodelslim/docs/%E5%AE%89%E8%A3%85%E6%8C%87%E5%8D%97.md)安装msModelSlim量化工具
     - 进入到msit/msmodelslim/example/Qwen的目录 `cd msit/msmodelslim/example/Qwen`；并在进入的Qwen目录下，运行量化转换脚本
-    注： 安装完cann后 需要执行source set_env.sh 声明ASCEND_HOME_PATH值 后续安装msmodelslim前需保证其不为空
+    注： 安装完CANN后 需要执行source ${HOME}/Ascend/cann/set_env.sh 声明ASCEND_HOME_PATH值 后续安装msmodelslim前需保证其不为空
+    > 安装CANN时，如果用户未指定安装路径，则软件会安装到默认路径下，默认安装路径如下：root用户：“/usr/local/Ascend”，非root用户：“${HOME}/Ascend”，${HOME}为当前用户目录。
     
     **Atlas 300I DUO**使用以下方式生成W8A8S量化权重
       ```bash

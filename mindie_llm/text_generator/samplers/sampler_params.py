@@ -26,7 +26,7 @@ class HandlerParams:
 
     def count_output_tokens(self, output_token_ids):
         if self.output_token_counts is None:
-            if self.backend_type == BackendType.ATB:
+            if self.backend_type == BackendType.ATB or self.backend_type == BackendType.TORCH:
                 import torch
                 output_token_counts = torch.zeros((self.batch_size, self.vocab_size + 1),
                                                   dtype=output_token_ids.dtype,

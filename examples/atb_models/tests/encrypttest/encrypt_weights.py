@@ -37,9 +37,13 @@ def encrypt_weights(model_weights_path, encrypted_model_weights_path, key_path=N
                               if p.suffix == file_suffix[0] else Path(encrypted_model_weights_path) / f"{p.name}"
                               for p in local_weight_files]
 
-    local_all_files = list(Path(model_weights_path).rglob('*'))
+    local_all_files = list(Path(model_weights_path).glob('*'))
     for local_all_file in local_all_files:
         if file_suffix[0] == local_all_file.suffix or file_suffix[1] == local_all_file.suffix: 
+            continue
+        # skip nested directory
+        if local_all_file.is_dir():
+            print(f"! Warning: Nested directory skipped - all internal content (subdirs/files) will not be processed: {local_all_file.resolve()}")
             continue
         output_file = os.path.join(encrypted_model_weights_path, local_all_file.name)
         os.makedirs(os.path.dirname(output_file), exist_ok=True)

@@ -24,16 +24,16 @@ namespace mindie_llm {
 class DynamicConfigHandler {
 public:
     static DynamicConfigHandler& GetInstance();
-    void Start();
-    void Stop();
+    void Start() const;
+    void Stop() const;
 
-    template<typename T>
-    void RegisterCallBackFunction(const std::string& pathExpression, T* obj, void(T::*method)(uint64_t), uint64_t value)
+    template <typename T>
+    void RegisterCallBackFunction(const std::string &pathExpression, T *obj, void (T::*method)(uint64_t),
+                                  uint64_t value) const
     {
         std::lock_guard<std::mutex> locker(GetInstance().vectorMutex);
-        GetInstance().callBackFunctions.push_back(std::make_pair(pathExpression, [obj, method, value] {
-            (obj->*method)(value);
-        }));
+        GetInstance().callBackFunctions.push_back(
+            std::make_pair(pathExpression, [obj, method, value] { (obj->*method)(value); }));
     }
 
 private:

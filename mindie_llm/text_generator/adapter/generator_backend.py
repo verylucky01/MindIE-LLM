@@ -1,4 +1,4 @@
-# Copyright (c) Huawei Technologies Co., Ltd. 2024-2025. All rights reserved.
+# Copyright (c) Huawei Technologies Co., Ltd. 2024-2026. All rights reserved.
 # MindIE is licensed under Mulan PSL v2.
 # You can use this software according to the terms and conditions of the Mulan PSL v2.
 # You may obtain a copy of Mulan PSL v2 at:
@@ -145,6 +145,7 @@ class GeneratorBackend:
         model_config['dp'] = dp
         model_config['tp'] = tp
         model_config['attn_inner_sp'] = attn_inner_sp
+        model_config['sp'] = attn_inner_sp
         model_config['cp'] = cp
         model_config['moe_tp'] = moe_tp
         model_config['moe_ep'] = moe_ep

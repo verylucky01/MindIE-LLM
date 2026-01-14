@@ -92,7 +92,7 @@ function(build_test module type list_libraries list_includes)
     message("LIBRARIES: ${LIBRARIES}")
 
     target_link_directories(${TEST_BINARY} PRIVATE
-        ${THIRD_PARTY_OUTPUT_DIR}/googletest/lib
+        ${THIRD_PARTY_OUTPUT_DIR}/gtest/lib
         ${THIRD_PARTY_OUTPUT_DIR}/mockcpp/lib
     )
     target_link_libraries(${TEST_BINARY} PUBLIC

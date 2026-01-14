@@ -71,7 +71,7 @@ void LiveInferContext::Remove(SequenceId seqId)
 
     auto it = seqId2SeqGroupMap_.find(seqId);
     if (it == seqId2SeqGroupMap_.end()) {
-        MINDIE_LLM_LOG_DEBUG("The sequence id(" << seqId << ") is not exist");
+        MINDIE_LLM_LOG_DEBUG_REQUEST("The sequence id(" << seqId << ") is not exist");
         return;
     }
 
@@ -87,7 +87,7 @@ void LiveInferContext::Remove(RequestId reqId)
 
     auto it = reqId2SeqGroupMap_.find(reqId);
     if (it == reqId2SeqGroupMap_.end()) {
-        MINDIE_LLM_LOG_DEBUG("The request id(" << reqId << ") is not exist");
+        MINDIE_LLM_LOG_DEBUG_REQUEST("The request id(" << reqId << ") is not exist");
         return;
     }
 
@@ -103,7 +103,7 @@ void LiveInferContext::RemoveFromSeqRootMap(SequenceId seqId)
 
     auto it = seqId2RootSeqGroupMap_.find(seqId);
     if (it == seqId2RootSeqGroupMap_.end()) {
-        MINDIE_LLM_LOG_DEBUG("The sequence id(" << seqId << ") is not in seqId2RootSeqGroupMap_");
+        MINDIE_LLM_LOG_DEBUG_REQUEST("The sequence id(" << seqId << ") is not in seqId2RootSeqGroupMap_");
         return;
     }
 

@@ -17,7 +17,10 @@ from ...utils.log.logging import logger
 
 def get_generator_backend(model_config):
     backend_type = model_config.get('backend_type', None)
-    if backend_type == BackendType.ATB:
+    if backend_type == BackendType.TORCH:
+        from .generator_aclgraph import GeneratorAclGraph
+        generator_cls = GeneratorAclGraph
+    elif backend_type == BackendType.ATB:
         if model_config.get('async_inference', False):
             from .generator_torch_async import GeneratorTorchAsync
             generator_cls = GeneratorTorchAsync

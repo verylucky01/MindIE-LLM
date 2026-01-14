@@ -24,6 +24,7 @@
 #include "file_utils.h"
 #include "memory_utils.h"
 #include "config_manager_impl.h"
+#include "safe_io.h"
 
 using json = nlohmann::json;
 
@@ -43,7 +44,7 @@ static std::string GetModelConfigString()
 
     std::string modelsString;
     try {
-        auto configJson = json::parse(ConfigManager::GetInstance().GetConfigJsonStr());
+        auto configJson = json::parse(ConfigManager::GetInstance().GetConfigJsonStr(), CheckJsonDepthCallbackNoLogger);
         if (configJson.contains(kBackendConfig) &&
             configJson[kBackendConfig].contains(kModelDeployConfig) &&
             configJson[kBackendConfig][kModelDeployConfig].contains(kModelConfig) &&
@@ -371,7 +372,9 @@ bool TokenizerProcessPool::InitTokenizerPool()
     int32_t parentPid = getpid();
     auto modelDeployParam = GetModelDeployConfig();
     if (modelDeployParam.empty()) {
-        throw std::runtime_error("modelDeployParam is empty, please provide model deployment parameter in conf/config.json");
+        ULOG_ERROR(SUBMODLE_NAME_TOKENIZER, GenerateTokenizerErrCode(ERROR, SUBMODLE_FEATURE_TOKENIZER,
+            INIT_ERROR), "modelDeployParam is empty, please provide model deployment parameter in conf/config.json");
+        return false;
     }
     modelWeightPath_ = modelDeployParam[0].modelWeightPath;
     backendType_ = modelDeployParam[0].backendType;
@@ -752,7 +755,7 @@ Status TokenizerProcessPool::TikToken(const std::string &prompt, int &numTokenId
             }
             if (!postSingleText.empty()) {
                 try {
-                    json j = json::parse(postSingleText);
+                    json j = json::parse(postSingleText, CheckJsonDepthCallbackNoLogger);
                     if (j.contains("content") && j["content"].is_string()) {
                         std::string parsedContent = j["content"];
                         tokens.push_back(parsedContent);

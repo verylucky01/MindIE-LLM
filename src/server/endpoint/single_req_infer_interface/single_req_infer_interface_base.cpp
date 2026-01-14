@@ -9,6 +9,7 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
+#include "single_req_infer_interface_base.h"
 #include <atomic>
 #include <chrono>
 #include <codecvt>
@@ -24,12 +25,11 @@
 #include "random_generator.h"
 #include "parameters_checker.h"
 #include "config_manager_impl.h"
-#include "single_req_infer_interface_base.h"
+#include "safe_io.h"
 
 using OrderedJson = nlohmann::ordered_json;
 
 namespace mindie_llm {
-std::atomic<bool> SingleReqInferInterfaceBase::refuseReqFlag{false};
 
 std::atomic<bool> StopServiceOption::stopServiceFlag{false};
 
@@ -74,6 +74,7 @@ RequestIdNew SingleReqInferInterfaceBase::GetRequestId() { return requestId_; }
 
 SingleReqInferInterfaceBase::~SingleReqInferInterfaceBase()
 {
+    singleLLMReqHandlerBase_ = nullptr;
     try {
         ULOG_DEBUG(SUBMODLE_NAME_ENDPOINT,
                    "Delete SingleReqInferInterfaceBase #" << (++g_numDeleteSingleReqInferInterfaceBase));
@@ -223,7 +224,7 @@ void SingleReqInferInterfaceBase::ConvertTokenToMap(const std::vector<BestNToken
 
     for (const auto &item : decodeResult) {
         // The ids larger than 2 ** 63 - 1 has been reserved for the eos sequences of beam search.
-        if (item.seqId > (std::numeric_limits<uint64_t>::max() >> 1)) {
+        if (item.seqId > (std::numeric_limits<SequenceId>::max())) {
             if (stoppedSeqIdMap.count(item.parentSeqId) == 0) {
                 stoppedSeqIdMap[item.parentSeqId] = {};
             }
@@ -1111,7 +1112,7 @@ bool SingleReqInferInterfaceBase::DecodeSingleToken(std::vector<int64_t> &tokenI
         return false;
     }
     try {
-        Json resultJson = Json::parse(inferResult);
+        Json resultJson = Json::parse(inferResult, CheckJsonDepthCallbackUlog);
         if (JsonParse::JsonContainItemWithType(resultJson, "content", Json::value_t::string, err) &&
             !resultJson["content"].get<std::string>().empty()) {
             output = resultJson["content"];

@@ -29,7 +29,6 @@
 #include "log.h"
 #include "common_util.h"
 #include "string_utils.h"
-#include "hse_cryptor_helper.h"
 
 namespace mindie_llm {
 
@@ -40,8 +39,6 @@ using model_execute_data::SlaveToMasterMsg;
 using model_execute_data::MasterService;
 using SlaveStreamPtr = ServerReaderWriter<MasterToSlaveMsg, SlaveToMasterMsg> *;
 using ExecRespBlockingQueue = boost::sync_queue<std::shared_ptr<ExecuteResponse>>;
-bool EraseWhenKeyDecryptFail(const std::string &errMsg, std::pair<char *, int> &keyPass, BIO *bioIn = nullptr,
-                             BIO *bioOut = nullptr, EVP_PKEY *pkey = nullptr);
 
 class GRPCCommunicator {
 public:
@@ -106,9 +103,6 @@ private:
     std::string interNodeTlsPk_;
     std::string interNodeTlsCrlPath_;
     std::vector<std::string> interNodeTlsCrlFiles_;
-    std::string interNodeTlsPkPwd_;
-    std::string interNodeKmcKsfMaster_;
-    std::string interNodeKmcKsfStandby_;
 
     // 缓存读取后的证书内容
     std::string caCert_;

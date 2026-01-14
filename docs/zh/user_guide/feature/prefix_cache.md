@@ -15,15 +15,15 @@ Prefix Cache通过哈希表保留session结束后的KV Cache，新的session请�
 ## 限制与约束<a name="section204315644813"></a>
 
 -  Atlas 800I A2 推理服务器和Atlas 300I Duo 推理卡和和Atlas 800I A3 超节点服务器支持此特性。
--  Qwen2系列、Qwen2.5系列、Qwen3系列、DeepSeek-R1和DeepSeek-V3模型支持对接此特性。
+-  Qwen2系列、Qwen2.5系列、Qwen3系列、DeepSeek-R1和DeepSeek-V3/V3.1模型支持对接此特性。
 -  当跨session公共前缀Token数大于等于block size时，才会进行公共前缀Token的KV Cache复用。
 -  Prefix Cache支持的量化特性：W4A8量化、W8A8量化、pdmix量化与稀疏量化，其他量化特性暂不支持。
 -  该特性不能和Multi-LoRA、长序列特性同时使用。
--  该特性可以和PD分离、并行解码、MTP、异步调度、SplitFuse特性、CP+SP、C8量化同时使用。
+-  该特性可以和PD分离、并行解码、MTP、kvcache池化、异步调度、SplitFuse特性、context parallel + sequence parallel、C8量化同时使用。
 -  该特性支持n、best\_of、use\_beam\_search后处理参数。
 -  PD分离场景下，仅P节点需要开启该特性。
 -  前缀复用率低或者没有复用的情况下，不建议开启该特性。
--  DeepSeek-R1和DeepSeek-V3模型开启该特性时，需设置“export TASK\_QUEUE\_ENABLE=1”。
+-  不支持prefix cache + context parallel + sequence parallel + function call(multiturn)的叠加
 
 ## 参数说明
 
@@ -33,14 +33,14 @@ Prefix Cache通过哈希表保留session结束后的KV Cache，新的session请�
 
 |配置项|取值类型|取值范围|配置说明|
 |--|--|--|--|
-|plugin_params|std::string|"{\"plugin_type\":\"prefix_cache\"}"|设置为"{\"plugin_type\":\"prefix_cache\"}"，表示执行Prefix Cache。不需要生效任何插件功能时，请删除该配置项字段。|
+|plugin_params|std::string|"{\"plugin_type\":\"prefix_cache\"}"|<ul><li>设置为"{\"plugin_type\":\"prefix_cache\"}"，表示执行Prefix Cache。</li><li>不需要生效任何插件功能时，请删除该配置项字段。</li></ul>|
 
 
 **表 2**  Prefix Cache特性补充参数2：**ScheduleConfig的参数**  <a id="table2"></a>
 
 |配置项|取值类型|取值范围|配置说明|
 |--|--|--|--|
-|enablePrefixCache|-|-|该字段已无需配置，目前版本按老版本方式配置无影响。该字段预计日落时间：2026年Q1版本。|
+|enablePrefixCache|-|-|该字段已无需配置，目前版本按老版本方式配置无影响。<br>该字段预计日落时间：2026年Q1版本。|
 
 
 **表 3**  Prefix Cache特性补充参数3：**ModelConfig中的models参数**  <a id="table3"></a>
@@ -49,7 +49,7 @@ Prefix Cache通过哈希表保留session结束后的KV Cache，新的session请�
 |--|--|--|--|
 |deepseekv2|
 |kv_cache_option|
-|enable_nz|bool|truefalse|是否开启KV Cache NZ格式。仅DeepSeek-R1、DeepSeek-V3和DeepSeek-V3.1模型支持此特性。FA3量化场景下自动使能NZ格式。DeepSeek-R1、DeepSeek-V3和DeepSeek-V3.1模型必须开启此开关，其余模型关闭。默认值：false|
+|enable_nz|bool|<ul><li>true</li><li>false</li></ul>|是否开启KV Cache NZ格式。<br><ul><li>仅DeepSeek-R1、DeepSeek-V3和DeepSeek-V3.1模型支持此特性。FA3量化场景下自动使能NZ格式。</li><li>DeepSeek-R1、DeepSeek-V3和DeepSeek-V3.1模型必须开启此开关，其余模型关闭。</li><li>默认值：false</li></ul>|
 
 
 ## 执行推理

@@ -34,11 +34,11 @@
 {
   "model_quant_type": "W8A8S",
   "model.embed_tokens.weight": "FLOAT",
-  "model.layers.0.self_attn.q_proj.weight": "W8A8SC",
-  "model.layers.0.self_attn.q_proj.input_scale": "W8A8SC",
-  "model.layers.0.self_attn.q_proj.input_offset": "W8A8SC",
-  "model.layers.0.self_attn.q_proj.quant_bias": "W8A8SC",
-  "model.layers.0.self_attn.q_proj.deq_scale": "W8A8SC",
+  "model.layers.0.self_attn.q_proj.weight": "W8A8S",
+  "model.layers.0.self_attn.q_proj.input_scale": "W8A8S",
+  "model.layers.0.self_attn.q_proj.input_offset": "W8A8S",
+  "model.layers.0.self_attn.q_proj.quant_bias": "W8A8S",
+  "model.layers.0.self_attn.q_proj.deq_scale": "W8A8S",
 }
 ```
 
@@ -72,14 +72,14 @@
 ```
 {
   "model_quant_type": "W8A8SC",
-  "model.embed_tokens.weight": "FLOAT",
-  "model.layers.0.self_attn.query_key_value.weight": "W8A8SC",
-  "model.layers.0.self_attn.query_key_value.index": "W8A8SC",
-  "model.layers.0.self_attn.query_key_value.info": "W8A8SC",
-  "model.layers.0.self_attn.query_key_value.input_scale": "W8A8S",
-  "model.layers.0.self_attn.query_key_value.input_offset": "W8A8S",
-  "model.layers.0.self_attn.query_key_value.deq_scale": "W8A8S",
-  "model.layers.0.self_attn.query_key_value.quant_bias": "W8A8S",
+  "transformer.wte.weight": "FLOAT",
+  "transformer.h.0.attn.c_attn.weight": "W8A8SC",
+  "transformer.h.0.attn.c_attn.index": "W8A8SC",
+  "transformer.h.0.attn.c_attn.info": "W8A8SC",
+  "transformer.h.0.attn.c_attn.input_scale": "W8A8S",
+  "transformer.h.0.attn.c_attn.input_offset": "W8A8S",
+  "transformer.h.0.attn.c_attn.deq_scale": "W8A8S",
+  "transformer.h.0.attn.c_attn.quant_bias": "W8A8S",
 }
 ```
 
@@ -104,13 +104,13 @@
 
 以Qwen3-8B为例：
 
-1.  使用以下指令生成W8A8SC量化权重。
+1.  使用以下指令生成W8A8S量化权重。
 
     ```
     msmodelslim quant --model_path ${浮点权重路径} --save_path ${W8A8S量化权重保存路径} --device npu --model_type Qwen3-8B --quant_type w8a8s --trust_remote_code True
     ```
 
-    -   以上指令包含生成Qwen3-8B W8A8SC稀疏量化权重的最优参数配置，不同模型的参数配置不同，请参考模型Readme文件。
+    -   以上指令包含生成Qwen3-8B W8A8S稀疏量化权重的最优参数配置，不同模型的参数配置不同，请参考模型Readme文件。
     -   生成权重后需将浮点权重下的special\_tokens\_map.json文件复制到W8A8S量化权重路径
 
 2.  使用以下指令设置msModelSlim工具所在的Python路径环境变量，\{Python Lib Path\}为安装msmodelslim时编译步骤中所在的Python路径。

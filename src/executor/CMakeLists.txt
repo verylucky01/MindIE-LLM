@@ -10,6 +10,7 @@ target_include_directories(mindie_executor
 target_link_libraries(mindie_executor
     mindie_llm_utils
     mindie_grpc
+    ${GRPC_SO_FILES}
     mindie_protobuf
     ${PROTOBUF_SO_FILES}
     ${Boost_LIBRARIES}

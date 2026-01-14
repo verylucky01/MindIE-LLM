@@ -55,7 +55,8 @@ class NpuHbmInfo:
         if cls.visible_npu_ids:
             return
         if ENV.visible_devices is None:
-            devices = sorted(list(_get_device_map_info().keys()))  # 通过npu-smi info -m指令获取到所有的chip logic id
+            # Retrieve all chip logic IDs via the 'npu-smi info -m' command.
+            devices = sorted(list(_get_device_map_info().keys()))
         else:
             devices = ENV.visible_devices
         device_map_info = _get_device_map_info()
@@ -120,9 +121,15 @@ def _get_device_map_info() -> Dict[int, DeviceInfo]:
     device_map_info = {}
     device_map = execute_command(["npu-smi", "info", "-m"]).strip().split("\n")[1:]
     for line in device_map:
-        device_info = DeviceInfo(line.strip())
-        if isinstance(device_info.chip_logic_id, int):
-            device_map_info[device_info.chip_logic_id] = device_info
+        line = line.strip()
+        if not line:  # Skip empty lines.
+            continue
+        try:
+            device_info = DeviceInfo(line)
+            if isinstance(device_info.chip_logic_id, int):
+                device_map_info[device_info.chip_logic_id] = device_info
+        except (ValueError, IndexError):
+            continue
     return device_map_info
 
 
@@ -138,7 +145,9 @@ def _get_pcie_info(devices: List[int], keyword="PCIeBusInfo"):
         pcie_info = execute_command(["npu-smi", "info", "-t", "board", "-i", f"{device_info.npu_id}",
                                      "-c", f"{device_info.chip_id}"]).strip().split("\n")
         for _ in pcie_info:
-            line = ''.join(_.split())  # 不同硬件的输出格式不同（PCIe Bus Info 或 PCIeBusInfo），在此处做统一
+            # Normalize the output string by removing spaces to handle hardware variations
+            # (e.g., 'PCIe Bus Info' vs. 'PCIeBusInfo').
+            line = ''.join(_.split())
             if line.startswith(keyword):
                 device_pcie_tbl[device] = line[len(keyword) + 1:]
                 break
@@ -170,12 +179,12 @@ def _get_numa_info(pcie_tbl, keyword="NUMAnode"):
 
 def _get_numa_info_v2(devices: List[int], keyword="NUMAnode(s)") -> Tuple[Dict[int, int], Dict[int, List[int]]]:
     """
-    NPU NUMA不亲和的场景，直接将devices均分到每个NUMA上
+    In scenarios where NPU NUMA affinity is not supported, distribute devices evenly across each NUMA node.
     :param devices:
     :param keyword:
     :return:
     """
-    # NUMA节点检测优化
+    # Optimize NUMA node detection.
     numa_nodes = 1
     numa_info = execute_command(["lscpu"]).split("\n")
     for _ in numa_info:
@@ -185,11 +194,11 @@ def _get_numa_info_v2(devices: List[int], keyword="NUMAnode(s)") -> Tuple[Dict[i
         numa_nodes = int(line[-1])
         break
 
-    # 给每个numa平均分配devices
+    # Distribute devices evenly to each NUMA node.
     device_per_numa, tail_device = divmod(len(devices), numa_nodes)
     device_count_per_numa_list = [device_per_numa + (i < tail_device) for i in range(numa_nodes)]
 
-    # 每个numa分配升序的连续的devices
+    # Assign devices in ascending, continuous order to each NUMA node.
     ends = list(accumulate(device_count_per_numa_list))
     starts = [0] + ends[:-1]
 
@@ -232,43 +241,44 @@ def _get_cpu_info(numa_ids, keyword1="NUMAnode", keyword2="CPU(s)"):
     return cpu_idx_tbl
 
 
-# 可以用export CPU_BINDING_NUM设置每个进程绑的核数;如果不设置CPU_BINDING_NUM,
-# 会根据ratio(numa利用率)进行计算,如果有64个核，0.5表示用一半，用32个核, 平分给亲和在这个numa上的npu
+# 'CPU_BINDING_NUM' sets cores per process. If unset, it's calculated via NUMA utilization ratio.
+# E.g., ratio 0.5 on 64 cores uses 32 cores, distributed evenly among NPUs on the NUMA node.
 def bind_cpus(rank_id, ratio=0.5):
     visible_devices = ENV.visible_devices
 
     if visible_devices is None:
-        devices = sorted(list(_get_device_map_info().keys()))  # 通过npu-smi info -m指令获取到所有的chip logic id
+        # Retrieve all chip logic IDs via the 'npu-smi info -m' command.
+        devices = sorted(list(_get_device_map_info().keys()))
     else:
         devices = ENV.visible_devices
 
-    # 获取npu和pcie的对应关系
+    # Retrieve the mapping between NPU and PCIe.
     device_pcie_tbl = _get_pcie_info(devices)
-    # 根据pcie信息获取npu和numa的对应关系
+    # Retrieve the mapping between NPU and NUMA based on PCIe information.
     device_numa_tbl, numa_devices_tbl = _get_numa_info(device_pcie_tbl)
     if not device_numa_tbl or not numa_devices_tbl:
         device_numa_tbl, numa_devices_tbl = _get_numa_info_v2(devices)
-    # 获取使用的numa对应的cpu核分配信息
+    # Retrieve CPU core allocation information corresponding to the used NUMA node.
     cpu_idx_tbl = _get_cpu_info(list(numa_devices_tbl.keys()))
 
-    # 当前rank的npu id
+    # NPU ID for the current rank.
     cur_device = devices[rank_id]
-    # 获取npu对应的numa id
+    # Retrieve the NUMA ID corresponding to the NPU.
     numa_id = device_numa_tbl.get(cur_device)
 
-    # 获取共享该numa的npu信息
+    # Retrieve information about NPUs sharing this NUMA node.
     shard_devices = numa_devices_tbl.get(numa_id)
-    # 按照npu id进行排序
+    # Sort by NPU ID.
     shard_devices.sort()
 
-    # 获取该numa上所有的cpu id信息
+    # Retrieve all CPU ID information on this NUMA node.
     all_cpus = cpu_idx_tbl.get(numa_id)
     logger.info(
         f"rank_id: {rank_id}, device_id: {cur_device}, "
         f"numa_id: {numa_id}, shard_devices: {shard_devices}, cpus: {all_cpus}")
 
     cpu_nums = len(all_cpus)
-    # 计算给该共享numa的npu分配的核的个数
+    # Calculate the number of cores allocated to the NPU sharing this NUMA node.
     if ENV.cpu_binding_num is None:
         cpu_num_per_device = int(cpu_nums * ratio // len(shard_devices))
     else:
@@ -283,9 +293,9 @@ def bind_cpus(rank_id, ratio=0.5):
             logger.error(err_msg)
             raise ValueError(err_msg)
 
-    # 获取该npu的下标信息
+    # Retrieve the index information for this NPU.
     idx = shard_devices.index(cur_device)
-    # 给该npu分配要绑定的cpu id
+    # Allocate the CPU IDs to be bound to this NPU.
     binding_cpus = [all_cpus[_] for _ in range(idx * cpu_num_per_device, (idx + 1) * cpu_num_per_device)]
 
     # cpu bind

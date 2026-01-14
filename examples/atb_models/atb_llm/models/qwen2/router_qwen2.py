@@ -27,6 +27,7 @@ class Qwen2Router(BaseRouter):
     def __post_init__(self):
         super().__post_init__()
         self.transformers_version = self.config_dict["transformers_version"]
+        self.prealloc_weight_mem_on_npu = True
 
     @property
     def embedding_model_name(self):

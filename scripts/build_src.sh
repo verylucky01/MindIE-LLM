@@ -6,10 +6,10 @@ function fn_build_src()
     echo "COMPILE_OPTIONS:$COMPILE_OPTIONS"
     cmake .. $COMPILE_OPTIONS
     if [ "$USE_VERBOSE" == "ON" ];then
-        VERBOSE=1 make -j$thread_num
+        cmake --build . --target all -- VERBOSE=1 -j"$thread_num"
     else
-        make -j$thread_num
+        cmake --build . --target all -- -j"$thread_num"
     fi
-    make install
+    cmake --install .
     cd -
 }

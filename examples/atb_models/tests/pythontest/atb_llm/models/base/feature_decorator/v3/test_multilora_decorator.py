@@ -72,7 +72,7 @@ class TestMultiLoraDecorator(unittest.TestCase):
         decorator = MultiLoraDecorator(self.base_model)
         decorator.adapter_manager = MagicMock()
         decorator.adapter_manager.lora_slots = 2
-        decorator.adapter_manager.preprocess_adatper_ids.return_value = ["adapter1", "adapter2"]
+        decorator.adapter_manager.preprocess_adapter_ids.return_value = ["adapter1", "adapter2"]
         decorator.adapter_manager.check_adapter_weights_update.return_value = True
         decorator.adapter_manager.get_adapters.return_value = MagicMock()
         mock_engine_wrapper1 = MagicMock()
@@ -83,7 +83,7 @@ class TestMultiLoraDecorator(unittest.TestCase):
         self.base_model.get_engine_wrappers.return_value = [mock_engine_wrapper1, mock_engine_wrapper2]
         decorator.modify_inputs({}, {}, {}, input_metadata={"input_lengths": torch.tensor([4, 5], dtype=torch.int64),
                                                             "adapter_ids": ["adapter1", "adapter2"]})
-        decorator.adapter_manager.preprocess_adatper_ids.assert_called_once_with(["adapter1", "adapter2"])
+        decorator.adapter_manager.preprocess_adapter_ids.assert_called_once_with(["adapter1", "adapter2"])
         decorator.adapter_manager.check_adapter_weights_update.assert_called_once()
         decorator.adapter_manager.get_adapters.assert_called_once_with(["adapter1", "adapter2"])
         mock_engine_wrapper1.set_weights.assert_called_once()

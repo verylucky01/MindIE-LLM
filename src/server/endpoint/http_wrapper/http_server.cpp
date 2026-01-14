@@ -199,7 +199,7 @@ void HttpServerInitHttpLibConfig(HttpsServerHelper &server, uint32_t workThreadN
         return threadPool;
     };
     // 设置最大请求体长度
-    server.set_payload_max_length(PAYLOAD_MAX_LENGTH);
+    server.set_payload_max_length(GetMaxInputLen());
     server.set_error_handler([](const httplib::Request &req, httplib::Response &res) {
         (void)req;
         if (res.status == httplib::StatusCode::PayloadTooLarge_413) {

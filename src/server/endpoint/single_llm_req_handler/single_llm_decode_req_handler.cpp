@@ -253,9 +253,14 @@ bool GetPullKVFlag(ResponseSPtr &response, uint16_t &pullKVFlag)
 
 void SingleLLMDecodeReqHandler::SetBackManagerCallBack(RequestSPtr request)
 {
-    auto self = shared_from_this();
+    // 使用weak_ptr避免因request与handler之间循环引用导致的内存泄漏
+    std::weak_ptr<SingleLLMDecodeReqHandler> weakSelf = shared_from_this();
 
-    request->serverResponseCallback_ = [self](ResponseSPtr response) {
+    request->serverResponseCallback_ = [weakSelf](ResponseSPtr response) {
+        auto self = weakSelf.lock();
+        if (!self) {
+            return;
+        }
         std::unique_lock lock(self->decodeCbMutex);
         if (self == nullptr || response == nullptr || self->isFinish_.load()) { return; }
         self->reqId_ = response->reqId;

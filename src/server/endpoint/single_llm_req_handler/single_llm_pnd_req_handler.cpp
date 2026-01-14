@@ -9,7 +9,7 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
- 
+#include "single_llm_pnd_req_handler.h"
 #include <atomic>
 #include "http_metrics.h"
 #include "config_manager.h"
@@ -17,7 +17,7 @@
 #include "log.h"
 #include "config_manager_impl.h"
 #include "infer_tokenizer.h"
-#include "single_llm_pnd_req_handler.h"
+#include "safe_io.h"
 
 using ordered_json = nlohmann::ordered_json;
 
@@ -56,7 +56,7 @@ bool SingleLLMPnDReqHandler::GetContextJsonBody(ordered_json &body)
                        "Convert string to json object exception, cbId is " << ctx->CallbackId());
             return false;
         }
-        body = ordered_json::parse(converted);
+        body = ordered_json::parse(converted, CheckOrderedJsonDepthCallback);
     } catch (...) {
         ULOG_ERROR(SUBMODLE_NAME_ENDPOINT,
                    GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SINGLE_INFERENCE, JSON_PARSE_ERROR),
@@ -118,9 +118,14 @@ void SingleLLMPnDReqHandler::Process(RequestSPtr request, const std::string &inp
 
 void SingleLLMPnDReqHandler::SetBackManagerCallBack(RequestSPtr request)
 {
-    auto self = shared_from_this();
+    // 使用weak_ptr避免因request与handler之间循环引用导致的内存泄漏
+    std::weak_ptr<SingleLLMPnDReqHandler> weakSelf = shared_from_this();
     auto requestId = request->requestId;
-    request->serverResponseCallback_ = [self, requestId](ResponseSPtr response) {
+    request->serverResponseCallback_ = [weakSelf, requestId](ResponseSPtr response) {
+        auto self = weakSelf.lock();
+        if (!self) {
+            return;
+        }
         if (response == nullptr) {
             ULOG_ERROR(SUBMODLE_NAME_ENDPOINT,
                        GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SINGLE_INFERENCE, CHECK_ERROR),
@@ -171,9 +176,14 @@ void SingleLLMPnDReqHandler::SimulateProcess(RequestSPtr request, const std::str
 
 void SingleLLMPnDReqHandler::SetSimulateBackManagerCallBack(RequestSPtr request)
 {
-    auto self = shared_from_this();
+    // 使用weak_ptr避免因request与handler之间循环引用导致的内存泄漏
+    std::weak_ptr<SingleLLMPnDReqHandler> weakSelf = shared_from_this();
     auto requestId = request->requestId;
-    request->serverResponseCallback_ = [self, requestId](ResponseSPtr response) {
+    request->serverResponseCallback_ = [weakSelf, requestId](ResponseSPtr response) {
+        auto self = weakSelf.lock();
+        if (!self) {
+            return;
+        }
         if (response == nullptr) {
             ULOG_ERROR(SUBMODLE_NAME_ENDPOINT,
                        GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SINGLE_INFERENCE, CHECK_ERROR),

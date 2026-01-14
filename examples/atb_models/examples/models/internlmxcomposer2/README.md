@@ -40,7 +40,10 @@
 模型只支持safetensor格式权重，需要将bin格式权重转为safetensor格式，参考[此README文件](../../README.md)
 
 **稀疏量化权重生成**
+- step 1
+请参考[msmodelslim](https://gitcode.com/Ascend/msit/blob/master/msmodelslim/docs/%E5%AE%89%E8%A3%85%E6%8C%87%E5%8D%97.md)安装msModelSlim量化工具
 
+- step 2
 由于当前lora特性不支持量化且vit模型也不支持量化，稀疏量化功能只能作用于基础LLM模型，以下是 `InternLM-XComposer2-VL-7B` 量化步骤：
 
 1. 拷贝一份权重，将其记作 `$weight_path_copy`
@@ -51,24 +54,14 @@ qkv_states = self.wqkv(hidden_states, im_mask)
 # 修改为
 qkv_states = self.wqkv(hidden_states)
 ```
-1. 当前量化工具暂不支持多模态，需要修改 /usr/local/Ascend/ascend-toolkit/latest/tools/msmodelslim/pytorch/llm_ptq/llm_ptq_tools/quant_tools.py 文件
-  里的 `rollback_names_process` 函数加上 `nn.Conv2d`, 改成如下：
-  ```python
-  if isinstance(module, (nn.Linear,nn.Conv2d,  nn.modules.linear.NonDynamicallyQuantizableLinear))
-  ```
-  改完后设置CANN环境变量：source /usr/local/Ascend/ascend-toolkit/set_env.sh
 
 1. 在 `$llm_path` 目录下执行稀疏量化权重生成步骤1：
   ```python
   python examples/models/internlmxcomposer2/convert_quant_weights.py --model_path {浮点权重路径} --save_directory {W8A8S量化权重路径} --w_bit 4 --a_bit 8 --calib_file ${llm_path}/examples/convert/model_slim/teacher_qualification.jsonl --fraction 0.011 --co_sparse True (--trust_remote_code)
   ```
 
-1. 在 `$llm_path` 执行量化权重切分及压缩
-  > 运行前需要确保压缩工具编译过
-  >
-  > `cd /usr/local/Ascend/ascend-toolkit/latest/python/site-packages/msmodelslim/pytorch/weight_compression/compress_graph`
-  >
-  > `bash build.sh /usr/local/Ascend/ascend-toolkit/latest`
+2. 在 `$llm_path` 执行量化权重切分及压缩
+
   ```shell
   torchrun --nproc_per_node {TP数} -m examples.convert.model_slim.sparse_compressor --model_path {W8A8S量化权重路径} --save_directory {W8A8SC量化权重路径} (--trust_remote_code)
   ```

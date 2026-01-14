@@ -68,20 +68,20 @@ class TestLoraModifier(unittest.TestCase):
         }
 
     def test_init_with_no_adapter(self):
-        lora_modifier = LoraModifier(self.weights, MockFlashCausalLm())
+        lora_modifier = LoraModifier(self.weights, MockFlashCausalLm(), lora_adapter=None, lora_model_config=None)
         self.assertFalse(lora_modifier.active)
         self.assertIsNone(lora_modifier.adapter_manager)
 
     def test_init_with_adapter(self):
         lora_modifier = LoraModifier(
-            self.weights, MockFlashCausalLm(), lora_adapter={ADAPTER_1: FAKE_PATH_1})
+            self.weights, MockFlashCausalLm(), lora_adapter={ADAPTER_1: FAKE_PATH_1}, lora_model_config=None)
         self.assertTrue(lora_modifier.active)
         self.assertIsNotNone(lora_modifier.adapter_manager)
 
     def test_use_multi_adapter(self):
         lora_modifier = LoraModifier(
             self.weights, MockFlashCausalLm(),
-            lora_adapter={ADAPTER_1: FAKE_PATH_1, ADAPTER_2: FAKE_PATH_2})
+            lora_adapter={ADAPTER_1: FAKE_PATH_1, ADAPTER_2: FAKE_PATH_2}, lora_model_config=None)
         lora_modifier.adapter_manager.adapter_info_registry = self.adapter_info_registry
         lora_modifier.adapter_manager.update_adapter([ADAPTER_1, ADAPTER_2])
         self.assertTrue(lora_modifier.use_multi_adapters())
@@ -95,7 +95,7 @@ class TestLoraModifier(unittest.TestCase):
     def test_use_single_adapter(self):
         lora_modifier = LoraModifier(
             self.weights, MockFlashCausalLm(),
-            lora_adapter={ADAPTER_1: FAKE_PATH_1, ADAPTER_2: FAKE_PATH_2})
+            lora_adapter={ADAPTER_1: FAKE_PATH_1, ADAPTER_2: FAKE_PATH_2}, lora_model_config=None)
         lora_modifier.adapter_manager.update_adapter([ADAPTER_1])
         self.assertFalse(lora_modifier.use_multi_adapters())
         self.assertTrue(lora_modifier.use_single_adapter())
@@ -104,28 +104,28 @@ class TestLoraModifier(unittest.TestCase):
     def test_use_no_adapter(self):
         lora_modifier = LoraModifier(
             self.weights, MockFlashCausalLm(),
-            lora_adapter={ADAPTER_1: FAKE_PATH_1, ADAPTER_2: FAKE_PATH_2})
+            lora_adapter={ADAPTER_1: FAKE_PATH_1, ADAPTER_2: FAKE_PATH_2}, lora_model_config=None)
         lora_modifier.adapter_manager.update_adapter([BASE])
         self.assertFalse(lora_modifier.use_multi_adapters())
         self.assertFalse(lora_modifier.use_single_adapter())
         self.assertTrue(lora_modifier.use_no_adapter())
     
     def test_modify_inputs_inactive(self):
-        lora_modifier = LoraModifier(self.weights, MockFlashCausalLm())
+        lora_modifier = LoraModifier(self.weights, MockFlashCausalLm(), lora_adapter=None, lora_model_config=None)
         engine_inputs = []
         lora_modifier.modify_inputs(engine_inputs, [BASE], torch.tensor([]), True)
         self.assertListEqual(engine_inputs, [])
 
     def test_modify_inputs_no_update(self):
         lora_modifier = LoraModifier(
-            self.weights, MockFlashCausalLm(), lora_adapter={ADAPTER_1: FAKE_PATH_1})
+            self.weights, MockFlashCausalLm(), lora_adapter={ADAPTER_1: FAKE_PATH_1}, lora_model_config=None)
         engine_inputs = []
         lora_modifier.modify_inputs(engine_inputs, [None], torch.tensor([2, 1, 4]), True)
         self.assertListEqual(engine_inputs, [])
     
     def test_modify_inputs_need_update(self):
         lora_modifier = LoraModifier(
-            self.weights, MockFlashCausalLm(), lora_adapter={ADAPTER_1: FAKE_PATH_1})
+            self.weights, MockFlashCausalLm(), lora_adapter={ADAPTER_1: FAKE_PATH_1}, lora_model_config=None)
         lora_modifier.adapter_manager.adapter_info_registry = {
             ADAPTER_1: AdapterInfo(idx=0, adapter_path="fake_path"),
             BASE: AdapterInfo(idx=2, adapter_path=""),
@@ -154,7 +154,7 @@ class TestLoraModifier(unittest.TestCase):
     def test_calculate_adapter_group_size_single_adapter(self):
         fake_input_lengths = torch.tensor([2]).npu()
         lora_modifier = LoraModifier(
-            self.weights, MockFlashCausalLm(), lora_adapter={ADAPTER_1: FAKE_PATH_1})
+            self.weights, MockFlashCausalLm(), lora_adapter={ADAPTER_1: FAKE_PATH_1}, lora_model_config=None)
         group_size = lora_modifier._calculate_adapter_group_size([ADAPTER_1], fake_input_lengths, True)
         self.assertTrue(torch.equal(group_size, torch.zeros(1, dtype=self.dtype, device=NPU)))
 
@@ -162,33 +162,33 @@ class TestLoraModifier(unittest.TestCase):
         fake_input_lengths = torch.tensor([4, 2]).npu()
         lora_modifier = LoraModifier(
             self.weights, MockFlashCausalLm(),
-            lora_adapter={ADAPTER_1: FAKE_PATH_1, ADAPTER_2: FAKE_PATH_2})
+            lora_adapter={ADAPTER_1: FAKE_PATH_1, ADAPTER_2: FAKE_PATH_2}, lora_model_config=None)
         lora_modifier.adapter_manager.adapter_info_registry = self.adapter_info_registry
         adapter_ids = [ADAPTER_2, ADAPTER_1]
         lora_modifier.adapter_manager.update_adapter(adapter_ids)
         group_size = lora_modifier._calculate_adapter_group_size(
             adapter_ids, fake_input_lengths, True)
-        self.assertTrue(torch.equal(group_size, torch.tensor([4, 6], dtype=self.dtype, device=NPU)))
+        self.assertTrue(torch.equal(group_size, torch.tensor([4, 6], dtype=torch.int64, device=NPU)))
 
         group_size = lora_modifier._calculate_adapter_group_size(
             adapter_ids, torch.tensor([1, 2], dtype=self.dtype, device=NPU), False)
-        self.assertTrue(torch.equal(group_size, torch.tensor([1, 2], dtype=self.dtype, device=NPU)))
+        self.assertTrue(torch.equal(group_size, torch.tensor([1, 2], dtype=torch.int64, device=NPU)))
 
     def test_calculate_adapter_group_size_sorted(self):
         fake_input_lengths = torch.tensor([4, 2]).npu()
         lora_modifier = LoraModifier(
             self.weights, MockFlashCausalLm(),
-            lora_adapter={ADAPTER_1: FAKE_PATH_1, ADAPTER_2: FAKE_PATH_2})
+            lora_adapter={ADAPTER_1: FAKE_PATH_1, ADAPTER_2: FAKE_PATH_2}, lora_model_config=None)
         lora_modifier.adapter_manager.adapter_info_registry = self.adapter_info_registry
         adapter_ids = [ADAPTER_1, BASE]
         lora_modifier.adapter_manager.update_adapter(adapter_ids)
         group_size = lora_modifier._calculate_adapter_group_size(
             adapter_ids, fake_input_lengths, True)
-        self.assertTrue(torch.equal(group_size, torch.tensor([4, 4, 6], dtype=self.dtype, device=NPU)))
+        self.assertTrue(torch.equal(group_size, torch.tensor([4, 4, 6], dtype=torch.int64, device=NPU)))
 
         group_size = lora_modifier._calculate_adapter_group_size(
             adapter_ids, torch.tensor([1, 2], dtype=self.dtype, device=NPU), False)
-        self.assertTrue(torch.equal(group_size, torch.tensor([1, 1, 3], dtype=self.dtype, device=NPU)))
+        self.assertTrue(torch.equal(group_size, torch.tensor([1, 1, 3], dtype=torch.int64, device=NPU)))
 
 
 if __name__ == '__main__':

@@ -32,7 +32,6 @@
 #include "file_utils.h"
 #include "memory_utils.h"
 #include "config_manager.h"
-#include "hse_cryptor_helper.h"
 #include "common_util.h"
 #include "infer_instances.h"
 #include "grpc_tls_function_expansion.h"
@@ -766,7 +765,7 @@ namespace mindie_llm {
             if (!serverKeyContent.IsValid()) {
                 serverKeyContent.Clear();
                 ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SPLITWISE,
-                    CHECK_ERROR), "Failed to get key decrypt content");
+                    CHECK_ERROR), "Failed to get key content");
                 return false;
             }
             std::vector<grpc::experimental::IdentityKeyCertPair> identityKeyCertPairList{
@@ -828,151 +827,28 @@ namespace mindie_llm {
         }
         bool GrpcCommunicationMng::GetKeyContent(SensitiveInfoManager &keyContent)
         {
-            // 获取密码
-            SensitiveInfoManager keyPassContent{nullptr, 0, MAX_TOKEN_LEN, MIN_TOKEN_LEN};
-            if (!GetKeyPassWordContent(keyPassContent)) {
-                ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SPLITWISE,
-                    CHECK_ERROR), "Failed to call GetKeyPassWordContent");
-                return false;
-            }
-            if (!keyPassContent.IsValid()) {
-                ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SPLITWISE,
-                    CHECK_ERROR), "Failed to get key key password");
-                return false;
-            }
             // 获取私钥
-            std::string encryptKeyContent;
-            if (!GetFileContent(certKeyPath_, encryptKeyContent)) {
+            std::string privateKeyContent;
+            if (!GetFileContent(certKeyPath_, privateKeyContent)) {
                 ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SPLITWISE,
-                    CHECK_ERROR), "Failed to get encrypt key content");
+                    CHECK_ERROR), "Failed to get private key content");
 
                 return false;
             }
-            // 把私钥放入bio并解密
-            auto bioIn = BioManager(BIO_new_mem_buf(encryptKeyContent.data(), -1));
-            if (bioIn == nullptr) {
-                ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SPLITWISE,
-                           CHECK_ERROR), "Failed to create bioIn");
-                std::fill_n(encryptKeyContent.begin(), encryptKeyContent.size(), '\0');
-                return false;
-            }
-
-            auto pkey = PkeyManager(PEM_read_bio_PrivateKey(bioIn.get(), nullptr, nullptr,
-                (void*)keyPassContent.GetSensitiveInfoContent()));
-            std::fill_n(encryptKeyContent.begin(), encryptKeyContent.size(), '\0');
-            if (pkey == nullptr) {
-                keyPassContent.Clear();
-                ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SPLITWISE,
-                    CHECK_ERROR), "Failed to decrypt with ssl because " << strerror(errno));
-                return false;
-            }
-            // 擦除密码
-            keyPassContent.Clear();
-            // 把key放入bio并转换为字符串
-            auto bioOut = BioManager(BIO_new(BIO_s_mem()));
-            if (bioOut == nullptr) {
-                ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SPLITWISE,
-                    ABNORMAL_TRANSMISSION_ERROR), "Failed to create bioOut");
-                return false;
-            }
-
-            if (!PEM_write_bio_PrivateKey(bioOut.get(), pkey.get(), nullptr, nullptr, 0, nullptr, nullptr)) {
+           
+            if (!keyContent.CopySensitiveInfo(privateKeyContent.data(), privateKeyContent.size())) {
                 ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SPLITWISE,
                     ABNORMAL_TRANSMISSION_ERROR), "Failed to get bioOut with key because " << strerror(errno));
-                return false;
-            }
-            char* keyData;
-            long keyDataLen = BIO_get_mem_data(bioOut.get(), &keyData);
-            if (!keyContent.CopySensitiveInfo(keyData, keyDataLen)) {
-                ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SPLITWISE,
-                    ABNORMAL_TRANSMISSION_ERROR), "Failed to get bioOut with key because " << strerror(errno));
-                if (keyDataLen > 0) {
-                    OPENSSL_cleanse(keyData, keyDataLen);
+                if (privateKeyContent.size() > 0) {
+                    OPENSSL_cleanse(privateKeyContent.data(), privateKeyContent.size());
                 }
-                keyData = nullptr;
+                privateKeyContent = nullptr;
                 return false;
             }
-            if (keyDataLen > 0) {
-                OPENSSL_cleanse(keyData, keyDataLen);
+            if (privateKeyContent.size() > 0) {
+                OPENSSL_cleanse(privateKeyContent.data(), privateKeyContent.size());
             }
-            keyData = nullptr;
-            return true;
-        }
-
-        bool GrpcCommunicationMng::ValidKmcPath(std::string &miesInstallPath, std::string &kfsMasterPath,
-            std::string &kfsStandbyPath, std::string &tlsPriKeyPwdPath)
-        {
-            bool checkFlag = true;
-            const std::string isCheck = EnvUtil::GetInstance().Get("MINDIE_CHECK_INPUTFILES_PERMISSION");
-            if (isCheck == "0") {
-                checkFlag = false;
-            }
-            std::string errMsg;
-            std::string regularPath;
-            if (!FileUtils::RegularFilePath(kfsMasterPath, miesInstallPath, errMsg, regularPath) ||
-                !FileUtils::IsFileValid(
-                    regularPath, errMsg, true, FileUtils::FILE_MODE_600, checkFlag)) {
-                ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SPLITWISE,
-                    CHECK_ERROR), "Get server.key.pem secret failed by kmcKsfMaster path. " << errMsg);
-                return false;
-            }
-            if (!FileUtils::RegularFilePath(kfsStandbyPath, miesInstallPath, errMsg, regularPath) ||
-                !FileUtils::IsFileValid(
-                    regularPath, errMsg, true, FileUtils::FILE_MODE_600, checkFlag)) {
-                ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SPLITWISE,
-                    CHECK_ERROR), "Get server.key.pem secret failed by kmcKsfStandby path. " << errMsg);
-                return false;
-            }
-            if (!FileUtils::RegularFilePath(tlsPriKeyPwdPath, miesInstallPath, errMsg, regularPath) ||
-                !FileUtils::IsFileValid(
-                    regularPath, errMsg, true, FileUtils::FILE_MODE_600, checkFlag)) {
-                ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SPLITWISE,
-                    CHECK_ERROR), "Get server.key.pem secret failed by tlsPKPwd path. " << errMsg);
-                return false;
-            }
-            return true;
-        }
-
-        bool GrpcCommunicationMng::GetKeyPassWordContent(SensitiveInfoManager& keyPwContent)
-        {
-            std::string workDir = "";
-            std::string errMsg = "";
-            if (!FileUtils::GetInstallPath(workDir, errMsg)) {
-                ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SPLITWISE,
-                    CHECK_ERROR), "Get install path failed because " << errMsg);
-                return false;
-            }
-            if (!ValidKmcPath(workDir, kfsMasterPath_, kfsStandbyPath_, keyPassPath_)) {
-                ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SPLITWISE,
-                    CHECK_ERROR), "Get kmc path failed because " << errMsg);
-                return false;
-            }
-            auto hseCryptorHelper = std::make_shared<HseCryptorHelper>(kfsMasterPath_, kfsStandbyPath_);
-            if (hseCryptorHelper == nullptr) {
-                ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SPLITWISE,
-                    CHECK_ERROR), "Failed to create hse cryptor helper");
-                return false;
-            }
-            std::pair<char *, int> keyPass = {nullptr, 0};
-            int decryptRet = hseCryptorHelper->Decrypt(1, keyPassPath_, workDir, keyPass);
-            if (decryptRet != 0) {
-                ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SPLITWISE,
-                    CHECK_ERROR), "Hse cryptor helper decrypt failed");
-                return false;
-            }
-            if (!keyPwContent.CopySensitiveInfo(keyPass.first, keyPass.second)) {
-                ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SPLITWISE,
-                    ABNORMAL_TRANSMISSION_ERROR), "Failed to manager keyPass");
-                HseCryptorHelper::EraseDecryptData(keyPass);
-                return false;
-            }
-            if (memset_s(keyPass.first, keyPass.second, 0, keyPass.second) != 0) {
-                ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SPLITWISE,
-                    ABNORMAL_TRANSMISSION_ERROR), "Failed to clear keyPass");
-                HseCryptorHelper::EraseDecryptData(keyPass);
-                return false;
-            }
-            HseCryptorHelper::EraseDecryptData(keyPass);
+            privateKeyContent = nullptr;
             return true;
         }
 
@@ -993,14 +869,8 @@ namespace mindie_llm {
                     CHECK_ERROR), "Get lib path failed");
                 return false;
             }
-            int ret = setenv("HSECEASY_PATH", regularPath.c_str(), 1);
-            if (ret) {
-                ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SPLITWISE,
-                    CHECK_ERROR), "Set hseceasy libPath failed, error :" << strerror(errno));
-                return false;
-            }
 
-            ret = setenv("EP_OPENSSL_PATH", regularPath.c_str(), 1);
+            int ret = setenv("EP_OPENSSL_PATH", regularPath.c_str(), 1);
             if (ret) {
                 ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SPLITWISE,
                     CHECK_ERROR), "Set ep openssl libPath failed, error :" << strerror(errno));
@@ -1047,12 +917,6 @@ namespace mindie_llm {
                     CHECK_ERROR), "Failed to get cert key path because " << errMsg);
                 return false;
             }
-            if (!FileUtils::GetRealFilePath(
-                GetServerConfig().interCommPkPwd, keyPassPath_, errMsg)) {
-                ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SPLITWISE,
-                    CHECK_ERROR), "Failed to get private key path because " << errMsg);
-                return false;
-            }
             if (!GetServerConfig().interCommTlsCrlPath.empty()) {
                 auto interCommTlsCrlFiles = GetServerConfig().interCommTlsCrlFiles;
                 for (const std::string &interCommTlsCrlFile : interCommTlsCrlFiles) {
@@ -1066,18 +930,6 @@ namespace mindie_llm {
                     }
                     crlPath_.push_back(static_cast<std::string>(crlPath));
                 }
-            }
-            if (!FileUtils::GetRealFilePath(GetServerConfig().kmcKsfMaster,
-                kfsMasterPath_, errMsg)) {
-                ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SPLITWISE,
-                    CHECK_ERROR), "Failed to get kmc master path because " << errMsg);
-                return false;
-            }
-            if (!FileUtils::GetRealFilePath(GetServerConfig().kmcKsfStandby,
-                kfsStandbyPath_, errMsg)) {
-                ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SPLITWISE,
-                    CHECK_ERROR), "Failed to get kmc slave path because " << errMsg);
-                return false;
             }
             return true;
         }

@@ -191,7 +191,7 @@ export MODELTEST_DATASET_SPECIFIED=[任务配置yaml中的task_name项]
 
 ```shell
 # source cann环境变量
-source /usr/local/Ascend/ascend-toolkit/set_env.sh
+source /usr/local/Ascend/cann/set_env.sh
 # source 加速库环境变量
 source /usr/local/Ascend/nnal/atb/set_env.sh
 # source 模型仓tar包解压出来后的环境变量

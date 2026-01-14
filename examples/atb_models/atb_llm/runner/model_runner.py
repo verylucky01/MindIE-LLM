@@ -1,4 +1,4 @@
-# Copyright (c) Huawei Technologies Co., Ltd. 2024-2025. All rights reserved.
+# Copyright (c) Huawei Technologies Co., Ltd. 2024-2026. All rights reserved.
 # MindIE is licensed under Mulan PSL v2.
 # You can use this software according to the terms and conditions of the Mulan PSL v2.
 # You may obtain a copy of Mulan PSL v2 at:
@@ -39,6 +39,7 @@ from ..utils.log.error_code import ErrorCode
 from ..utils.adapter_manager import AdapterManager
 from ..utils.mapping import Mapping
 from ..utils.memory_utils import check_npu_mem
+from ..utils.quantize.quant_type import QuantType
 from ..utils.layerwise_disaggregated.edge_cloud_data_comm import EdgeCloudDataComm
 from ..utils.layerwise_disaggregated.edge_cloud_ctrl_comm import EdgeCloudCtrlComm
 from ..utils.layerwise_disaggregated.cloud_cut_policy import CloudCutPolicy
@@ -54,9 +55,10 @@ TLS_CERT = "tls_cert"
 TLS_PK = "tls_pk"
 TLS_CRL_PATH = "tls_crl_path"
 TLS_CRL_FILES = "tls_crl_files"
-TLS_PK_PWD = "tls_pk_pwd"
-KMC_KSF_MASTER = "kmc_ksf_master"
-KMC_KSF_STANDBY = "kmc_ksf_standby"
+
+
+# Allow tensor initialization and casting with internal format(e.g., NZ)
+torch.npu.config.allow_internal_format = True
 
 
 class ModelRunner:
@@ -175,6 +177,13 @@ class ModelRunner:
         self.postprocessor = router_ins.postprocessor
         self.config_dict = router_ins.config_dict
         self.enable_atb_torch = router_ins.enable_atb_torch
+        self.prealloc_weight_mem_on_npu = router_ins.prealloc_weight_mem_on_npu and \
+            not self.layerwise_disaggregated and \
+            (self.config.quantize is None or \
+             self.config.quantize in [
+                QuantType.FLOAT, QuantType.W8A8, QuantType.W8A8_DYNAMIC,
+                QuantType.W8A8_PDMIX, QuantType.W8A8_MIX
+            ])
         self.llm_config = router_ins.llm_config
 
         if hasattr(self.config, "max_position_embeddings"):
@@ -235,6 +244,9 @@ class ModelRunner:
             max_loras = max_loras if max_loras > 0 else len(self.lora_adapter)
             self.lora_model_config = LoraModelConfig(max_loras=max_loras, max_lora_rank=max_lora_rank)
         self.mapping = Mapping(world_size=world_size, rank=rank, llm_config=self.llm_config, **kwargs)
+        if self.prealloc_weight_mem_on_npu:
+            from mindie_llm.runtime.utils.distributed import set_parallel_info_manager
+            set_parallel_info_manager(self.mapping)
         self.process_group, self.device = initialize_distributed(self.rank, self.npu_id, world_size)
         
         if not NPUSocInfo().support_bf16 and self.dtype == torch.bfloat16:
@@ -260,9 +272,6 @@ class ModelRunner:
                 TLS_PK: kwargs.get(TLS_PK, ''),
                 TLS_CRL_PATH: kwargs.get(TLS_CRL_PATH, ''),
                 TLS_CRL_FILES: kwargs.get(TLS_CRL_FILES, ''),
-                TLS_PK_PWD: kwargs.get(TLS_PK_PWD, ''),
-                KMC_KSF_MASTER: kwargs.get(KMC_KSF_MASTER, ''),
-                KMC_KSF_STANDBY: kwargs.get(KMC_KSF_STANDBY, '')
             }
             self.data_comm = EdgeCloudDataComm(self.dtype)
             self.ctrl_comm = EdgeCloudCtrlComm(tls_config)
@@ -294,6 +303,7 @@ class ModelRunner:
                 is_gqa=self.is_gqa,
                 extension=".safetensors",
                 mapping=self.mapping,
+                lazy_loading_file_handlers=self.prealloc_weight_mem_on_npu,
                 **kwargs
             )
         if "OMP_NUM_THREADS" not in os.environ and self.world_size > 1:
@@ -314,19 +324,18 @@ class ModelRunner:
                                             layerwise_disaggregated=self.layerwise_disaggregated,
                                             layerwise_disaggregated_role_type=self.layerwise_disaggregated_role_type,
                                             )
+            elif self.prealloc_weight_mem_on_npu:
+                from mindie_llm.runtime.utils.torch_utils import set_default_torch_dtype
+                from mindie_llm.runtime.config.mindie_llm_config import MindIELLMConfig as MindIELLMConfigV2
+                mindie_llm_config_v2 = MindIELLMConfigV2(
+                    self.model_name_or_path, self.config, self.llm_config, generation_config=None)
+                with set_default_torch_dtype(self.config.torch_dtype):
+                    with self.device:
+                        self.init_model(self.config, weights,
+                                        quant_config=mindie_llm_config_v2.quant_config,
+                                        prealloc_weight_mem_on_npu=True)
             else:
-                self.model = self.model_cls(self.config if not enable_v3 else mindie_llm_config,
-                                            weights,
-                                            inference_mode=self.inference_mode,
-                                            plugin_params=self.plugin_params,
-                                            trust_remote_code=self.trust_remote_code,
-                                            lora_adapter=self.lora_adapter,
-                                            num_speculative_tokens=self.num_speculative_tokens,
-                                            distributed_enable=self.distributed_enable,
-                                            max_batch_size=self.max_batch_size,
-                                            llm_config=self.llm_config,
-                                            model_role=self.model_role
-                                            )
+                self.init_model(self.config if not enable_v3 else mindie_llm_config, weights)
                 
         except TypeError as e:
             logger.warning(
@@ -338,8 +347,8 @@ class ModelRunner:
             self.kvcache_quant_layers = self.model.kvcache_quant_layers
         logger.info(f'Initialized model: {self.model_cls.__name__}')
 
-        if not enable_v3:
-            if self.lora_adapter is not None:  # FlashForCausalLM
+        if not enable_v3 and not self.prealloc_weight_mem_on_npu: # FlashForCausalLM
+            if self.lora_adapter is not None:
                 self.model.adapter_manager = AdapterManager(weights)
                 self.model.update_adapter_manager()
                 self.model.adapter_manager.preload_adapter(self.lora_adapter)
@@ -353,12 +362,26 @@ class ModelRunner:
         else:
             self.attn_mask = getattr(self.model, "attn_mask", None)
         weights_options = self.llm_config.get("llm").get("weights_options")
-        if weights_options is not None and not weights_options.low_cpu_memory_mode and not self.enable_edge:
-            self.check_total_npu_mem()
-        logger.info(f'Start transferring model to device {weights.device}')
-        self.model.to(weights.device)
-        logger.info(f'Model successfully transferred to device {weights.device}')
-        weights.release_file_handler()
+
+        if self.prealloc_weight_mem_on_npu:
+            from atb_llm.utils.data.quant_method_adapter import MethodSupportAtbGraph
+            from mindie_llm.runtime.utils.loader.default_model_loader import DefaultModelLoader
+            DefaultModelLoader().load_weights(self.model, self.model_name_or_path)
+            # NOTE: Since `QuantizationMethodBase` objects are replaced with corresponding adapter objects,
+            # `process_weights_after_loading` will not take effect when calling `DefaultModelLoader().load_weights`.
+            modules_dict = dict(self.model.named_modules())
+            for _, module in modules_dict.items():
+                quant_method = getattr(module, "quant_method", None)
+                if isinstance(quant_method, MethodSupportAtbGraph):
+                    quant_method.process_weights_after_loading(module)
+            print_log(self.rank, logger.info, f"load weight done.")
+        else:
+            if weights_options is not None and not weights_options.low_cpu_memory_mode and not self.enable_edge:
+                self.check_total_npu_mem()
+            logger.info(f'Start transferring model to device {weights.device}')
+            self.model.to(weights.device)
+            logger.info(f'Model successfully transferred to device {weights.device}')
+            weights.release_file_handler()
 
         # FlashForCausalLMV3 will get and destroy weights loader when performing dynamic-load.
         # Below func will be called if not enable v3
@@ -366,6 +389,14 @@ class ModelRunner:
             if self.adapter_manager.lora_weights_loader is not None:
                 self.adapter_manager.lora_weights_loader.release_file_handler()
             self.adapter_manager.prepare_adapter_weights()
+
+        if not enable_v3: # FlashForCausalLM
+            if self.prealloc_weight_mem_on_npu and self.lora_model_config is not None:
+                self.model.adapter_manager = self.model.lora_modifier.adapter_manager
+                self.model.adapter_manager.preload_adapter(self.lora_adapter)
+                self.adapter_manager = self.model.adapter_manager
+                self.adapter_manager.wrap_lora_module_for_atb_graph()
+
         if self.enable_atb_torch:
             self.model.init_graph()
 
@@ -400,6 +431,29 @@ class ModelRunner:
             self.v_head_size = self.head_size
 
         logger.info(f'Successfully loaded model: {self.model_cls.__name__}\n{self.model}')
+
+    def init_model(self, config, weights, **kwargs):
+        """
+        Args:
+            kwargs:
+                quant_config: Includes content from `quant_model_description.json`.
+                    Used only when `prealloc_weight_mem_on_npu` is enabled.
+        """
+        self.model = self.model_cls(
+            config,
+            weights,
+            inference_mode=self.inference_mode,
+            plugin_params=self.plugin_params,
+            trust_remote_code=self.trust_remote_code,
+            lora_model_config=self.lora_model_config,
+            lora_adapter=self.lora_adapter,
+            num_speculative_tokens=self.num_speculative_tokens,
+            distributed_enable=self.distributed_enable,
+            max_batch_size=self.max_batch_size,
+            llm_config=self.llm_config,
+            model_role=self.model_role,
+            **kwargs
+        )
 
     def init_gather_dp_graph(self):
         # gather

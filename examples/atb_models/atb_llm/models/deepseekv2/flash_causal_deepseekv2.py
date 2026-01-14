@@ -75,6 +75,8 @@ START_ID = "startLayerId"
 END_ID = "endLayerId"
 KVCACHE_QUANT_LAYERS = "kvcacheQuantLayers"
 MOE_PACK_QUANT_TYPE = "moePackQuantType"
+ALLTOALL_LONG_SEQLEN_THRESHOLD = 65536
+MAX_ALLTOALL_BUFF_SCALE = 3
 
 
 class MaskType(int, Enum):
@@ -1257,9 +1259,11 @@ class FlashDeepseekv2ForCausalLM(FlashForCausalLM):
             return self.mapping.moe_ep.group_size
         if is_prefill and length <= 32:
             return self.mapping.moe_ep.group_size * 2
+        elif is_prefill and length >= ALLTOALL_LONG_SEQLEN_THRESHOLD // self.mapping.moe_ep.group_size:
+            return MAX_ALLTOALL_BUFF_SCALE
         else:
             max_scale = math.sqrt(self.mapping.moe_ep.group_size)
-            min_scale = max(1, max_scale / 2) + 1
+            min_scale = max(1, max_scale / 2)
             scale = min_scale + (max_scale - min_scale) / \
                 (1 + math.exp(math.log2(length) - math.log2(self.mapping.moe_ep.group_size)))
             return scale

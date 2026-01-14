@@ -38,7 +38,7 @@ DeepSeek-R1-Distill-Llama-70B 为Deepseek利用由 DeepSeek-R1 生成的推理�
 
 ```shell
 # 设置CANN包的环境变量
-source /usr/local/Ascend/ascend-toolkit/set_env.sh
+source /usr/local/Ascend/cann/set_env.sh
 # 关闭虚拟内存
 export PYTORCH_NPU_ALLOC_CONF=expandable_segments:False
 # 运行量化转换脚本

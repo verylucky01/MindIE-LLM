@@ -88,9 +88,9 @@ class Glm41vInputBuilder(InputBuilder):
             video_grid_thw_shm_name = input_ids[boi_pos + 7]
             video_grid_thw_shape_value = input_ids[boi_pos + 8]
             image_grid_thw = get_data_from_shm(image_grid_thw_shm_name, image_grid_thw_shape_value, np.int32) \
-                if image_grid_thw_shm_name != -1 else None
+                if image_grid_thw_shm_name else None
             video_grid_thw = get_data_from_shm(video_grid_thw_shm_name, video_grid_thw_shape_value, np.int32) \
-                if video_grid_thw_shm_name != -1 else None
+                if video_grid_thw_shm_name else None
             image_index, video_index = 0, 0
             video_group_index = 0
             input_tokens = input_ids.copy()

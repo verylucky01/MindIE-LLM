@@ -19,10 +19,10 @@ Data Parallel（DP，数据并行）将推理请求划分为多个批次，并�
 
 |配置项|取值类型|取值范围|配置说明|
 |--|--|--|--|
-|tp|int32_t|未配置dp或dp值为-1时：取值为worldSize参数值。与dp配合使用时：tp*dp的值必须等于worldSize参数值。例：若worldSize为8，dp配置为2，则tp的值只能配置为4。|整网张量并行数。选填，默认值为设置的worldSize参数值。|
-|dp|int32_t|不执行该并行方式时：-1与tp配合使用时：dp*tp的值必须等于worldSize参数值。例：若worldSize为8，tp配置为4，则dp的值只能配置为2。|Attention模块中的数据并行数。选填，默认值：-1，表示不执行数据并行。|
-|cp|int32_t|不执行该并行方式时：1与sp配合使用时：dp\*tp\*cp的值必须等于worldSize参数值，且dp必须为1。例：若worldSize为16，tp配置为8，sp配置为8，dp的值只能配置为1，cp的值只能配置为2。|选填，默认值：1，表示不执行上下文并行。Attention模块中的上下文并行数。|
-|sp|int32_t|不执行该并行方式时：1与tp配合使用时：sp的值必须等于tp的参数值。例：若worldSize为16，tp配置为8，dp配置为2，sp的值只能配置为8。|选填，默认值：1，表示不执行序列并行。Attention模块中的序列并行数。|
+|tp|int32_t|<ul><li>未配置dp或dp值为-1时：取值为worldSize参数值。</li><li>与dp配合使用时：tp*dp的值必须等于worldSize参数值。</li></ul><br>例：若worldSize为8，dp配置为2，则tp的值只能配置为4。|整网张量并行数。<br>选填，默认值为设置的worldSize参数值。|
+|dp|int32_t|<ul><li>不执行该并行方式时：-1</li><li>与tp配合使用时：dp*tp的值必须等于worldSize参数值。</li></ul><br>例：若worldSize为8，tp配置为4，则dp的值只能配置为2。|Attention模块中的数据并行数。<br>选填，默认值：-1，表示不执行数据并行。|
+|cp|int32_t|<ul><li>不执行该并行方式时：1</li><li>与sp配合使用时：dp\*tp\*cp的值必须等于worldSize参数值，且dp必须为1。</li></ul><br>例：若worldSize为16，tp配置为8，sp配置为8，dp的值只能配置为1，cp的值只能配置为2。|选填，默认值：1，表示不执行上下文并行。<br>Attention模块中的上下文并行数。|
+|sp|int32_t|<ul><li>不执行该并行方式时：1</li><li>与tp配合使用时：sp的值必须等于tp的参数值。</li></ul><br>例：若worldSize为16，tp配置为8，dp配置为2，sp的值只能配置为8。|选填，默认值：1，表示不执行序列并行。<br>Attention模块中的序列并行数。|
 
 
 > [!NOTE]说明 

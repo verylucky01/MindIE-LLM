@@ -42,6 +42,9 @@ RequestContext::RequestContext(const httplib::Request &request, httplib::Respons
     cbId = requestIdContext++;
     inferRequestId = cbId;
     reqUuid = response.get_header_value("RequestUUID");
+    if (request.is_connection_closed != nullptr) {
+        isConnectionClosed_ = request.is_connection_closed;
+    }
 }
 
 void RequestContext::SetResponseFinished(bool isFinished)
@@ -127,6 +130,11 @@ const httplib::Request &RequestContext::Req() const noexcept
 httplib::Response &RequestContext::Res() noexcept
 {
     return res_;
+}
+
+bool RequestContext::IsConnectionClosed() const noexcept
+{
+    return isConnectionClosed_();
 }
 
 int HttpRestResource::ResponseNobody(const ReqCtxPtr &requestContext, int code) noexcept

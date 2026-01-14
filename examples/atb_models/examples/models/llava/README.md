@@ -70,7 +70,7 @@ max_input_length长度设置可参考模型权重路径下config.json里的max_p
   - 当前仅支持对LLM模型的W8A16量化，暂不支持VIT模型的量化
     ```shell
     # 设置CANN包的环境变量
-    source /usr/local/Ascend/ascend-toolkit/set_env.sh
+    source /usr/local/Ascend/cann/set_env.sh
     cd ${llm_path}
     bash examples/models/llava/convert_quant_weights.sh -src {浮点权重路径} -dst {W8A16量化权重路径} -type llava_w8a16
     ```

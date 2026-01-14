@@ -216,7 +216,7 @@ std::string HealthChecker::ExecuteCommand(const std::string &cmd) const
 {
     std::array<char, EXECUTE_COMMAND_BUFFER_SIZE> buffer;
     std::string result;
-    std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd.c_str(), "r"), pclose);
+    std::unique_ptr<FILE, int(*)(FILE *)> pipe(popen(cmd.c_str(), "r"), pclose);
     if (!pipe) {
         ULOG_ERROR(SUBMODLE_NAME_HEALTHCHECKER,
                    GenerateHealthCheckerErrCode(ERROR, SUBMODLE_FEATURE_SECURE, CHECK_ERROR),

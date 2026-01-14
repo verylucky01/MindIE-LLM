@@ -1,4 +1,4 @@
-# Copyright (c) Huawei Technologies Co., Ltd. 2024-2025. All rights reserved.
+# Copyright (c) Huawei Technologies Co., Ltd. 2024-2026. All rights reserved.
 # MindIE is licensed under Mulan PSL v2.
 # You can use this software according to the terms and conditions of the Mulan PSL v2.
 # You may obtain a copy of Mulan PSL v2 at:
@@ -72,6 +72,9 @@ def calc_block_mem(model_info, block_size, num_speculative_tokens=None):
                 per_layer_k_cache_bytes_size[i] = INT8_BYTES_SIZE
     for bytes_size in per_layer_k_cache_bytes_size:
         model_mem_size += k_total_head_size * bytes_size
+    if model_info.index_head_dim is not None:
+        index_total_head_size = model_info.index_head_dim * model_info.num_index_heads
+        model_mem_size += num_layers * index_total_head_size * model_info.data_byte_size
     block_mem_size = model_mem_size * block_size
     return block_mem_size
 
@@ -115,6 +118,8 @@ class KVCacheSettings:
         "k_head_size",
         "v_head_size",
         "dtype",
+        "index_head_dim",
+        "num_index_heads",
         "data_byte_size",  # not meaningful
         "kvcache_quant_layers",  # need comments
         "block_size",
@@ -129,6 +134,7 @@ class KVCacheSettings:
         "need_nz",  # bool
         "k_mini_block_bytes_quant",  # ??
         "v_mini_block_bytes",  # ??
+        "index_mini_block_bytes",
         "cache_block_bytes",  # ??
         "num_npu_blocks",
         "num_cpu_blocks",
@@ -140,6 +146,7 @@ class KVCacheSettings:
         "k_block_shape",
         "v_block_shape",
         "k_block_quant_shape",
+        "index_block_shape",
         "is_separated_pd",  # is kvcache for separated PD
     ]
 
@@ -156,6 +163,8 @@ class KVCacheSettings:
         # 兼容等长场景，head_size，mini_block_bytes，block_shape属性含义无修改
         self.k_head_size = model_info.k_head_size
         self.v_head_size = model_info.v_head_size
+        self.index_head_dim = model_info.index_head_dim
+        self.num_index_heads = model_info.num_index_heads
         self.dtype = model_info.dtype
         self.data_byte_size = model_info.data_byte_size
         self.kvcache_quant_layers = model_info.kvcache_quant_layers
@@ -176,11 +185,13 @@ class KVCacheSettings:
         if NZ_KV_CACHE_INT8_FORMAT == 0:
             raise ZeroDivisionError("NZ_KV_CACHE_INT8_FORMAT should not be 0")
 
-        total_head_size, k_total_head_size, v_total_head_size, k_total_head_size_quant = self._cal_kv_total_head_size()
+        total_head_size, k_total_head_size, v_total_head_size, k_total_head_size_quant, \
+            index_total_head_size = self._cal_kv_total_head_size()
         self.mini_block_bytes = self.block_size * self.data_byte_size * total_head_size
         self.k_mini_block_bytes = self.block_size * self.data_byte_size * k_total_head_size
         self.k_mini_block_bytes_quant = self.block_size * INT8_BYTES_SIZE * k_total_head_size_quant
         self.v_mini_block_bytes = self.block_size * self.data_byte_size * v_total_head_size
+        self.index_mini_block_bytes = self.block_size * self.data_byte_size * index_total_head_size
         self.cache_block_bytes = self.num_layers * self.v_mini_block_bytes
 
         per_layer_k_cache_bytes_size = [self.k_mini_block_bytes] * self.num_layers
@@ -190,15 +201,20 @@ class KVCacheSettings:
                     per_layer_k_cache_bytes_size[i] = self.k_mini_block_bytes_quant
         for bytes_size in per_layer_k_cache_bytes_size:
             self.cache_block_bytes += bytes_size
+        self.cache_block_bytes += self.num_layers * self.index_mini_block_bytes
         if self.cache_block_bytes == 0:
             raise ZeroDivisionError("self.cache_block_bytes should not be 0")
 
         self.num_npu_blocks = self.npu_mem // self.cache_block_bytes
         self.num_cpu_blocks = self.cpu_mem // self.cache_block_bytes
-        self.npu_row_bytes = self.num_npu_blocks * (self.k_mini_block_bytes + self.v_mini_block_bytes)
-        self.cpu_row_bytes = self.num_cpu_blocks * (self.k_mini_block_bytes + self.v_mini_block_bytes)
-        self.npu_row_bytes_quant = self.num_npu_blocks * (self.k_mini_block_bytes_quant + self.v_mini_block_bytes)
-        self.cpu_row_bytes_quant = self.num_cpu_blocks * (self.k_mini_block_bytes_quant + self.v_mini_block_bytes)
+        self.npu_row_bytes = self.num_npu_blocks * \
+                            (self.k_mini_block_bytes + self.v_mini_block_bytes + self.index_mini_block_bytes)
+        self.cpu_row_bytes = self.num_cpu_blocks * \
+                            (self.k_mini_block_bytes + self.v_mini_block_bytes + self.index_mini_block_bytes)
+        self.npu_row_bytes_quant = self.num_npu_blocks * \
+                            (self.k_mini_block_bytes_quant + self.v_mini_block_bytes + self.index_mini_block_bytes)
+        self.cpu_row_bytes_quant = self.num_cpu_blocks * \
+                            (self.k_mini_block_bytes_quant + self.v_mini_block_bytes + self.index_mini_block_bytes)
         logger.debug(
             f"block_size:{self.block_size},num_heads:{self.num_heads},head_size:{self.head_size},"
             f"k_head_size:{self.k_head_size},v_head_size:{self.v_head_size},"
@@ -211,13 +227,14 @@ class KVCacheSettings:
         self.k_block_shape = None
         self.v_block_shape = None
         self.k_block_quant_shape = None
+        self.index_block_shape = None
         self.is_separated_pd = is_separated_pd  # use this flag to replace original sped_worker object
         self._cal_set_kv_block_shapes()
         # IMPORTANT : sepd_worker.build() method will be move to generator()
 
     @staticmethod
     def dtype_to_str(backend_type: BackendType, dtype) -> str:
-        if backend_type == BackendType.ATB:
+        if backend_type != BackendType.MS:
             dtype_map = torch_dtype_map
         else:
             import mindspore
@@ -277,8 +294,19 @@ class KVCacheSettings:
             self.v_block_shape = self.block_shape
             self.k_block_quant_shape = self.block_shape
 
+        if self.index_head_dim is not None:
+            self.index_block_shape = (
+                ( 
+                    math.ceil(self.num_index_heads * self.index_head_dim / NZ_KV_CACHE_FORMAT),
+                    self.block_size,
+                    NZ_KV_CACHE_FORMAT,
+                )
+                if self.need_nz
+                else (self.block_size, self.num_index_heads, self.index_head_dim)
+            )
+
     # return format: Tuple of total_head_size, k_total_head_size, v_total_head_size, k_total_head_size_quant
-    def _cal_kv_total_head_size(self) -> Tuple[int, int, int, int]:
+    def _cal_kv_total_head_size(self) -> Tuple[int, int, int, int, int]:
         total_head_size = (
             (math.ceil(self.num_heads * self.head_size / NZ_KV_CACHE_FORMAT) * NZ_KV_CACHE_FORMAT)
             if self.need_nz
@@ -306,4 +334,13 @@ class KVCacheSettings:
             k_total_head_size = total_head_size
             v_total_head_size = total_head_size
             k_total_head_size_quant = total_head_size
-        return total_head_size, k_total_head_size, v_total_head_size, k_total_head_size_quant
+
+        if self.index_head_dim is not None:
+            index_total_head_size = (
+                (math.ceil(self.num_index_heads * self.index_head_dim / NZ_KV_CACHE_FORMAT) * NZ_KV_CACHE_FORMAT)
+                if self.need_nz
+                else (self.num_index_heads * self.index_head_dim)
+            )
+        else:
+            index_total_head_size = 0
+        return total_head_size, k_total_head_size, v_total_head_size, k_total_head_size_quant, index_total_head_size

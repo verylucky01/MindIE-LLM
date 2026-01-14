@@ -15,11 +15,13 @@ import json
 import os
 import signal
 import multiprocessing
+import threading
 import time
-from urllib.parse import urlparse
 import re
 import traceback
 import numpy as np
+from urllib3.util import parse_url
+from urllib3.exceptions import LocationParseError
 
 from mindie_llm.modeling.model_wrapper import get_tokenizer_wrapper
 from . import io_utils
@@ -28,7 +30,9 @@ from . import file_utils
 
 logger = file_utils.get_tokenizer_logger()
 
+_ALLOWED_MEDIA_DOMAINS_ENV = "ALLOWED_MEDIA_DOMAINS_ENV"
 _ALLOWED_LOCAL_MEDIA_PATH = "/data/multimodal_inputs/"
+once_flag = threading.Event()
 
 _DURATION = 30  # check undeleted cache dir pre 30 seconds
 _DELET_DURATION = 2 ** 16  # delete dirs in the cache that are older than 2**16 seconds, which is equal to e2eTimeout
@@ -36,6 +40,7 @@ _SINGLE_IMAGE_LIMIT = 20 * 1024 * 1024  # 20 MB
 _SINGLE_AUDIO_LIMIT = 20 * 1024 * 1024  # 20 MB
 _SINGLE_VIDEO_LIMIT = 512 * 1024 * 1024  # 512 MB
 _MEDIA_SIZE_LIMIT = 1000 * 1024 * 1024 # 1 GB
+_URL_LENGTH_LIMIT = 4096
 
 _TEXT_KEY = "text"
 _CONTENT_NAME_KEY = "content"
@@ -113,11 +118,10 @@ class IbisTokenizer:
         try:
             prompt_obj = json.loads(prompt)
         except ValueError as value_error:
-            logger.info(f"Abnormal non-multimodal inputs value: {value_error}")
+            # the prompt is not multimodal format.
             return False
         except Exception as e:
             # adapt to the old input format.
-            logger.info(f"Non-multimodal inputs. {e}")
             return False
         if isinstance(prompt_obj, list):
             for single_msg in prompt_obj:
@@ -137,13 +141,22 @@ class IbisTokenizer:
             raise ValueError(f"'{path}' path not exist.")
 
     @staticmethod
-    def _process_url_path(media_url, ext, input_type, cache_dir):
-        parsed_url = urlparse(media_url)
-        if parsed_url.scheme not in ("http", "https"):
-            logger.error("Invalid HTTP URL.")
-            raise ValueError("Invalid HTTP URL.")
+    def _process_url_path(media_url, ext, input_type, cache_dir, total_start_time):
+        try:
+            parsed_url = parse_url(media_url)
+            scheme = parsed_url.scheme if parsed_url.scheme else ""
+            if scheme not in ("http", "https"):
+                logger.error("Invalid HTTP URL.")
+                raise ValueError("Invalid HTTP URL.")
+        except LocationParseError as e:
+            logger.error(f"Failed to parse URL: {media_url}")
+            raise ValueError(f"Invalid URL: {media_url}") from e
+        except Exception as e:
+            logger.error(f"Failed to parse URL: {media_url}")
+            raise ValueError(f"Invalid URL: {media_url}") from e
 
-        media_content, media_size = io_utils.fetch_media_url(media_url, input_type, ext, _MEDIA_TYPE, _SIZE_LIMITS)
+        limit_params = (_SIZE_LIMITS, total_start_time)
+        media_content, media_size = io_utils.fetch_media_url(media_url, input_type, ext, limit_params, _MEDIA_TYPE)
         if input_type == _IMAGE_KEY:
             image_count = len(os.listdir(cache_dir))
             image_save_path = os.path.join(cache_dir, f"{image_count + 1}.jpg")
@@ -197,6 +210,49 @@ class IbisTokenizer:
         file_utils.check_path_length_lt(dir_path)
         return dir_path
 
+    @staticmethod
+    def _extract_domain(url: str) -> str:
+        """
+        Extract normalized domain (hostname) from a URL.
+        """
+        try:
+            parsed = parse_url(url)
+            if not parsed.scheme or not parsed.host:
+                raise ValueError(f"Invalid URL: {url}")
+            return parsed.host.lower()
+        except LocationParseError as e:
+            logger.error(f"Invalid URL: {url}")
+            raise ValueError(f"Invalid URL: {url}") from e
+        except Exception as e:
+            logger.error(f"Invalid URL: {url}")
+            raise ValueError(f"Invalid URL: {url}") from e
+
+    @staticmethod
+    def _load_allowed_media_domains() -> set[str]:
+        """
+        Load allowed media domains from environment variable.
+
+        Example:
+        ALLOWED_MEDIA_DOMAINS_ENV="upload.xxxmedia.org, cxxx.xxx.com"
+
+        """
+        allowed_media_domains_env = os.getenv(_ALLOWED_MEDIA_DOMAINS_ENV)
+        if not allowed_media_domains_env:
+            return set()
+
+        return {d.strip().lower() for d in allowed_media_domains_env.split(",") if d.strip()}
+
+    @staticmethod
+    def _check_domain_allowed(media_url: str, allowed_domains: set[str]) -> None:
+        """
+        Validate whether media_url's domain is allowed.
+        """
+        domain = IbisTokenizer._extract_domain(media_url)
+        if domain not in allowed_domains:
+            raise ValueError(
+                f"Domain '{domain}' is not in allowed domain list"
+            )
+
     def delete_multimodal_cache(self, timestamp: int, cache_prefix=None):
         dir_path = self.cache_path
         if cache_prefix is not None:
@@ -239,8 +295,9 @@ class IbisTokenizer:
     def download_url(self, prompt: str, timestamp: int):
         def download_elems(elem_list):
             media_size = 0
+            total_start_time = time.time()
             for elem in elem_list:
-                media_size += self._download(elem)
+                media_size += self._download(elem, total_start_time)
                 if media_size > _MEDIA_SIZE_LIMIT:
                     err_str = f'The total media input cannot exceed {_MEDIA_SIZE_LIMIT / (1024 * 1024)} MB.'
                     logger.error(err_str)
@@ -474,7 +531,7 @@ class IbisTokenizer:
             _AUDIO_KEY: os.path.join(dir_path, "audio"),
         }
 
-    def _download(self, info):
+    def _download(self, info, total_start_time):
         media_size = 0
         input_type = info['type']
         if input_type == 'text':
@@ -495,10 +552,36 @@ class IbisTokenizer:
             logger.error(f"Input of {input_type} should be str or dict.")
             raise ValueError(f"Input of {input_type} should be str or dict.")
 
-        _, ext = os.path.splitext(media_url)
+        ext = io_utils.extract_extension_from_url(media_url)
         cache_dir = self.media_cache_dirs.get(input_type)
+
         if media_url.startswith("http://") or media_url.startswith("https://"):  # http or https
-            media_size = self._process_url_path(media_url, ext, input_type, cache_dir)
+            if len(media_url) > _URL_LENGTH_LIMIT:
+                logger.error(f"The length of media_url should be less than {_URL_LENGTH_LIMIT}, "
+                             f"but got {len(media_url)}.")
+                raise ValueError(f"The length of media_url should be less than {_URL_LENGTH_LIMIT}, "
+                                 f"but got {len(media_url)}.")
+     
+            allowed_domains = self._load_allowed_media_domains()
+            if allowed_domains:
+                try:
+                    self._check_domain_allowed(media_url, allowed_domains)
+                except ValueError as e:
+                    logger.error("Domain whitelist validation failed: %s", e)
+                    raise ValueError(
+                        f"The media URL domain is not allowed: {e}"
+                    ) from e
+            else:
+                if not once_flag.is_set():
+                    with threading.Lock():
+                        if not once_flag.is_set():
+                            logger.warning(
+                                "ALLOWED_MEDIA_DOMAIN_ENV is not set. "
+                                "Domain whitelist check is disabled."
+                            )
+                            once_flag.set()
+            
+            media_size = self._process_url_path(media_url, ext, input_type, cache_dir, total_start_time)
         elif ext.lower() in _MEDIA_TYPE.get(input_type):  # local path
             if media_url.startswith("file://"):
                 _, media_url = media_url.split("file://", 1)

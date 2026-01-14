@@ -34,22 +34,22 @@ SplitFuse特性的目的是将长prompt request分解成更小的块，并在多
 
 ## 参数说明
 
-**开启SplitFuse特性，需要配置的补充参数如[表1](#table1)及[表2](#table2)所示。
+开启SplitFuse特性，需要配置的补充参数如[表1](#table1)和[表2](#table2)所示。
 
 **表 1**  SplitFuse特性补充参数1：**ModelDeployConfig中的ModelConfig参数** <a id="table1"></a>
 
 |配置项|取值类型|取值范围|配置说明|
 |--|--|--|--|
-|plugin_params|std::string|"{\"plugin_type\":\"splitfuse\"}"|设置为"{\"plugin_type\":\"splitfuse\"}"，表示执行splitfuse。不需要生效任何插件功能时，请删除该配置项字段。**约束**：**若enableSplit开启或templateType为"Mix"，则此处必须开启为splitfuse（特性不开启时非必填项）**。|
+|plugin_params|std::string|"{\"plugin_type\":\"splitfuse\"}"|<ul><li>设置为"{\"plugin_type\":\"splitfuse\"}"，表示执行splitfuse。</li><li>不需要生效任何插件功能时，请删除该配置项字段。</li></ul><br>**约束**：**若enableSplit开启或templateType为"Mix"，则此处必须开启为splitfuse（特性不开启时非必填项）**。|
 
 
 **表 2**  SplitFuse特性补充参数2：**ScheduleConfig的参数**  <a id="table2"></a>
 
 |配置项|取值类型|取值范围|配置说明|
 |--|--|--|--|
-|templateType|std::string|"Standard"或"Mix"|"Mix"：混部推理场景；Prefill和Decode可同时进行批处理。"Standard"：默认值（特性不开启时为必填项），表示prefill和decode各自分别组batch。|
-|splitStartType|bool|truefalse|true：每次组batch时重置切分状态，重新判断当前是否满足splitStartBatchSize。false：首次满足splitStartBatchSize条件后，不再重置切分状态。默认值：false。|
-|splitStartBatchSize|uint32_t|[0,maxBatchSize]|当batch数达到该值时开启切分。默认值：16。|
+|templateType|std::string|"Standard"或"Mix"|<ul><li>"Mix"：混部推理场景；Prefill和Decode可同时进行批处理。</li><li>"Standard"：默认值（特性不开启时为必填项），表示prefill和decode各自分别组batch。</li></ul>|
+|splitStartType|bool|truefalse|<ul><li>true：每次组batch时重置切分状态，重新判断当前是否满足splitStartBatchSize。</li><li>false：首次满足splitStartBatchSize条件后，不再重置切分状态。</li></ul><br>默认值：false。|
+|splitStartBatchSize|uint32_t|[0,maxBatchSize]|当batch数达到该值时开启切分。<br>默认值：16。|
 
 
 ## 执行推理
@@ -63,7 +63,7 @@ SplitFuse特性的目的是将长prompt request分解成更小的块，并在多
 
 2.  配置服务化参数。在Server的config.json文件添加“plugin\_params“、“templateType“和“splitStartType“、“splitChunkTokens“和“splitStartBatchSize“参数。对于性能调优，需要编辑config.json配置文件中的**ScheduleConfig**部分，建议将“maxBatchSize“与“splitChunkTokens“参数配置为相同大小，并通过调整这两个参数的值来控制SLO的Decode时延指标。
 
-    SplitFuse的相关配置已加粗显示，SplitFuse参数请参见[表1](#table1)及[表2](#table2)，服务化参数说明请参见[配置参数说明（服务化）](../user_manual/service_parameter_configuration.md)章节，参数配置示例如下。
+    SplitFuse参数请参见[表1](#table1)和[表2](#table2)，服务化参数说明请参见[配置参数说明（服务化）](../user_manual/service_parameter_configuration.md)章节，参数配置示例如下。
 
     ```json
             "ModelDeployConfig":

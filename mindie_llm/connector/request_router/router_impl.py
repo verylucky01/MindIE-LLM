@@ -180,7 +180,7 @@ class RouterImpl:
         self.dp_rank_id = (self.rank // (self.cp_size * self.tp_size)) % self.dp_size
         logger.info("global rank id %s get model config: %s", self.rank, model_config.model_config)
         self.generator = Generator(model_config={**model_config.model_config})
-
+        self.config.enable_mtp = self.generator.enable_mtp
         self.is_mix_model = self.generator.is_mix_model
         self.block_size = model_config.cache_block_size
         logger.info(">>>global rank:%s done ibis manager to device", self.rank)
@@ -259,8 +259,8 @@ class RouterImpl:
 
     def transfer_data(self, execute_request: ExecuteRequest):
         input_metadata_composite: InputMetadataComposite = convert_pull_kv_request_to_input_metadata_composite(
-            execute_request.pull_kv_request, self.generator.kvcache_settings.num_npu_blocks, self.block_size
-        )
+            execute_request.pull_kv_request, self.generator.kvcache_settings.num_npu_blocks, self.block_size,
+            self.config)
         self._get_pull_kv_items(execute_request, input_metadata_composite)
 
         prof = span_start("PullKVCache", domain="PullKVCache")
@@ -445,7 +445,8 @@ class RouterImpl:
                 self.block_size,
                 ConvertPara(is_prefill=is_prefill, is_mix=is_mix),
                 is_mix_model=self.is_mix_model,
-                layerwise_disaggregated_exe_stage=None
+                layerwise_disaggregated_exe_stage=None,
+                config=self.config
             )
         else:
             layerwise_disaggregated_exe_stage = lwd_metadata_manager.get_metadata()
@@ -466,7 +467,8 @@ class RouterImpl:
                     self.block_size,
                     ConvertPara(is_prefill=is_prefill, is_mix=is_mix),
                     is_mix_model=self.is_mix_model,
-                    layerwise_disaggregated_exe_stage=layerwise_disaggregated_exe_stage
+                    layerwise_disaggregated_exe_stage=layerwise_disaggregated_exe_stage,
+                    config=self.config
                 )
                 # For P-first, D-first, and first-block cloud-side P tasks, back up the computation result to provide
                 # for subsequent P-last, D-last, and non-first-block cloud-side P tasks.

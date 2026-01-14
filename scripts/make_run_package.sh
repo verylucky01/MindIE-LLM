@@ -1,48 +1,74 @@
 #!/bin/bash
 function fn_make_run_package()
 {
-    mkdir -p $OUTPUT_DIR/scripts $OUTPUT_DIR/lib $OUTPUT_DIR/lib/grpc $OUTPUT_DIR/bin $RELEASE_DIR/$ARCH \
-        $OUTPUT_DIR/conf $OUTPUT_DIR/server/scripts/
-
+    mkdir -p $OUTPUT_DIR/scripts $OUTPUT_DIR/lib $RELEASE_DIR/$ARCH $OUTPUT_DIR/conf $OUTPUT_DIR/server/scripts/
     cp $CODE_ROOT/scripts/install.sh $OUTPUT_DIR
     cp $CODE_ROOT/scripts/set_env.sh $OUTPUT_DIR
     cp $CODE_ROOT/scripts/uninstall.sh $OUTPUT_DIR/scripts
     cp $CODE_ROOT/src/server/conf/config.json $OUTPUT_DIR/conf
     cp -r $CODE_ROOT/src/server/scripts/* $OUTPUT_DIR/server/scripts
 
-    protobuf_so_version="so.2308.0.0"
-    grpc_so_list=(
-        "libprotobuf.so.25.1.0" \
-        "libprotobuf-lite.so.25.1.0" \
-        "libabsl_bad_any_cast_impl.${protobuf_so_version}" \
-        "libabsl_cordz_sample_token.${protobuf_so_version}" \
-        "libabsl_failure_signal_handler.${protobuf_so_version}" \
-        "libabsl_flags_parse.${protobuf_so_version}" \
-        "libabsl_flags_usage.${protobuf_so_version}" \
-        "libabsl_flags_usage_internal.${protobuf_so_version}" \
-        "libabsl_log_flags.${protobuf_so_version}" \
-        "libabsl_periodic_sampler.${protobuf_so_version}" \
-        "libabsl_random_internal_distribution_test_util.${protobuf_so_version}" \
-        "libabsl_scoped_set_env.${protobuf_so_version}" \
-        "libprotoc.so.25.1.0" \
-        "libgrpc++_reflection.so.1.60" \
-        "libgrpc++.so.1.60" \
-        "libgrpc++_alts.so.1.60" \
-        "libgrpc++_error_details.so.1.60" \
-        "libgrpc++_unsecure.so.1.60" \
-        "libgrpc_authorization_provider.so.1.60" \
-        "libgrpc_plugin_support.so.1.60" \
-        "libgrpc_unsecure.so.37" \
-        "libgrpcpp_channelz.so.1.60" \
-        )
-    for item in "${grpc_so_list[@]}"; do
-        cp $THIRD_PARTY_OUTPUT_DIR/grpc/lib/${item} $OUTPUT_DIR/lib/grpc
-    done
+    protobuf_version="so.25.1.0"
+    protobuf_so_list=(
+        "libprotobuf.${protobuf_version}"
+        "libprotobuf-lite.${protobuf_version}"
+        "libprotoc.${protobuf_version}"
+    )
 
-    cp $THIRD_PARTY_OUTPUT_DIR/boost/lib/libboost_system.so.1.87.0 $OUTPUT_DIR/lib
-    cp $THIRD_PARTY_OUTPUT_DIR/boost/lib/libboost_thread.so.1.87.0 $OUTPUT_DIR/lib
-    cp $THIRD_PARTY_OUTPUT_DIR/boost/lib/libboost_chrono.so.1.87.0 $OUTPUT_DIR/lib
-    cp $THIRD_PARTY_OUTPUT_DIR/libboundscheck/lib/libboundscheck.so $OUTPUT_DIR/lib
+    absl_so_list=(libabsl_*.so.2308.0.0)
+
+    boost_version="so.1.87.0"
+    boost_so_list=(
+        "libboost_system.${boost_version}"
+        "libboost_thread.${boost_version}"
+        "libboost_chrono.${boost_version}"
+    )
+
+    zlib_so_list=("libz.so.1")
+    re2_so_list=("libre2.so.11")
+    cares_so_list=("libcares.so.2")
+    prometheus_so_list=("libprometheus-cpp-core.so.1.3")
+    grpc_version="so.37"
+    grpcpp_version="so.1.60"
+    grpc_so_list=(lib*."${grpcpp_version}" lib*."${grpc_version}")
+    libboundscheck_so_list=("libboundscheck.so")
+
+    copy_so() {
+        local src_dir="$1"
+        local dst_dir="$2"
+        shift 2
+        local patterns=("$@")
+
+        mkdir -p "${dst_dir}"
+        if [ ${#patterns[@]} -eq 0 ]; then
+            patterns=("*.so*")
+        fi
+
+        (
+            cd "${src_dir}" 
+            shopt -s nullglob
+            for pattern in "${patterns[@]}"; do
+                for file in ${pattern}; do
+                    if [ -f "${file}" ] && [[ "${file}" == *.so* ]]; then
+                        cp -p "${file}" "${dst_dir}/"
+                    fi
+                done
+            done
+            shopt -u nullglob
+        )
+    }
+
+    copy_so "$THIRD_PARTY_OUTPUT_DIR/protobuf/lib"       "$OUTPUT_DIR/lib/protobuf"       "${protobuf_so_list[@]}"
+    copy_so "$THIRD_PARTY_OUTPUT_DIR/abseil-cpp/lib"     "$OUTPUT_DIR/lib/absl"           "${absl_so_list[@]}"
+    copy_so "$THIRD_PARTY_OUTPUT_DIR/boost/lib"          "$OUTPUT_DIR/lib/boost"          "${boost_so_list[@]}"
+    copy_so "$THIRD_PARTY_OUTPUT_DIR/zlib/lib"           "$OUTPUT_DIR/lib/zlib"           "${zlib_so_list[@]}"
+    copy_so "$THIRD_PARTY_OUTPUT_DIR/re2/lib"            "$OUTPUT_DIR/lib/re2"            "${re2_so_list[@]}"
+    copy_so "$THIRD_PARTY_OUTPUT_DIR/cares/lib"          "$OUTPUT_DIR/lib/cares"          "${cares_so_list[@]}"
+    copy_so "$THIRD_PARTY_OUTPUT_DIR/prometheus-cpp/lib" "$OUTPUT_DIR/lib/prometheus-cpp" "${prometheus_so_list[@]}"
+    copy_so "$THIRD_PARTY_OUTPUT_DIR/grpc/lib"           "$OUTPUT_DIR/lib/grpc"           "${grpc_so_list[@]}"
+    copy_so "$THIRD_PARTY_OUTPUT_DIR/libboundscheck/lib" \
+        "$OUTPUT_DIR/lib/libboundscheck" "${libboundscheck_so_list[@]}"
+
     sed -i "s/MINDIELLMPKGARCH/${ARCH}/" $OUTPUT_DIR/install.sh
     sed -i "s!VERSION_PLACEHOLDER!${PACKAGE_NAME}!" $OUTPUT_DIR/install.sh $OUTPUT_DIR/scripts/uninstall.sh
     sed -i "s!LOG_PATH_PLACEHOLDER!${LOG_PATH}!" $OUTPUT_DIR/install.sh $OUTPUT_DIR/scripts/uninstall.sh

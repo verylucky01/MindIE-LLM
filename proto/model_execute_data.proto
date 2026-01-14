@@ -146,17 +146,14 @@ message SequenceGroupMetadata {
   repeated int32 sp_rank_token_num = 23; // 每个spcp rank的prompt的token 长度
   repeated int32 sp_rank_block_num = 24; // 每个spcp rank的block的个数
   int32 sp_rank_id = 25; // decode本轮调度使用的rank
-  bool is_sp = 26; // 当前请求是否使用sp
-  bool is_cp = 27; // 当前请求是否使用cp
-  repeated int64 reserved_seq_ids = 28;
-  int32 dp_rank_id = 29;
-  bytes remote_computed_block_lens = 30;
-  optional bool is_append_block = 31;
-  bool is_mtp = 32;
-  repeated int32 prefill_block_rank_id = 33;
-  string server_id = 34;
-  int32 append_block_rank_id = 35;
-  int32 request_gap = 36; // 边云动态切块新增
+  repeated int64 reserved_seq_ids = 26;
+  int32 dp_rank_id = 27;
+  bytes remote_computed_block_lens = 28;
+  optional bool is_append_block = 29;
+  repeated int32 prefill_block_rank_id = 30;
+  string server_id = 31;
+  int32 append_block_rank_id = 32;
+  int32 request_gap = 33; // 边云动态切块新增
 }
 
 message IntPair {
@@ -167,7 +164,7 @@ message IntPair {
 // The following messages are defined for requests in normal scenario.
 message ExecuteModelRequest {
   repeated SequenceGroupMetadata seq_group_metadata_list = 1;
-  repeated IntPair blocks_to_swap_in = 2; // CPU->GPU block number
+  repeated IntPair blocks_to_swap_in = 2; // CPU->NPU block number
   repeated IntPair blocks_to_swap_out = 3;
   repeated IntPair blocks_to_copy = 4;
   int32 virtual_engine = 5;

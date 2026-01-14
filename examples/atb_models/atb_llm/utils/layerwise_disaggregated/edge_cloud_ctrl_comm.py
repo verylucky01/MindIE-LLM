@@ -100,9 +100,6 @@ class TCPClient:
             self.tls_pk = os.path.join(os.getenv(INSTALL_PATH), tls_config.get("tls_pk", ''))
             self.tls_crl_path = os.path.join(os.getenv(INSTALL_PATH), tls_config.get("tls_crl_path", ''))
             self.tls_crl_files = os.path.join(os.getenv(INSTALL_PATH), tls_config.get("tls_crl_files", ''))
-            self.tls_pk_pwd = os.path.join(os.getenv(INSTALL_PATH), tls_config.get("tls_pk_pwd", ''))
-            self.kmc_ksf_master = os.path.join(os.getenv(INSTALL_PATH), tls_config.get("kmc_ksf_master", ''))
-            self.kmc_ksf_standby = os.path.join(os.getenv(INSTALL_PATH), tls_config.get("kmc_ksf_standby", ''))
 
     def connect_to_server_block(self):
         # TCP attempts 1,000 connections; if connection fails after all 1,000 attempts, service startup fails.
@@ -194,9 +191,6 @@ class TCPServer:
             self.tls_pk = os.path.join(os.getenv(INSTALL_PATH), tls_config.get("tls_pk", ''))
             self.tls_crl_path = os.path.join(os.getenv(INSTALL_PATH), tls_config.get("tls_crl_path", ''))
             self.tls_crl_files = os.path.join(os.getenv(INSTALL_PATH), tls_config.get("tls_crl_files", ''))
-            self.tls_pk_pwd = os.path.join(os.getenv(INSTALL_PATH), tls_config.get("tls_pk_pwd", ''))
-            self.kmc_ksf_master = os.path.join(os.getenv(INSTALL_PATH), tls_config.get("kmc_ksf_master", ''))
-            self.kmc_ksf_standby = os.path.join(os.getenv(INSTALL_PATH), tls_config.get("kmc_ksf_standby", ''))
 
         self.start_server_block()
 

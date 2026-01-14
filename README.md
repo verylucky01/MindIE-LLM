@@ -3,7 +3,8 @@
 
 ## 📢 Latest News
 
-- 2025-12-22：🎉 MindIE LLM 正式宣布开源并面向公众开放！
+- [2025/12] MindIE LLM 正式宣布开源并面向公众开放！ [会议日历](https://meeting.ascend.osinfra.cn/?sig=sig-MindIE-LLM)
+
 
 
 ## 🚀 简介
@@ -28,7 +29,10 @@ MindIE LLM 主要对外提供 **C++ 与 Python API**（Application Programming I
 </div>
 
 
-MindIE LLM 推理引擎的总体架构可划分为**四个层级**：Server、LLM Manager、Text Generator 与 Modeling。
+    - Engine：负责将scheduler，executor，worker等协同串联起来，利用组件间的协同，实现多场景下请求的推理处理能力。
+    - Scheduler: 在1个DP域内，将多条请求在Prefill或者Decode阶段组成batch，实现计算和通信的充分利用。
+    - Block manager：管理在DP内的kv资源，支持池化后，支持对offload的kv位置感知。
+    - Executor：将调度完成的信息分发给Text Generator模块。支持跨机、跨卡的任务下发。
 
 - **Server**：推理服务层，对外提供模型推理的服务化能力与统一接入能力。Endpoint 面向推理服务开发者提供 RESTful 接口，同时，Endpoint 负责推理服务化协议与接口的封装，并兼容 Triton/OpenAI/TGI/vLLM 等主流推理框架的请求接口。
 
@@ -114,7 +118,25 @@ MindIE LLM 安装前的相关软硬件环境准备，以及安装步骤，请参
 
 ## ⚡️ 快速入门
 
-快速体验使用 MindIE LLM 进行大模型推理的全流程，请参见[快速入门](docs/zh/user_guide/quick_start.md)。
+## 📝贡献声明
+
+1. 提交错误报告：如果您在MindIE LLM中发现了一个不存在安全问题的漏洞，请在MindIE LLm仓库中的Issues搜索，以防该漏洞被重复提交，如果找不到漏洞可以创建一个新的Issues。如果发现了一个安全问题请不要将其公开，请参阅安全问题处理方式。提交错误报告时应包含完整信息。
+2. 安全问题处理：本项目中对安全问题处理的形式，请通过邮箱通知项目核心人员确认编辑。
+3. 解决现有问题：通过查看仓库的Issues列表可以发现需要处理的问题信息，可以尝试解决其中的某个问题。
+4. 如何提出新功能：请使用Issues的Feature标签进行标记，我们会定期处理和确认开发。
+5. 开始贡献：
+    <br>a. Fork本项目的仓库。
+    <br>b. Clone到本地。
+    <br>c. 创建开发分支。
+    <br>d. 本地自测，提交前请通过所有的单元测试，包括为您要解决的问题新增的单元测试。
+    <br>e. 提交代码。
+    <br>f. 新建Pull Request。
+    <br>g. 代码检视，您需要根据评审意见修改代码，并重新提交更新。此流程可能涉及多轮迭代。
+    <br>h. 当您的PR获取足够数量的检视者批准后，Committer会进行最终审核。
+    <br>i. 审核和测试通过后，CI会将您的PR合并入到项目的主干分支。
+
+更多贡献相关文档请参见[共享指南](contributing.md)。
+
 
 
 ## 📝 学习文档

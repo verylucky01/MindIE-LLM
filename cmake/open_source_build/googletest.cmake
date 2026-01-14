@@ -1,33 +1,31 @@
-set(GOOGLETEST_SRC_DIR "${THIRD_PARTY_SRC_DIR}/googletest")
-set(GOOGLETEST_BUILD_DIR "${GOOGLETEST_SRC_DIR}/build")
-set(GOOGLETEST_OUTPUT_DIR "${THIRD_PARTY_OUTPUT_DIR}/googletest")
+include(${CMAKE_CURRENT_LIST_DIR}/../utils.cmake)
 
-if(EXISTS "${GOOGLETEST_OUTPUT_DIR}/lib" AND EXISTS "${GOOGLETEST_OUTPUT_DIR}/include")
-    message(STATUS "Googletest already installed, skipping build and install.")
+file(READ "${DEPENDENCY_JSON_FILE}" DEP_JSON_STRING)
+download_open_source("${OPENSOURCE_COMPONENT_NAME}" "${FILE_GLOB_PATTERN}" "${THIRD_PARTY_CACHE_DIR}")
+
+set(THREAD_NUM "${THREAD_NUM}") # clean warning
+list(JOIN THIRD_PARTY_CXX_FLAGS " " THIRD_PARTY_CXX_FLAGS_STR)
+
+if(EXISTS "${GTEST_OUTPUT_DIR}/lib/libgtest.a")
+    message(STATUS "${OPENSOURCE_COMPONENT_NAME} already built, skipping.")
     return()
 endif()
 
-if(NOT EXISTS "${GOOGLETEST_SRC_DIR}/include")
-    download_open_source(googletest)
-    message(STATUS "Googletest not installed, building and installing...")
-endif()
+set(PKG_DOWNLOAD_DIR "${THIRD_PARTY_SRC_DIR}/${OPENSOURCE_COMPONENT_NAME}")
+set(GTEST_BUILD_DIR "${PKG_DOWNLOAD_DIR}/build")
+file(MAKE_DIRECTORY "${GTEST_BUILD_DIR}")
 
-file(MAKE_DIRECTORY ${GOOGLETEST_OUTPUT_DIR})
-file(MAKE_DIRECTORY ${GOOGLETEST_BUILD_DIR})
-
-set(CXX_FLAGS "-fPIC -D_GLIBCXX_USE_CXX11_ABI=${USE_CXX11_ABI}")
 execute_process(
-    COMMAND cmake ${GOOGLETEST_SRC_DIR} -DCMAKE_INSTALL_PREFIX=${GOOGLETEST_OUTPUT_DIR} -DCMAKE_CXX_FLAGS=${CXX_FLAGS}
-    WORKING_DIRECTORY ${GOOGLETEST_BUILD_DIR}
+    COMMAND cmake ${PKG_DOWNLOAD_DIR} -DCMAKE_INSTALL_PREFIX=${GTEST_OUTPUT_DIR}
+            -DCMAKE_CXX_FLAGS=${THIRD_PARTY_CXX_FLAGS_STR}
+    WORKING_DIRECTORY ${GTEST_BUILD_DIR} OUTPUT_QUIET
 )
-
 execute_process(
-    COMMAND cmake --build . -j${thread_num}
-    WORKING_DIRECTORY "${GOOGLETEST_BUILD_DIR}"
+    COMMAND cmake --build . -j${THREAD_NUM}
+    WORKING_DIRECTORY ${GTEST_BUILD_DIR} OUTPUT_QUIET
 )
 execute_process(
     COMMAND cmake --install .
-    WORKING_DIRECTORY "${GOOGLETEST_BUILD_DIR}"
+    WORKING_DIRECTORY ${GTEST_BUILD_DIR} OUTPUT_QUIET
 )
-
-message(STATUS "Googletest is successfully installed to ${GOOGLETEST_SRC_DIR}.")
+message(STATUS "${OPENSOURCE_COMPONENT_NAME} has been successfully built and installed to ${GTEST_OUTPUT_DIR}")

@@ -308,14 +308,14 @@ def process_shared_memory(inputs: dict[str, torch.Tensor], shm_name_save_path: s
     pixel_values_videos = inputs.get('pixel_values_videos', None)
     video_grid_thw = inputs.get('video_grid_thw', None)
     ret = {
-        'pixel_values_shm_name': -1,
-        'pixel_values_shape_value': -1,
-        'image_grid_thw_shm_name': -1,
-        'image_grid_thw_shape_value': -1,
-        'pixel_values_videos_shm_name': -1,
-        'pixel_values_videos_shape_value': -1,
-        'video_grid_thw_shm_name': -1,
-        'video_grid_thw_shape_value': -1,
+        'pixel_values_shm_name': 0,
+        'pixel_values_shape_value': 0,
+        'image_grid_thw_shm_name': 0,
+        'image_grid_thw_shape_value': 0,
+        'pixel_values_videos_shm_name': 0,
+        'pixel_values_videos_shape_value': 0,
+        'video_grid_thw_shm_name': 0,
+        'video_grid_thw_shape_value': 0,
     }
     if pixel_values is not None:
         pixel_values = pixel_values.to(torch.float32)

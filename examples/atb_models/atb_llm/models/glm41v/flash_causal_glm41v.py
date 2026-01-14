@@ -21,6 +21,7 @@
 # See the Mulan PSL v2 for more details.
 
 import itertools
+from collections import namedtuple
 from typing import Optional, List, Tuple
 import torch
 import numpy as np
@@ -37,6 +38,14 @@ IMAGE = "image"
 VIDEO = "video"
 TEXT = "text"
 _SHM_TOKEN_LEN = 8
+
+
+ShmInfo = namedtuple('ShmInfo', [
+    'pixel_values_shm_name', 'pixel_values_shape_value',
+    'image_grid_thw_shm_name', 'image_grid_thw_shape_value',
+    'pixel_values_videos_shm_name', 'pixel_values_videos_shape_value',
+    'video_grid_thw_shm_name', 'video_grid_thw_shape_value'
+])
 
 
 class FlashGlm41vForCausalLM(MultiModalLLm):
@@ -68,55 +77,23 @@ class FlashGlm41vForCausalLM(MultiModalLLm):
     
     def prepare_prefill_token_service(self, total_input_ids, position_ids, input_lengths):
         if not torch.any(torch.eq(total_input_ids, self.image_token_id)):
-            inputs_embeds = self.language_model.embed_tokens(total_input_ids)
-            position_ids_thw = position_ids.view(1, -1).expand(3, -1)
+            inputs_embeds, position_ids_thw = \
+                self._get_llm_model_inputs_without_vision_info(total_input_ids, position_ids)
         else:
             seqlen_offset = 0
             inputs_embeds_list = []
             position_ids_thw_list = []
             for input_length in input_lengths.tolist():
-                image_grid_thw, video_grid_thw = None, None
                 input_ids = total_input_ids[seqlen_offset: seqlen_offset + input_length]
-                inputs_embeds = self.language_model.embed_tokens(input_ids)
+                position_ids_ = position_ids[seqlen_offset: seqlen_offset + input_length]
                 if not torch.any(torch.eq(input_ids, self.image_token_id)):
-                    inputs_embeds_list.append(inputs_embeds)
-                    position_id = position_ids[seqlen_offset: seqlen_offset + input_length]
-                    position_ids_thw = position_id.view(1, -1).expand(3, -1)
-                    position_ids_thw_list.append(position_ids_thw)
+                    inputs_embeds, position_ids_thw = \
+                        self._get_llm_model_inputs_without_vision_info(input_ids, position_ids_)
                 else:
-                    boi_pos = torch.where(torch.eq(input_ids, self.image_start_token_id))[0][0].item()
-                    pixel_values_shm_name = input_ids[boi_pos + 1]
-                    pixel_values_shape_value = input_ids[boi_pos + 2]
-                    image_grid_thw_shm_name = input_ids[boi_pos + 3]
-                    image_grid_thw_shape_value = input_ids[boi_pos + 4]
-                    pixel_values_videos_shm_name = input_ids[boi_pos + 5]
-                    pixel_values_videos_shape_value = input_ids[boi_pos + 6]
-                    video_grid_thw_shm_name = input_ids[boi_pos + 7]
-                    video_grid_thw_shape_value = input_ids[boi_pos + 8]
-                    if pixel_values_shm_name != -1:
-                        input_image = get_data_from_shm(
-                            pixel_values_shm_name, pixel_values_shape_value, np.float32, self.device
-                        ).to(dtype=inputs_embeds.dtype).to(total_input_ids.device)
-                        image_grid_thw = get_data_from_shm(
-                            image_grid_thw_shm_name, image_grid_thw_shape_value, np.int32, self.device
-                        ).to(dtype=torch.int64).to(total_input_ids.device)
-                        image_embeds = self._get_image_features(input_image, image_grid_thw)
-                    if pixel_values_videos_shm_name != -1:
-                        input_video = get_data_from_shm(
-                            pixel_values_videos_shm_name, pixel_values_videos_shape_value, np.float32, self.device
-                        ).to(dtype=inputs_embeds.dtype).to(total_input_ids.device)
-                        video_grid_thw = get_data_from_shm(
-                            video_grid_thw_shm_name, video_grid_thw_shape_value, np.int32, self.device
-                        ).to(dtype=torch.int64).to(total_input_ids.device)
-                        image_embeds = self._get_video_features(input_video, video_grid_thw)
-                    image_embeds = torch.cat(image_embeds, dim=0)
-                    input_ids[boi_pos + 1: boi_pos + 1 + _SHM_TOKEN_LEN].copy_(
-                        torch.tensor([self.image_token_id] * _SHM_TOKEN_LEN, dtype=input_ids.dtype))
-                    image_mask = input_ids == self.image_token_id
-                    inputs_embeds[image_mask] = image_embeds
-                    position_ids_thw = self._generate_position_ids(input_ids, image_grid_thw, video_grid_thw)
-                    inputs_embeds_list.append(inputs_embeds)
-                    position_ids_thw_list.append(position_ids_thw)
+                    inputs_embeds, position_ids_thw = \
+                        self._get_llm_model_inputs_with_vision_info(input_ids, position_ids_)
+                inputs_embeds_list.append(inputs_embeds)
+                position_ids_thw_list.append(position_ids_thw)
                 seqlen_offset += input_length
             inputs_embeds = torch.cat(inputs_embeds_list, dim=0)
             position_ids_thw = torch.cat(position_ids_thw_list, dim=-1)
@@ -313,3 +290,76 @@ class FlashGlm41vForCausalLM(MultiModalLLm):
         split_sizes = (video_grid_thw.prod(-1) // self.visual.spatial_merge_size**2).tolist()
         video_embeds = torch.split(video_embeds, split_sizes)
         return video_embeds
+    
+    def _get_llm_model_inputs_without_vision_info(
+        self,
+        input_ids: torch.Tensor,
+        position_ids: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor, List[torch.Tensor]]:
+        """
+        Prepares LLM model inputs when no visual information (image/video) is available.
+        
+        This method generates the basic input components for the language model in scenarios
+        where visual embeddings are not provided, creating placeholder visual embeddings
+        to maintain consistent input structure.
+
+        Args:
+            input_ids (torch.Tensor): 
+                Token IDs from the text input with shape [seq_len].
+            position_ids (torch.Tensor): 
+                Position IDs for the input sequences.
+        """
+        inputs_embeds = self.language_model.embed_tokens(input_ids)
+        position_ids_thw = position_ids.view(1, -1).expand(3, -1)
+        return inputs_embeds, position_ids_thw
+
+    def _get_llm_model_inputs_with_vision_info(
+        self,
+        input_ids: torch.Tensor,
+        position_ids: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor, List[torch.Tensor]]:
+        """
+        Prepares LLM model inputs when visual information (image/video) is present in the input.
+    
+        This method processes inputs that contain visual tokens, extracts visual information from SHM (Shared Memory),
+        and integrates visual embeddings with text embeddings for multimodal processing.
+
+        Args:
+            input_ids (torch.Tensor): 
+                Token IDs from the text input with shape [seq_len].
+            position_ids (torch.Tensor): 
+                Position IDs for the input sequences.
+        """
+        image_grid_thw, video_grid_thw = None, None
+        inputs_embeds = self.language_model.embed_tokens(input_ids)
+        boi_pos = torch.where(torch.eq(input_ids, self.image_start_token_id))[0][0].item()
+        shm_info_ids = input_ids[boi_pos + 1: boi_pos + _SHM_TOKEN_LEN + 1].cpu().tolist()
+        shm_info = ShmInfo(*shm_info_ids)
+        try:
+            if shm_info.pixel_values_shm_name:
+                input_image = get_data_from_shm(
+                    shm_info.pixel_values_shm_name, shm_info.pixel_values_shape_value, np.float32, self.device
+                ).to(dtype=inputs_embeds.dtype)
+                image_grid_thw = get_data_from_shm(
+                    shm_info.image_grid_thw_shm_name, shm_info.image_grid_thw_shape_value, np.int32, self.device
+                ).to(dtype=torch.int64)
+                image_embeds = self._get_image_features(input_image, image_grid_thw)
+            if shm_info.pixel_values_videos_shm_name:
+                input_video = get_data_from_shm(
+                    shm_info.pixel_values_videos_shm_name, shm_info.pixel_values_videos_shape_value,
+                    np.float32, self.device
+                ).to(dtype=inputs_embeds.dtype)
+                video_grid_thw = get_data_from_shm(
+                    shm_info.video_grid_thw_shm_name, shm_info.video_grid_thw_shape_value, np.int32, self.device
+                ).to(dtype=torch.int64)
+                image_embeds = self._get_video_features(input_video, video_grid_thw)
+            image_embeds = torch.cat(image_embeds, dim=0)
+            input_ids[boi_pos + 1: boi_pos + 1 + _SHM_TOKEN_LEN].copy_(
+                torch.tensor([self.image_token_id] * _SHM_TOKEN_LEN, dtype=input_ids.dtype))
+            image_mask = input_ids == self.image_token_id
+            inputs_embeds[image_mask] = image_embeds
+            position_ids_thw = self._generate_position_ids(input_ids, image_grid_thw, video_grid_thw)
+        except Exception as e:
+            logger.warning(f"Get vision info from share memory failed: {e}")
+            position_ids_thw = position_ids.view(1, -1).expand(3, -1)
+        return inputs_embeds, position_ids_thw

@@ -33,7 +33,7 @@ DynamicConfigHandler& DynamicConfigHandler::GetInstance()
     return instance;
 }
 
-void DynamicConfigHandler::Start()
+void DynamicConfigHandler::Start() const
 {
     std::thread t([]() {
         while (GetInstance().isRunning) {
@@ -49,7 +49,7 @@ void DynamicConfigHandler::Start()
     t.detach();
 }
 
-void DynamicConfigHandler::Stop()
+void DynamicConfigHandler::Stop() const
 {
     GetInstance().isRunning = false;
 }

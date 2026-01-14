@@ -49,15 +49,12 @@ struct ServerConfig {
     bool fullTextEnabled = false;
     bool pluginEnabled = false;
     bool deepseekEnabled = false;
-    std::string kmcKsfMaster;
-    std::string kmcKsfStandby;
     std::string tlsCert;
     std::string tlsCrlPath;
     std::set<std::string> tlsCrlFiles;
     std::string tlsCaPath;
     std::set<std::string> tlsCaFile;
     std::string tlsPk;
-    std::string tlsPkPwd;
     uint64_t tokenTimeout = 600;
     uint64_t e2eTimeout = 600;
     uint32_t maxRequestLength = 40U;
@@ -69,7 +66,6 @@ struct ServerConfig {
     std::vector<std::string> interCommTlsCaFiles;
     std::string interCommTlsCert;
     std::string interCommPk;
-    std::string interCommPkPwd;
     std::string interCommTlsCrlPath;
     std::vector<std::string> interCommTlsCrlFiles;
     std::string managementTlsCert;
@@ -77,13 +73,11 @@ struct ServerConfig {
     std::set<std::string> managementTlsCrlFiles;
     std::set<std::string> managementTlsCaFile;
     std::string managementTlsPk;
-    std::string managementTlsPkPwd;
     std::string metricsTlsCert;
     std::string metricsTlsCrlPath;
     std::set<std::string> metricsTlsCrlFiles;
     std::set<std::string> metricsTlsCaFile;
     std::string metricsTlsPk;
-    std::string metricsTlsPkPwd;
     bool openAiSupportedvLLM{true};
     bool distDPServerEnabled{false};
 
@@ -198,9 +192,6 @@ struct EngineConfig {
     std::string interNodeTlsPk;
     std::string interNodeTlsCrlPath;
     std::string interNodeTlsCrlFiles;
-    std::string interNodeTlsPkPwd;
-    std::string interNodeKmcKsfMaster;
-    std::string interNodeKmcKsfStandby;
 
     // mix
     bool enableSplit = false;
@@ -247,9 +238,6 @@ struct BackendConfig {
     std::string interNodeTlsCaFiles;
     std::string interNodeTlsCert;
     std::string interNodeTlsPk;
-    std::string interNodeTlsPkPwd;
-    std::string interNodeKmcKsfMaster;
-    std::string interNodeKmcKsfStandby;
     std::string interNodeTlsCrlPath;
     std::string interNodeTlsCrlFiles;
     std::vector<std::string> interNodeTlsCaFilesVec;

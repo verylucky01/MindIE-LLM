@@ -9,6 +9,7 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
+#include "single_req_vllm_openai_completions_infer_interface.h"
 #include "endpoint_def.h"
 #include "parse_protocol.h"
 #include "http_rest_resource.h"
@@ -17,7 +18,7 @@
 #include "common_util.h"
 #include "base64_util.h"
 #include "config_manager_impl.h"
-#include "single_req_vllm_openai_completions_infer_interface.h"
+#include "safe_io.h"
 
 using OrderedJson = nlohmann::ordered_json;
 
@@ -537,14 +538,20 @@ bool SingleReqVllmOpenAiCompletionsInferInterface::EncodeNonStreamJsonObject(Res
             }
         }
         tmpJsonObj["usage"]["total_tokens"] = reqTokens_.size() + completeTokenCount;
-        auto status = InsertPerfInfoIntoJson(tmpJsonObj["usage"],
-            {PerfInfoType::PERF_BATCH_SZIE, PerfInfoType::PERF_QUEUE_WAIT_TIME},
-            {"batch_size", "queue_wait_time"});
-        if (!status.IsOk()) {
-            ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR,
-                SUBMODLE_FEATURE_SINGLE_INFERENCE, ENCODE_DECODE_ERROR),
-                "Failed to insert performance informations for requestId " << requestId_ << ", error msg is "
-                << status.StatusMsg());
+        // 根据 MINDIE_LLM_BENCHMARK_ENABLE 环境变量判断是否开启性能数据采集
+        // MINDIE_LLM_BENCHMARK_ENABLE取值含义 1:同步enable；2:异步enable；其他取值:关闭
+        const int benchmarkVal = EnvUtil::GetInstance().GetInt("MINDIE_LLM_BENCHMARK_ENABLE", 0);
+        ULOG_DEBUG(SUBMODLE_NAME_ENDPOINT, "mindieLlmBenchmarkEnable value is " << benchmarkVal);
+        if (benchmarkVal == BENCHMARK_ENABLE_SYNC || benchmarkVal == BENCHMARK_ENABLE_ASYNC) {
+            auto status = InsertPerfInfoIntoJson(tmpJsonObj["usage"],
+                {PerfInfoType::PERF_BATCH_SZIE, PerfInfoType::PERF_QUEUE_WAIT_TIME},
+                {"batch_size", "queue_wait_time"});
+            if (!status.IsOk()) {
+                ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR,
+                    SUBMODLE_FEATURE_SINGLE_INFERENCE, ENCODE_DECODE_ERROR),
+                    "Failed to insert performance informations for requestId " << requestId_ << ", error msg is "
+                    << status.StatusMsg());
+            }
         }
         jsonStrs.push(tmpJsonObj.dump());
         return true;
@@ -639,14 +646,19 @@ bool SingleReqVllmOpenAiCompletionsInferInterface::EncodeStreamJsonObject(RespBo
                         tmpJsonObj["usage"]["completion_tokens_details"]["reasoning_tokens"] = reasoningTokens[seqId];
                     }
                     tmpJsonObj["usage"]["total_tokens"] = reqTokens_.size() + item.postTokenIdMap[seqId].size();
-                    auto status = InsertPerfInfoIntoJson(tmpJsonObj["usage"],
-                        {PerfInfoType::PERF_BATCH_SZIE, PerfInfoType::PERF_QUEUE_WAIT_TIME},
-                        {"batch_size", "queue_wait_time"});
-                    if (!status.IsOk()) {
-                        ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR,
-                            SUBMODLE_FEATURE_SINGLE_INFERENCE, ENCODE_DECODE_ERROR),
-                            "Failed to insert performance informations for requestId " << requestId_
-                            << ", error msg is " << status.StatusMsg());
+                    // 根据 MINDIE_LLM_BENCHMARK_ENABLE 环境变量判断是否开启性能数据采集
+                    const int benchmarkVal = EnvUtil::GetInstance().GetInt("MINDIE_LLM_BENCHMARK_ENABLE", 0);
+                    ULOG_DEBUG(SUBMODLE_NAME_ENDPOINT, "mindieLlmBenchmarkEnable value is " << benchmarkVal);
+                    if (benchmarkVal == BENCHMARK_ENABLE_SYNC || benchmarkVal == BENCHMARK_ENABLE_ASYNC) {
+                        auto status = InsertPerfInfoIntoJson(tmpJsonObj["usage"],
+                            {PerfInfoType::PERF_BATCH_SZIE, PerfInfoType::PERF_QUEUE_WAIT_TIME},
+                            {"batch_size", "queue_wait_time"});
+                        if (!status.IsOk()) {
+                            ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR,
+                                SUBMODLE_FEATURE_SINGLE_INFERENCE, ENCODE_DECODE_ERROR),
+                                "Failed to insert performance informations for requestId " << requestId_
+                                << ", error msg is " << status.StatusMsg());
+                        }
                     }
                     endedSeqIds.insert(seqId);
                 }
@@ -716,9 +728,10 @@ std::unique_ptr<std::string> SingleReqVllmOpenAiCompletionsInferInterface::Build
     if (request_->seed.has_value()) {
         newReqJsonObj["seed"] = request_->seed.value();
     }
-    if (request_->stopStrings.has_value() && request_->stopStrings.value() != "") {
+    std::string stopStr = request_->stopStrings.has_value() ? request_->stopStrings.value() : "";
+    if (stopStr != "") {
         try {
-            newReqJsonObj["stop"] = nlohmann::json::parse(request_->stopStrings.value());
+            newReqJsonObj["stop"] = nlohmann::json::parse(stopStr, CheckJsonDepthCallbackUlog);
         } catch(...) {
             ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SINGLE_INFERENCE,
                 JSON_PARSE_ERROR), "Failed to parse stopStrings");

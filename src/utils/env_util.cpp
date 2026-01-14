@@ -10,6 +10,9 @@
  * See the Mulan PSL v2 for more details.
  */
 #include <cstring>
+#include <cstdlib>
+#include <string>
+#include "log.h"
 #include "env_util.h"
 
 namespace mindie_llm {
@@ -38,6 +41,7 @@ EnvUtil::EnvUtil()
     vars["MINDIE_LOG_TO_FILE"] = GetEnvByName("MINDIE_LOG_TO_FILE");
     vars["MINDIE_CHECK_INPUTFILES_PERMISSION"] = GetEnvByName("MINDIE_CHECK_INPUTFILES_PERMISSION");
     vars["TOKENIZER_ENCODE_TIMEOUT"] = GetEnvByName("TOKENIZER_ENCODE_TIMEOUT");
+    vars["MINDIE_LLM_BENCHMARK_ENABLE"] = GetEnvByName("MINDIE_LLM_BENCHMARK_ENABLE");
 }
 
 const std::string& EnvUtil::Get(const std::string& name) const
@@ -59,10 +63,28 @@ std::string EnvUtil::GetEnvByName(const std::string& name) const
 
     size_t itemLength = strlen(item);
     if (itemLength > MAX_ENV_LENGTH) {
-        std::cout << name << " value length is too long" << std::endl;
+        ULOG_WARN(SUBMODLE_NAME_ENDPOINT, GenerateDaemonErrCode(WARNING, SUBMODLE_FEATURE_SERVER_REQUEST,
+            CHECK_WARNING), "Value length is too long");
         return "";
     }
     return item;
+}
+
+int32_t EnvUtil::GetInt(const std::string& name, int32_t defaultValue) const
+{
+    const std::string& value = Get(name);
+    if (value.empty()) {
+        return defaultValue;
+    }
+
+    // 字符串转 int32_t，解析失败时返回默认值
+    try {
+        return std::stoi(value);
+    } catch (...) {
+        ULOG_WARN(SUBMODLE_NAME_ENDPOINT, GenerateDaemonErrCode(WARNING, SUBMODLE_FEATURE_SERVER_REQUEST,
+            CHECK_WARNING), "Failed to convert " << name << " to integer");
+        return defaultValue;
+    }
 }
 
 void EnvUtil::SetEnvVar(const std::string& name, const std::string& value)
