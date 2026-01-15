@@ -13,11 +13,12 @@ from dataclasses import dataclass
 from mindie_llm.runtime.models.qwen3.config_qwen3 import Qwen3Config
 from mindie_llm.runtime.models.qwen3.input_builder_qwen3 import Qwen3InputBuilder
 from mindie_llm.runtime.models.base.router import BaseRouter
+from mindie_llm.runtime.models.qwen2.router_qwen2 import Qwen2Router
 from mindie_llm.runtime.utils.helpers.safety.hf import safe_get_tokenizer_from_pretrained
 
 
 @dataclass
-class Qwen3Router(BaseRouter):
+class Qwen3Router(Qwen2Router):
     """
     Router class specifically designed for Qwen3 models.
 
@@ -26,23 +27,6 @@ class Qwen3Router(BaseRouter):
     - Specialized input builder (Qwen3InputBuilder)
     - Tool call parser identification
     """
-
-    def _get_tokenizer(self):
-        """
-        Get the tokenizer for Qwen3 models.
-
-        This method configures the tokenizer with Qwen3-specific settings:
-        - Left padding (for batch processing)
-        - Trust remote code if specified (security consideration)
-
-        Returns:
-            Tokenizer: A configured tokenizer for Qwen3 models
-        """
-        return safe_get_tokenizer_from_pretrained(
-            self.load_config.tokenizer_path,
-            padding_side="left",
-            trust_remote_code=self.load_config.trust_remote_code
-        )
 
     def _get_input_builder(self):
         """

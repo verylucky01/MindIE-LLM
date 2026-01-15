@@ -10,22 +10,17 @@
 
 from dataclasses import dataclass
 
-from mindie_llm.runtime.models.qwen2.config_qwen2 import Qwen2Config
+from mindie_llm.runtime.config.huggingface_config import HuggingFaceConfig
 
 
 @dataclass
-class Qwen3Config(Qwen2Config):
-    """Configuration class for Qwen3 model.
+class Qwen2Config(HuggingFaceConfig):
+    """Configuration class for Qwen2 model.
 
-    Extends HuggingFaceConfig with Qwen3-specific attributes.
+    Extends HuggingFaceConfig with Qwen2-specific attributes.
     """
-    use_qk_norm: bool = True
-    is_reasoning_model: bool = True
-    attention_bias = False
-    
+    attention_bias = True
+
     def __init__(self, **kwargs):
-        """Initializes Qwen3 configuration with optional keyword arguments.
-        """
         super().__init__(**kwargs)
-        
-        
+        self.head_dim = self.hidden_size // self.num_attention_heads
