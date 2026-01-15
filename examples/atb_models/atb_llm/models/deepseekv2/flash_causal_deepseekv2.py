@@ -121,7 +121,10 @@ class FlashDeepseekv2ForCausalLM(FlashForCausalLM):
             self.enable_o_proj_local_tp = False
             self.enable_lm_head_local_tp = False
             self.enable_nz = False
-
+        if self.prefix_cache_enable and not self.enable_nz:
+            msg = "The prefix cache is enabled, but the nz cache is not enabled. Please check the configuration."
+            logger.error(msg, ErrorCode.ATB_MODELS_PARAM_INVALID)
+            raise ValueError(msg)
         self.ep = self.mapping.has_moe_ep()
         if self.ep:
             if not hasattr(self.ds_config, "ep_level"):
