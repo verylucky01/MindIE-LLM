@@ -27,7 +27,11 @@ public:
 protected:
     void ConstructInTensorMap() override;
     atb::Status CreateLayerOperation(atb::Operation **op, uint32_t layerId) override;
+    void SetLayerParam(atb_speed::base::LayerParam &layerParam, uint32_t layerId) override;
+    void SetLayerNodeDefaultInput(atb_speed::Model::Node &layerNode, uint32_t layerId, uint32_t &inTensorId) override;
     void SetLayerNodeOptionalInput(atb_speed::Model::Node &layerNode, uint32_t layerId, uint32_t &inTensorId) override;
+    atb::Status AddNodesBeforeLayer() override;
+    atb::Status AddSingleLayer(uint32_t layerId) override;
 };
 
 REGISTER_MODEL(qwen3vl, DecoderModel);
