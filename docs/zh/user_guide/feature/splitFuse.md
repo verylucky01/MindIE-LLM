@@ -25,11 +25,10 @@ SplitFuse特性的目的是将长prompt request分解成更小的块，并在多
 
 ## 限制与约束
 
--   Atlas 800I A2 推理服务器支持此特性。
--   LLaMA3.1-70B浮点模型、Qwen2-72B浮点模型、Qwen3-32B、Qwen3-30B支持对接此特性。
+-   Atlas 800I A2 推理服务器和 Atlas 800I A3 超节点服务器支持此特性。
+-   LLaMA3.1-70B浮点模型，Qwen2，Qwen2.5，Qwen3系列模型支持此特性。
 -   该特性支持的量化特性：W8A8，其他量化特性暂不支持。
--   暂不支持与Multi-LoRA特性配合。
--   该特性不能和PD分离、Multi-LoRA、Function Call、并行解码、多机推理、MTP、异步调度和长序列特性同时使用。
+-   该特性不能和Multi-LoRA、Function Call、并行解码、MTP、长序列特性同时使用。
 -   该特性支持n、best\_of、use\_beam\_search后处理参数。
 
 ## 参数说明
@@ -40,7 +39,7 @@ SplitFuse特性的目的是将长prompt request分解成更小的块，并在多
 
 |配置项|取值类型|取值范围|配置说明|
 |--|--|--|--|
-|plugin_params|std::string|"{\"plugin_type\":\"splitfuse\"}"|<ul><li>设置为"{\"plugin_type\":\"splitfuse\"}"，表示执行splitfuse。</li><li>不需要生效任何插件功能时，请删除该配置项字段。</li></ul><br>**约束**：**若enableSplit开启或templateType为"Mix"，则此处必须开启为splitfuse（特性不开启时非必填项）**。|
+|plugin_params|std::string|"{\"plugin_type\":\"splitfuse\"}"|<ul><li>设置为"{\"plugin_type\":\"splitfuse\"}"，表示执行splitfuse。</li><li>不需要生效任何插件功能时，请删除该配置项字段。</li></ul><br>**约束**：**若templateType为"Mix"，则此处必须开启为splitfuse（特性不开启时非必填项）**。|
 
 
 **表 2**  SplitFuse特性补充参数2：**ScheduleConfig的参数**  <a id="table2"></a>
@@ -48,8 +47,10 @@ SplitFuse特性的目的是将长prompt request分解成更小的块，并在多
 |配置项|取值类型|取值范围|配置说明|
 |--|--|--|--|
 |templateType|std::string|"Standard"或"Mix"|<ul><li>"Mix"：混部推理场景；Prefill和Decode可同时进行批处理。</li><li>"Standard"：默认值（特性不开启时为必填项），表示prefill和decode各自分别组batch。</li></ul>|
-|splitStartType|bool|truefalse|<ul><li>true：每次组batch时重置切分状态，重新判断当前是否满足splitStartBatchSize。</li><li>false：首次满足splitStartBatchSize条件后，不再重置切分状态。</li></ul><br>默认值：false。|
-|splitStartBatchSize|uint32_t|[0,maxBatchSize]|当batch数达到该值时开启切分。<br>默认值：16。|
+|prefillChunkSize|uint32_t|[1,maxPrefillTokens]|设置此值时表示开启对prefill请求的固定长度切分，不配置此值时将根据maxPrefillTokens和prefill请求数量计算当前切分长度，进行动态切分。|
+|maxNumPartialPrefills|uint32_t|[1,maxBatchSize]|动态切分时使用，表示batch中可以被并行做partial prefill的最大请求数。默认值：64。|
+|longPrefillTokenThreshold|uint32_t|[1,maxPrefillTokens]|动态切分时使用，表示被判定为长prefill请求的token数阈值，请求的prompt长度大于此阈值且batch中长prefill请求个数超过maxLongPartialPrefills时，超出部分将被延时调度以保障短序列的TTFT时延。默认值：1024。|
+|maxLongPartialPrefills|uint32_t|[1,maxBatchSize]|动态切分时使用，表示batch中允许容纳的长prefill请求个数。默认值：8。|
 
 
 ## 执行推理
@@ -61,7 +62,7 @@ SplitFuse特性的目的是将长prompt request分解成更小的块，并在多
     vi conf/config.json
     ```
 
-2.  配置服务化参数。在Server的config.json文件添加“plugin\_params“、“templateType“和“splitStartType“、“splitChunkTokens“和“splitStartBatchSize“参数。对于性能调优，需要编辑config.json配置文件中的**ScheduleConfig**部分，建议将“maxBatchSize“与“splitChunkTokens“参数配置为相同大小，并通过调整这两个参数的值来控制SLO的Decode时延指标。
+2.  配置服务化参数。在Server的config.json文件添加“plugin\_params“、“templateType“参数。对于性能调优，需要编辑config.json配置文件中的**ScheduleConfig**部分，建议在需要固定大小的切块长度时配置prefillChunkSize参数，其余场景可使用默认的动态切分配置。
 
     SplitFuse参数请参见[表1](#table1)和[表2](#table2)，服务化参数说明请参见[配置参数说明（服务化）](../user_manual/service_parameter_configuration.md)章节，参数配置示例如下。
 
@@ -103,9 +104,10 @@ SplitFuse特性的目的是将长prompt request分解成更小的块，并在多
                 "supportSelectBatch" : false,
                 "maxQueueDelayMicroseconds" : 5000,
               
-              "splitStartType": false,
-              "splitChunkTokens": 256,
-              "splitStartBatchSize": 16
+                "prefillChunkSize" : 1024,
+                "maxNumPartialPrefills" : 64,
+                "longPrefillTokenThreshold" : 1024,
+                "maxLongPartialPrefills" : 8,
             }
     ```
 
