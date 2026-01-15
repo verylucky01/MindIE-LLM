@@ -23,4 +23,5 @@ class Qwen2Config(HuggingFaceConfig):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.head_dim = self.hidden_size // self.num_attention_heads
+        if not hasattr(self, "head_dim"):
+            self.head_dim = self.hidden_size // self.num_attention_heads
