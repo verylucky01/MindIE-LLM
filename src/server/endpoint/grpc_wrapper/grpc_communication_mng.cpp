@@ -87,10 +87,10 @@ namespace mindie_llm {
                 ULOG_INFO(SUBMODLE_NAME_ENDPOINT, "Finish destructor ~GrpcCommunicationMng()");
             } catch (const std::exception &e) {
                 ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SERVER_REQUEST,
-                REMOVE_ERROR), "Exception in destructor ~GrpcCommunicationMng(). " << e.what());
+                    REMOVE_ERROR), "Exception in destructor ~GrpcCommunicationMng(). " << e.what());
             } catch (...) {
-            ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SERVER_REQUEST,
-                REMOVE_ERROR), "Unknown exception in destructor ~GrpcCommunicationMng()");
+                ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SERVER_REQUEST,
+                    REMOVE_ERROR), "Unknown exception in destructor ~GrpcCommunicationMng()");
             }
         }
 

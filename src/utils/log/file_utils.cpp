@@ -296,6 +296,7 @@ bool FileUtils::IsFileValid(const std::string &filePath, std::string &errMsg, co
     }
     return true;
 }
+
 bool FileUtils::IsFileValid(const std::string &filePath, std::string &errMsg, bool isFileExit, mode_t mode,
                             bool checkPermission, uint64_t maxfileSize)
 {
@@ -315,17 +316,19 @@ bool FileUtils::IsFileValid(const std::string &filePath, std::string &errMsg, bo
             return false;
         }
     }
+
     if (!ConstrainOwner(filePath, errMsg) || !ConstrainPermission(filePath, mode, errMsg)) {
         errMsg = "Check path: " + GetBaseFileName(filePath) + " failed, by:" + errMsg;
         if (!checkPermission) {
-            std::cerr << "[WARNING] Check path: " << GetBaseFileName(filePath) << " failed, by:" << errMsg << std::endl;
-            return true;
+            std::cerr << "[ERROR] " << errMsg << "; Please set: chmod 750 " << GetBaseFileName(filePath) << std::endl;
+            return false;
         }
         return false;
     }
 
     return true;
 }
+
 bool FileUtils::IsFileAndDirectoryExists(const std::string &filePath, std::string &errMsg,
                                          const FileValidationParams &params)
 {
