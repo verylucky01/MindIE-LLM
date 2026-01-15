@@ -101,7 +101,7 @@ Yi-VL模型支持的特性
 1. 下载[open_clip 的权重 open_clip_pytorch_model.bin](https://huggingface.co/laion/CLIP-ViT-H-14-laion2B-s32B-b79K/tree/main)，并把下载的权重放在`${open_clip_path}`目录下
    下载[测试图片（CoCotest 数据集）](https://cocodataset.org/#download)并随机抽取其中100张图片放入{image_path}目录下
 
-2. GPU上，下载01-AI提供的[工程](https://github.com/01-ai/Yi/tree/main/VL/llava), 在`{llm_path}/examples/models/`目录下，运行如下脚本，得到gpu推理结果，存储在`{script_path}/gpu_coco_predict.json`文件
+2. GPU上，下载01-AI提供的[工程](https://github.com/01-ai/Yi/tree/main/VL/llava), 在`{llm_path}/examples/models/`目录下，运行如下脚本，得到gpu推理结果，存储在`{script_path}/coco_predict.json`文件
     ``` shell
     python coco_base_runner.py --model_path ${weight_path} --image_path ${image_path}
     ```
@@ -112,12 +112,12 @@ Yi-VL模型支持的特性
    ```
    运行完成后会在{script_path}生成predict_result.json文件存储npu的推理结果
 
-4. 对结果进行评分：分别使用GPU和NPU推理得到的两组图片描述(`gpu_coco_predict.json`, `predict_result.json`)作为输入,执行如下脚本脚本输出评分结果
+4. 对结果进行评分：分别使用GPU和NPU推理得到的两组图片描述(`coco_predict.json`, `predict_result.json`)作为输入,执行如下脚本脚本输出评分结果
     ```shell
     python {llm_path}/example/models/clip_score_base_runner.py \ 
     --model_name ViT-H-14
     --model_weights_path {open_clip_path}/open_clip_pytorch_model.bin \ 
-    --image_info {gpu_coco_predict.json or predict_result.json} \
+    --image_info {coco_predict.json or predict_result.json} \
     --dataset_path {image_path}
     --device_ids {device_ids}
     ```

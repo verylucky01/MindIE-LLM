@@ -43,17 +43,17 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--dataset_name", type=str, default='sampling_data', help="The type of LLM")
 parser.add_argument("--Eval_QA_root",
                     type=str,
-                    default='/workspace/llava_gpu/Video-Bench/',
+                    default='/workspace/llava/Video-Bench/',
                     help="folder containing QA JSON files",
                     )
 parser.add_argument("--Eval_Video_root",
                     type=str,
-                    default='/workspace/llava_gpu/VideoBench/',
+                    default='/workspace/llava/VideoBench/',
                     help="folder containing video data",
                     )
 parser.add_argument('--model_path',
                     help="model and tokenizer path",
-                    default='/workspace/llava_gpu/LLaVA-NeXT-Video-7B-hf',
+                    default='/workspace/llava/LLaVA-NeXT-Video-7B-hf',
                     )
 parser.add_argument("--chat_conversation_output_folder", type=str, default='./Chat_results', help="")
 args = parser.parse_args()

@@ -76,7 +76,7 @@ def main():
             sorted_dict = dict(sorted(old_data.items()))
             with safe_open(output_file, 'w') as fw:
                 json.dump(sorted_dict, fw)
-        logger.info(f"run run_coco_gpu.py finish! output file: {output_file}")
+        logger.info(f"run run_coco.py finish! output file: {output_file}")
     else:
         logger.info("model_path or image_path not exist")
 

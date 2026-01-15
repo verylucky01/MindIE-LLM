@@ -146,7 +146,7 @@ python examples/models/internlmxcomposer2/convert_quant_weights.py --model_path 
 2. Torch_npu 路线，在 `${llm_path}` 目录下，运行脚本
    ```bash
    # 注意：300I Duo场景下，InternLM-XComposer2-4KHD-7B 模型需修改 `${weight_path}/modeling_internlm_xcomposer2.py` 文件中 `img2emb` 函数中的 `image` 变量为 `image.cpu()` ，以转换到cpu侧执行
-   python ${script_path}/precision/run_coco_gpu.py --model_path ${weight_path} --image_path ${image_path} (--trust_remote_code)
+   python ${script_path}/precision/run_coco.py --model_path ${weight_path} --image_path ${image_path} (--trust_remote_code)
    ```
    会在当前 `${llm_path}` 目录下生成torch_npu_coco_predict.json文件存储torch_npu推理结果
 
@@ -157,11 +157,11 @@ python examples/models/internlmxcomposer2/convert_quant_weights.py --model_path 
 
    运行完成后会在 `${script_path}` 目录生成predict_result.json文件存储加速库路线的推理结果
 
-4. 对结果进行评分：分别使用GPU和NPU推理得到的两组图片描述(torch_npu_coco_predict.json、predict_result.json)作为输入,执行clip_score_internlmxcomposer2.py 脚本输出评分结果，在 `${llm_path}` 目录下执行：
+4. 对结果进行评分：两种路线得到的两组图片描述(torch_npu_coco_predict.json、predict_result.json)作为输入,执行clip_score_internlmxcomposer2.py 脚本输出评分结果，在 `${llm_path}` 目录下执行：
 ```bash
    python examples/models/internlmxcomposer2/precision/clip_score_internlmxcomposer2.py \ 
    --model_weights_path ${open_clip_path}/open_clip_pytorch_model.bin \ 
-   --image_info {gpu_coco_predict.json 或 predict_result.json的路径} \
+   --image_info {coco_predict.json 或 predict_result.json的路径} \
    --dataset_path ${image_path}
 ```
 
