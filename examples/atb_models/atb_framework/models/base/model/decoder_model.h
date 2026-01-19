@@ -142,6 +142,9 @@ protected:
     /// Add a lmhead node to the graph.
     /// \return A flag indicates whether the operation was successfully added to the graph.
     virtual atb::Status AddLmhead();
+    /// Add a cmo synchronization node to the graph to synchronize streams.
+    /// \return A flag indicates whether the operation was successfully added to the graph.
+    virtual atb::Status AddCmoSync();
     /// Add a send node to the graph to send hidden states to the next pipeline parallalism stage.
     /// \return A flag indicates whether the operation was successfully added to the graph.
     virtual atb::Status AddSend();

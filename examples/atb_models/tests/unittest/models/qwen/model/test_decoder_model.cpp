@@ -64,7 +64,7 @@ TEST(QwenDecoderModelTest, DecoderModel)
         "lmHeadTransposeType": 0,
         "enableSwiGLU": true,
         "enableSwigluQuant": true,
-        "enablePreFetchWeight": false,
+        "preFetchWeightSize": 0,
         "normEps": 0.000001,
         "normType": 0,
         "numAttentionHeadsPerRank": 8,

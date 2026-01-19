@@ -23,7 +23,7 @@ namespace common {
 
 class AclrtCmoAsyncOperation : public atb::OperationInfra {
 public:
-    explicit AclrtCmoAsyncOperation(const std::string &opName);
+    explicit AclrtCmoAsyncOperation(const std::string &opName, size_t dataSize = 0);
 
     ~AclrtCmoAsyncOperation() override;
 
@@ -42,6 +42,7 @@ private:
 
     aclError CheckAcl(aclError ret) const;
     std::string opName_;
+    size_t dataSize_;
 };
 } // namespace common
 } // namespace atb_speed

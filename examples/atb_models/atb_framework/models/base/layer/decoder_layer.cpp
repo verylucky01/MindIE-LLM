@@ -362,7 +362,7 @@ void DecoderLayer<NormType>::SetFusionAttentionLinearParam(
     fusionAttentionParam.quantGroupSize = this->param.quantGroupSize;
     fusionAttentionParam.matmulBackend = this->param.matmulBackend;
     fusionAttentionParam.supportLora = this->param.enableLora;
-    fusionAttentionParam.enablePreFetchWeight = this->param.enablePreFetchWeight;
+    fusionAttentionParam.preFetchWeightSize = this->param.preFetchWeightSize;
     fusionAttentionParam.enableMC2 = param.enableMC2;
     fusionAttentionParam.loraEnableGMM = this->param.loraEnableGMM;
     fusionAttentionParam.qkvHasBias = this->param.linearHasBias.at(QKV_HASBIAS);
@@ -559,7 +559,7 @@ std::map<unsigned int, std::vector<std::string>> DecoderLayer<NormType>::GetAtte
         attnInTensor[common::AttnInTensorCategory::ATTN_ADD_RMS_NORM_QUANT].push_back("in_qkv_offset_fill");
         attnInTensor[common::AttnInTensorCategory::ATTN_ADD_NORM] = {"in_last_mlp_out"};
     }
-    if (this->param.enablePreFetchWeight) {
+    if (this->param.preFetchWeightSize) {
         attnInTensor[common::AttnInTensorCategory::ATTN_CMO] = {"in_mlp_weight_0"};
     }
     if (this->param.enableFlashComm) {
@@ -597,7 +597,26 @@ atb::Status DecoderLayer<NormType>::AddFusionAttention()
 
     this->graph.nodes.push_back(attentionNode);
 
-    if (this->param.enablePreFetchWeight && !this->param.isPrefill) {
+    return atb::NO_ERROR;
+}
+
+template <typename NormType>
+atb::Status DecoderLayer<NormType>::AddFusionAttentionResidualAdd()
+{
+    atb::infer::ElewiseParam addParam;
+    addParam.elewiseType = atb::infer::ElewiseParam::ElewiseType::ELEWISE_ADD;
+    atb::Node selfResidualAddNode;
+    if (!param.enableIntraLayerAddNorm) {
+        CHECK_OPERATION_STATUS_RETURN(atb::CreateOperation(addParam, &selfResidualAddNode.operation));
+        selfResidualAddNode.inTensorIds = \
+            atb_speed::common::GetTensorIdxList(this->tensorMap, {"in_hidden_states", "intermediate_attn_out"});
+        selfResidualAddNode.outTensorIds = \
+            atb_speed::common::GetTensorIdxList(this->tensorMap, {"in_hidden_states"});
+
+        this->graph.nodes.push_back(selfResidualAddNode);
+    }
+
+    if (this->param.preFetchWeightSize > 0 && !this->param.isPrefill) {
         atb::Node computeRecordNode;
         computeRecordNode.inTensorIds = {};
         computeRecordNode.outTensorIds = {};
@@ -618,7 +637,7 @@ atb::Status DecoderLayer<NormType>::AddFusionAttention()
         this->graph.nodes.push_back(commWaitNode);
 
         atb::Node cmoNode;
-        cmoNode.operation = new atb_speed::common::AclrtCmoAsyncOperation("AclrtCmoAsync");
+        cmoNode.operation = new atb_speed::common::AclrtCmoAsyncOperation("AclrtCmoAsync", param.preFetchWeightSize);
         cmoNode.inTensorIds = atb_speed::common::GetTensorIdxList(this->tensorMap, {
             "in_mlp_weight_0"
         });
@@ -626,25 +645,6 @@ atb::Status DecoderLayer<NormType>::AddFusionAttention()
         atb::SetExecuteStreamId(cmoNode.operation, 1);
 
         this->graph.nodes.push_back(cmoNode);
-    }
-
-    return atb::NO_ERROR;
-}
-
-template <typename NormType>
-atb::Status DecoderLayer<NormType>::AddFusionAttentionResidualAdd()
-{
-    atb::infer::ElewiseParam addParam;
-    addParam.elewiseType = atb::infer::ElewiseParam::ElewiseType::ELEWISE_ADD;
-    atb::Node selfResidualAddNode;
-    if (!param.enableIntraLayerAddNorm) {
-        CHECK_OPERATION_STATUS_RETURN(atb::CreateOperation(addParam, &selfResidualAddNode.operation));
-        selfResidualAddNode.inTensorIds = \
-            atb_speed::common::GetTensorIdxList(this->tensorMap, {"in_hidden_states", "intermediate_attn_out"});
-        selfResidualAddNode.outTensorIds = \
-            atb_speed::common::GetTensorIdxList(this->tensorMap, {"in_hidden_states"});
-
-        this->graph.nodes.push_back(selfResidualAddNode);
     }
     return atb::NO_ERROR;
 }
@@ -671,6 +671,8 @@ void DecoderLayer<NormType>::SetMlpParam(atb_speed::common::MlpParam<NormType> &
     mlpParam.enableAddNorm = this->param.enableIntraLayerAddNorm;
     mlpParam.supportLora = this->param.enableLora;
     mlpParam.loraEnableGMM = this->param.loraEnableGMM;
+    // prefetch weight
+    mlpParam.preFetchWeightSize = this->param.preFetchWeightSize;
     // down
     mlpParam.downLinearTensorParallelInfo = this->param.tensorParallelInfo;
     if (this->param.mapping.isInitialized_) {

@@ -108,8 +108,8 @@ public:
     bool enableIntraLayerAddNorm = false;
     /// A flag indicating whether prefix cache is enabled
     bool enablePrefixCache = false;
-    /// A flag indicating whether prefetch weight
-    bool enablePreFetchWeight = false;
+    /// Size of prefetch weight, 0 means disable.
+    size_t preFetchWeightSize = 0;
     /// A flag indicating whether the model use cube and vector parallel
     bool enableCVOverlap = false;
     /// A flag indicating whether to use swigluQuant

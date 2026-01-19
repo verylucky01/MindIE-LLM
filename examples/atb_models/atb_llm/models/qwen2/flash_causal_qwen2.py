@@ -506,6 +506,7 @@ class FlashQwen2ForCausalLM(FlashForCausalLM):
             "enableLcoc": False,
             "linearDescs": decode_linear_descs_configs if not self.layerwise_disaggregated else None,
             "enableRopeQuantKvcache": self.enable_rope_quant_kvcache,
+            "preFetchWeightSize": 0, # MB
         }
 
         if not self.layerwise_disaggregated:

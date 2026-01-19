@@ -199,7 +199,7 @@ std::map<std::string, uint32_t> ConstructTensorMap(
     }
 
     // 添加cmo特性的Tensor
-    if (param.enablePreFetchWeight) {
+    if (param.preFetchWeightSize) {
         AddTensorToList(attnInTensorCandidates, "cmo_mlp_first_matmul_weight", inTensorList);
     }
 
