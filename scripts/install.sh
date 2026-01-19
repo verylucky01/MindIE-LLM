@@ -255,6 +255,8 @@ function install_python_whl() {
     $python_interpreter -m pip install ${tokenizer_wheel_path} --log-file ${log_file} --force-reinstall || \
     { print "ERROR" "Failed to install tokenizer wheel in mindie-llm"; exit 1; }
     chmod 440 ${log_file}
+    $python_interpreter -m pip install ${mie_ops_wheel_path} --log-file ${log_file} --force-reinstall || \
+    { print "ERROR" "Failed to install mie_ops wheel"; exit 1; }
 }
 
 function install_to_path() {

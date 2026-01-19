@@ -44,6 +44,7 @@ function fn_build()
     if [ "$CMAKE_CXX_COMPILER_LAUNCHER" == "" ] && command -v ccache &> /dev/null;then
         COMPILE_OPTIONS="${COMPILE_OPTIONS} -DCMAKE_CXX_COMPILER_LAUNCHER=ccache"
     fi
+    source $SCRIPT_DIR/build_kernels.sh
 
     fn_build_version_info
     fn_build_third_party
