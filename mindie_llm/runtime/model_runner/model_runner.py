@@ -286,6 +286,8 @@ class ModelRunner:
         # NOTE: This will be removed after get_rope is ready
         flush_global_attn_dict(self.attn_layers)
         kv_cache = kwargs.get("kv_cache", None)
+        if self.is_draft_model:
+            kv_cache = kv_cache[-1:]
         # When the address of kv_cache changes, we will recapture graphs.
         if id(next(iter(self.attn_layers.values())).key_cache) != id(kv_cache[0][0]):
             bind_kv_cache(kv_cache, self.attn_layers)
@@ -351,7 +353,7 @@ class ModelRunner:
                         else torch.tensor([1] * block_tables.shape[0], dtype=torch.int32).npu()
             actual_seq_lengths_query = torch.cumsum(actual_seq_lengths_kv, dim=0, dtype=torch.int32).npu()
 
-        num_tokens_across_dp_cpu = get_num_tokens_across_dp_cpu(input_ids.shape[0])
+        num_tokens_across_dp_cpu = get_num_tokens_across_dp_npu(input_ids.shape[0])
         # MTP
         hidden_states_mtp = kwargs.get("last_hidden_states", None)
 
@@ -490,7 +492,7 @@ class ModelRunner:
         mask = self.mask
         slot_mapping = self.slot_mapping[:num_tokens]
         lm_head_indices = self.lmhead_indices[:num_tokens]
-        num_tokens_across_dp_cpu = get_num_tokens_across_dp_cpu(input_ids.shape[0])
+        num_tokens_across_dp_cpu = get_num_tokens_across_dp_npu(input_ids.shape[0])
         
         reqs_padding_length, _ = get_speculative_reqs_padding_length(num_tokens=num_tokens,
                                                                     num_actual_tokens=self.num_speculative_tokens + 1)
@@ -556,6 +558,16 @@ def get_num_tokens_across_dp_cpu(num_token_cur_dp):
     if dp_para_info.is_enabled():
         torch_dist.all_reduce(num_token_tensor, group=dp_para_info.cpu_process_group)
     return num_token_tensor
+
+
+def get_num_tokens_across_dp_npu(num_token_cur_dp):
+    dp_para_info = get_parallel_info_manager().get(ParallelType.ATTN_DP)
+    num_token_tensor = torch.tensor([
+    num_token_cur_dp if i == dp_para_info.rank else 0 for i in range(dp_para_info.group_size)
+    ], dtype=torch.int32).npu()
+    if dp_para_info.is_enabled():
+        torch_dist.all_reduce(num_token_tensor, group=dp_para_info.process_group)
+    return num_token_tensor.cpu()
 
 
 def get_speculative_reqs_padding_length(num_tokens, num_actual_tokens):

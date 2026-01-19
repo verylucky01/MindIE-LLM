@@ -199,7 +199,7 @@ class MtpWorker(BaseWorkerProxy):
             draft_kwargs.update({"position_ids": positions_mtp})
             draft_kwargs.update({"input_lengths": seq_lens})
             draft_kwargs.update({"block_tables": block_tables})
-            draft_kwargs.update({"slot_mapping": slot_mapping})
+            draft_kwargs.update({"slots": slot_mapping})
             draft_kwargs.update({"last_hidden_states": hidden_states_mtp_input})
             draft_kwargs.update({"lm_head_indices": lm_head_indices})
 

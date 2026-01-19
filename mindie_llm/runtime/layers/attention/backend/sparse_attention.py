@@ -400,11 +400,9 @@ class SfaBackendImpl(SelectAttentionImpl):
         self.mlapo_weight_pack.beta1 = torch.zeros_like(self.mlapo_weight_pack.gamma1)
         self.mlapo_weight_pack.gamma2 = self.kv_a_layernorm.weight
         self.mlapo_weight_pack.quant_scale0 = 1 / self.q_a_proj.input_scale
-        self.mlapo_weight_pack.quant_offset0 = torch.tensor([0],
-                                                            dtype=torch.int8,
-                                                            device=self.kv_b_proj.weight.device)
+        self.mlapo_weight_pack.quant_offset0 = self.q_a_proj.input_offset.to(torch.int8)
         self.mlapo_weight_pack.quant_scale1 = 1 / self.q_b_proj.input_scale
-        self.mlapo_weight_pack.quant_offset1 = torch.tensor([0], dtype=torch.int8, device=self.kv_b_proj.weight.device)
+        self.mlapo_weight_pack.quant_offset1 = self.q_b_proj.input_offset.to(torch.int8)
         self.mlapo_weight_pack.ctkv_scale = torch.tensor([1],
                                                          dtype=self.kv_b_proj.weight.dtype,
                                                          device=self.kv_b_proj.weight.device)

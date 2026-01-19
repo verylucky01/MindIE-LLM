@@ -153,7 +153,8 @@ class DeepseekV3Moe(nn.Module):
             config,
             f"{self.prefix}.shared_experts",
             quant_config=quant_config,
-            intermediate_size=config.moe_intermediate_size
+            intermediate_size=config.moe_intermediate_size,
+            is_moe=True
         )
         self.gate.e_score_correction_bias = BaseParameter(torch.empty(config.n_routed_experts))
         self.gate.e_score_correction_bias.add_attrs({"weight_loader": self.weight_loader})
@@ -498,7 +499,7 @@ class DeepseekV3Attention(nn.Module):
 
 
 class DeepseekV3MLP(nn.Module):
-    def __init__(self, config, prefix: str, quant_config, intermediate_size) -> None:
+    def __init__(self, config, prefix: str, quant_config, intermediate_size, is_moe=False) -> None:
         """
         Initialize the Deepseek MLP module.
 
@@ -512,13 +513,14 @@ class DeepseekV3MLP(nn.Module):
         parallel_info = get_parallel_info_manager()
         self.config = config
         self.prefix = prefix
+        cur_parallel_info = parallel_info.mlp_tp if not is_moe else parallel_info.moe_tp        
         self.gate_up_proj = MergedColumnParallelLinear(
             config.hidden_size,
             [intermediate_size] * 2,
             bias=False,
             quant_config=quant_config,
             prefix=[f"{prefix}.gate_proj", f"{prefix}.up_proj"],
-            parallel_info=parallel_info.mlp_tp
+            parallel_info=cur_parallel_info
         )
         self.down_proj = RowParallelLinear(
             intermediate_size,
@@ -526,7 +528,7 @@ class DeepseekV3MLP(nn.Module):
             bias=False,
             quant_config=quant_config,
             prefix=f"{prefix}.down_proj",
-            parallel_info=parallel_info.mlp_tp,
+            parallel_info=cur_parallel_info,
             reduce_results=True
         )
     
