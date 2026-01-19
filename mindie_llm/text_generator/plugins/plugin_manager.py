@@ -322,7 +322,6 @@ class PluginManager:
         metadata = (input_metadata, sampling_metadata)
         finished_cache_ids, finished_sequence_ids = self.infer_context.update_context(
             cache_ids, filtered_indices, metadata, sampling_output)
-
         has_sampling = sampling_metadata is not None
         sequence_ids_to_clear = np.array([], dtype=np.int64)
         # 不清理dummy batch 的 cache id
@@ -332,7 +331,6 @@ class PluginManager:
                 self.sampler.clear_cache(finished_sequence_ids)
             self.plugin_cache_clear_manager(cache_ids, finish_reason)
         self.infer_context.clear_aborted_context()
-
         token_indices = self.infer_context.get_output_len_count(cache_ids)
 
         if has_sampling:

@@ -59,20 +59,13 @@ class DictContext:
         self, children_context_handles: npt.NDArray[np.int32], parents_context_handles: npt.NDArray[np.int32]
     ) -> None:
         """Fork the dictionary-based context fields from parents to children."""
-        field_names = [
-            "stopping_criteria",
-            "string_stopping_criteria",
-            "output_texts",
-            "trace_ids",
-            "lora_adapter_id"
-        ]
-
         for i, child_idx in enumerate(children_context_handles):
             parent_idx = parents_context_handles[i]
-            for field_name in field_names:
-                field = getattr(self, field_name)
-                if parent_idx in field:
-                    field[child_idx] = field[parent_idx]
+            self.output_texts[child_idx] = self.output_texts.get(parent_idx)
+            self.stopping_criteria[child_idx] = self.stopping_criteria.get(parent_idx)
+            self.string_stopping_criteria[child_idx] = self.string_stopping_criteria.get(parent_idx)
+            self.lora_adapter_id[child_idx] = self.lora_adapter_id.get(parent_idx)
+            self.trace_ids[child_idx] = self.trace_ids.get(parent_idx)
 
     def clear_context(self, context_handles: Union[Iterable[int], npt.NDArray[np.int32]]):
         for context_handle in context_handles:
@@ -234,35 +227,27 @@ class NdarrayContext:
         self, children_context_handles: npt.NDArray[np.int32], parents_context_handles: npt.NDArray[np.int32]
     ) -> None:
         """Copy data from parent to child in all_ndarray_context."""
-        field_names = [
-            "last_input_ids",
-            "last_position_ids",
-            "seq_lens",
-            "cpu_cached_seq_idx",
-            "output_len_count",
-            "used_block_idx",
-            "used_block_offset",
-            "cumulative_logprobs",
-            "num_top_tokens",
-            "all_input_ids",
-            "all_output_ids",
-            "seeds",
-            "best_of",
-            "n",
-            "use_beam_search",
-            "ignore_eos",
-            "include_stop",
-            "skip_special_tokens",
-            "sampling_params",
-            "mtp_last_slots",
-            "mtp_last_token_num", 
-            "mtp_hidden_states"
-        ]
-
-        for field_name in field_names:
-            if hasattr(self, field_name):
-                field = getattr(self, field_name)
-                field[children_context_handles] = field[parents_context_handles]
+        self.last_position_ids[children_context_handles] = self.last_position_ids[parents_context_handles]
+        self.seq_lens[children_context_handles] = self.seq_lens[parents_context_handles]
+        self.cpu_cached_seq_idx[children_context_handles] = self.cpu_cached_seq_idx[parents_context_handles]
+        self.output_len_count[children_context_handles] = self.output_len_count[parents_context_handles]
+        self.used_block_idx[children_context_handles] = self.used_block_idx[parents_context_handles]
+        self.used_block_offset[children_context_handles] = self.used_block_offset[parents_context_handles]
+        self.cumulative_logprobs[children_context_handles] = self.cumulative_logprobs[parents_context_handles]
+        self.num_top_tokens[children_context_handles] = self.num_top_tokens[parents_context_handles]
+        self.all_input_ids[children_context_handles] = self.all_input_ids[parents_context_handles]
+        self.seeds[children_context_handles] = self.seeds[parents_context_handles]
+        self.best_of[children_context_handles] = self.best_of[parents_context_handles]
+        self.n[children_context_handles] = self.n[parents_context_handles]
+        self.use_beam_search[children_context_handles] = self.use_beam_search[parents_context_handles]
+        self.ignore_eos[children_context_handles] = self.ignore_eos[parents_context_handles]
+        self.include_stop[children_context_handles] = self.include_stop[parents_context_handles]
+        self.skip_special_tokens[children_context_handles] = self.skip_special_tokens[parents_context_handles]
+        self.sampling_params[children_context_handles] = self.sampling_params[parents_context_handles]
+        if self.context_params.mtp_enable:
+            self.mtp_last_slots[children_context_handles] = self.mtp_last_slots[parents_context_handles]
+            self.mtp_last_token_num[children_context_handles] = self.mtp_last_token_num[parents_context_handles]
+            self.mtp_hidden_states[children_context_handles] = self.mtp_hidden_states[parents_context_handles]
 
     def clear_context(self, context_handles: Union[int, npt.NDArray[np.int32]]):
         """originally recover_default_cache, avoid single context reset!!"""
@@ -270,7 +255,6 @@ class NdarrayContext:
             context_handles = np.array([context_handles], dtype=np.int32)
         for context_handle in context_handles:
             self._free_slot(context_handle)
-
         self.last_input_ids[context_handles] = 0  # no cleanup for input in recover_default_cache
         self.output_len_count[context_handles] = 0
         self.last_position_ids[context_handles] = 0
@@ -290,13 +274,13 @@ class NdarrayContext:
         self.seeds[context_handles] = 0
         self.skip_special_tokens[context_handles] = True
 
-        # just reset, no matter if mtp is enabled
-        self.mtp_hidden_states[context_handles] = 0
-        self.mtp_last_slots[context_handles] = 0
-        self.mtp_last_token_num[context_handles] = 0
-        if self.spcp_parallel_info.scp_size > 1:
-            self.mtp_last_rank[context_handles] = self.cache_config.pad_rank_id
-            self.mtp_seq_block_rank_id[context_handles, :] = self.cache_config.pad_rank_id
+        if self.context_params.mtp_enable:
+            self.mtp_hidden_states[context_handles] = 0
+            self.mtp_last_slots[context_handles] = 0
+            self.mtp_last_token_num[context_handles] = 0
+            if self.spcp_parallel_info.scp_size > 1:
+                self.mtp_last_rank[context_handles] = self.cache_config.pad_rank_id
+                self.mtp_seq_block_rank_id[context_handles, :] = self.cache_config.pad_rank_id
 
         self.sampling_params[context_handles] = self.default_sampling_params
 
