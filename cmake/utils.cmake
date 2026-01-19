@@ -201,11 +201,15 @@ function(apply_patches COMPONENT_SRC_DIR FILE_GLOB_PATTERN)
 endfunction()
 
 
-function(get_ABI_option_value USE_CXX11_ABI)
-    if(DEFINED ${USE_CXX11_ABI})
-        set(_val "${${USE_CXX11_ABI}}")
-        if(_val STREQUAL "0" OR _val STREQUAL "1")
-            return()
+function(get_ABI_option_value)
+    if(DEFINED USE_CXX11_ABI)
+        if(${USE_CXX11_ABI} STREQUAL "0" OR ${USE_CXX11_ABI} STREQUAL "1")
+message("
+==================================
+       Using ABI = ${USE_CXX11_ABI}
+==================================
+")
+        return()
         endif()
     endif()
 
@@ -217,14 +221,14 @@ function(get_ABI_option_value USE_CXX11_ABI)
     )
     if(NOT _status EQUAL 0)
         message(WARNING "Failed to get ABI flag from torch, using default = 0")
-        set(${USE_CXX11_ABI} 0 PARENT_SCOPE)
+        set(USE_CXX11_ABI 0 PARENT_SCOPE)
         return()
     endif()
 
     string(STRIP "${_CXX_ABI_FLAG}" _CXX_ABI_FLAG)
     if(NOT _CXX_ABI_FLAG MATCHES "^[01]$")
         message(WARNING "Invalid ABI flag '${_CXX_ABI_FLAG}', using default = 0")
-        set(${USE_CXX11_ABI} 0 PARENT_SCOPE)
+        set(USE_CXX11_ABI 0 PARENT_SCOPE)
         return()
     endif()
 message("
@@ -232,7 +236,7 @@ message("
        Using ABI = ${_CXX_ABI_FLAG}
 ==================================
 ")
-    set(${USE_CXX11_ABI} "${_CXX_ABI_FLAG}" PARENT_SCOPE)
+    set(USE_CXX11_ABI ${_CXX_ABI_FLAG} PARENT_SCOPE)
 endfunction()
 
 
