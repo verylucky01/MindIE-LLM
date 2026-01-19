@@ -15,11 +15,14 @@ import torch
 import torch.distributed as dist
 
 from mindie_llm.runtime.layers.custom_layer import CustomLayer
-from mindie_llm.runtime.layers.fused_moe.moe_comm_method import (select_moe_comm_method,
-                                                                 setup_moe_comm_method,
-                                                                 get_cached_dispatcher,
-                                                                 MoECommType,
-                                                                 build_moe_comm_args)
+from mindie_llm.runtime.layers.fused_moe.moe_comm_method import (
+    select_moe_comm_method,
+    get_cached_dispatcher,
+    MoECommType,
+)
+from mindie_llm.runtime.layers.fused_moe.token_dispatcher import (
+    MoeAllGatherArgs, MoeMC2Args, MoeAll2AllVArgs
+)
 from mindie_llm.runtime.layers.parameter import RowParameter, ColumnParameter
 from mindie_llm.runtime.layers.quantization.ms_model_slim.w4a8 import W4A8PerTokenFusedMoEMethod
 from mindie_llm.runtime.layers.quantization.quantization_config_base import QuantizationConfigBase
@@ -71,7 +74,6 @@ class FusedMoE(CustomLayer):
         else:
             # Get moe quant method through gate proj weights of expert 0
             self.quant_method = self.quant_config.get_quant_method(self, prefix=f"{self.prefix}.0.{self.suffix[0]}")
-        setup_moe_comm_method()
         self._create_weights()
         self._post_init()
 
@@ -112,23 +114,9 @@ class FusedMoE(CustomLayer):
 
         dispatcher = get_cached_dispatcher(moe_comm_type=moe_comm_type)
 
-        moe_comm_args = build_moe_comm_args(
-            moe_comm_type=moe_comm_type,
-            hidden_states=hidden_states,
-            topk_weights=topk_weights,
-            topk_ids=topk_ids,
-            top_k=self.topk,
-            num_experts=self.num_experts,
-            expert_list=self.expert_list,
-            expert_map=self.expert_map,
-            with_quant=False,
-            mc2_mask=None,
-            shared_experts=None,
-            quantized_x_for_share=None,
-            dynamic_scale_for_share=None,
-        )
+        moe_comm_args = self._build_moe_comm_args(moe_comm_type, hidden_states, topk_weights, topk_ids)
 
-        moe_dispatch_output, ctx = dispatcher.token_dispatch(moe_comm_args)
+        moe_dispatch_output, dispatch_context = dispatcher.token_dispatch(moe_comm_args)
 
         moe_mlp_out = self.quant_method.apply(
             self,
@@ -139,11 +127,15 @@ class FusedMoE(CustomLayer):
 
         final_hidden_states = dispatcher.token_combine(
             hidden_states=moe_mlp_out,
-            ctx=ctx
+            ctx=dispatch_context
         )
 
         if moe_comm_type == MoECommType.ALLGATHER:
-            dist.all_reduce(final_hidden_states, group=self.parallel_info.attn_tp.process_group)
+            # In ALLGATHER-based MoE communication, expert outputs are gathered
+            # back to all ranks, but the hidden states are still sharded across
+            # Tensor Parallel (TP) ranks. Therefore, an all-reduce over the MLP TP
+            # group is needed to merge TP-partial hidden states into a full result.
+            dist.all_reduce(final_hidden_states, group=self.parallel_info.world.process_group)
         return final_hidden_states
 
     def _post_init(self):
@@ -160,6 +152,39 @@ class FusedMoE(CustomLayer):
             self.suffix[1]: param_prefixes[1],
             self.suffix[2]: param_prefixes[0],
         }
+
+    def _build_moe_comm_args(self,
+                             moe_comm_type: MoECommType,
+                             hidden_states: torch.Tensor,
+                             topk_weights: torch.Tensor,
+                             topk_ids: torch.Tensor):
+        common_kwargs = {
+            "hidden_states": hidden_states,
+            "topk_weights": topk_weights,
+            "topk_ids": topk_ids,
+            "num_experts": self.num_experts,
+        }
+        if moe_comm_type == MoECommType.ALLGATHER:
+            return MoeAllGatherArgs(
+                **common_kwargs,
+                top_k=self.topk,
+                expert_list=self.expert_list,
+                expert_map=self.expert_map,
+                with_quant=False,
+            )
+        elif moe_comm_type == MoECommType.MC2:
+            return MoeMC2Args(
+                **common_kwargs,
+                mc2_mask=None,
+                with_quant=False,
+                shared_experts=None,
+                quantized_x_for_share=None,
+                dynamic_scale_for_share=None,
+            )
+        elif moe_comm_type == MoECommType.ALLTOALL:
+            return MoeAll2AllVArgs(**common_kwargs)
+        else:
+            raise RuntimeError(f"FusedMoE: Unsupported moe_comm_type {moe_comm_type}")
 
     def _create_weights(self):
         self.quant_method.create_weights(

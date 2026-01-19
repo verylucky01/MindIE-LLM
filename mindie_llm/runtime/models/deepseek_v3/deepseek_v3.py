@@ -24,7 +24,6 @@ from mindie_llm.runtime.layers.fused_moe.fused_moe import FusedMoE, assign_exper
 from mindie_llm.runtime.model_runner.forward_context import get_forward_context
 from mindie_llm.runtime.utils.distributed import get_parallel_info_manager
 from mindie_llm.runtime.layers.attention import get_global_attn_dict
-from mindie_llm.runtime.layers.fused_moe.moe_comm_method import select_moe_comm_method, get_cached_dispatcher
 from mindie_llm.runtime.layers.parameter import BaseParameter
 
 

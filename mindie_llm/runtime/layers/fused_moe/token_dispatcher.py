@@ -17,6 +17,7 @@ import torch.distributed as dist
 import torch_npu
 
 from mindie_llm.runtime.utils.distributed import get_parallel_info_manager
+from mindie_llm.runtime.utils.singleton import Singleton
 from mindie_llm.runtime.utils.npu.device_utils import DeviceType, get_npu_node_info
 
 
@@ -46,7 +47,7 @@ class MoeMC2Args(MoeDispatchArgsBase):
 
 
 @dataclass
-class MoeAll2AllArgs(MoeDispatchArgsBase):
+class MoeAll2AllVArgs(MoeDispatchArgsBase):
     pass
 
 
@@ -78,7 +79,7 @@ class MC2DispatchContext(DispatchContextBase):
 
 
 @dataclass
-class All2AllDispatchContext(DispatchContextBase):
+class All2AllVDispatchContext(DispatchContextBase):
     topk_weights: torch.Tensor
     num_experts: int
     num_local_experts: int
@@ -108,7 +109,7 @@ class MoETokenDispatcher(ABC):
         raise NotImplementedError("Combine function not implemented.")
 
 
-class TokenDispatcherWithAllGather(MoETokenDispatcher):
+class TokenDispatcherWithAllGather(Singleton, MoETokenDispatcher):
 
     def __init__(self):
         super().__init__()
@@ -169,7 +170,7 @@ class TokenDispatcherWithAllGather(MoETokenDispatcher):
         return final_hidden_states
 
 
-class TokenDispatcherWithMC2(MoETokenDispatcher):
+class TokenDispatcherWithMC2(Singleton, MoETokenDispatcher):
 
     def __init__(self):
         self.parallel_info = get_parallel_info_manager()
@@ -190,6 +191,7 @@ class TokenDispatcherWithMC2(MoETokenDispatcher):
             quant_mode = 2
         else:
             quant_mode = 0
+        # NOTE: eager mode下，每张卡global_bs不一致会有报错，可手动赋值
         global_bs = args.hidden_states.shape[0] * self.ep_world_size
         kwargs_mc2_dispatch = {
             "x": args.hidden_states,
@@ -419,7 +421,7 @@ def gather_from_sequence_parallel_region(
     return _gather_along_first_dim(input_, group, output_split_sizes)
 
 
-class TokenDispatcherWithAll2AllV(MoETokenDispatcher):
+class TokenDispatcherWithAll2AllV(Singleton, MoETokenDispatcher):
     """
     The implementation of the AlltoAll-based token dispatcher, which handles token
     dispatching on the sequence level instead of token level. The core of this implementation
@@ -435,7 +437,7 @@ class TokenDispatcherWithAll2AllV(MoETokenDispatcher):
         self.with_quant = False
 
     def token_dispatch(self,
-                       args: MoeAll2AllArgs):
+                       args: MoeAll2AllVArgs):
 
         num_local_experts = args.num_experts // self.ep_size
         preprocess_result = self._dispatch_preprocess(
@@ -461,7 +463,7 @@ class TokenDispatcherWithAll2AllV(MoETokenDispatcher):
             "dynamic_scale": dynamic_scale,
             "group_list_type": 1
         }
-        context = All2AllDispatchContext(
+        context = All2AllVDispatchContext(
             topk_weights=args.topk_weights,
             num_experts=args.num_experts,
             num_local_experts=num_local_experts,
@@ -476,7 +478,7 @@ class TokenDispatcherWithAll2AllV(MoETokenDispatcher):
 
     def token_combine(self,
                       hidden_states: torch.Tensor,
-                      ctx: All2AllDispatchContext):
+                      ctx: All2AllVDispatchContext):
 
         hidden_states = self._combine_preprocess(hidden_states, ctx.num_local_experts,
                                                  ctx.reversed_global_input_permutation_mapping)

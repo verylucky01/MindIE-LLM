@@ -21,10 +21,10 @@ from mindie_llm.runtime.layers.fused_moe.token_dispatcher import (
     TokenDispatcherWithAll2AllV,
     MoeAllGatherArgs,
     MoeMC2Args,
-    MoeAll2AllArgs,
+    MoeAll2AllVArgs,
     AllGatherDispatchContext,
     MC2DispatchContext,
-    All2AllDispatchContext,
+    All2AllVDispatchContext,
     async_all_to_all,
     gather_from_sequence_parallel_region,
 )
@@ -329,7 +329,7 @@ class TestTokenDispatcherWithAll2AllV:
         dispatcher.with_quant = with_quant
         dispatcher.ep_size = world_size
 
-        mock_context = All2AllDispatchContext(
+        mock_context = All2AllVDispatchContext(
             topk_weights=base_tensors["topk_weights"],
             num_experts=base_tensors["num_experts"],
             num_local_experts=num_local_experts,
@@ -350,7 +350,7 @@ class TestTokenDispatcherWithAll2AllV:
 
         dispatcher.token_dispatch = MagicMock(return_value=(mock_output, mock_context))
 
-        args = MoeAll2AllArgs(
+        args = MoeAll2AllVArgs(
             hidden_states=base_tensors["hidden_states"],
             topk_weights=base_tensors["topk_weights"],
             topk_ids=base_tensors["topk_ids"],
@@ -360,14 +360,14 @@ class TestTokenDispatcherWithAll2AllV:
         output, context = dispatcher.token_dispatch(args)
 
         assert isinstance(output, dict)
-        assert isinstance(context, All2AllDispatchContext)
+        assert isinstance(context, All2AllVDispatchContext)
         assert context.num_local_experts == num_local_experts
         assert output["dynamic_scale"] is None or (with_quant and isinstance(output["dynamic_scale"], torch.Tensor))
 
     def test_token_combine(self, mock_torch_npu, base_tensors):
         dispatcher = TokenDispatcherWithAll2AllV()
 
-        ctx = All2AllDispatchContext(
+        ctx = All2AllVDispatchContext(
             topk_weights=base_tensors["topk_weights"],
             num_experts=8,
             num_local_experts=4,

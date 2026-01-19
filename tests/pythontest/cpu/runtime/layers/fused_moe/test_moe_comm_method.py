@@ -8,7 +8,7 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 
-from unittest.mock import patch, MagicMock, call
+from unittest.mock import patch, MagicMock
 from dataclasses import dataclass
 from typing import Optional
 
@@ -18,18 +18,12 @@ import torch
 from mindie_llm.runtime.layers.fused_moe.moe_comm_method import (
     MoECommType,
     select_moe_comm_method,
-    setup_moe_comm_method,
     get_cached_dispatcher,
-    build_moe_comm_args,
-    _MOE_COMM_DISPATCHER_MAP
 )
 from mindie_llm.runtime.layers.fused_moe.token_dispatcher import (
     TokenDispatcherWithAllGather,
     TokenDispatcherWithMC2,
     TokenDispatcherWithAll2AllV,
-    MoeAllGatherArgs,
-    MoeMC2Args,
-    MoeAll2AllArgs,
 )
 from mindie_llm.runtime.utils.distributed.parallel_info_manager import ParallelType
 from mindie_llm.runtime.utils.npu.device_utils import DeviceType
@@ -91,24 +85,6 @@ def mock_dist_env():
         yield
 
 
-@pytest.fixture
-def dummy_inputs():
-    return dict(
-        hidden_states=torch.randn(4, 16),
-        topk_weights=torch.randn(4, 2),
-        topk_ids=torch.randint(0, 8, (4, 2)),
-        top_k=2,
-        num_experts=8,
-        expert_list=list(range(8)),
-        expert_map=None,
-        with_quant=False,
-        mc2_mask=torch.ones(4, dtype=torch.bool),
-        shared_experts=[0],
-        quantized_x_for_share=torch.randn(4, 16),
-        dynamic_scale_for_share=torch.ones(4),
-    )
-
-
 @dataclass(frozen=True)
 class MoeCommTestCase:
     device_type: DeviceType
@@ -157,9 +133,9 @@ def test_select_moe_comm_parametrized(
     )
     mock_forward_ctx.return_value.is_prefill = case.is_prefill
 
-    comm = select_moe_comm_method(quant_type=case.quant_type)
+    comm_type = select_moe_comm_method(quant_type=case.quant_type)
 
-    assert comm == case.expected_comm
+    assert comm_type == case.expected_comm
 
 
 def test_select_moe_comm_unsupported_device(mock_platform_and_parallel):
@@ -172,84 +148,25 @@ def test_select_moe_comm_unsupported_device(mock_platform_and_parallel):
     assert "Unsupported soc_version" in str(exc_info.value)
 
 
-def test_setup_moe_comm_method_registers_dispatchers(mock_dist_env):
-    """测试setup函数正确注册所有dispatcher"""
-    _MOE_COMM_DISPATCHER_MAP.clear()
-    setup_moe_comm_method()
-
+def test_get_cached_dispatcher_valid_type(mock_dist_env):
+    """测试：传入合法的MoECommTYpe，返回对应实例"""
     assert isinstance(get_cached_dispatcher(MoECommType.ALLGATHER), TokenDispatcherWithAllGather)
     assert isinstance(get_cached_dispatcher(MoECommType.MC2), TokenDispatcherWithMC2)
     assert isinstance(get_cached_dispatcher(MoECommType.ALLTOALL), TokenDispatcherWithAll2AllV)
-    assert get_cached_dispatcher(MoECommType.FUSED_ALLTOALL) is None
 
 
 def test_get_cached_dispatcher_singleton(mock_dist_env):
     """测试dispatcher是单例模式"""
-    _MOE_COMM_DISPATCHER_MAP.clear()
-    setup_moe_comm_method()
     dispatcher1 = get_cached_dispatcher(MoECommType.ALLGATHER)
     dispatcher2 = get_cached_dispatcher(MoECommType.ALLGATHER)
+    dispatcher3 = get_cached_dispatcher(MoECommType.MC2)
 
     assert dispatcher1 is dispatcher2
+    assert dispatcher1 is not dispatcher3
 
 
-def test_get_cached_dispatcher_none():
-    """测试传入None时返回None"""
+def test_get_cached_dispatcher_invalid_none():
+    """测试：传入None/不支持的类型，返回None"""
     assert get_cached_dispatcher(None) is None
     assert get_cached_dispatcher(MoECommType.FUSED_ALLTOALL) is None
     assert get_cached_dispatcher("INVALID_TYPE") is None
-
-
-# ====================== build_moe_comm_args 全类型测试 ======================
-@pytest.mark.parametrize(
-    "comm_type, expected_args_class, check_attrs",
-    [
-        (
-            MoECommType.ALLGATHER,
-            MoeAllGatherArgs,
-            {"top_k": 2, "num_experts": 8, "with_quant": False}
-        ),
-        (
-            MoECommType.MC2,
-            MoeMC2Args,
-            {"num_experts": 8, "with_quant": False, "shared_experts": [0]}
-        ),
-        (
-            MoECommType.ALLTOALL,
-            MoeAll2AllArgs,
-            {"num_experts": 8}
-        ),
-    ],
-)
-def test_build_moe_comm_args(dummy_inputs, comm_type, expected_args_class, check_attrs):
-    """参数化测试构建不同类型的comm args"""
-    args = build_moe_comm_args(moe_comm_type=comm_type, **dummy_inputs)
-
-    # 检查返回类型
-    assert isinstance(args, expected_args_class)
-
-    # 检查属性值
-    for attr, expected_value in check_attrs.items():
-        actual_value = getattr(args, attr)
-        if callable(expected_value):
-            assert expected_value(actual_value)
-        else:
-            assert actual_value == expected_value
-
-
-def test_build_args_invalid_comm_type(dummy_inputs):
-    """测试传入无效的comm type时抛出异常"""
-    with pytest.raises(NotImplementedError) as exc_info:
-        build_moe_comm_args(
-            moe_comm_type=MoECommType.FUSED_ALLTOALL,  # 未实现的枚举值
-            **dummy_inputs
-        )
-    assert "not implemented" in str(exc_info.value)
-
-
-def test_build_args_with_quant(dummy_inputs):
-    """测试带量化参数的场景"""
-    dummy_inputs["with_quant"] = True
-    args = build_moe_comm_args(moe_comm_type=MoECommType.ALLGATHER, **dummy_inputs)
-    assert args.with_quant is True
-    assert isinstance(args, MoeAllGatherArgs)
