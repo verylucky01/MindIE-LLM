@@ -22,18 +22,15 @@
 namespace atb_speed {
 namespace glm41v {
 
-class Glm41vModelParam : public atb_speed::base::ModelParam {
-};
-class Glm41vDecoderModel : public atb_speed::base::DecoderModel {
+class DecoderModel : public atb_speed::base::DecoderModel {
 public:
-    explicit Glm41vDecoderModel(const std::string &param);
+    explicit DecoderModel(const std::string &param);
 protected:
     atb::Status CreateLayerOperation(atb::Operation **op, uint32_t layerId) override;
-    Glm41vModelParam param;
 };
 
 
-REGISTER_MODEL(glm41v, Glm41vDecoderModel);
+REGISTER_MODEL(glm41v, DecoderModel);
 }  // namespace glm41v
 }  // namespace atb_speed
 #endif

@@ -20,22 +20,18 @@
 namespace atb_speed {
 namespace glm41v {
 
-class Glm41vLayerParam : public atb_speed::base::LayerParam {
-};
-class Glm41vDecoderLayer : public atb_speed::base::DecoderLayer<atb::infer::RmsNormParam> {
+
+class DecoderLayer : public atb_speed::base::DecoderLayer<atb::infer::RmsNormParam> {
 public:
-    explicit Glm41vDecoderLayer(const Glm41vLayerParam &param);
-    ~Glm41vDecoderLayer() override {};
+    explicit DecoderLayer(const atb_speed::base::LayerParam &param);
+    ~DecoderLayer() override {};
 protected:
     void ConstructInTensorMap() override;
     atb::Status AddOperationToGraph() override;
     void SetFusionAttentionParam(
         atb_speed::common::FusionAttentionParam<atb::infer::RmsNormParam> &fusionAttentionParam) override;
-    void SetFusionAttentionNormParam(
-        atb_speed::common::FusionAttentionParam<atb::infer::RmsNormParam> &fusionAttentionParam) override;
     atb::Status AddPostSelfAttentionRMSNorm();
     atb::Status AddPostMlpRMSNorm();
-    Glm41vLayerParam param;
 };
 
 

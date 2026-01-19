@@ -16,11 +16,9 @@ namespace glm41v {
 
 static const uint64_t NUM2 = 2;
 
-Glm41vDecoderLayer::Glm41vDecoderLayer(
-    const Glm41vLayerParam &param) : atb_speed::base::DecoderLayer<atb::infer::RmsNormParam>(param)
+DecoderLayer::DecoderLayer(
+    const atb_speed::base::LayerParam &param) : atb_speed::base::DecoderLayer<atb::infer::RmsNormParam>(param)
 {
-    this->param = param;
-    this->param.CheckParam();
     this->inTensorCandidates["post_self_attn_norm_weight"] = {
         "in_post_self_attn_norm_weight"
     };
@@ -29,7 +27,7 @@ Glm41vDecoderLayer::Glm41vDecoderLayer(
     };
 };
 
-void Glm41vDecoderLayer::ConstructInTensorMap()
+void DecoderLayer::ConstructInTensorMap()
 {
     this->inTensorList.clear();
     atb_speed::common::AddTensorToList(this->inTensorCandidates, "input_norm_weight", this->inTensorList);
@@ -42,27 +40,20 @@ void Glm41vDecoderLayer::ConstructInTensorMap()
     if (param.enableSpeculate) {
         atb_speed::common::AddTensorToList(this->inTensorCandidates, "q_len", this->inTensorList);
     }
-    atb_speed::common::AddTensorToList(
-        this->internalTensorCandidates, "default", this->intermediateTensorList);
-    this->graph.inTensorNum = this->inTensorList.size();
+    if (param.enableFlashComm) {
+        atb_speed::common::AddTensorToList(this->inTensorCandidates, "flash_comm", this->inTensorList);
+    }
 }
 
-void Glm41vDecoderLayer::SetFusionAttentionParam(
+void DecoderLayer::SetFusionAttentionParam(
     atb_speed::common::FusionAttentionParam<atb::infer::RmsNormParam> &fusionAttentionParam)
 {
-    DecoderLayer<atb::infer::RmsNormParam>::SetFusionAttentionParam(fusionAttentionParam);
+    atb_speed::base::DecoderLayer<atb::infer::RmsNormParam>::SetFusionAttentionParam(fusionAttentionParam);
     fusionAttentionParam.rotaryType = atb_speed::common::RotaryType::HALF_ROTARY;
     fusionAttentionParam.ropeParam.rotaryCoeff = this->param.hiddenSizePerAttentionHead / NUM2;
 }
 
-void Glm41vDecoderLayer::SetFusionAttentionNormParam(
-    atb_speed::common::FusionAttentionParam<atb::infer::RmsNormParam> &fusionAttentionParam)
-{
-    DecoderLayer<atb::infer::RmsNormParam>::SetFusionAttentionNormParam(fusionAttentionParam);
-    fusionAttentionParam.enableNormQuantOp = false;
-}
-
-atb::Status Glm41vDecoderLayer::AddPostSelfAttentionRMSNorm()
+atb::Status DecoderLayer::AddPostSelfAttentionRMSNorm()
 {
     atb::infer::RmsNormParam normParam;
     normParam.layerType = atb::infer::RmsNormParam::RmsNormType::RMS_NORM_NORM;
@@ -78,7 +69,7 @@ atb::Status Glm41vDecoderLayer::AddPostSelfAttentionRMSNorm()
     return atb::NO_ERROR;
 }
 
-atb::Status Glm41vDecoderLayer::AddPostMlpRMSNorm()
+atb::Status DecoderLayer::AddPostMlpRMSNorm()
 {
     atb::infer::RmsNormParam normParam;
     normParam.layerType = atb::infer::RmsNormParam::RmsNormType::RMS_NORM_NORM;
@@ -94,21 +85,14 @@ atb::Status Glm41vDecoderLayer::AddPostMlpRMSNorm()
     return atb::NO_ERROR;
 }
 
-atb::Status Glm41vDecoderLayer::AddOperationToGraph()
+atb::Status DecoderLayer::AddOperationToGraph()
 {
     CHECK_OPERATION_STATUS_RETURN(this->AddFusionAttention());
     CHECK_OPERATION_STATUS_RETURN(this->AddPostSelfAttentionRMSNorm());
     CHECK_OPERATION_STATUS_RETURN(this->AddFusionAttentionResidualAdd());
-    if (param.hasAttnDp && param.hasMlpTp) {
-        CHECK_OPERATION_STATUS_RETURN(this->AddFusedAllGather());
-    }
     CHECK_OPERATION_STATUS_RETURN(this->AddMlp());
     CHECK_OPERATION_STATUS_RETURN(this->AddPostMlpRMSNorm());
     CHECK_OPERATION_STATUS_RETURN(this->AddMlpResidualAdd());
-    if (param.hasAttnDp && param.hasMlpTp) {
-        CHECK_OPERATION_STATUS_RETURN(this->AddRevertAllGather());
-        ATB_SPEED_LOG_DEBUG("Revert AllGather finished");
-    }
     return atb::NO_ERROR;
 }
 

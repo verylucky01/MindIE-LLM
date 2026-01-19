@@ -48,6 +48,11 @@ from atb_llm.utils.layers import (
 )
 
 
+A2_SOCS = (220, 221, 222, 223, 224, 225)
+A3_SOCS = (250, 251, 252, 253, 254, 255)
+INITIAL_MAX_GRID_SIZE = 8192
+
+
 class Glm41vVisionPatchEmbed(nn.Module):
     def __init__(self, config, weights, prefix):
         super().__init__()
@@ -100,11 +105,18 @@ class Glm41vVisionRotaryEmbedding(nn.Module):
         super().__init__()
         inv_freq = 1.0 / (theta ** (torch.arange(0, dim, 2, dtype=torch.float) / dim))
         self.register_buffer("inv_freq", inv_freq, persistent=False)
+        self.max_grid_size = INITIAL_MAX_GRID_SIZE
+        self.freqs = None
+
+    def build_freq_table(self):
+        seq = torch.arange(self.max_grid_size, device=self.inv_freq.device, dtype=self.inv_freq.dtype)
+        self.freqs = torch.outer(seq, self.inv_freq)
 
     def forward(self, seqlen: int) -> torch.Tensor:
-        seq = torch.arange(seqlen, device=self.inv_freq.device, dtype=self.inv_freq.dtype)
-        freqs = torch.outer(seq, self.inv_freq)
-        return freqs
+        if self.freqs is None or seqlen > self.max_grid_size:
+            self.max_grid_size = max(seqlen, self.max_grid_size)
+            self.build_freq_table()
+        return self.freqs
 
 
 class Glm41vVisionEmbeddings(nn.Module):
@@ -116,6 +128,7 @@ class Glm41vVisionEmbeddings(nn.Module):
         self.patch_size = config.patch_size
         self.num_patches = (self.image_size // self.patch_size) ** 2
         self.num_positions = self.num_patches
+        self.soc_info = NPUSocInfo()
         self.position_embedding = nn.Embedding(self.num_positions, self.embed_dim)
         self.position_embedding.weight.data = weights.get_tensor(f"{prefix}.position_embedding.weight")
         self.register_buffer("position_ids", torch.arange(self.num_positions).expand((1, -1)), persistent=False)
@@ -126,21 +139,19 @@ class Glm41vVisionEmbeddings(nn.Module):
         hidden_size = pos_embed_weight.shape[1]
         total_seq = h_coords.shape[0]
         dtype = pos_embed_weight.dtype
-        device = torch.device("cpu")
+        device = pos_embed_weight.device
 
         # Move coordinates to correct device
-        h_coords, w_coords = h_coords.cpu(), w_coords.cpu()
-
+        h_coords, w_coords = h_coords.numpy(), w_coords.numpy()
         # Handle empty sequence case
         if total_seq == 0:
             adapted_pos_embed = torch.empty(0, hidden_size, device=device, dtype=dtype)
         else:
             # Convert inputs to tensors if needed
             if isinstance(lengths, list):
-                lengths = torch.tensor(lengths, device=device, dtype=torch.long)
-            if not isinstance(image_shapes, torch.Tensor):
-                image_shapes = torch.tensor(image_shapes, device=device, dtype=torch.long)
-
+                lengths = np.array(lengths, dtype=np.int64)
+            if not isinstance(image_shapes, np.ndarray):
+                image_shapes = np.array(image_shapes, dtype=np.int64)
             # Prepare 2D position embedding
             orig_size_sq = pos_embed_weight.shape[0]
             orig_size = int(orig_size_sq**0.5)
@@ -150,29 +161,32 @@ class Glm41vVisionEmbeddings(nn.Module):
                 .unsqueeze(0)
                 .to(device=device, dtype=torch.float32)
             )
-
             # Calculate target dimensions for each patch
-            target_h = torch.cat([image_shapes[i, 1].repeat(lengths[i]) for i in range(len(lengths))]).to(
-                device=device, dtype=torch.float32
-            )
-            target_w = torch.cat([image_shapes[i, 2].repeat(lengths[i]) for i in range(len(lengths))]).to(
-                device=device, dtype=torch.float32
-            )
-
+            target_h = np.concatenate(
+                [np.repeat(image_shapes[i, 1], lengths[i]) for i in range(len(lengths))]
+            ).astype(np.float32)
+            target_w = np.concatenate(
+                [np.repeat(image_shapes[i, 2], lengths[i]) for i in range(len(lengths))]
+            ).astype(np.float32)
             # Normalize coordinates to [-1, 1] range for grid_sample
-            h_coords = h_coords.to(device=device, dtype=torch.float32)
-            w_coords = w_coords.to(device=device, dtype=torch.float32)
+            h_coords = h_coords.astype(np.float32)
+            w_coords = w_coords.astype(np.float32)
             norm_w = ((w_coords + 0.5) / target_w) * 2 - 1
             norm_h = ((h_coords + 0.5) / target_h) * 2 - 1
-
             # Create sampling grid
-            grid = torch.stack((norm_w, norm_h), dim=-1).unsqueeze(0).unsqueeze(2)
-
+            grid = np.stack((norm_w, norm_h), axis=-1)
+            grid = torch.tensor(grid, dtype=torch.float32, device=device).unsqueeze(0).unsqueeze(2)
             # Perform bicubic interpolation
-            interpolated_embed_fp32 = F.grid_sample(
-                pos_embed_2d, grid, mode="bicubic", align_corners=False, padding_mode="border"
-            )
-
+            if self.soc_info.soc_version in A2_SOCS + A3_SOCS:
+                interpolated_embed_fp32 = F.grid_sample(
+                    pos_embed_2d, grid, mode="bicubic", align_corners=False, padding_mode="border"
+                )
+            else:
+                # GridSample2D in bicubic mode is not supported in 300I DUO cards
+                upsampled = F.interpolate(pos_embed_2d, scale_factor=2, mode='bilinear', align_corners=False)
+                interpolated_embed_fp32 = F.grid_sample(upsampled, grid, 
+                                                        mode='bilinear', align_corners=False,
+                                                        padding_mode='zeros')
             # Reshape and convert back to original dtype
             adapted_pos_embed_fp32 = interpolated_embed_fp32.squeeze(0).squeeze(-1).permute(1, 0)
             adapted_pos_embed = adapted_pos_embed_fp32.to(dtype)
@@ -847,6 +861,7 @@ class Glm41vVisionModel(nn.Module):
     def get_adapted_pos_embed(self, grid_thw):
         grid_thw = torch.tensor(np.array(json.loads(grid_thw)))
         rotary_pos_emb, image_type_ids = self.rot_pos_emb(grid_thw)
+        rotary_pos_emb = rotary_pos_emb.npu()
         emb = torch.cat((rotary_pos_emb, rotary_pos_emb), dim=-1)
         position_embeddings = (emb.cos(), emb.sin())
 
