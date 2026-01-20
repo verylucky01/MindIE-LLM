@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2026. All rights reserved.
  * MindIE is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -40,8 +40,6 @@ enum class TransferStatusType {
     PULL_KV_COMPLETE = 2,     // D instance has completed pulling KV Cache
     RECOMPUTED_TRIGGERED = 3, // recompute is triggered
     PREFILL_COMPLETE = 4,     // P instance has completed prefill, response the results
-    PUBLISH_KV_FAILED = 5,
-    PULL_KV_FAILED = 6
 };
 
 // response contents for a single sequence

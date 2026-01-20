@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2026. All rights reserved.
  * MindIE is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -308,17 +308,6 @@ void SingleLLMPrefillReqHandler::SetBackManagerCallBack(RequestSPtr request)
             if (!self->AtomicReadWriteFinish(expect)) {
                 return;
             }
-            self->cv.notify_one();
-        } else if (response->transferStatusFlag == TransferStatusType::PUBLISH_KV_FAILED) {
-            self->constructOneResponseCallBack_ = nullptr;
-            ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SPLITWISE,
-                UNKNOWN_ERROR), "[P Node] Publish kv cache fail. requestId: " << self->reqId_);
-            if (!self->AtomicReadWriteFinish(expect)) {
-                return;
-            }
-            self->SendResponseInfo(httplib::StatusCode::InternalServerError_500,
-                HttpRestResource::WrapperJson("[P Node] Publish kv cache fail",
-                g_exceptionInfo.at(httplib::StatusCode::InternalServerError_500)));
             self->cv.notify_one();
         } else {
             self->constructOneResponseCallBack_ = nullptr;
