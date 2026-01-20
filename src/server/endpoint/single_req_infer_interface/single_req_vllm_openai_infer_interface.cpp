@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2026. All rights reserved.
  * MindIE is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -26,7 +26,7 @@ using OrderedJson = nlohmann::ordered_json;
 
 namespace mindie_llm {
 static constexpr double MAX_OPENAI_REPETITION_PENALTY = 2.0;
-static std::wregex g_functionNamePattern(L"^[a-zA-Z0-9_\u4e00-\u9fa5-]{1,64}$");
+static constexpr auto FUNCTION_NAME_PATTERN = L"^[a-zA-Z0-9_\u4e00-\u9fa5-]{1,64}$";
 
 SingleReqVllmOpenAiInferInterface::SingleReqVllmOpenAiInferInterface(
     const std::shared_ptr<SingleLLMReqHandlerBase>& singleLLMReqHandlerBase, bool isReCompute,
@@ -226,7 +226,7 @@ bool SingleReqVllmOpenAiInferInterface::ValidToolCall(OrderedJson &toolCalls, st
             return false;
         }
         std::string functionName = function["name"].get<std::string>();
-        if (!std::regex_match(String2Wstring(functionName), g_functionNamePattern)) {
+        if (!std::regex_match(String2Wstring(functionName), std::wregex(FUNCTION_NAME_PATTERN))) {
             msg = "The name of function must be a-z, A-Z, 0-9, common chinese characters, underscores and dashe "
             "within max length of 64, unexpected function name: " + functionName;
             return false;
@@ -476,7 +476,7 @@ bool SingleReqVllmOpenAiInferInterface::CheckFunction(const OrderedJson &toolPar
         return false;
     }
     std::string functionName = func["name"].get<std::string>();
-    if (!std::regex_match(String2Wstring(functionName), g_functionNamePattern)) {
+    if (!std::regex_match(String2Wstring(functionName), std::wregex(FUNCTION_NAME_PATTERN))) {
         error = "The name of function must be a-z, A-Z, 0-9, common chinese characters, underscores and dashe "
         "within max length of 64, unexpected function name: " + functionName;
         return false;

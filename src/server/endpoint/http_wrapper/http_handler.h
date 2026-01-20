@@ -51,7 +51,7 @@ private:
 
     static bool GetRequestModelConfig(const ReqCtxPtr &requestContext, ModelDeployConfig &config);
     static bool GetRequestModelConfig(const ReqCtxPtr &requestContext, LoraConfig &config);
-    static int HandlePostGenerate(ReqCtxPtr &reqCtx);
+    static bool HandlePostGenerate(ReqCtxPtr &reqCtx);
     static int HandleGetSlotCount(const std::shared_ptr<RequestContext> &context);
     static void HandleGetHealthStatus(const ReqCtxPtr &ctx);
     static void HandleUpdateNpuDeviceIds(const ReqCtxPtr &ctx);

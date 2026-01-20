@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2026. All rights reserved.
  * MindIE is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -378,11 +378,43 @@ TEST_F(HttpHandlerTest, HandlePostGenerate)
 {
     MOCKER_CPP(&SingleReqInferInterfaceBase::Process, void (*)(RequestSPtr, const std::string&, const uint64_t&))
         .stubs();
+    // case 1: parse failed
     MOCKER(JsonParse::GetInferTypeFromJsonStr)
-            .stubs()
-            .will(returnValue(0));
-    handler.HandlePostGenerate(requestContext);
-    EXPECT_EQ(handler.HandlePostGenerate(requestContext), 1);
+        .stubs()
+        .will(returnValue(1)); // return error
+    EXPECT_EQ(handler.HandlePostGenerate(requestContext), false);
+}
+
+int MockGetInferTypeFromJsonStrTgi(const std::string &jsonStr, uint16_t &inferType)
+{
+    inferType = MSG_TYPE_TGI;
+    return EP_OK;
+}
+
+int MockGetInferTypeFromJsonStrVllm(const std::string &jsonStr, uint16_t &inferType)
+{
+    inferType = MSG_TYPE_VLLM;
+    return EP_OK;
+}
+
+TEST_F(HttpHandlerTest, HandlePostGenerateTgi)
+{
+    MOCKER_CPP(&SingleReqInferInterfaceBase::Process, void (*)(RequestSPtr, const std::string&, const uint64_t&))
+        .stubs();
+    // case 2: TGI type
+    MOCKER_CPP(JsonParse::GetInferTypeFromJsonStr, uint32_t(*)(const std::string&, uint16_t&))
+        .stubs().will(invoke(MockGetInferTypeFromJsonStrTgi));
+    EXPECT_EQ(handler.HandlePostGenerate(requestContext), true);
+}
+
+TEST_F(HttpHandlerTest, HandlePostGenerateVllm)
+{
+    MOCKER_CPP(&SingleReqInferInterfaceBase::Process, void (*)(RequestSPtr, const std::string&, const uint64_t&))
+        .stubs();
+    // case 3: VLLM type
+    MOCKER_CPP(JsonParse::GetInferTypeFromJsonStr, uint32_t(*)(const std::string&, uint16_t&))
+        .stubs().will(invoke(MockGetInferTypeFromJsonStrVllm));
+    EXPECT_EQ(handler.HandlePostGenerate(requestContext), true);
 }
 
 TEST_F(HttpHandlerTest, CanDmiRoleReqProcess)

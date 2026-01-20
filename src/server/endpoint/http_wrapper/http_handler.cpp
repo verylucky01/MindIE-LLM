@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2026. All rights reserved.
  * MindIE is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -453,9 +453,9 @@ bool CheckHealthAndStop(ReqCtxPtr &context)
     return false;
 }
 
-int HttpHandler::HandlePostGenerate(ReqCtxPtr &reqCtx)
+bool HttpHandler::HandlePostGenerate(ReqCtxPtr &reqCtx)
 {
-    uint16_t inferType = 0;
+    uint16_t inferType = MSG_TYPE_INVALID;
     auto code = JsonParse::GetInferTypeFromJsonStr(reqCtx->MsgBody(), inferType);
     if (code != EP_OK || (inferType != MSG_TYPE_TGI && inferType != MSG_TYPE_VLLM)) {
         std::string jsonStr(R"delimiter({"Error": "`inputs` or `prompt`)delimiter" +
@@ -463,8 +463,9 @@ int HttpHandler::HandlePostGenerate(ReqCtxPtr &reqCtx)
             R"delimiter(request body must be valid json", "error_type": "validation"})delimiter");
         ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SPLITWISE,
             CHECK_ERROR), "Validation failed");
-        return HttpRestResource::ResponseJsonBody(reqCtx, httplib::StatusCode::UnprocessableContent_422,
+        HttpRestResource::ResponseJsonBody(reqCtx, httplib::StatusCode::UnprocessableContent_422,
             HttpRestResource::WrapperJson(jsonStr, g_exceptionInfo.at(httplib::StatusCode::UnprocessableContent_422)));
+        return false;
     }
     auto opt = MakeHttpHeadersOpt(reqCtx->Req());
     if (inferType == MsgType::MSG_TYPE_TGI) {
@@ -478,7 +479,7 @@ int HttpHandler::HandlePostGenerate(ReqCtxPtr &reqCtx)
                 return std::make_shared<SingleReqVllmInferInterface>(singleLLMReqHandlerBase, opt->isReCompute);
             });
     }
-    return 1;
+    return true;
 }
 
 void HttpHandler::HandleGeneralTGIPostGenerate(const httplib::Request &request, ReqCtxPtr &reqCtx)
