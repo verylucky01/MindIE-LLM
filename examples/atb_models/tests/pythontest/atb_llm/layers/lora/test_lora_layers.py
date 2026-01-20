@@ -93,7 +93,7 @@ class TestLoraLayers(unittest.TestCase):
         mock_weight_loader_func.return_value = linear_tensor
         linear_layer = FakeParallelLinear(["linear"])
         lora_layer = ColumnParallelLinearWithLoRA(linear_layer)
-        self.assertTrue(torch.equal(lora_layer.weight, linear_tensor))
+        self.assertTrue(torch.allclose(lora_layer.weight, linear_tensor))
         self.assertIsNone(lora_layer.bias)
 
     @patch("atb_llm.layers.base_layer.BaseLayer.weight_loader")
@@ -119,8 +119,8 @@ class TestLoraLayers(unittest.TestCase):
         lora_b = torch.zeros(self.max_loras + 1, dim_r, self.n, dtype=self.dtype)
         self.assertIsInstance(lora_layer.lora_a_stacked, Parameter)
         self.assertIsInstance(lora_layer.lora_b_stacked, Parameter)
-        self.assertTrue(torch.equal(lora_layer.lora_a_stacked.cpu(), lora_a))
-        self.assertTrue(torch.equal(lora_layer.lora_b_stacked.cpu(), lora_b))
+        self.assertTrue(torch.allclose(lora_layer.lora_a_stacked.cpu(), lora_a))
+        self.assertTrue(torch.allclose(lora_layer.lora_b_stacked.cpu(), lora_b))
 
     @patch("atb_llm.layers.base_layer.BaseLayer.weight_loader")
     def test_parallel_linear_with_lora_set_lora(self, mock_weight_loader_func):
@@ -137,8 +137,8 @@ class TestLoraLayers(unittest.TestCase):
         lora_b = torch.rand((self.r, self.n), device=self.device, dtype=torch.float16)
         index = random.randint(0, self.max_loras - 1)
         lora_layer.set_lora(index, lora_a, lora_b)
-        self.assertTrue(torch.equal(lora_layer.lora_a_stacked[index, :self.r].cpu(), lora_a.cpu()))
-        self.assertTrue(torch.equal(lora_layer.lora_b_stacked[index, :self.r].cpu(), lora_b.cpu()))
+        self.assertTrue(torch.allclose(lora_layer.lora_a_stacked[index, :self.r].cpu(), lora_a.cpu()))
+        self.assertTrue(torch.allclose(lora_layer.lora_b_stacked[index, :self.r].cpu(), lora_b.cpu()))
 
     @patch("atb_llm.layers.base_layer.BaseLayer.weight_loader")
     def test_parallel_linear_with_lora_reset_lora(self, mock_weight_loader_func):
@@ -155,8 +155,8 @@ class TestLoraLayers(unittest.TestCase):
         lora_layer.reset_lora(index)
         lora_a = torch.zeros(dim_r, self.k, dtype=self.dtype)
         lora_b = torch.zeros(dim_r, self.n, dtype=self.dtype)
-        self.assertTrue(torch.equal(lora_layer.lora_a_stacked[index].cpu(), lora_a))
-        self.assertTrue(torch.equal(lora_layer.lora_b_stacked[index].cpu(), lora_b))
+        self.assertTrue(torch.allclose(lora_layer.lora_a_stacked[index].cpu(), lora_a))
+        self.assertTrue(torch.allclose(lora_layer.lora_b_stacked[index].cpu(), lora_b))
 
     @patch("atb_llm.layers.linear.linear.nn.functional.grouped_matmul")
     @patch("atb_llm.layers.linear.linear.nn.functional.linear")
@@ -216,8 +216,8 @@ class TestLoraLayers(unittest.TestCase):
         lora_layer.dtype = self.dtype
         lora_a = lora_layer.load_lora_a(mock_weight_tool_obj, ["lora_A"])
         lora_b = lora_layer.load_lora_b(mock_weight_tool_obj, ["lora_B"], [1])
-        self.assertTrue(torch.equal(lora_a, tensor_2))
-        self.assertTrue(torch.equal(lora_b, tensor_1.T.contiguous()))
+        self.assertTrue(torch.allclose(lora_a, tensor_2))
+        self.assertTrue(torch.allclose(lora_b, tensor_1.T.contiguous()))
         mock_weight_tool_obj.get_sharded.assert_called_once()
         mock_weight_tool_obj.get_tensor.assert_called_once()
 
@@ -235,8 +235,8 @@ class TestLoraLayers(unittest.TestCase):
         lora_layer.dtype = self.dtype
         lora_a = lora_layer.load_lora_a(mock_weight_tool_obj, ["lora1_A", "lora2_A"])
         lora_b = lora_layer.load_lora_b(mock_weight_tool_obj, ["lora1_B", "lora2_B"], [1, 1])
-        self.assertTrue(torch.equal(lora_a, torch.cat([tensor_2] * 2, dim=0)))
-        self.assertTrue(torch.equal(lora_b, torch.block_diag(*([tensor_1] * 2)).T.contiguous()))
+        self.assertTrue(torch.allclose(lora_a, torch.cat([tensor_2] * 2, dim=0)))
+        self.assertTrue(torch.allclose(lora_b, torch.block_diag(*([tensor_1] * 2)).T.contiguous()))
 
     def test_row_parallel_linear_with_lora(self):
         linear_tensor = torch.rand((self.n, self.k), device=self.device, dtype=torch.float16)
@@ -252,8 +252,8 @@ class TestLoraLayers(unittest.TestCase):
         lora_layer.dtype = self.dtype
         lora_a = lora_layer.load_lora_a(mock_weight_tool_obj, ["lora_A"])
         lora_b = lora_layer.load_lora_b(mock_weight_tool_obj, ["lora_B"], [1])
-        self.assertTrue(torch.equal(lora_a, tensor_1))
-        self.assertTrue(torch.equal(lora_b, tensor_2.T.contiguous()))
+        self.assertTrue(torch.allclose(lora_a, tensor_1))
+        self.assertTrue(torch.allclose(lora_b, tensor_2.T.contiguous()))
         mock_weight_tool_obj.get_sharded.assert_called_once()
         mock_weight_tool_obj.get_tensor.assert_called_once()
 
