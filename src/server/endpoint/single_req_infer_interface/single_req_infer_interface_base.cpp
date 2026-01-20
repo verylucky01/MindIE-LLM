@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2026. All rights reserved.
  * MindIE is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -941,9 +941,9 @@ bool SingleReqInferInterfaceBase::ProcessResponseStream(ResponseSPtr response,
     return true;
 }
 
-std::shared_ptr<SingleLLMReqHandlerBase> &SingleReqInferInterfaceBase::GetSingleLLMReqHandlerBase()
+Metrics &SingleReqInferInterfaceBase::GetMetrics()
 {
-    return singleLLMReqHandlerBase_;
+    return singleLLMReqHandlerBase_->GetMetrics();
 }
 
 InferParam::ValidationContext SingleReqInferInterfaceBase::BuildValidationContext() const
