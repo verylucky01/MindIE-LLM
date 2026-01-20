@@ -57,7 +57,6 @@ function fn_build()
     if [ "$build_type" = "release" ]; then
         fn_extract_debug_symbols $OUTPUT_DIR "$CODE_ROOT/llm_debug_symbols"
     fi
-    fn_make_whl
     fn_build_for_ci
     cp $SCRIPT_DIR/set_env.sh $OUTPUT_DIR
 }

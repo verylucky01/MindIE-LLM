@@ -23,12 +23,12 @@ if(NOT EXISTS "${DST_FILE_ONE}" OR "${PROTO_FILE}" IS_NEWER_THAN "${DST_FILE_ONE
         RESULT_VARIABLE GRPC_GENERATE_RESULT
         ERROR_VARIABLE GRPC_GENERATE_ERROR
     )
-    
+
     # 检查 gRPC 生成结果
     if(NOT GRPC_GENERATE_RESULT EQUAL 0)
         message(FATAL_ERROR "Failed to generate gRPC files: ${GRPC_GENERATE_ERROR}")
     endif()
-    
+
     # 生成 C++ 文件
     execute_process(
         COMMAND ${PROTOBUF_PROTOC_EXECUTABLE} -I ${DMI_PROTO_DIR} --cpp_out=${PROTO_INSTALL_DIR}
@@ -36,7 +36,7 @@ if(NOT EXISTS "${DST_FILE_ONE}" OR "${PROTO_FILE}" IS_NEWER_THAN "${DST_FILE_ONE
         RESULT_VARIABLE CPP_GENERATE_RESULT
         ERROR_VARIABLE CPP_GENERATE_ERROR
     )
-    
+
     # 检查 C++ 生成结果
     if(NOT CPP_GENERATE_RESULT EQUAL 0)
         message(FATAL_ERROR "Failed to generate C++ files: ${CPP_GENERATE_ERROR}")
@@ -64,11 +64,11 @@ include_directories(
         ${CMAKE_CURRENT_SOURCE_DIR}/health_checker
 )
 
-if(DEFINED ENV{MINDIE_VERSION})
-    set(MINDIE_VERSION $ENV{MINDIE_VERSION})
-    add_definitions(-DMINDIE_VERSION="${MINDIE_VERSION}")
+if(DEFINED ENV{MINDIE_LLM_VERSION_OVERRIDE})
+    set(MINDIE_VERSION $ENV{MINDIE_LLM_VERSION_OVERRIDE})
+    add_definitions(-DMINDIE_VERSION="${MINDIE_LLM_VERSION_OVERRIDE}")
 else()
-    message(WARNING "Environment MINDIE_VERSION is not set")
+    message(WARNING "Environment MINDIE_LLM_VERSION_OVERRIDE is not set")
 endif()
 
 # 编译endpoint的proto文件

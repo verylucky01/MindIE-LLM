@@ -45,7 +45,7 @@ function fn_make_run_package()
         fi
 
         (
-            cd "${src_dir}" 
+            cd "${src_dir}"
             shopt -s nullglob
             for pattern in "${patterns[@]}"; do
                 for file in ${pattern}; do
@@ -99,38 +99,9 @@ function fn_make_debug_symbols_package() {
     cd -
 }
 
-function fn_make_whl() {
-    PACKAGE_NAME=$(echo $PACKAGE_NAME | sed -E 's/([0-9]+)\.([0-9]+)\.RC([0-9]+)\.([0-9]+)/\1.\2rc\3.post\4/')
-    PACKAGE_NAME=$(echo $PACKAGE_NAME | sed -s 's!.T!.alpha!')
-    echo "MindIELLMWHLVersion $PACKAGE_NAME"
-    echo "make mindie-llm whl package"
-    cd $CODE_ROOT
-    python3 setup.py --setup_cmd="bdist_wheel" --version=${PACKAGE_NAME}
-    cp dist/*.whl $OUTPUT_DIR
-    rm -rf dist mindie_llm.egg-info
-    cd -
-    if [ "$build_type" = "release" ]; then
-        cd $CODE_ROOT/tools
-        cp $OUTPUT_DIR/lib/llm_manager_python.so $CODE_ROOT/tools/llm_manager_python_api_demo
-        python3 setup.py --setup_cmd="bdist_wheel" --version=${PACKAGE_NAME}
-        cp dist/*.whl $OUTPUT_DIR
-        rm -rf dist llm_manager_python_api_demo.egg-info
-        cd -
-    fi
-    echo "start to build mies tokenizer wheel"
-    cd "$CODE_ROOT/src/server/tokenizer"
-    python3 setup_tokenizer.py bdist_wheel
-    cp -v dist/mies_tokenizer-*.whl $OUTPUT_DIR
-    rm -rf *.egg-info dist
-    cd -
-}
-
 function fn_build_for_ci()
 {
     cd $OUTPUT_DIR
     mkdir -p include
-    if ! [ "$build_type" = "release" ]; then
-        cp -r $CODE_ROOT/mindie_llm .
-    fi
     cp -r $CODE_ROOT/src/include/* ./include/
 }

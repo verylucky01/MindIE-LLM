@@ -964,7 +964,7 @@ bool TokenizerProcessPool::InitSubProcessMemory(const std::shared_ptr<ShareToken
 bool TokenizerProcessPool::InitSubProcessTokenizer(std::shared_ptr<InferTokenizer> &tokenizer)
 {
     try {
-        pybind11::module module = pybind11::module_::import("mies_tokenizer");
+        pybind11::module module = pybind11::module_::import("mindie_llm.tokenizer");
         if (!pybind11::hasattr(module, "IbisTokenizer")) {
             return false;
         }

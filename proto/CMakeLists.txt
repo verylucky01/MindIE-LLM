@@ -15,7 +15,7 @@ if(NOT EXISTS "${PROTO_SRCS}" OR "${PROTO_FILE}" IS_NEWER_THAN "${PROTO_SRCS}")
         RESULT_VARIABLE CPP_GENERATE_RESULT
         ERROR_VARIABLE CPP_GENERATE_ERROR
     )
-    
+
     # 检查 C++ 生成结果
     if(NOT CPP_GENERATE_RESULT EQUAL 0)
         message(FATAL_ERROR "Failed to generate C++ files: ${CPP_GENERATE_ERROR}")
@@ -23,7 +23,7 @@ if(NOT EXISTS "${PROTO_SRCS}" OR "${PROTO_FILE}" IS_NEWER_THAN "${PROTO_SRCS}")
 else()
     message(STATUS "No need to convert. ${PROTO_SRCS} is up to date.")
 endif()
-    
+
 add_library(mindie_protobuf STATIC ${PROTO_SRCS} ${PROTO_HDRS})
 
 set_target_properties(mindie_protobuf PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/lib")
@@ -48,7 +48,7 @@ if(NOT EXISTS "${GRPC_DST_FILE}" OR "${PROTO_FILE}" IS_NEWER_THAN "${GRPC_DST_FI
         RESULT_VARIABLE GRPC_GENERATE_RESULT
         ERROR_VARIABLE GRPC_GENERATE_ERROR
     )
-    
+
     # 检查 gRPC 生成结果
     if(NOT GRPC_GENERATE_RESULT EQUAL 0)
         message(FATAL_ERROR "Failed to generate gRPC files: ${GRPC_GENERATE_ERROR}")
@@ -69,3 +69,18 @@ target_link_libraries(mindie_grpc
 )
 set_target_properties(mindie_grpc PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/lib")
 install(TARGETS mindie_grpc DESTINATION lib)
+
+set(PY_OUT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../mindie_llm/connector/common)
+set(GENERATED_PY ${PY_OUT_DIR}/model_execute_data_pb2.py)
+if(NOT EXISTS "${GENERATED_PY}" OR "${PROTO_FILE}" IS_NEWER_THAN "${GENERATED_PY}")
+    message(STATUS "Generate grpc header file to proto from model_execute_data.proto file...")
+    execute_process(
+        COMMAND ${PROTOBUF_PROTOC_EXECUTABLE} -I ${PROTO_PATH}
+                --experimental_allow_proto3_optional
+                --python_out=${PY_OUT_DIR}
+                --proto_path=${CMAKE_CURRENT_SOURCE_DIR}
+                ${PROTO_FILE}
+        RESULT_VARIABLE GRPC_GENERATE_RESULT
+        ERROR_VARIABLE GRPC_GENERATE_ERROR
+    )
+endif()

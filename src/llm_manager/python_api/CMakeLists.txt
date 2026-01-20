@@ -10,7 +10,7 @@ include_directories(
         ${CMAKE_CURRENT_SOURCE_DIR}/../../utils/include/mindie_llm
         ${THIRD_PARTY_OUTPUT_DIR}/nlohmann/include
 )
-        
+
 execute_process(
     COMMAND bash -c "python3 -m pybind11 --cmakedir"
     OUTPUT_VARIABLE command_output

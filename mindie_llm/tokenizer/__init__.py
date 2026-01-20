@@ -10,15 +10,6 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 
-import os
-from setuptools import setup
+__all__ = ["IbisTokenizer"]
 
-
-os.environ['SOURCE_DATE_EPOCH'] = '0'
-setup(
-    name='mies_tokenizer',
-    version='0.0.1',
-    description='ibis tokenizer',
-    packages=['mies_tokenizer'],
-    python_requires=">=3.10",
-)
+from .tokenizer import IbisTokenizer

@@ -70,3 +70,10 @@ add_subdirectory(daemon)
 
 # Add security compile options
 include(options.cmake)
+
+# Install config file
+install(
+    FILES ${CMAKE_CURRENT_SOURCE_DIR}/conf/config.json
+    DESTINATION conf
+    PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ
+)
