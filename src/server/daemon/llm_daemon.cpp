@@ -158,11 +158,6 @@ void KillProcessGroup()
         return;  // Is killing all processes
     }
 
-    if (g_expertParallel) {
-        ULOG_INFO(SUBMODLE_NAME_DAEMON, "Daemon is a big EP process, skip killing process group.");
-        return;
-    }
-
     std::cerr << "Daemon is killing, please wait about 15 seconds..." << std::endl;
 
     ULOG_AUDIT("system", MINDIE_SERVER, "stop endpoint", "success");
@@ -177,6 +172,9 @@ void KillProcessGroup()
             kill(pid, SIGTERM);
         }
     }
+
+    ULOG_AUDIT("system", MINDIE_SERVER, "stop the parent process of endpoint", "success");
+    kill(getppid(), SIGCHLD);
 
     // Wait a bit for graceful shutdown
     WaitForSubProcessExit(pids, 10);
