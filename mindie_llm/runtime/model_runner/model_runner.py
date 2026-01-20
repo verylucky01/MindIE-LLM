@@ -162,9 +162,9 @@ class ModelRunner:
         # All attention layers in model
         self.attn_layers = None
 
-        # 0: eager mode, 1: graph mode; 
-        # You can change 'self.enable_acl_graph' to 0 manually to enable eager mode, default is 1.
-        self.enable_acl_graph = 1
+        # False: eager mode, True: AclGraph mode; 
+        # prefill node in pd disaggregated mode do not need acl graph currently.
+        self.enable_acl_graph = not self.model_role == "prefill"
         
         # we store tensors here, decide not to use auto padding now.
         if self.enable_acl_graph:
