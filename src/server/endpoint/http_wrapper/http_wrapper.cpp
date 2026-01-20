@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2026. All rights reserved.
  * MindIE is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -14,20 +14,19 @@
 #include "http_wrapper.h"
 
 namespace mindie_llm {
-HttpWrapper *HttpWrapper::gHttpWrapper = nullptr;
-std::mutex HttpWrapper::gInitMutex;
 
-int32_t HttpWrapper::Start()
+bool HttpWrapper::Start()
 {
     std::lock_guard<std::mutex> guard(mMutex);
     if (mStarted) {
-        return EP_OK;
+        return true;
     }
     auto res = HttpServer::HttpServerInit();
     if (res == 0) {
         mStarted = true;
+        return true;
     }
-    return res;
+    return false;
 }
 
 void HttpWrapper::Stop()

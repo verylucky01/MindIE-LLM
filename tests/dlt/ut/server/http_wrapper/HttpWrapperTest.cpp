@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2026. All rights reserved.
  * MindIE is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -9,6 +9,8 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
+#include <vector>
+#include <thread>
 #include <gtest/gtest.h>
 #include "mockcpp/mockcpp.hpp"
 #include "http_wrapper.h"
@@ -24,30 +26,22 @@ protected:
     {
         GlobalMockObject::verify();
     }
-
-    HttpWrapper httpWrapper;
 };
-
-TEST_F(HttpWrapperTest, Instance)
-{
-    auto gHttpWrapper = HttpWrapper::Instance();
-    EXPECT_TRUE(gHttpWrapper != nullptr);
-}
 
 TEST_F(HttpWrapperTest, StartSuccess)
 {
     MOCKER(HttpServer::HttpServerInit).stubs().will(returnValue(0));
-    int32_t ret = httpWrapper.Start();
-    EXPECT_EQ(ret, 0);
-    httpWrapper.Stop();
+    bool ret = HttpWrapper::Instance().Start();
+    EXPECT_EQ(ret, true);
+    HttpWrapper::Instance().Stop();
 }
 
 TEST_F(HttpWrapperTest, StartFail)
 {
     MOCKER(HttpServer::HttpServerInit).stubs().will(returnValue(1U));
-    int32_t ret = httpWrapper.Start();
-    EXPECT_EQ(ret, 1);
-    httpWrapper.Stop();
+    bool ret = HttpWrapper::Instance().Start();
+    EXPECT_EQ(ret, false);
+    HttpWrapper::Instance().Stop();
 }
 
 } // namespace llm
