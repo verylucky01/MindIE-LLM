@@ -44,7 +44,12 @@ function fn_build()
     if [ "$CMAKE_CXX_COMPILER_LAUNCHER" == "" ] && command -v ccache &> /dev/null;then
         COMPILE_OPTIONS="${COMPILE_OPTIONS} -DCMAKE_CXX_COMPILER_LAUNCHER=ccache"
     fi
-    source $SCRIPT_DIR/build_kernels.sh
+
+    if [ -z "$ASCEND_HOME_PATH" ]; then
+        echo "env ASCEND_HOME_PATH not exist, skip kernels compilation"
+    else
+        source $SCRIPT_DIR/build_kernels.sh
+    fi
 
     fn_build_version_info
     fn_build_third_party

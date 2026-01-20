@@ -290,11 +290,7 @@ set_env
 
 clean
 
-VERSION_CFG="$ASCEND_HOME_PATH/version.cfg"
-VERSION=$(grep 'runtime_running_version' $VERSION_CFG | awk -F'[][]' '{print $2}' | cut -d: -f1)
-echo $VERSION > version.info
-cat $VERSION_CFG
-echo "CANN版本号 $VERSION 已保存到 version.info"
+echo 8.3.T9.0 > version.info
 
 if [ -n "${CCACHE_PROGRAM}" ]; then
     if [ "${CCACHE_PROGRAM}" == "false" ] || [ "${CCACHE_PROGRAM}" == "off" ]; then
