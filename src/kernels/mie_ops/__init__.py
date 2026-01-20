@@ -25,25 +25,3 @@ for filename in os.listdir(so_directory):
     if filename.endswith(".so"):
         filepath = os.path.join(so_directory, filename)
         torch.ops.load_library(filepath)
-
-# Ensure that the torch and torch_npu has been successfully imported to avoid subsequent mount operation failures
-import torch
-import torch_npu
-
-custom_ops_module = getattr(torch.ops, 'custom', None)
-
-if custom_ops_module is not None:
-    for op_name in dir(custom_ops_module):
-        if op_name.startswith('_'):
-            # skip built-in method, such as __name__, __doc__
-            continue
-
-        # get custom ops and set to torch_npu
-        custom_op_func = getattr(custom_ops_module, op_name)
-        setattr(torch_npu, op_name, custom_op_func)
-
-else:
-    warn_msg = "torch.ops.custom module is not found, mount custom ops to torch_npu failed." \
-               "Calling by torch_npu.xxx for custom ops is unsupported, please use torch.ops.custom.xxx."
-    warnings.warn(warn_msg)
-    warnings.filterwarnings("ignore", message=warn_msg)

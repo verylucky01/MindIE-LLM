@@ -17,6 +17,7 @@ set -e
 CURRENT_DIR=$(dirname $(readlink -f ${BASH_SOURCE[0]}))
 BUILD_DIR=${CURRENT_DIR}/build
 OUTPUT_DIR=${CURRENT_DIR}/output
+THIRD_PARTY_DIR=${CURRENT_DIR}/../../../../third_party
 USER_ID=$(id -u)
 PARENT_JOB="false"
 HOST_TILING="false"
@@ -308,6 +309,16 @@ else
     if [ -n "${ccache_system}" ];then
         CUSTOM_OPTION="${CUSTOM_OPTION} -DENABLE_CCACHE=ON -DCUSTOM_CCACHE=${ccache_system}"
         gen_bisheng ${ccache_system}
+    fi
+fi
+
+if [[ ! -d "${THIRD_PARTY_DIR}/catlass" ]]; then
+    log "Info: Can not find dependency catlass, trying to fetch it..."
+    mkdir -p $THIRD_PARTY_DIR
+    cd $THIRD_PARTY_DIR
+    if ! git clone -b catlass-v1-stable --single-branch https://gitcode.com/cann/catlass.git; then
+        log "Error: catlass fetch failed."
+        exit 1
     fi
 fi
 
