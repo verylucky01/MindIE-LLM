@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2026. All rights reserved.
  * MindIE is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -42,7 +42,7 @@ protected:
     int32_t GenerateRspDetailJsonStr(nlohmann::ordered_json &jsonObj, std::string &jsonStr);
     int32_t EncodeTGIStreamResponse(RespBodyQueue &jsonStrs);
     bool AssignAdapterId(const nlohmann::ordered_json &body, RequestSPtr tmpReq, std::string &error) const;
-    std::unique_ptr<std::string> BuildTgiReComputeBody(const std::vector<BestNTokens>& tokens);
+    std::string BuildTgiReComputeBody(const std::vector<BestNTokens>& tokens);
     void ParseStopString(nlohmann::ordered_json& newReqJsonObj);
     std::string ChangeUtf8Str(std::string &input) const;
 

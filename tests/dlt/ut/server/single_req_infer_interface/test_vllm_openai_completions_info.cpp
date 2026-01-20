@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2026. All rights reserved.
  * MindIE is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -395,8 +395,8 @@ TEST_F(VllmOpenAiCompletionsInferTest, BuildReComputeBody)
     inferInterface->isReCompute_ = true;
 
     std::vector<BestNTokens> tokens;
-    std::unique_ptr<std::string> ret = inferInterface->BuildReComputeBody(tokens);
-    OrderedJson obj = OrderedJson::parse(*ret);
+    std::string ret = inferInterface->BuildReComputeBody(tokens);
+    OrderedJson obj = OrderedJson::parse(ret);
 
     ASSERT_TRUE(obj.contains("model"));
     EXPECT_EQ(obj["model"], "mockModelCompletions");

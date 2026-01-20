@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2026. All rights reserved.
  * MindIE is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -55,7 +55,8 @@ protected:
     bool EncodeStreamResponse(RespBodyQueue &jsonStrings) noexcept;
     bool ParseTextInput(nlohmann::ordered_json &body, std::string &msg);
     bool SetReturnSeqCount(RequestSPtr req, std::string &errMsg);
-    std::unique_ptr<std::string> BuildVllmOpenAIReComputeBody(const std::vector<BestNTokens> &tokens);
+    std::string BuildVllmOpenAIReComputeBody(const std::vector<BestNTokens> &tokens);
+    void ParseStopString(nlohmann::ordered_json& newReqJsonObj);
     bool ParseToolCall(nlohmann::ordered_json &body, std::string &msg);
     bool ValidMessagesArray(OrderedJson &body, OrderedJson &messges, std::string &msg) const;
     void FilterToolChoice(OrderedJson &filterTools);

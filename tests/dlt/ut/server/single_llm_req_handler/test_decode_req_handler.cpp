@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2026. All rights reserved.
  * MindIE is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -366,7 +366,7 @@ TEST_F(DecodeReqHandlerTestF, Callback_RecomputePath_NoCrash)
 
     // Install a simple recompute body builder to hit ResponseReCompute
     handler->SetDMIReComputeBuildCallBack(
-        [](const std::vector<BestNTokens> &) { return std::make_unique<std::string>("RECOMPUTE_BODY"); });
+        [](const std::vector<BestNTokens> &) { return std::string("RECOMPUTE_BODY"); });
 
     RequestSPtr reqObj = std::make_shared<Request>();
     handler->SetBackManagerCallBack(reqObj);
@@ -427,9 +427,9 @@ TEST_F(DecodeReqHandlerTestF, ServerResponseCallback_RecomputeTriggeredHandling)
     request->serverResponseCallback_(response);
     EXPECT_TRUE(handler->isFinish_.load());
     EXPECT_FALSE(static_cast<bool>(handler->constructOneResponseCallBack_));
-    std::function<std::unique_ptr<std::string>(const std::vector<BestNTokens>&)> rcb =
+    std::function<std::string(const std::vector<BestNTokens>&)> rcb =
     [](const std::vector<BestNTokens> &) {
-        return std::make_unique<std::string>("ok");
+        return std::string("ok");
     };
     handler->dmiReCompBuildMeothd_ = rcb;
     handler->constructOneResponseCallBack_ = func;
