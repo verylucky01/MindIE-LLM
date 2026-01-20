@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2026. All rights reserved.
  * MindIE is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -148,7 +148,6 @@ TEST_F(GrpcCommunicationMngTest, InitWithValidAddress)
     GlobalMockObject::verify();
     MockServerConfig();
     EXPECT_TRUE(mng->Init(false, "127.0.0.1", "50051"));
-    mng->getRequestIDFunc_("test");
     EXPECT_TRUE(mng->getDeviceListFunc_({"test"}));
 }
 
