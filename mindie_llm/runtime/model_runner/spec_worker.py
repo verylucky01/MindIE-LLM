@@ -100,13 +100,9 @@ class MtpWorker(BaseWorkerProxy):
         dp_logits = logits
         dp_hidden_states = hidden_states
         if self.is_dp_and_server_centralized:
-            lm_head_indices_dp_rank_ids = kwargs.get('lm_head_indices_dp_rank_ids')
-            logits_gather_indices = torch.arange(0, lm_head_indices_dp_rank_ids.shape[0])
-            logits_gather_indices = \
-                    logits_gather_indices[lm_head_indices_dp_rank_ids == self.mapping.attn_dp.rank]
-            
-            if logits_gather_indices.numel() > 0:
-                dp_logits = logits[logits_gather_indices]
+            mtp_logits_gather_indices = kwargs.get('mtp_logits_gather_indices')
+            if mtp_logits_gather_indices.numel() > 0:
+                dp_logits = logits[mtp_logits_gather_indices]
             else:
                 dummy_data = True
 
@@ -207,18 +203,12 @@ class MtpWorker(BaseWorkerProxy):
             all_logits_mtp.append(logits_mtp)
 
             if mtp_idx < self.num_speculative_tokens - 1:
-                torch.npu.synchronize()
-
                 is_dummy_data = False
                 if self.is_dp_and_server_centralized:
                     shard_effective_token_indices = draft_kwargs.get('shard_effective_token_indices')
-                    lm_head_indices_dp_rank_ids = draft_kwargs.get('lm_head_indices_dp_rank_ids')
-                    logits_gather_indices = torch.arange(0, lm_head_indices_dp_rank_ids.shape[0])
-                    logits_gather_indices = \
-                        logits_gather_indices[lm_head_indices_dp_rank_ids == self.mapping.attn_dp.rank]
-                    
-                    if logits_gather_indices.numel() > 0:
-                        logits_mtp = logits_mtp[logits_gather_indices]
+                    mtp_logits_gather_indices = draft_kwargs.get('mtp_logits_gather_indices')
+                    if mtp_logits_gather_indices.numel() > 0:
+                        logits_mtp = logits_mtp[mtp_logits_gather_indices]
                         hidden_states_mtp = hidden_states_mtp[shard_effective_token_indices]                       
                     else:
                         is_dummy_data = True
@@ -346,7 +336,9 @@ def auto_speculative_method_router(selector_fn: SelectorType):
                 return proxy_class(original_class, *args, **kwargs)
             else:
                 return original_class(*args, **kwargs)
-        
+        for attr in dir(original_class):
+            if not attr.startswith("__") and not callable(getattr(original_class, attr)):
+                setattr(factory, attr, getattr(original_class, attr))
         return factory
     return decorator
 

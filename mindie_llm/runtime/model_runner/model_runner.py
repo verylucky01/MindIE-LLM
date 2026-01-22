@@ -44,6 +44,9 @@ torch.npu.config.allow_internal_format = True
 
 @auto_speculative_method_router(selector_fn=speculative_worker_selector)
 class ModelRunner:
+
+    input_metadata: dict = None
+
     def __init__(self,
                  model_name_or_path: str,
                  rank: int,
@@ -183,6 +186,8 @@ class ModelRunner:
 
             self.actual_seq_lengths_kv = torch.zeros(max_num_token, dtype=torch.int32, device=self.device)
             self.actual_seq_lengths_query = torch.zeros(max_num_token, dtype=torch.int32, device=self.device)
+
+            self.mc2_mask = torch.zeros(max_num_token, dtype=torch.bool, device=self.device)
             # MTP
             self.hidden_states_mtp = torch.zeros(
                 (max_num_token, self.mindie_llm_config.hf_config.hidden_size), 
@@ -190,6 +195,8 @@ class ModelRunner:
                 device=self.device
             )
             logger.info(f"AclGraph enabled. Graph batch sizes contains {self.graph_batch_sizes}.")
+
+        self.mtp_count = 0
 
     def load_weights(self, **kwargs):
         if "OMP_NUM_THREADS" not in os.environ and self.world_size > 1:
@@ -294,6 +301,12 @@ class ModelRunner:
             self.warm_up_and_compile(**kwargs)
 
         input_ids, position_ids, input_metadata = self._prepare_inputs(**kwargs)
+        is_prefill = kwargs.get("is_prefill", True)
+        if not is_prefill:
+            ModelRunner.input_metadata = input_metadata
+            if self.is_draft_model:
+                self.mtp_count += 1
+    
         attn_metadata_dict = build_layerwise_attn_metadata(input_metadata, self.attn_layers)
         forward_context = create_forward_context(input_metadata)
         forward_context.attn_metadata = attn_metadata_dict
@@ -330,30 +343,46 @@ class ModelRunner:
         # NOTE: I recommend to put the following things to Attention and LMHead module's `build_input_metadata` methods.
         mask = self.mask
         slot_mapping = kwargs.get("slots", None).to(torch.int32)
-        seq_lens = kwargs.get("input_lengths", None).to(torch.int32)
-        q_lens = kwargs.get("q_lens", None)
-        block_tables = kwargs.get("block_tables", None)
+        if is_prefill or self.num_speculative_tokens == 0 or \
+            (not self.is_draft_model or self.mtp_count % self.num_speculative_tokens == 0):
+            seq_lens = kwargs.get("input_lengths", None).to(torch.int32)
+            seq_lens_list = seq_lens.cpu().tolist()
+            block_tables = kwargs.get("block_tables", None)
 
-        lm_head_indices = kwargs.get("lm_head_indices", None)
-        if lm_head_indices is None:
-            lm_head_indices = torch.tensor(range(input_ids.shape[0]),
-                                           dtype=torch.int64, device=input_ids.device)
-        lm_head_indices = lm_head_indices.to(torch.int64)
+            lm_head_indices = kwargs.get("lm_head_indices", None)
+            if lm_head_indices is None:
+                lm_head_indices = torch.tensor(range(input_ids.shape[0]),
+                                            dtype=torch.int64, device=input_ids.device)
+            lm_head_indices = lm_head_indices.to(torch.int64)
+        else:
+            seq_lens = ModelRunner.input_metadata["seq_lens"]
+            seq_lens_list = ModelRunner.input_metadata["seq_lens_list"]
+            block_tables = ModelRunner.input_metadata["block_tables"]
+            lm_head_indices = ModelRunner.input_metadata["lm_head_indices"]
 
-        actual_seq_lengths_kv = None
-        actual_seq_lengths_query = None
-        # (NOTE): move attn related params to attnmetadata build
-        use_actual_lengths_model = ["DeepseekV3ForCausalLM", "DeepseekV3MTP"]
-        if self.model_cls.__name__ in use_actual_lengths_model:
-            if is_prefill:
-                actual_seq_lengths_kv = seq_lens
-            else:
-                actual_seq_lengths_kv = torch.tensor(q_lens, dtype=torch.int32).npu() \
-                    if self.num_speculative_tokens \
-                        else torch.tensor([1] * block_tables.shape[0], dtype=torch.int32).npu()
-            actual_seq_lengths_query = torch.cumsum(actual_seq_lengths_kv, dim=0, dtype=torch.int32).npu()
+        if is_prefill or self.num_speculative_tokens == 0 or \
+            (self.is_draft_model and self.mtp_count % self.num_speculative_tokens == 0):
+            q_lens = kwargs.get("q_lens", None)
+            actual_seq_lengths_kv = None
+            actual_seq_lengths_query = None
+            # (NOTE): move attn related params to attnmetadata build
+            use_actual_lengths_model = ["DeepseekV3ForCausalLM", "DeepseekV3MTP"]
+            if self.model_cls.__name__ in use_actual_lengths_model:
+                if is_prefill:
+                    actual_seq_lengths_kv = seq_lens
+                else:
+                    actual_seq_lengths_kv = torch.tensor(q_lens, dtype=torch.int32).npu() \
+                        if self.num_speculative_tokens \
+                            else torch.tensor([1] * block_tables.shape[0], dtype=torch.int32).npu()
+                actual_seq_lengths_query = torch.cumsum(actual_seq_lengths_kv, dim=0, dtype=torch.int32).npu()
 
-        num_tokens_across_dp_cpu = get_num_tokens_across_dp_npu(input_ids.shape[0])
+            num_tokens_across_dp_cpu = get_num_tokens_across_dp_npu(input_ids.shape[0])
+        else:
+            q_lens = ModelRunner.input_metadata["q_lens"]
+            actual_seq_lengths_kv = ModelRunner.input_metadata["actual_seq_lengths_kv"]
+            actual_seq_lengths_query = ModelRunner.input_metadata["actual_seq_lengths_query"]
+            num_tokens_across_dp_cpu = ModelRunner.input_metadata["num_tokens_across_dp_cpu"]
+        
         # MTP
         hidden_states_mtp = kwargs.get("last_hidden_states", None)
 
@@ -365,7 +394,7 @@ class ModelRunner:
             "attn_mask": mask,
             "slot_mapping": slot_mapping,
             "seq_lens": seq_lens,
-            "seq_lens_list": seq_lens.cpu().tolist(),
+            "seq_lens_list": seq_lens_list,
             "q_lens": q_lens,
             "lm_head_indices": lm_head_indices,
             "cos_table": self.cos_table,
@@ -383,11 +412,14 @@ class ModelRunner:
         input_ids = input_metadata["input_ids"]
         position_ids = input_metadata["position_ids"]
         seq_lens = input_metadata["seq_lens"]
+        seq_lens_list = input_metadata["seq_lens_list"]
         slot_mapping = input_metadata["slot_mapping"]
         block_tables = input_metadata["block_tables"]
 
         actual_seq_lengths_kv = input_metadata["actual_seq_lengths_kv"]
         actual_seq_lengths_query = input_metadata["actual_seq_lengths_query"]
+
+        mc2_mask = ModelRunner.input_metadata["mc2_mask"] if ModelRunner.input_metadata is not None else None
 
         num_actual_tokens = input_ids.shape[0]
         num_tokens = self.model.find_padding_bs(
@@ -402,50 +434,83 @@ class ModelRunner:
         num_reqs = num_actual_tokens // (self.num_speculative_tokens + 1)
         self.input_ids[:num_actual_tokens].copy_(input_ids[:num_actual_tokens])
         self.position_ids[:num_actual_tokens].copy_(position_ids[:num_actual_tokens])
-        self.seq_lens[:num_reqs].copy_(seq_lens[:num_reqs])
-
-        max_len = seq_lens.max().item()
-        max_seq_pages = (max_len + self.block_size - 1) // self.block_size
-        
-        self.block_tables[:num_reqs, :block_tables.shape[-1]].copy_(block_tables)
-        self.block_tables[:num_reqs, max_seq_pages:].fill_(0)
-        self.block_tables[num_reqs:, :].fill_(0)
         self.slot_mapping[:num_actual_tokens].copy_(slot_mapping[:num_actual_tokens])
 
-        
         input_ids = self.input_ids[:num_tokens]
         position_ids = self.position_ids[:num_tokens]
-        seq_lens = self.seq_lens[:num_tokens]
         slot_mapping = self.slot_mapping[:num_tokens]
-        block_tables = self.block_tables[:num_tokens, :]
 
-        if actual_seq_lengths_kv is not None:
-            actual_len, last_req_tokens = \
-                get_speculative_reqs_padding_length(
-                    num_tokens=num_tokens,
-                    num_actual_tokens=self.num_speculative_tokens + 1
-                )
+        if self.num_speculative_tokens == 0 or \
+            (not self.is_draft_model or self.mtp_count % self.num_speculative_tokens == 0):
+            self.seq_lens[:num_reqs].copy_(seq_lens[:num_reqs])
+            max_len = seq_lens.max().item()
+            max_seq_pages = (max_len + self.block_size - 1) // self.block_size
+            seq_lens = self.seq_lens[:num_tokens]
 
-            reqs_padding_length = actual_len - actual_seq_lengths_kv.shape[0]
-            actual_seq_lengths_kv_pad = \
-                torch.tensor([self.num_speculative_tokens + 1] * reqs_padding_length, dtype=torch.int32).npu()
-            actual_seq_lengths_kv = torch.cat([actual_seq_lengths_kv, actual_seq_lengths_kv_pad])
-            if last_req_tokens > 0:
-                actual_seq_lengths_kv[-1] = last_req_tokens
-            actual_seq_lengths_query = torch.cumsum(actual_seq_lengths_kv, dim=0, dtype=torch.int32).npu()
+            self.block_tables[:num_reqs, :block_tables.shape[-1]].copy_(block_tables)
+            self.block_tables[:num_reqs, max_seq_pages:].fill_(0)
+            self.block_tables[num_reqs:, :].fill_(0)
+            block_tables = self.block_tables[:num_tokens, :]
 
-            seq_lens_pad = torch.tensor([0] * reqs_padding_length, dtype=torch.int32).npu()
-            seq_lens = torch.cat([seq_lens, seq_lens_pad])
+            if actual_seq_lengths_kv is not None:
+                actual_len, _ = \
+                    get_speculative_reqs_padding_length(
+                        num_tokens=num_tokens,
+                        num_actual_tokens=self.num_speculative_tokens + 1
+                    )
+                reqs_padding_length = actual_len - actual_seq_lengths_kv.shape[0]
+                seq_lens_pad = torch.tensor([0] * reqs_padding_length, dtype=torch.int32).npu()
+                seq_lens = torch.cat([seq_lens, seq_lens_pad])
+                self.seq_lens[:actual_len].copy_(seq_lens[:actual_len])
+                seq_lens = self.seq_lens[:actual_len]
 
-            block_tables = self.block_tables[:actual_len, :]
+                block_tables = self.block_tables[:actual_len, :]
 
-            self.seq_lens[:actual_len].copy_(seq_lens[:actual_len])
-            self.actual_seq_lengths_kv[:actual_len].copy_(actual_seq_lengths_kv[:actual_len])
-            self.actual_seq_lengths_query[:actual_len].copy_(actual_seq_lengths_query[:actual_len])
-            actual_seq_lengths_kv = self.actual_seq_lengths_kv[:actual_len]
-            actual_seq_lengths_query = self.actual_seq_lengths_query[:actual_len]
-            seq_lens = self.seq_lens[:actual_len]
+            seq_lens_list = seq_lens.cpu().tolist()
 
+        tp_size = self.mapping.attn_tp.group_size
+        tp_rank = self.mapping.attn_tp.rank
+        num_padded_tokens = num_tokens + (tp_size - num_tokens % tp_size) % tp_size
+        unit_size = num_padded_tokens // tp_size
+    
+        if self.num_speculative_tokens == 0 or \
+            (self.is_draft_model and self.mtp_count % self.num_speculative_tokens == 0):
+            if actual_seq_lengths_kv is not None:
+                actual_len, last_req_tokens = \
+                    get_speculative_reqs_padding_length(
+                        num_tokens=num_tokens,
+                        num_actual_tokens=self.num_speculative_tokens + 1
+                    )
+
+                reqs_padding_length = actual_len - actual_seq_lengths_kv.shape[0]
+                actual_seq_lengths_kv_pad = \
+                    torch.tensor([self.num_speculative_tokens + 1] * reqs_padding_length, dtype=torch.int32).npu()
+                actual_seq_lengths_kv = torch.cat([actual_seq_lengths_kv, actual_seq_lengths_kv_pad])
+                if last_req_tokens > 0:
+                    actual_seq_lengths_kv[-1] = last_req_tokens
+                actual_seq_lengths_query = torch.cumsum(actual_seq_lengths_kv, dim=0, dtype=torch.int32).npu()
+
+                self.actual_seq_lengths_kv[:actual_len].copy_(actual_seq_lengths_kv[:actual_len])
+                self.actual_seq_lengths_query[:actual_len].copy_(actual_seq_lengths_query[:actual_len])
+                actual_seq_lengths_kv = self.actual_seq_lengths_kv[:actual_len]
+                actual_seq_lengths_query = self.actual_seq_lengths_query[:actual_len]
+            
+            all_mask = [1] * num_actual_tokens + [0] * (num_padded_tokens - num_actual_tokens)
+            mc2_mask = torch.tensor(all_mask[unit_size * tp_rank:unit_size * (tp_rank + 1)], dtype=torch.bool).npu()
+            self.mc2_mask[:unit_size].copy_(mc2_mask)
+            mc2_mask = self.mc2_mask[:unit_size]
+            
+        elif not self.is_draft_model:
+            if actual_seq_lengths_kv is not None:
+                actual_len = len(actual_seq_lengths_kv)
+                self.actual_seq_lengths_kv[:actual_len].copy_(actual_seq_lengths_kv[:actual_len])
+                self.actual_seq_lengths_query[:actual_len].copy_(actual_seq_lengths_query[:actual_len])
+                actual_seq_lengths_kv = self.actual_seq_lengths_kv[:actual_len]
+                actual_seq_lengths_query = self.actual_seq_lengths_query[:actual_len]
+            
+            self.mc2_mask[:unit_size].copy_(mc2_mask)
+            mc2_mask = self.mc2_mask[:unit_size]
+        
         # MTP
         hidden_states_mtp = input_metadata["last_hidden_states"]
         if hidden_states_mtp is not None:
@@ -456,7 +521,7 @@ class ModelRunner:
         input_metadata["input_ids"] = input_ids
         input_metadata["position_ids"] = position_ids
         input_metadata["seq_lens"] = seq_lens
-        input_metadata["seq_lens_list"] = seq_lens.cpu().tolist()
+        input_metadata["seq_lens_list"] = seq_lens_list
         input_metadata["block_tables"] = block_tables
         input_metadata["slot_mapping"] = slot_mapping
 
@@ -465,9 +530,10 @@ class ModelRunner:
 
         input_metadata["actual_seq_lengths_kv"] = actual_seq_lengths_kv
         input_metadata["actual_seq_lengths_query"] = actual_seq_lengths_query
+
+        input_metadata["mc2_mask"] = mc2_mask
         # MTP
         input_metadata["last_hidden_states"] = hidden_states_mtp
-
         return input_ids, position_ids, input_metadata
 
     def _dummy_run(self, num_tokens):

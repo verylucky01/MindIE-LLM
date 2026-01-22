@@ -30,6 +30,7 @@ from mindie_llm.runtime.layers.quantization.unquantized import UnquantizedFusedM
 from mindie_llm.runtime.utils.distributed import get_parallel_info_manager
 from mindie_llm.runtime.utils.distributed.parallel_info_manager import ParallelType
 from mindie_llm.runtime.utils.distributed.utils import even_divide
+from mindie_llm.runtime.model_runner.forward_context import get_forward_context
 
 
 class FusedMoE(CustomLayer):
@@ -122,7 +123,8 @@ class FusedMoE(CustomLayer):
             self,
             x=moe_dispatch_output["hidden_states"],
             group_list=moe_dispatch_output["group_list"],
-            group_list_type=moe_dispatch_output["group_list_type"]
+            group_list_type=moe_dispatch_output["group_list_type"],
+            dynamic_scale=moe_dispatch_output["dynamic_scale"]
         )
 
         final_hidden_states = dispatcher.token_combine(
@@ -170,13 +172,14 @@ class FusedMoE(CustomLayer):
                 top_k=self.topk,
                 expert_list=self.expert_list,
                 expert_map=self.expert_map,
-                with_quant=False,
+                with_quant=True,
             )
         elif moe_comm_type == MoECommType.MC2:
+            forward_context = get_forward_context()
             return MoeMC2Args(
                 **common_kwargs,
-                mc2_mask=None,
-                with_quant=False,
+                mc2_mask=forward_context.mc2_mask,
+                with_quant=True,
                 shared_experts=None,
                 quantized_x_for_share=None,
                 dynamic_scale_for_share=None,

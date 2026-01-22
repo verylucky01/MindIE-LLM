@@ -42,6 +42,7 @@ class FusedMoEMethodBase(QuantizationMethodBase):
         layer: torch.nn.Module,
         x: torch.Tensor,
         group_list: torch.Tensor,
-        group_list_type: int = 1
+        group_list_type: int = 1,
+        dynamic_scale: torch.Tensor = None
     ) -> torch.Tensor:
         raise NotImplementedError

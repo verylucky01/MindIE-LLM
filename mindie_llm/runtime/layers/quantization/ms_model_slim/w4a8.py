@@ -63,6 +63,7 @@ class W4A8PerTokenFusedMoEMethod(FusedMoEMethodBase):
             **extra_weight_attrs
         })
         layer.register_parameter("down_weight", down_weight)
+        layer.output_dtype = torch.float16
 
         gate_up_weight_scale = ModelWeightParameter(
             torch.empty(num_experts,
@@ -89,7 +90,6 @@ class W4A8PerTokenFusedMoEMethod(FusedMoEMethodBase):
             **extra_weight_attrs
         })
         layer.register_parameter("down_weight_scale", down_weight_scale)
-        
         gate_up_scale_bias = ModelWeightParameter(torch.empty(
                 num_experts,
                 2 * intermediate_size_per_partition,
@@ -120,9 +120,13 @@ class W4A8PerTokenFusedMoEMethod(FusedMoEMethodBase):
               layer: torch.nn.Module,
               x: torch.Tensor,
               group_list: torch.Tensor,
-              group_list_type: int = 1) -> torch.Tensor:
-        output_dtype = x.dtype
-        x, pertoken_scale = torch_npu.npu_dynamic_quant(x)
+              group_list_type: int = 1,
+              dynamic_scale: torch.Tensor = None) -> torch.Tensor:
+        if dynamic_scale is None:
+            x, pertoken_scale = torch_npu.npu_dynamic_quant(x)
+        else:
+            pertoken_scale = dynamic_scale
+
         hidden_states = torch_npu.npu_grouped_matmul(
             x=[x],
             weight=[layer.gate_up_weight],
@@ -133,7 +137,7 @@ class W4A8PerTokenFusedMoEMethod(FusedMoEMethodBase):
             group_list_type=group_list_type,
             group_type=0, # 代表需要分组的轴 0代表m轴分组
             group_list=group_list,
-            output_dtype=output_dtype)[0]
+            output_dtype=layer.output_dtype)[0]
         
         hidden_states = torch_npu.npu_swiglu(hidden_states)
         hidden_states, swiglu_out_scale = torch_npu.npu_dynamic_quant(
@@ -149,7 +153,7 @@ class W4A8PerTokenFusedMoEMethod(FusedMoEMethodBase):
             group_list_type=group_list_type,
             group_type=0, # 代表需要分组的轴 0代表m轴分组
             group_list=group_list,
-            output_dtype=output_dtype)[0]
+            output_dtype=layer.output_dtype)[0]
         return hidden_states
 
     def process_scale(self, weight: torch.Tensor, scale):

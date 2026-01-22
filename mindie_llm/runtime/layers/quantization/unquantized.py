@@ -200,7 +200,8 @@ class UnquantizedFusedMoEMethod(FusedMoEMethodBase):
               layer: torch.nn.Module,
               x: torch.Tensor,
               group_list: torch.Tensor,
-              group_list_type: int = 1) -> torch.Tensor:
+              group_list_type: int = 1,
+              dynamic_scale: torch.Tensor = None) -> torch.Tensor:
         gate_up_out = torch_npu.npu_grouped_matmul(
             x=[x],
             weight=[layer.gate_up_weight],

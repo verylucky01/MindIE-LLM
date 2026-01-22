@@ -228,7 +228,7 @@ def maybe_unpad_cross_dp(
     num_tokens_across_dp_cpu = forward_context.num_tokens_across_dp_cpu
 
     ratio = cur_world_size // attn_tp_world_size
-    cur_dp_num_tokens_across_dp_cpu = num_tokens_across_dp_cpu.view(-1, ratio)[attn_dp.rank]
+    cur_dp_num_tokens_across_dp_cpu = num_tokens_across_dp_cpu.view(-1, ratio)[attn_dp.rank // ratio]
     cur_dp_size = len(cur_dp_num_tokens_across_dp_cpu)
 
     result = torch.empty(
