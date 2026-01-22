@@ -66,7 +66,7 @@ include_directories(
 
 if(DEFINED ENV{MINDIE_LLM_VERSION_OVERRIDE})
     set(MINDIE_VERSION $ENV{MINDIE_LLM_VERSION_OVERRIDE})
-    add_definitions(-DMINDIE_VERSION="${MINDIE_LLM_VERSION_OVERRIDE}")
+    add_definitions(-DMINDIE_VERSION="${MINDIE_VERSION}")
 else()
     message(WARNING "Environment MINDIE_LLM_VERSION_OVERRIDE is not set")
 endif()
