@@ -47,6 +47,9 @@ class DeepseekV3Config(HuggingFaceConfig):
         self.attribute_map = {
             'head_dim': 'qk_nope_head_dim',
         }
+        # (NOTE): add default value for compatibility
+        if "ep_level" not in kwargs:
+            self.ep_level = 1
         if self.model_type in ["deepseek_v3"]:
             self.is_reasoning_model = True
         # (NOTE): add validation

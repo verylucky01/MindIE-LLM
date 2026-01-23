@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2026. All rights reserved.
  * MindIE is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -118,15 +118,7 @@ int EndPoint::StartEndpoint()
         }
 
         // init http
-        mHttpWrapper = HttpWrapper::Instance();
-        if (mHttpWrapper == nullptr) {
-            ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_INIT, INIT_ERROR),
-                "Failed to create http wrapper");
-            ULOG_AUDIT("system", MINDIE_SERVER, "Start mindie server", "fail");
-            return -1;
-        }
-
-        if (mHttpWrapper->Start() != 0) {
+        if (!HttpWrapper::Instance().Start()) {
             ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_INIT, INIT_ERROR),
                 "Failed to start http wrapper");
             ULOG_AUDIT("system", MINDIE_SERVER, "Start mindie server", "fail");
@@ -180,8 +172,8 @@ void EndPoint::Stop()
         mEngineStarted = false;
     }
 
-    if (mServerStarted && mHttpWrapper != nullptr) {
-        mHttpWrapper->Stop();
+    if (mServerStarted) {
+        HttpWrapper::Instance().Stop();
         GrpcWrapper::GetInstance().Stop();
         mServerStarted = false;
     }

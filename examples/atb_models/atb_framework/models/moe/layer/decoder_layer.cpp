@@ -279,7 +279,7 @@ void MoeDecoderLayer<NormType>::SetFusionAttentionLinearParam(atb_speed::common:
     fusionAttentionParam.quantGroupSize = this->param.quantGroupSize;
     fusionAttentionParam.matmulBackend = this->param.matmulBackend;
     fusionAttentionParam.supportLora = this->param.enableLora;
-    fusionAttentionParam.enablePreFetchWeight = this->param.enablePreFetchWeight;
+    fusionAttentionParam.preFetchWeightSize = this->param.preFetchWeightSize;
     fusionAttentionParam.enableMC2 = this->param.enableMC2;
     fusionAttentionParam.loraEnableGMM = this->param.loraEnableGMM;
     fusionAttentionParam.qkvHasBias = this->param.linearHasBias.at(base::QKV_HASBIAS);

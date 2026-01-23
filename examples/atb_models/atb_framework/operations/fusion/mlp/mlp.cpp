@@ -12,6 +12,7 @@
 
 #include <atb/atb_infer.h>
 #include "operations/aclnn/ops/dequant_swiglu_quant_operation.h"
+#include "operations/aclrt/ops/aclrt_cmo_async.h"
 #include "operations/fusion/linear/linear.h"
 #include "operations/fusion/utils.h"
 #include "operations/fusion/mlp/mlp.h"
@@ -251,6 +252,38 @@ atb::Status AddMlpNormLinearUp(const MlpParam<NormParamType> &param,
     }
 
     graphBuilder->AddOperation(normLinearUpOp, upInTensorNames, {"intermediate_up"});
+    return atb::NO_ERROR;
+}
+
+template <typename NormParamType>
+atb::Status AddPrefetchWeight(const MlpParam<NormParamType> &param,
+    atb::GraphOpBuilder* &graphBuilder)
+{
+    atb::Operation* computeRecordNodeOp = nullptr;
+    atb::SVector<std::string> computeRecordNodeInTensorIds = {};
+    atb::SVector<std::string> computeRecordNodeOutTensorIds = {};
+    CHECK_OPERATION_STATUS_RETURN(atb_speed::EventManager::GetInstance().RecordEvent(
+        computeRecordNodeOp,
+        atb_speed::EventAction::PUSH,
+        atb_speed::common::CMO_COMPUTE));
+    graphBuilder->AddOperation(computeRecordNodeOp, computeRecordNodeInTensorIds, computeRecordNodeOutTensorIds);
+
+    atb::Operation* commWaitNodeOp = nullptr;
+    atb::SVector<std::string> commWaitNodeInTensorIds = {};
+    atb::SVector<std::string> commWaitNodeOutTensorIds = {};
+    CHECK_OPERATION_STATUS_RETURN(atb_speed::EventManager::GetInstance().WaitEvent(
+        commWaitNodeOp,
+        atb_speed::EventAction::POP,
+        atb_speed::common::CMO_COMPUTE));
+    atb::SetExecuteStreamId(commWaitNodeOp, 1);
+    graphBuilder->AddOperation(commWaitNodeOp, commWaitNodeInTensorIds, commWaitNodeOutTensorIds);
+
+    atb::Operation* cmoNodeOp = new atb_speed::common::AclrtCmoAsyncOperation(
+        "AclrtCmoAsync", param.preFetchWeightSize);
+    atb::SVector<std::string> cmoNodeInTensorIds = {"in_weight_down"};
+    atb::SVector<std::string> cmoNodeOutTensorIds  = {};
+    atb::SetExecuteStreamId(cmoNodeOp, 1);
+    graphBuilder->AddOperation(cmoNodeOp, cmoNodeInTensorIds, cmoNodeOutTensorIds);
     return atb::NO_ERROR;
 }
 
@@ -555,6 +588,10 @@ atb::Status CreateMlp(
     if (param.mlpPackType == MlpPackType::GATE_UP_WEIGHT_NO_PACK) {
         CHECK_OPERATION_STATUS_RETURN(AddMlpNormLinearUp(param, isAntiOutlier, graphOpBuilder));
     }
+    // prefetch weight
+    if (param.preFetchWeightSize > 0) {
+        CHECK_OPERATION_STATUS_RETURN(AddPrefetchWeight(param, graphOpBuilder));
+    }
     // Activation
     if (param.isEdgeHardware) {
         CHECK_OPERATION_STATUS_RETURN(AddMlpEdgeActivation(param, graphOpBuilder));
@@ -640,6 +677,12 @@ template atb::Status AddMlpLinearDown(const MlpParam<atb::infer::RmsNormParam> &
     atb::GraphOpBuilder* &graphBuilder);
 
 template atb::Status AddMlpLinearDown(const MlpParam<atb::infer::LayerNormParam> &param,
+    atb::GraphOpBuilder* &graphBuilder);
+
+template atb::Status AddPrefetchWeight(const MlpParam<atb::infer::RmsNormParam> &param,
+    atb::GraphOpBuilder* &graphBuilder);
+
+template atb::Status AddPrefetchWeight(const MlpParam<atb::infer::LayerNormParam> &param,
     atb::GraphOpBuilder* &graphBuilder);
 
 template atb::Status AddMlpNormLinearUp(const MlpParam<atb::infer::RmsNormParam> &param,

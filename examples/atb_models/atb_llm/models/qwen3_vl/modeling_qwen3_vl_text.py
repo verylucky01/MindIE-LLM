@@ -16,9 +16,9 @@ from torch import nn
 import torch_npu
 from atb_llm.models.base.flash_causal_lm import FlashForCausalLM
 from atb_llm.models.base.modeling import FlashLayer, MLP
-from atb_llm.models.base.graph_manager.graph_manager import ATBGraphManager
 from atb_llm.models.base.inputs_modifier.qlen_modifier import QLenModifier
-from atb_llm.models.base.graph_manager import SpeculateGraphWrapper
+from atb_llm.models.base.inputs_modifier.flash_comm_modifier import FlashCommModifier
+from atb_llm.models.base.graph_manager import ATBGraphManager, SpeculateGraphWrapper, FlashCommGraphWrapper
 from atb_llm.utils.initial import NPUSocInfo
 from atb_llm.utils.layers import TensorParallelRowLinear, RMSNorm, TensorEmbedding, TensorHead, load_column_multi, \
     AttentionMask
@@ -28,6 +28,12 @@ from atb_llm.utils.data.weight_wrapper import WeightWrapper, AttnWrapper, MlpWra
 from atb_llm.utils.quantize.pack_type import calc_linear_pack_type
 from atb_llm.utils.quantize.quant_type import QuantType
 from atb_llm.utils.log import logger
+
+
+_800_9000_SOCS = (100, 101, 102, 103, 104)
+DUO_SOCS = (200, 201, 202, 203, 204, 205)
+A2_SOCS = (220, 221, 222, 223, 224, 225)
+A3_SOCS = (250, 251, 252, 253, 254, 255)
 
 
 class Qwen3VLTextRotaryEmbedding(nn.Module):
@@ -114,6 +120,7 @@ class FlashQwen3VLTextModelForCausalLM(FlashForCausalLM):
         else:
             prefix = "model.language_model"
         self.multi_query_group_num = self.config.num_key_value_heads
+        self.hidden_size = config.hidden_size
         self.embed_tokens = TensorEmbedding(prefix=f"{prefix}.embed_tokens", weights=weights)
         self.layers = nn.ModuleList(
             [
@@ -164,6 +171,7 @@ class FlashQwen3VLTextModelForCausalLM(FlashForCausalLM):
         # Multi graph management
         self.graph_manager = ATBGraphManager()
         self.qlen_decorator = QLenModifier()
+        self.flash_comm_modifier = FlashCommModifier(weights, self.hidden_size, self._flash_comm_gate())
 
     def init_ascend_operations(self, config):
         pass
@@ -223,27 +231,29 @@ class FlashQwen3VLTextModelForCausalLM(FlashForCausalLM):
             "isUnpadInputs": True,
             "skipWordEmbedding": True,
             "isLmHeadParallel": True,
-            "enableSwiGLU": True if self.soc_info.soc_version != 240 else False,
+            "enableSwiGLU": True,
             "rank": self.tp_rank,
             "worldSize": self.tp_world_size,
             "backend": self.soc_info.communication_backend,
             "positionEmbeddingType": PositionEmbeddingType.ROPE,
             "linearHasBias": [[False, False, False, False]] * self.config.num_hidden_layers,
             "useQKNorm": True,
-            "enableDeepstack": True,
         }
         encoder_param = {
             **coder_param,
             "isPrefill": True,
-            "supportLcoc": False if self.soc_info.need_nz else True
+            "enablePreFetchWeight": self.soc_info.soc_version in DUO_SOCS,  # Negative performance gains in A2
+            "enableLcoc": self.lcoc_enable
         }
         decoder_param = {
             **coder_param,
             "isPrefill": False,
-            "supportLcoc": False
+            "enableLcoc": False
         }
         if self.speculate_enable:
             self.graph_manager.register_graph(SpeculateGraphWrapper())
+        if self.flash_comm_modifier.enable_flash_comm:
+            self.graph_manager.register_graph(FlashCommGraphWrapper())
         specified_params = {"decode": decoder_param}
         self.graph_manager.set_param("qwen3vl_DecoderModel", encoder_param, specified_params)
         self.graph_manager.set_weight(self.ascend_weight)
@@ -330,6 +340,11 @@ class FlashQwen3VLTextModelForCausalLM(FlashForCausalLM):
             enable_splitfuse_pa=not self.soc_info.is_300i(),
             **kwargs
         )
+        self.flash_comm_modifier.modify_inputs(
+            self.acl_operation_inputs,
+            is_prefill,
+            acl_param
+        )
         self.acl_param = json.dumps(acl_param)
         return self.acl_operation_inputs, self.acl_param
 
@@ -376,3 +391,13 @@ class FlashQwen3VLTextModelForCausalLM(FlashForCausalLM):
         logits = self.execute_ascend_operator(acl_inputs, acl_param, is_prefill)
         return logits
 
+    def _flash_comm_gate(self) -> bool:
+        soc_version = self.soc_info.soc_version
+        return not any([
+            self.enable_dap,
+            self.tp_world_size == 1,
+            soc_version in _800_9000_SOCS,
+            soc_version in DUO_SOCS and self.tp_world_size > 4,
+            soc_version in A2_SOCS + A3_SOCS and not self.soc_info.is_support_hccs(),
+            self.lcoc_enable
+        ])

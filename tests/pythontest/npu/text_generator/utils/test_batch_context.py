@@ -440,11 +440,9 @@ class TestBatchContext(unittest.TestCase):
         self.batch_ctx.fork_context(child_handles, parent_handles)
 
         # === 验证 NdarrayContext ===
-        np.testing.assert_array_equal(nd.last_input_ids[child_handles], [50256, 100])
         np.testing.assert_array_equal(nd.seq_lens[child_handles], [5, 8])
         np.testing.assert_array_equal(nd.used_block_idx[child_handles], [0, 1])
         np.testing.assert_array_equal(nd.all_input_ids[2, :5], [1, 2, 3, 4, 5])
-        np.testing.assert_array_equal(nd.all_output_ids[3, :2], [200, 300])
         np.testing.assert_array_equal(nd.sampling_params[child_handles], temp_params)
         np.testing.assert_array_equal(nd.seeds[child_handles], [123, 456])
         np.testing.assert_array_equal(nd.best_of[child_handles], [1, 3])

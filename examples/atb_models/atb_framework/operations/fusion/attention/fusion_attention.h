@@ -97,8 +97,8 @@ struct FusionAttentionParam {
     bool normHasBias = false;
     /// A flag indicating whether to use NormQuant fusion operation
     bool enableNormQuantOp = true;
-    /// A flag indecating whether to prefetch weight
-    bool enablePreFetchWeight = false;
+    /// Size of prefetch weight, 0 means disable.
+    size_t preFetchWeightSize = 0;
      /// A flag indicating whether lora is enabled.
     bool supportLora = false;
     /// A flag indicating whether a mask is used before applying lora adapter.

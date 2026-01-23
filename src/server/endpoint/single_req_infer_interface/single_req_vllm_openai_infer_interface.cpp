@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2026. All rights reserved.
  * MindIE is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -26,7 +26,7 @@ using OrderedJson = nlohmann::ordered_json;
 
 namespace mindie_llm {
 static constexpr double MAX_OPENAI_REPETITION_PENALTY = 2.0;
-static std::wregex g_functionNamePattern(L"^[a-zA-Z0-9_\u4e00-\u9fa5-]{1,64}$");
+static constexpr auto FUNCTION_NAME_PATTERN = L"^[a-zA-Z0-9_\u4e00-\u9fa5-]{1,64}$";
 
 SingleReqVllmOpenAiInferInterface::SingleReqVllmOpenAiInferInterface(
     const std::shared_ptr<SingleLLMReqHandlerBase>& singleLLMReqHandlerBase, bool isReCompute,
@@ -226,7 +226,7 @@ bool SingleReqVllmOpenAiInferInterface::ValidToolCall(OrderedJson &toolCalls, st
             return false;
         }
         std::string functionName = function["name"].get<std::string>();
-        if (!std::regex_match(String2Wstring(functionName), g_functionNamePattern)) {
+        if (!std::regex_match(String2Wstring(functionName), std::wregex(FUNCTION_NAME_PATTERN))) {
             msg = "The name of function must be a-z, A-Z, 0-9, common chinese characters, underscores and dashe "
             "within max length of 64, unexpected function name: " + functionName;
             return false;
@@ -476,7 +476,7 @@ bool SingleReqVllmOpenAiInferInterface::CheckFunction(const OrderedJson &toolPar
         return false;
     }
     std::string functionName = func["name"].get<std::string>();
-    if (!std::regex_match(String2Wstring(functionName), g_functionNamePattern)) {
+    if (!std::regex_match(String2Wstring(functionName), std::wregex(FUNCTION_NAME_PATTERN))) {
         error = "The name of function must be a-z, A-Z, 0-9, common chinese characters, underscores and dashe "
         "within max length of 64, unexpected function name: " + functionName;
         return false;
@@ -1229,8 +1229,7 @@ bool SingleReqVllmOpenAiInferInterface::EncodeStreamResponse(RespBodyQueue &json
     return EncodeStreamJsonObject(jsonStrings, fullTextMap, true);
 }
 
-std::unique_ptr<std::string> SingleReqVllmOpenAiInferInterface::BuildVllmOpenAIReComputeBody(
-    const std::vector<BestNTokens>& tokens)
+std::string SingleReqVllmOpenAiInferInterface::BuildVllmOpenAIReComputeBody(const std::vector<BestNTokens>& tokens)
 {
     OrderedJson newReqJsonObj;
     // Get tokens in non-stream mode
@@ -1266,15 +1265,7 @@ std::unique_ptr<std::string> SingleReqVllmOpenAiInferInterface::BuildVllmOpenAIR
     if (request_->topK.has_value()) {
         newReqJsonObj["top_k"] = request_->topK.value();
     }
-        std::string stopStr = request_->stopStrings.has_value() ? request_->stopStrings.value() : "";
-    if (stopStr != "") {
-        try {
-            newReqJsonObj["stop"] = nlohmann::json::parse(stopStr, CheckJsonDepthCallbackUlog);
-        } catch(...) {
-            ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SINGLE_INFERENCE,
-                JSON_PARSE_ERROR), "Failed to parse stopStrings");
-        }
-    }
+    ParseStopString(newReqJsonObj);
     if (request_->stopTokenIds.has_value() && request_->stopTokenIds.value().size() != 0) {
         newReqJsonObj["stop_token_ids"] = request_->stopTokenIds.value();
     }
@@ -1291,7 +1282,20 @@ std::unique_ptr<std::string> SingleReqVllmOpenAiInferInterface::BuildVllmOpenAIR
         newReqJsonObj["top_logprobs"] = request_->topLogprobs.value();
     }
 
-    return std::make_unique<std::string>(newReqJsonObj.dump());
+    return newReqJsonObj.dump();
+}
+
+void SingleReqVllmOpenAiInferInterface::ParseStopString(nlohmann::ordered_json& newReqJsonObj)
+{
+    std::string stopStr = request_->stopStrings.has_value() ? request_->stopStrings.value() : "";
+    if (stopStr != "") {
+        try {
+            newReqJsonObj["stop"] = nlohmann::json::parse(stopStr, CheckJsonDepthCallbackUlog);
+        } catch(...) {
+            ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SINGLE_INFERENCE,
+                JSON_PARSE_ERROR), "Failed to parse stopStrings");
+        }
+    }
 }
 
 } // namespace mindie_llm

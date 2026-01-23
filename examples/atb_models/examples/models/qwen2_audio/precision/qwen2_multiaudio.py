@@ -30,7 +30,7 @@ def parse_arguments():
                                                               allow_none=True)
     parser_qwen2multiaudio.add_argument('--audio_path',
                         help="image_or_video path",
-                        default="/data/dataset/npu_gpu_100",
+                        default="/data/dataset/vocalsound",
                         validator=path_validator
                         )
     parser_qwen2multiaudio.add_argument(

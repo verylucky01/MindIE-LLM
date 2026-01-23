@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+set -e
 export CODE_ROOT=$(cd $(dirname -- $0); pwd)
 SCRIPT_DIR=$CODE_ROOT/scripts
 
@@ -44,13 +45,18 @@ function fn_build()
         COMPILE_OPTIONS="${COMPILE_OPTIONS} -DCMAKE_CXX_COMPILER_LAUNCHER=ccache"
     fi
 
+    if [ -z "$ASCEND_HOME_PATH" ]; then
+        echo "env ASCEND_HOME_PATH not exist, skip kernels compilation"
+    else
+        source $SCRIPT_DIR/build_kernels.sh
+    fi
+
     fn_build_version_info
     fn_build_third_party
     fn_build_src
     if [ "$build_type" = "release" ]; then
         fn_extract_debug_symbols $OUTPUT_DIR "$CODE_ROOT/llm_debug_symbols"
     fi
-    fn_make_whl
     fn_build_for_ci
     cp $SCRIPT_DIR/set_env.sh $OUTPUT_DIR
 }
@@ -129,7 +135,7 @@ function fn_main()
     case "${arg1}" in
         "debug")
             COMPILE_OPTIONS="${COMPILE_OPTIONS} -DCMAKE_BUILD_TYPE=Debug -DDOMAIN_LAYERED_TEST=OFF"
-            set -ex
+            set -x
             fn_build
             fn_make_run_package
             ;;

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2026. All rights reserved.
  * MindIE is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -271,9 +271,9 @@ TEST_F(SelfDevelopInterfaceTest, testBuildSelfDevelopReComputeBody)
     selfDevelopInterface->isReCompute_ = true;
 
     std::vector<BestNTokens> emptyTokens;
-    std::unique_ptr<std::string> ret = selfDevelopInterface->BuildSelfDevelopReComputeBody(emptyTokens);
+    std::string ret = selfDevelopInterface->BuildSelfDevelopReComputeBody(emptyTokens);
 
-    OrderedJson obj = OrderedJson::parse(*ret);
+    OrderedJson obj = OrderedJson::parse(ret);
     ASSERT_TRUE(obj.contains("inputs"));
     EXPECT_TRUE(obj["inputs"].is_string());
     ASSERT_TRUE(obj.contains("stream"));

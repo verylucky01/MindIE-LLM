@@ -126,6 +126,8 @@ struct MlpParam {
     int matmulBackend = atb_speed::common::OpBackend::ATB;
     /// Specifies whether the post attention norm enables antioutlier
     bool isAntiOutlier = false;
+    /// Size of prefetch in_weight_down, 0 means disable.
+    size_t preFetchWeightSize = 0;
 };
 
 /// Get the `MlpPackType` based on the quantizaton type of the gate-up linear and the structure of the model.

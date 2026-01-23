@@ -1,7 +1,6 @@
-set(CMAKE_SKIP_BUILD_RPATH TRUE)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-get_ABI_option_value(USE_CXX11_ABI)
+get_ABI_option_value()
 
 # 通用编译选项
 set(_COMMON_FLAGS_LIST
@@ -36,9 +35,7 @@ set(_C_FLAGS_LIST
 
 # C++ 特有选项
 set(_CXX_FLAGS_LIST
-    -D_GLIBCXX_USE_CXX11_ABI=${USE_CXX11_ABI}  # 控制 C++ ABI 兼容性
     -fexceptions                               # 启用 C++ 异常（大多数项目都需要）
-    
     -Wnon-virtual-dtor                         # 基类没有虚析构时警告（防止内存泄露）
     -Wdelete-non-virtual-dtor                  # 删除非虚析构基类指针导致 UB 时警告
     -Woverloaded-virtual                       # 检测覆盖隐藏基类虚函数
@@ -51,10 +48,14 @@ set(_CXX_FLAGS_LIST
 list(JOIN _COMMON_FLAGS_LIST " " _COMMON_FLAGS)
 list(JOIN _C_FLAGS_LIST " " _C_FLAGS)
 list(JOIN _CXX_FLAGS_LIST " " _CXX_FLAGS)
-
 # 应用全局 C / C++ 编译选项
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${_COMMON_FLAGS} ${_C_FLAGS}")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${_COMMON_FLAGS} ${_CXX_FLAGS}")
+if(USE_CXX11_ABI)
+    add_definitions(-U_GLIBCXX_USE_CXX11_ABI -D_GLIBCXX_USE_CXX11_ABI=1)
+else()
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_GLIBCXX_USE_CXX11_ABI=0")
+endif()
 
 # 链接器选项
 set(_LD_FLAGS_GLOBAL_LIST

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2026. All rights reserved.
  * MindIE is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -58,11 +58,11 @@ void HttpMetrics::CollectStatisticsRequest(const std::shared_ptr<SingleReqInferI
 
 void HttpMetrics::TTFTAdd(const std::shared_ptr<SingleReqInferInterfaceBase> &inferRequest)
 {
-    if (inferRequest == nullptr || inferRequest->GetSingleLLMReqHandlerBase() == nullptr) {
+    if (inferRequest == nullptr) {
         return;
     }
 
-    auto currReqTTFTCost = inferRequest->GetSingleLLMReqHandlerBase()->GetMetrics().firstTokenCost;
+    auto currReqTTFTCost = inferRequest->GetMetrics().firstTokenCost;
 
     // 使用 std::lock_guard 自动管理锁的生命周期
     std::lock_guard<std::mutex> lock(TTFTMutex);
@@ -77,11 +77,11 @@ void HttpMetrics::TTFTAdd(const std::shared_ptr<SingleReqInferInterfaceBase> &in
 
 void HttpMetrics::TBTAdd(const std::shared_ptr<SingleReqInferInterfaceBase> &inferRequest)
 {
-    if (inferRequest == nullptr || inferRequest->GetSingleLLMReqHandlerBase() == nullptr) {
+    if (inferRequest == nullptr) {
         return;
     }
 
-    auto currReqTBTCostVec = inferRequest->GetSingleLLMReqHandlerBase()->GetMetrics().decodeTime;
+    auto currReqTBTCostVec = inferRequest->GetMetrics().decodeTime;
     if (currReqTBTCostVec.empty()) {
         return;
     }

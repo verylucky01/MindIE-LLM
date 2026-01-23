@@ -93,7 +93,6 @@ class AclGraphWrapper:
             graph = aclgraph
         
         # sync, update host input and replay
-        torch.npu.synchronize()
         graph.replay()
         graph.update(
             cpu_update_input=[{"actual_seq_lengths_kv": attn_metadata[next(iter(attn_metadata))].seq_lens_list}]

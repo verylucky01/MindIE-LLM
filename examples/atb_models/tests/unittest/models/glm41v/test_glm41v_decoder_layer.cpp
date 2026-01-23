@@ -33,21 +33,19 @@ bool CheckGlm41vFusionAttentionParam(
     return true;
 }
 
-TEST(Glm41vDecoderLayerTest, Glm41vDecoderLayer)
+TEST(Glm41vDecoderLayerTest, DecoderLayer)
 {
     GlobalMockObject::verify();
 
-    atb_speed::glm41v::Glm41vLayerParam layerParam;
+    atb_speed::base::LayerParam layerParam;
     layerParam.hiddenSizePerAttentionHead = NUM128;
 
-    atb_speed::glm41v::Glm41vDecoderLayer decoderLayer(layerParam);
+    atb_speed::glm41v::DecoderLayer decoderLayer(layerParam);
     decoderLayer.ConstructInTensorMap();
-    EXPECT_TRUE(decoderLayer.graph.inTensorNum == NUM63);
+    EXPECT_TRUE(decoderLayer.inTensorList.size() == NUM63);
     atb_speed::common::FusionAttentionParam<atb::infer::RmsNormParam> fusionAttentionParam;
     decoderLayer.SetFusionAttentionParam(fusionAttentionParam);
     EXPECT_TRUE(CheckGlm41vFusionAttentionParam(fusionAttentionParam));
-    decoderLayer.SetFusionAttentionNormParam(fusionAttentionParam);
-    EXPECT_FALSE(fusionAttentionParam.enableNormQuantOp);
     MOCKER(atb::CreateOperation<atb::infer::RmsNormParam>).expects(atLeast(1))
     .with(any(), any()).will(returnValue(0));
     atb::Status ret = decoderLayer.AddPostSelfAttentionRMSNorm();

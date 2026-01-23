@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2026. All rights reserved.
  * MindIE is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -160,10 +160,11 @@ Status InferInstance::Process(RequestSPtr request)
     }
     // If multiple managers have the same max remaining blocks, randomly select one.
     size_t chosen = (candidateIdx.size() == 1) ? candidateIdx[0] : candidateIdx[RandomNumber(candidateIdx.size() - 1)];
+    callbackMap.Insert(request->requestId, request->serverResponseCallback_);
     if (!llmManagers_[chosen]->AddRequest(request).IsOk()) {
+        callbackMap.Erase(request->requestId);
         return Status(Error::Code::ERROR, "ProcessRequests failed.");
     }
-    callbackMap.Insert(request->requestId, request->serverResponseCallback_);
     return Status(Error::Code::OK, "Success");
 }
 

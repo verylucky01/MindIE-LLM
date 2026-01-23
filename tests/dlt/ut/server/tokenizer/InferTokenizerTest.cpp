@@ -149,8 +149,12 @@ namespace SimpleLLMInference {
                 std::string py = GetCwd() + "/tokenizer.py";
                 ::unlink(py.c_str());
             }
-            std::string pkgDir = GetCwd() + "/mies_tokenizer";
+            std::string pkgDir = GetCwd() + "/mindie_llm/tokenizer";
             std::string initPy = pkgDir + "/__init__.py";
+            ::unlink(initPy.c_str());
+            ::rmdir(pkgDir.c_str());
+            pkgDir = GetCwd() + "/mindie_llm";
+            initPy = pkgDir + "/__init__.py";
             ::unlink(initPy.c_str());
             ::rmdir(pkgDir.c_str());
         }
@@ -372,7 +376,10 @@ class IbisTokenizerDeleteRaise(IbisTokenizer):
 
             // b) mies_tokenizer（子进程)
             {
-                std::string pkgDir = GetCwd() + "/mies_tokenizer";
+                std::string pkgDir = GetCwd() + "/mindie_llm";
+                ::mkdir(pkgDir.c_str(), 0755);
+                std::ofstream(pkgDir + "/__init__.py").close();
+                pkgDir = pkgDir + "/tokenizer";
                 ::mkdir(pkgDir.c_str(), 0755);
                 std::ofstream ofs(pkgDir + "/__init__.py", std::ios::out | std::ios::trunc);
                 ofs << R"(
@@ -795,7 +802,7 @@ class IbisTokenizer:
     {
         auto &pool = TokenizerProcessPool::GetInstance();
 
-        auto mies = pybind11::module_::import("mies_tokenizer");
+        auto mies = pybind11::module_::import("mindie_llm.tokenizer");
         ASSERT_TRUE(pybind11::hasattr(mies, "IbisTokenizer"));
 
         std::shared_ptr<InferTokenizer> tk;
@@ -807,7 +814,7 @@ class IbisTokenizer:
     TEST_F(InferenceTokenizerTest, InitSubProcessTokenizer_NoClass_ReturnsFalse)
     {
         auto &pool = TokenizerProcessPool::GetInstance();
-        auto mies = pybind11::module_::import("mies_tokenizer");
+        auto mies = pybind11::module_::import("mindie_llm.tokenizer");
 
         bool had = pybind11::hasattr(mies, "IbisTokenizer");
         pybind11::object backup;
@@ -825,7 +832,7 @@ class IbisTokenizer:
     TEST_F(InferenceTokenizerTest, InitSubProcessTokenizer_MissingMethods_ReturnsFalse)
     {
         auto &pool = TokenizerProcessPool::GetInstance();
-        auto mies = pybind11::module_::import("mies_tokenizer");
+        auto mies = pybind11::module_::import("mindie_llm.tokenizer");
 
         ASSERT_TRUE(pybind11::hasattr(mies, "IbisTokenizer"));
         pybind11::object backup = mies.attr("IbisTokenizer");
@@ -847,7 +854,7 @@ class IbisTokenizer:
     TEST_F(InferenceTokenizerTest, InitSubProcessTokenizer_CtorRaises_ReturnsFalse)
     {
         auto &pool = TokenizerProcessPool::GetInstance();
-        auto mies = pybind11::module_::import("mies_tokenizer");
+        auto mies = pybind11::module_::import("mindie_llm.tokenizer");
 
         ASSERT_TRUE(pybind11::hasattr(mies, "IbisTokenizer"));
         pybind11::object backup = mies.attr("IbisTokenizer");
@@ -873,7 +880,7 @@ class IbisTokenizer:
         MOCKER_CPP(&ConfigManager::GetConfigJsonStr, std::string (*)())
             .stubs().will(MOCKCPP_NS::invoke(&Ret_MissingKeysConfigJson_Value));
 
-        auto mies = pybind11::module_::import("mies_tokenizer");
+        auto mies = pybind11::module_::import("mindie_llm.tokenizer");
         ASSERT_TRUE(pybind11::hasattr(mies, "IbisTokenizer"));
 
         std::shared_ptr<InferTokenizer> tk;
@@ -893,7 +900,7 @@ class IbisTokenizer:
         MOCKER_CPP(&ConfigManager::GetConfigJsonStr, std::string (*)())
             .stubs().will(MOCKCPP_NS::invoke(&Ret_InvalidConfigJson_Value));
 
-        auto mies = pybind11::module_::import("mies_tokenizer");
+        auto mies = pybind11::module_::import("mindie_llm.tokenizer");
         ASSERT_TRUE(pybind11::hasattr(mies, "IbisTokenizer"));
 
         std::shared_ptr<InferTokenizer> tk;

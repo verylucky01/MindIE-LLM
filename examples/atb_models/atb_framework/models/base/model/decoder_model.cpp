@@ -548,6 +548,9 @@ atb::Status DecoderModel::AddNodesAfterLayer()
         CHECK_OPERATION_STATUS_RETURN(this->AddAllGather());
     }
     CHECK_OPERATION_STATUS_RETURN(this->AddLmhead());
+    if (param.preFetchWeightSize > 0) {
+        CHECK_OPERATION_STATUS_RETURN(AddCmoSync());
+    }
     return atb::NO_ERROR;
 }
 
@@ -826,7 +829,7 @@ void DecoderModel::SetLayerParam(LayerParam &layerParam, uint32_t layerId)
     }
     layerParam.enableSplitFuse = this->param.enableSplitFuse;
     layerParam.enableLora = this->param.enableLora;
-    layerParam.enablePreFetchWeight = this->param.enablePreFetchWeight;
+    layerParam.preFetchWeightSize = this->param.preFetchWeightSize;
     layerParam.loraEnableGMM = this->param.loraEnableGMM;
     layerParam.enableKvQuant = this->param.enableKvQuant;
     layerParam.enableFA3 = this->param.enableFA3;
@@ -1219,6 +1222,28 @@ atb::Status DecoderModel::AddLmhead()
     return atb::NO_ERROR;
 }
 
+atb::Status DecoderModel::AddCmoSync()
+{
+    atb::Operation *op = nullptr;
+
+    atb_speed::Model::Node waitNode;
+    CHECK_OPERATION_STATUS_RETURN(atb_speed::EventManager::GetInstance().WaitEvent(
+        op, atb_speed::EventAction::POP, atb_speed::common::CMO_SYNC));
+    waitNode.inTensors = {};
+    waitNode.outTensors = {};
+    waitNode.operation.reset(op);
+    graph_.nodes.push_back(waitNode);
+
+    atb_speed::Model::Node recordNode;
+    CHECK_OPERATION_STATUS_RETURN(atb_speed::EventManager::GetInstance().RecordEvent(
+        op, atb_speed::EventAction::PUSH, atb_speed::common::CMO_SYNC));
+    recordNode.inTensors = {};
+    recordNode.outTensors = {};
+    recordNode.operation.reset(op);
+    CHECK_OPERATION_STATUS_RETURN(SetNodeStreamId(recordNode, 1));
+    graph_.nodes.push_back(recordNode);
+    return atb::NO_ERROR;
+}
 
 void DecoderModel::ParseDapParam(nlohmann::json &paramJson)
 {

@@ -238,6 +238,7 @@ function install_python_whl() {
     model_wrapper_wheel_path=$(find $install_dir/bin/ -name model_wrapper*.whl)
     llm_manager_python_api_demo_wheel_path=$(find $install_dir/bin/ -name llm_manager_python_api_demo*.whl)
     tokenizer_wheel_path=$(find $install_dir/bin/ -name mies_tokenizer*.whl)
+    mie_ops_wheel_path=$(find $install_dir/bin/ -name mie_ops*.whl)
 
     print "INFO" "Ready to start install mindie_llm at ${mindie_llm_wheel_path}"
     chmod 640 ${log_file}
@@ -254,7 +255,13 @@ function install_python_whl() {
     chmod 640 ${log_file}
     $python_interpreter -m pip install ${tokenizer_wheel_path} --log-file ${log_file} --force-reinstall || \
     { print "ERROR" "Failed to install tokenizer wheel in mindie-llm"; exit 1; }
-    chmod 440 ${log_file}
+    if [ -n "$mie_ops_wheel_path" ]; then
+        chmod 640 ${log_file}
+        $python_interpreter -m pip install ${mie_ops_wheel_path} --log-file ${log_file} --force-reinstall || \
+        { print "ERROR" "Failed to install mie_ops wheel"; exit 1; }
+    else
+        print "WARNING" "mie_ops wheel not found, skipping installation"
+    fi
 }
 
 function install_to_path() {

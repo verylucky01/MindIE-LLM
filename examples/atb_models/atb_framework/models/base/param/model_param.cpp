@@ -238,8 +238,8 @@ void ModelParam::ParseMatmulParam(const nlohmann::json &paramJson)
     if (paramJson.contains("enableLora")) {
         this->enableLora = FetchJsonParam<bool>(paramJson, "enableLora");
     }
-    if (paramJson.contains("enablePreFetchWeight")) {
-        this->enablePreFetchWeight = FetchJsonParam<bool>(paramJson, "enablePreFetchWeight");
+    if (paramJson.contains("preFetchWeightSize")) {
+        this->preFetchWeightSize = FetchJsonParam<size_t>(paramJson, "preFetchWeightSize");
     }
     if (paramJson.contains("loraEnableGMM")) {
         this->loraEnableGMM = FetchJsonParam<bool>(paramJson, "loraEnableGMM");

@@ -10,10 +10,10 @@
 | 模型及参数量 | 模型架构 | 800I A2 Tensor Parallelism | 300I DUO Tensor Parallelism | FP16 | BF16 | MindIE Service | 纯模型支持模态 | 服务化支持模态 | W8A8量化 | W8A8SC量化 | 并行解码 |
 |-------------|----------------------------|-----------------------------|------|------|----------------|---------------|---------------|---------|------------|-------------|---------|
 | Qwen3-VL-2B-Instruct | Dense | 支持world size 1,2,4,8(推荐1) | 支持world size 1,2,4,8(推荐1) | 是 | 是 | 是 | 文本、图片、视频 | 文本、图片、视频 |×|×|✓|
-| Qwen3-VL-4B-Instruct | Dense | 支持world size 1,2,4,8(推荐1) | 支持world size 1,2,4,8(推荐1) | 是 | 是 | 是 | 文本、图片、视频 | 文本、图片、视频 |×|×|✓|
+| Qwen3-VL-4B-Instruct | Dense | 支持world size 1,2,4,8(推荐1) | 支持world size 1,2,4,8(推荐1) | 是 | 是 | 是 | 文本、图片、视频 | 文本、图片、视频 |×|✓|✓|
 | Qwen3-VL-8B-Instruct | Dense | 支持world size 1,2,4,8(推荐2) | 支持world size 1,2,4,8(推荐2) | 是 | 是 | 是 | 文本、图片、视频 | 文本、图片、视频 |✓|✓|✓|
 | Qwen3-VL-32B-Instruct | Dense | 支持world size 2,4,8(推荐4) | 支持world size 2,4,8(推荐4) | 是 | 是 | 是 | 文本、图片、视频 | 文本、图片、视频 |✓|✓|✓|
-| Qwen3-VL-30B-A3B-Instruct | MoE | 支持world size 2,4,8(推荐2) | 支持world size 2,4,8(推荐2) | 是 | 是 | 是 | 文本、图片、视频 | 文本、图片、视频 |✓|×|✓|
+| Qwen3-VL-30B-A3B-Instruct | MoE | 支持world size 2,4(推荐2) | 支持world size 2,4(推荐2) | 是 | 是 | 是 | 文本、图片、视频 | 文本、图片、视频 |✓|×|✓|
 
 注意：
 - Qwen3-VL-30B-A3B-Instruct模型的W8A8量化是混合量化（Attention:w8a8量化，MoE:w8a8 dynamic量化）
@@ -54,6 +54,7 @@ max_input_length长度设置可参考模型权重路径下config.json里的max_p
 
 **300I DUO**
 
+- [Qwen3-VL-4B-Instruct-w8a8s-310](https://modelscope.cn/models/Eco-Tech/Qwen3-VL-4B-Instruct-w8a8s-310)
 - [Qwen3-VL-8B-Instruct-w8a8s-310](https://www.modelscope.cn/models/Eco-Tech/Qwen3-VL-8B-Instruct-w8a8s-310)
 - [Qwen3-VL-32B-Instruct-w8a8s-310](https://www.modelscope.cn/models/Eco-Tech/Qwen3-VL-32B-Instruct-w8a8s-310)
 - [Qwen3-VL-30B-A3B-Instruct-w8a8-QuaRot-310](https://www.modelscope.cn/models/Eco-Tech/Qwen3-VL-30B-A3B-Instruct-w8a8-QuaRot-310)
@@ -65,6 +66,8 @@ torchrun --nproc_per_node {TP数} -m examples.convert.model_slim.sparse_compress
 
 **800I A2**
 
+- [Qwen3-VL-8B-Instruct-w8a8-QuaRot](https://modelscope.cn/models/Eco-Tech/Qwen3-VL-8B-Instruct-w8a8-QuaRot)
+- [Qwen3-VL-32B-Instruct-w8a8-QuaRot](https://modelscope.cn/models/Eco-Tech/Qwen3-VL-32B-Instruct-w8a8-QuaRot)
 - [Qwen3-VL-30B-A3B-Instruct-w8a8-QuaRot](https://www.modelscope.cn/models/Eco-Tech/Qwen3-VL-30B-A3B-Instruct-w8a8-QuaRot)
 
 ## 推理

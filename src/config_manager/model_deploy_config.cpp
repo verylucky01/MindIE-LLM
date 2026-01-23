@@ -469,8 +469,8 @@ bool ModelDeployConfigManager::CheckParam()
             MINDIE_LLM_LOG_ERROR("The value of modelParam.worldSize can not be 0.");
             initFlag = false;
         }
-        if (modelParam.backendType != "atb" && modelParam.backendType != "ms") {
-            MINDIE_LLM_LOG_ERROR("Backend type only supports atb or ms.");
+        if (modelParam.backendType != "atb" && modelParam.backendType != "ms" && modelParam.backendType != "torch") {
+            MINDIE_LLM_LOG_ERROR("Backend type only supports atb, ms, torch.");
             initFlag = false;
         }
         if (modelParam.npuMemSize == 0 || modelParam.npuMemSize <= NPU_MEM_SZIE_LIMIT) {

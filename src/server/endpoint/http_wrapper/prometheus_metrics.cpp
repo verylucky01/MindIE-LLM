@@ -91,7 +91,7 @@ Status PrometheusMetrics::InitPrometheusMetrics(std::string modelName)
             .Name("request_failed_total").Help("Count of failed requests.").Register(*registry)
             .Add({{"model_name", modelName}});
         runningRequestNumGauge_ = &prometheus::BuildGauge()
-            .Name("num_requests_running").Help("Number of requests currently running on GPU.")
+            .Name("num_requests_running").Help("Number of requests currently running on NPU.")
             .Register(*registry).Add({ { "model_name", modelName } });
         waitingRequestNumGauge_ = &prometheus::BuildGauge()
             .Name("num_requests_waiting").Help("Number of requests waiting to be processed.")
@@ -355,7 +355,7 @@ void PrometheusMetrics::RecordStatusData()
     float decodeThroughput = 0.0;
     Status status = GetInferInstance()->GetThroughput(prefillThroughput, decodeThroughput);
     if (!status.IsOk()) {
-        std::string msg = "Failed to get throughput, prefillThroughput: " +
+        std::string msg = "Can't to get throughput, prefillThroughput: " +
             std::to_string(prefillThroughput) + "decodeThroughput: " + std::to_string(decodeThroughput);
         ULOG_WARN(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(WARNING, SUBMODLE_FEATURE_MANAGE_REQUEST,
             LOCAL_INVOKING_ERROR), msg);
@@ -397,7 +397,7 @@ void PrometheusMetrics::RecordRadixMatchData()
 
     Status status = GetInferInstance()->GetRadixMatchNums(allRadixMatchNum, npuRadixMatchHitNum);
     if (!status.IsOk()) {
-        std::string msg = "Failed to get radix match data, allRadixMatchNum: " +
+        std::string msg = "Can't to get radix match data, allRadixMatchNum: " +
             std::to_string(allRadixMatchNum) + "npuRadixMatchHitNum: " + std::to_string(npuRadixMatchHitNum);
         ULOG_WARN(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(WARNING, SUBMODLE_FEATURE_MANAGE_REQUEST,
             CHECK_ERROR), msg);
@@ -415,7 +415,7 @@ void PrometheusMetrics::GetCumulativePreemptCount()
     if (!status.IsOk()) {
         ULOG_WARN(SUBMODLE_NAME_ENDPOINT,
             GenerateEndpointErrCode(WARNING, SUBMODLE_FEATURE_MANAGE_REQUEST, CHECK_ERROR),
-            "Failed to get radix match data.");
+            "Can't to get cumulative preempt count!");
         return;
     }
 

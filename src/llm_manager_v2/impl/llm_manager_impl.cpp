@@ -29,6 +29,7 @@
 #include "infer_instances.h"
 #include "config_manager_impl.h"
 #include "safe_io.h"
+#include "shared_memory.h"
 
 using Json = nlohmann::json;
 namespace py = pybind11;
@@ -1252,6 +1253,8 @@ Status LlmManagerImpl::Init(uint32_t modelInstanceId, std::set<size_t> npuDevice
     // 2、分布式组网：每个节点都能接收到请求
     //  2.1只创建1个executor
     size_t executorNum = 1;
+    // 表示当前机器上需要创建几份共享内存
+    size_t shmCount = 1;
     auto it = engineConfig_.modelDeployParam[0].modelConfig.find("dp");
     
     if (engineConfig_.layerwiseDisaggregated) {
@@ -1266,8 +1269,10 @@ Status LlmManagerImpl::Init(uint32_t modelInstanceId, std::set<size_t> npuDevice
             mindie_llm::Split(modelConfigs_[0].at("slaveIPs"), ",", slaveIPs);
             size_t nodeNum = slaveIPs.size() + 1;
             executorNum = isMaster_ ? dp : dp / nodeNum;
+            shmCount = dp / nodeNum;
         } else {
             executorNum = dp;
+            shmCount = dp;
         }
     }
 
@@ -1275,7 +1280,12 @@ Status LlmManagerImpl::Init(uint32_t modelInstanceId, std::set<size_t> npuDevice
     std::vector<std::thread> threads;
     threads.reserve(executorNum);
     iExecutorSPtrs_.resize(executorNum);
-
+    if (!SharedMemorySizeCheck(TOTAL_SHARED_MEMORY_PER_DP * shmCount)) {
+        MINDIE_LLM_LOG_ERROR("Available shared memory size is not enough for all executors. Please increase the "
+                                 "available shared memory. The least required size is " +
+                                 std::to_string(TOTAL_SHARED_MEMORY_PER_DP * shmCount));
+        return Status(Error::Code::ERROR, "Shared memory size is not enough for all executors.");
+    }
     for (size_t i = 0; i < executorNum; i++) {
         threads.emplace_back([&, i]() {
             IExecutorSPtr iExecutorSPtr = CreateExecutor();

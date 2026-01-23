@@ -27,9 +27,10 @@ from torch import nn
 import torch_npu
 from atb_llm.models.base.flash_causal_lm import FlashForCausalLM
 from atb_llm.models.base.modeling import FlashAttention, FlashLayer, MLP
-from atb_llm.models.base.graph_manager.graph_manager import ATBGraphManager
 from atb_llm.models.base.inputs_modifier.qlen_modifier import QLenModifier
-from atb_llm.models.base.graph_manager import DapGraphWrapper, SpeculateGraphWrapper
+from atb_llm.models.base.inputs_modifier.flash_comm_modifier import FlashCommModifier
+from atb_llm.models.base.graph_manager import ATBGraphManager, DapGraphWrapper, SpeculateGraphWrapper, \
+    FlashCommGraphWrapper
 from atb_llm.utils.initial import NPUSocInfo
 from atb_llm.utils.layers import TensorParallelRowLinear, RMSNorm, TensorEmbedding, TensorHead, \
     load_column_multi, PositionRotaryEmbedding, AttentionMask
@@ -39,6 +40,12 @@ from atb_llm.utils.data.weight_wrapper import WeightWrapper, get_module, AttnWra
 from atb_llm.utils.quantize.pack_type import calc_linear_pack_type
 from atb_llm.utils.log.error_code import ErrorCode
 from atb_llm.utils.log import logger
+
+
+_800_9000_SOCS = (100, 101, 102, 103, 104)
+DUO_SOCS = (200, 201, 202, 203, 204, 205)
+A2_SOCS = (220, 221, 222, 223, 224, 225)
+A3_SOCS = (250, 251, 252, 253, 254, 255)
 
 
 class Glm41vTextAttention(FlashAttention):
@@ -119,6 +126,7 @@ class FlashGlm41vTextModelForCausalLM(FlashForCausalLM):
         else:
             prefix = "model.language_model"
         self.enable_rope_quant_kvcache = self.config.quantization_config.kv_quant_type is not None
+        self.hidden_size = config.hidden_size
         self.multi_query_group_num = self.config.num_key_value_heads
 
         self.embed_tokens = TensorEmbedding(prefix=f"{prefix}.embed_tokens", weights=weights)
@@ -169,6 +177,7 @@ class FlashGlm41vTextModelForCausalLM(FlashForCausalLM):
         # Multi graph management
         self.graph_manager = ATBGraphManager()
         self.qlen_decorator = QLenModifier()
+        self.flash_comm_modifier = FlashCommModifier(weights, self.hidden_size, self._flash_comm_gate())
 
     def init_ascend_operations(self, config):
         pass
@@ -228,7 +237,7 @@ class FlashGlm41vTextModelForCausalLM(FlashForCausalLM):
             "isUnpadInputs": True,
             "skipWordEmbedding": True,
             "isLmHeadParallel": True,
-            "enableSwiGLU": True if self.soc_info.soc_version != 240 else False,
+            "enableSwiGLU": True,
             "rank": self.tp_rank,
             "worldSize": self.tp_world_size,
             "backend": self.soc_info.communication_backend,
@@ -238,20 +247,23 @@ class FlashGlm41vTextModelForCausalLM(FlashForCausalLM):
         encoder_param = {
             **coder_param,
             "isPrefill": True,
-            "supportLcoc": False if self.soc_info.need_nz else True
+            "enablePreFetchWeight": self.soc_info.soc_version in DUO_SOCS,  # Negative performance gains in A2
+            "enableLcoc": self.lcoc_enable,
         }
         decoder_param = {
             **coder_param,
             "isPrefill": False,
-            "supportLcoc": False
+            "enableLcoc": False
         }
         if self.speculate_enable:
             self.graph_manager.register_graph(SpeculateGraphWrapper())
         if self.enable_dap:
             self.graph_manager.register_graph(DapGraphWrapper())
+        if self.flash_comm_modifier.enable_flash_comm:
+            self.graph_manager.register_graph(FlashCommGraphWrapper())
 
         specified_params = {"decode": decoder_param}
-        self.graph_manager.set_param("glm41v_Glm41vDecoderModel", encoder_param, specified_params)
+        self.graph_manager.set_param("glm41v_DecoderModel", encoder_param, specified_params)
         self.graph_manager.set_weight(self.ascend_weight)
     
     def init_kvcache(self, kv_cache):
@@ -327,6 +339,11 @@ class FlashGlm41vTextModelForCausalLM(FlashForCausalLM):
             enable_prefill_pa=False if self.inference_mode is None else self.inference_mode.enable_prefill_pa,
             enable_splitfuse_pa=not self.soc_info.is_300i(),
             **kwargs
+        )
+        self.flash_comm_modifier.modify_inputs(
+            self.acl_operation_inputs,
+            is_prefill,
+            acl_param
         )
         self.acl_param = json.dumps(acl_param)
         return self.acl_operation_inputs, self.acl_param
@@ -435,3 +452,14 @@ class FlashGlm41vTextModelForCausalLM(FlashForCausalLM):
             logger.error(err_msg, ErrorCode.ATB_MODELS_PARAM_OUT_OF_RANGE)
             raise RuntimeError(err_msg)
         return acl_model_out
+    
+    def _flash_comm_gate(self) -> bool:
+        soc_version = self.soc_info.soc_version
+        return not any([
+            self.enable_dap,
+            self.tp_world_size == 1,
+            soc_version in _800_9000_SOCS,
+            soc_version in DUO_SOCS and self.tp_world_size > 4,
+            soc_version in A2_SOCS + A3_SOCS and not self.soc_info.is_support_hccs(),
+            self.lcoc_enable
+        ])

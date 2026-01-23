@@ -56,6 +56,7 @@ class ForwardContext:
     num_actual_tokens: int = 0
     # (NOTE): rope generate in DeepSeekV3Model;
     seq_lens: torch.Tensor = None     
+    mc2_mask: torch.Tensor = None
 
 
 _forward_context: ForwardContext | None = None
@@ -88,6 +89,7 @@ def create_forward_context(
     num_actual_tokens = input_metadata.get("num_actual_tokens", 0)
     seq_lens = input_metadata["seq_lens"]
     num_tokens_across_dp_cpu = input_metadata["num_tokens_across_dp_cpu"]
+    mc2_mask = input_metadata.get("mc2_mask", None)
 
     return ForwardContext(
         attn_metadata=attn_metadata,
@@ -98,5 +100,6 @@ def create_forward_context(
         num_actual_tokens=num_actual_tokens,
         capturing=capturing,
         seq_lens=seq_lens,
-        num_tokens_across_dp_cpu=num_tokens_across_dp_cpu
+        num_tokens_across_dp_cpu=num_tokens_across_dp_cpu,
+        mc2_mask=mc2_mask,
     )

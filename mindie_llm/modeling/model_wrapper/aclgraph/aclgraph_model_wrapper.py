@@ -159,7 +159,9 @@ class AclGraphModelWrapper(ModelWrapper):
         max_dp_batch_size = kwargs.get("max_dp_batch_size")
         if max_dp_batch_size is not None:
             kwargs["max_dp_batch_size"] = torch.tensor(max_dp_batch_size).to(self.device)
-
+        mtp_logits_gather_indices = kwargs.get('mtp_logits_gather_indices', None)
+        if mtp_logits_gather_indices is not None:
+            kwargs["mtp_logits_gather_indices"] = torch.tensor(mtp_logits_gather_indices).to(self.device)
 
         if model_inputs.sp_computed_slots_padding_idx is not None:
             kwargs["sp_computed_slots_padding_idx"] = \

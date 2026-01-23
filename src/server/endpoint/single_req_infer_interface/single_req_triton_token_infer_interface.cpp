@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2026. All rights reserved.
  * MindIE is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -343,7 +343,7 @@ void SingleReqTritonTokenInferInterface::SetDMIReComputeBuilder()
         std::bind(&SingleReqTritonTokenInferInterface::BuildTritonTokenReComputeBody, this, std::placeholders::_1));
 }
 
-std::unique_ptr<std::string> SingleReqTritonTokenInferInterface::BuildTritonTokenReComputeBody(
+std::string SingleReqTritonTokenInferInterface::BuildTritonTokenReComputeBody(
     const std::vector<BestNTokens>& tokens)
 {
     OrderedJson newReqJsonObj;
@@ -380,7 +380,7 @@ std::unique_ptr<std::string> SingleReqTritonTokenInferInterface::BuildTritonToke
     parameters["timeout"] = this->inputParam->timeout;
     newReqJsonObj["parameters"] = parameters;
 
-    return std::make_unique<std::string>(newReqJsonObj.dump());
+    return newReqJsonObj.dump();
 }
 
 void SingleReqTritonTokenInferInterface::BuildReComputeBodySampling(const uint64_t& curSeqId, OrderedJson &parameters)

@@ -330,7 +330,7 @@ class TGInferContextStore:
                 children_context_handles=np.array(child_handles, dtype=np.int32),
                 parents_context_handles=np.array(parent_handles, dtype=np.int32),
             )
-
+            
         return result_handles
 
     def get_last_block_idx(self, context_handles):

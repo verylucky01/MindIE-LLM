@@ -101,10 +101,10 @@ TEST_F(EventDispatcherTest, ClearFunctionality)
     
     dispatcher->Clear();
     
-    EXPECT_EQ(dispatcher->clearCount_.load(), 0);
-
+    
     dispatcher->SendEvent("", true);
     wait_thread.join();
+    EXPECT_EQ(dispatcher->clearCount_.load(), 0);
 }
 
 TEST_F(EventDispatcherTest, LastMessageHandling)

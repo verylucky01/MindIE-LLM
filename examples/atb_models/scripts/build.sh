@@ -1,5 +1,5 @@
 #!/bin/bash
-# Copyright (c) Huawei Technologies Co., Ltd. 2023. All rights reserved.
+# Copyright (c) Huawei Technologies Co., Ltd. 2023-2026. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -359,65 +359,6 @@ EOF
 
 }
 
-function fn_build_for_ci()
-{
-    fn_files_authority_limit
-    cd $OUTPUT_DIR/atb_models
-    rm -rf ./*.tar.gz
-    cp $ATB_MODELS_DIR/dist/atb_llm*.whl .
-    cp -r $ATB_MODELS_DIR/atb_llm .
-    cp -r $ATB_MODELS_DIR/docs .
-    cp $ATB_MODELS_DIR/setup.py .
-    cp -r $ATB_MODELS_DIR/examples .
-    cp -r $ATB_MODELS_DIR/tests .
-    cp -r $ATB_MODELS_DIR/requirements .
-    cp -r $ATB_MODELS_DIR/public_address_statement.md .
-    cp $README_DIR/README.md .
-    fn_build_version_info
-
-    torch_vision=$(pip list | grep torch | head  -n 1 | awk '{print $2}' | cut -d '+' -f1)
-    if [ "$USE_CXX11_ABI" == "OFF" ];then
-        abi=0
-    else
-        abi=1
-    fi
-
-    TMP_VERSION=$(python3 -c 'import sys; print(sys.version_info[0], ".", sys.version_info[1])' | tr -d ' ')
-    PY_MINOR_VERSION=${TMP_VERSION##*.}
-    PY_VERSION="py3$PY_MINOR_VERSION"
-
-    tar_package_name="Ascend-mindie-atb-models_${PACKAGE_NAME}_linux-${ARCH}_${PY_VERSION}_torch${torch_vision}-abi${abi}.tar.gz"
-
-    if [ $IS_RELEASE -eq 1 ]; then
-        source_folder_list=$(cat $SCRIPT_DIR/release_folder.ini | xargs)
-        chmod 750 $source_folder_list
-        find $source_folder_list -mindepth 1 -type d -exec chmod 550 {} \;
-        find $source_folder_list -type f \( -name "*.py" -o -name "*.sh" -o -name "*.so" -o -name "*.tar.gz" \) -exec chmod 550 {} \;
-        find $source_folder_list -type f \( -name "*.json" -o -name "*.jsonl" -o -name "*.csv" -o -name "*.txt" \) -exec chmod 640 {} \;
-        tar czpf $tar_package_name $source_folder_list --owner=0 --group=0
-    else
-        tar czpf $tar_package_name ./* --owner=0 --group=0
-    fi
-
-    if [ -f "README.md" ];then
-        rm -rf README.md
-    fi
-
-    if [ $IS_RELEASE -eq 1 ]; then
-        cd $OUTPUT_DIR
-        mkdir -p debug_symbols
-        debug_symbols_package_name="$OUTPUT_DIR/debug_symbols/Ascend-mindie-atb-models-debug-symbols_${PACKAGE_NAME}_linux-${ARCH}_${PY_VERSION}_torch${torch_vision}-abi${abi}.tar.gz"
-        tar czpf $debug_symbols_package_name atb_models_debug_symbols
-        echo "Save debug symbols file to $OUTPUT_DIR/debug_symbols"
-    fi
-}
-
-function fn_make_whl() {
-    echo "make atb_llm whl package"
-    cd $ATB_MODELS_DIR
-    python3 $ATB_MODELS_DIR/setup.py bdist_wheel
-}
-
 function fn_extract_debug_symbols() {
     local in_dir=$1
     local out_dir=$2
@@ -488,18 +429,19 @@ print(pybind11_cmake_dir)
     if [ "$CLEAN_FIRST" == "ON" ];then
         make clean
     fi
+    # Determine parallel build level
+    PARALLEL_LEVEL=${CMAKE_BUILD_PARALLEL_LEVEL:-8}
+
     if [ "$USE_VERBOSE" == "ON" ];then
-        VERBOSE=1 make -j
+        VERBOSE=1 make -j${PARALLEL_LEVEL}
     else
-        make -j
+        make -j${PARALLEL_LEVEL}
     fi
     make install
-    fn_make_whl
 
     if [ $IS_RELEASE -eq 1 ]; then
         fn_extract_debug_symbols $OUTPUT_DIR/atb_models $OUTPUT_DIR/atb_models_debug_symbols/lib
     fi
-    fn_build_for_ci
 }
 
 function fn_main()

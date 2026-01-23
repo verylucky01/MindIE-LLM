@@ -17,17 +17,16 @@ namespace glm41v {
 // Weight count
 const uint64_t GLM4_WEIGHT_COUNT_PER_LAYER = 52;
 
-Glm41vDecoderModel::Glm41vDecoderModel(const std::string &param) : atb_speed::base::DecoderModel(param)
+DecoderModel::DecoderModel(const std::string &param) : atb_speed::base::DecoderModel(param)
 {
-    this->param.FromString(param);
     this->weightCountPerLayer = GLM4_WEIGHT_COUNT_PER_LAYER;
 }
 
-atb::Status Glm41vDecoderModel::CreateLayerOperation(atb::Operation **op, uint32_t layerId)
+atb::Status DecoderModel::CreateLayerOperation(atb::Operation **op, uint32_t layerId)
 {
-    Glm41vLayerParam layerParam;
+    atb_speed::base::LayerParam layerParam;
     this->SetLayerParam(layerParam, layerId);
-    Glm41vDecoderLayer decoderLayer(layerParam);
+    atb_speed::glm41v::DecoderLayer decoderLayer(layerParam);
     CHECK_OPERATION_STATUS_RETURN(decoderLayer.BuildGraph(op));
     return atb::NO_ERROR;
 }

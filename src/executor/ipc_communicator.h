@@ -40,7 +40,7 @@ public:
     IPCCommunicator(std::string prefixName, uint32_t workerNum);
     ~IPCCommunicator() = default;
 
-    bool SetupChannel();
+    bool SetupChannel(const ShmSizeConfig &shmSizeConfig);
 
     bool StartHandleResponseThread();
 
@@ -65,7 +65,7 @@ private:
     bool HandleRcvMsg();
 
     bool CheckSemaphoreOwnerAndPermission(const std::string &semName) const;
-    bool CreateSharedMemory(IPCSharedMemory &iPCSharedMemory) const;
+    bool CreateSharedMemory(IPCSharedMemory &iPCSharedMemory, const size_t sharedMemorySize) const;
     void CreateSemaphores(IPCSharedMemory &iPCSharedMemory) const;
     void CloseSemaphores(IPCSharedMemory &iPCSharedMemory) const;
     void UnlinkSemaphores(IPCSharedMemory &iPCSharedMemory) const;
@@ -78,6 +78,8 @@ private:
     bool recvChannelActive_ = false;
     std::unique_ptr<std::thread> handleResponseThread_ = nullptr;
     ResponseHandler responseHandler_ = nullptr;
+    size_t requestShmSize_ = DEFAULT_SHARED_MEMORY_SIZE;
+    size_t responseShmSize_ = DEFAULT_SHARED_MEMORY_SIZE;
 };
 
 bool SerializeExecuteMessage(ExecuteRequest &request, std::string &buf);

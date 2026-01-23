@@ -39,7 +39,7 @@ SharedMemory::~SharedMemory()
     valid = false;
 }
 
-bool SharedMemory::SharedMemorySizeCheck(const uint32_t &pendingMemoryAllocationSize)
+bool SharedMemorySizeCheck(const uint64_t &pendingMemoryAllocationSize)
 {
     const std::string path = "/dev/shm";
  
@@ -66,8 +66,8 @@ bool SharedMemory::SharedMemorySizeCheck(const uint32_t &pendingMemoryAllocation
     uint64_t availSize = static_cast<uint64_t>(buf.f_bsize) * buf.f_bavail;
 
     if (availSize < pendingMemoryAllocationSize) {
-        MINDIE_LLM_LOG_ERROR("Shared memory available is not enough on the filesystem with " <<
-            " available size %llu and pending allocation size %u.", availSize, pendingMemoryAllocationSize);
+        MINDIE_LLM_LOG_ERROR("Shared memory available is not enough on the filesystem with "
+            " available size " << availSize << " and pending allocation size " << pendingMemoryAllocationSize);
         return false;
     }
     return true;
@@ -123,7 +123,6 @@ bool SharedMemory::Create(const std::string &name, uint32_t size)
         MINDIE_LLM_LOG_ERROR("The shared memory name format is abnormal with name " << name);
         return false;
     }
-
     mFd_ = shm_open(name.c_str(), O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
     if (mFd_ < 0 || !SharedMemoryUIDAndPermissionChecker(mFd_)) {
         MINDIE_LLM_LOG_ERROR("Failed to open shared memory with name " << name);

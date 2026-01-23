@@ -300,6 +300,13 @@ class GeneratorAclGraph(GeneratorBackend):
                 }
                 model_kwargs.update(data)
 
+        if self.mapping.has_dp() and not self.distributed_enable:
+            lm_head_indices_dp_rank_ids = model_kwargs.get('lm_head_indices_dp_rank_ids')
+            mtp_logits_gather_indices = torch.arange(0, lm_head_indices_dp_rank_ids.shape[0])
+            mtp_logits_gather_indices = \
+                mtp_logits_gather_indices[lm_head_indices_dp_rank_ids == self.mapping.attn_dp.rank]
+            model_kwargs['mtp_logits_gather_indices'] = mtp_logits_gather_indices
+
     def _dp_partition_data(self, model_inputs, kwargs):
         dp_rank_ids = model_inputs.dp_rank_ids
         q_lens = kwargs.get("q_lens", None)

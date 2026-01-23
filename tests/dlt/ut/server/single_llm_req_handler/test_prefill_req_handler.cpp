@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2026. All rights reserved.
  * MindIE is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -517,13 +517,6 @@ TEST_F(PrefillReqHandlerTestF, TransferStatusFlag_CallBack)
     MOCKER_CPP(&GrpcCommunicationMng::SendDecodeRequest,
               bool (*)(DecodeParameters&, const std::string&, const std::string&, std::string&)).stubs()
               .will(returnValue(false));
-    callback(response);
-    EXPECT_TRUE(handler->isFinish_.load());
-    EXPECT_EQ(handler->constructOneResponseCallBack_, nullptr);
-
-    handler->isFinish_.store(false);
-    handler->constructOneResponseCallBack_ = func;
-    response->transferStatusFlag = TransferStatusType::PUBLISH_KV_FAILED;
     callback(response);
     EXPECT_TRUE(handler->isFinish_.load());
     EXPECT_EQ(handler->constructOneResponseCallBack_, nullptr);

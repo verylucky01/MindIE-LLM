@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2026. All rights reserved.
  * MindIE is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -151,8 +151,7 @@ void HandleKvRelease(const std::string &requestId)
         ULOG_WARN(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(WARNING, SUBMODLE_FEATURE_SPLITWISE,
             STATUS_WARNING), "Failed release request. requestId: " << requestId);
     } else {
-        ULOG_WARN(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(WARNING, SUBMODLE_FEATURE_SPLITWISE,
-            TIMEOUT_WARNING), "Failed forward in for engine callback timeout. requestId: " << requestId);
+        ULOG_DEBUG(SUBMODLE_NAME_ENDPOINT, "Release request. requestId: " << requestId);
     }
     return;
 };

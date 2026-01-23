@@ -49,19 +49,24 @@ Communicator::Communicator(std::unordered_map<std::string, std::string> &config,
 
 bool Communicator::InitIPCCommunicators(const std::string &sharedMemPrefix, uint32_t localWorldSize)
 {
-    ipcCommunicatorExecute_ = InitSingleIPCCommunicator(sharedMemPrefix + "_execute", localWorldSize);
+    ShmSizeConfig executeShmConfig{SHARED_MEMORY_256MB, DEFAULT_SHARED_MEMORY_SIZE};
+    ipcCommunicatorExecute_ = InitSingleIPCCommunicator(sharedMemPrefix + "_execute", localWorldSize, executeShmConfig);
     if (ipcCommunicatorExecute_ == nullptr) {
         MINDIE_LLM_LOG_ERROR("Failed to initialize IPC Communicator for Execute channel.");
         return false;
     }
 
-    ipcCommunicatorSharedSync_ = InitSingleIPCCommunicator(sharedMemPrefix + "_shared_sync_link", localWorldSize);
+    ShmSizeConfig sharedSyncShmConfig{DEFAULT_SHARED_MEMORY_SIZE, DEFAULT_SHARED_MEMORY_SIZE};
+    ipcCommunicatorSharedSync_ =
+        InitSingleIPCCommunicator(sharedMemPrefix + "_shared_sync_link", localWorldSize, sharedSyncShmConfig);
     if (ipcCommunicatorSharedSync_ == nullptr) {
         MINDIE_LLM_LOG_ERROR("Failed to initialize IPC Communicator for Shared Link channel.");
         return false;
     }
 
-    ipcCommunicatorKVTransfer_ = InitSingleIPCCommunicator(sharedMemPrefix + "_transfer", localWorldSize);
+    ShmSizeConfig kvTransferShmConfig{SHARED_MEMORY_256MB, DEFAULT_SHARED_MEMORY_SIZE};
+    ipcCommunicatorKVTransfer_ =
+        InitSingleIPCCommunicator(sharedMemPrefix + "_transfer", localWorldSize, kvTransferShmConfig);
     if (ipcCommunicatorKVTransfer_ == nullptr) {
         MINDIE_LLM_LOG_ERROR("Failed to initialize IPC Communicator for KV Transfer channel.");
         return false;
@@ -269,10 +274,11 @@ bool Communicator::GRPCGetSyncResponse(ExecuteResponse &response)
 }
 
 std::unique_ptr<IPCCommunicator> Communicator::InitSingleIPCCommunicator(const std::string &sharedMemName,
-                                                                         uint32_t localWorldSize) const
+                                                                         uint32_t localWorldSize,
+                                                                         const ShmSizeConfig &shmSizeConfig) const
 {
     std::unique_ptr<IPCCommunicator> ipcCommunicator = std::make_unique<IPCCommunicator>(sharedMemName, localWorldSize);
-    if (!ipcCommunicator->SetupChannel()) {
+    if (!ipcCommunicator->SetupChannel(shmSizeConfig)) {
         MINDIE_LLM_LOG_ERROR("Failed to initialize Execute channel.");
         return nullptr;
     }

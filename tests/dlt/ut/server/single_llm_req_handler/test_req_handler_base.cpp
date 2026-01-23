@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2026. All rights reserved.
  * MindIE is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -274,7 +274,7 @@ TEST_F(SingleLLMReqHandlerBaseTest, Setters_Work_And_DoNotCrash)
     handler.SetConstructOneResponseCallBack(cb);
 
     TestLLMReqHandler::DMIReComputeBuildMethod rcb = [](const std::vector<BestNTokens> &) {
-        return std::make_unique<std::string>("ok");
+        return std::string("ok");
     };
     handler.SetDMIReComputeBuildCallBack(rcb);
 }

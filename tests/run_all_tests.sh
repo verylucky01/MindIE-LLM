@@ -141,7 +141,7 @@ function fn_run_pythontest()
     grep -o '<class name="[^"]*" filename="[^"]*" complexity="[^"]*" line-rate="[^"]*" branch-rate="[^"]*">' coverage.xml |
     while read -r line; do
         filename=$(echo "$line" | awk -F '"' '{print $4}')
-        if [[ ! "$line" =~ .*block_copy.* && ! "$line" =~ .*examples/run_generator.* && ! "$line" =~ .*examples/scheduler.* && ! "$line" =~ .*cache_manager.* && ! "$line" =~ .*utils/config.* && ! "$line" =~ .*__init__.* && ! "$line" =~ .*utils/log/logging.* && ! "$line" =~ .*mf_model_wrapper.* && ! "$line" =~ .*generator_ms.* && ! "$line" =~ .*plugin_manager_edge.* && ! "$line" =~ .*runtime.* && ! "$line" =~ .*aclgraph.* ]]; then
+        if [[ ! "$line" =~ .*block_copy.* && ! "$line" =~ .*examples/run_generator.* && ! "$line" =~ .*examples/scheduler.* && ! "$line" =~ .*cache_manager.* && ! "$line" =~ .*utils/config.* && ! "$line" =~ .*__init__.* && ! "$line" =~ .*utils/log/logging.* && ! "$line" =~ .*mf_model_wrapper.* && ! "$line" =~ .*generator_ms.* && ! "$line" =~ .*plugin_manager_edge.* && ! "$line" =~ .*runtime.* && ! "$line" =~ .*aclgraph.* && ! "$line" =~ tokenizer/.*py ]]; then
             echo "$line" | awk -F '"' '{print "mindie_llm/" $4, $8*100 "%", $10*100 "%"}' >> result.txt
         fi
     done

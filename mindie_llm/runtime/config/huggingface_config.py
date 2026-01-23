@@ -72,6 +72,12 @@ class RopeScaling:
     beta_slow: int | None = field(default=1, metadata={
         'validator': IntParameterValidator(Field(ge=1, le=2147483647))})
 
+    @classmethod
+    def from_dict(cls, config_dict: dict[str, Any]):
+        field_names = {field.name for field in fields(cls)}
+        filtered_dict = {k: v for k, v in config_dict.items() if k in field_names}
+        return cls(**filtered_dict)
+
 
 @dataclass
 class HuggingFaceConfig(PretrainedConfig):
@@ -104,7 +110,8 @@ class HuggingFaceConfig(PretrainedConfig):
         super().__init__(**kwargs)
         if self.rope_scaling is None:
             self.rope_scaling = {}
-        self.rope_scaling = RopeScaling(**self.rope_scaling)
+        self.rope_scaling = RopeScaling.from_dict(self.rope_scaling)
+
 
     @classmethod
     def from_dict(cls, config_dict: dict[str, Any]) -> 'HuggingFaceConfig':

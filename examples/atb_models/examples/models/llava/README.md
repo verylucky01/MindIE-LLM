@@ -123,7 +123,7 @@ max_input_length长度设置可参考模型权重路径下config.json里的max_p
     pip install -e .
    
 
-2. GPU上，在{script_path}/precision目录下，运行脚本python run_coco_gpu.py --model_path ${weight_path} --image_path ${image_path} --lava_type ${llava_type},会在{script_path}/precision目录下生成gpu_coco_predict.json文件存储gpu推理结果
+2. GPU上，在{script_path}/precision目录下，运行脚本python run_coco.py --model_path ${weight_path} --image_path ${image_path} --lava_type ${llava_type},会在{script_path}/precision目录下生成coco_predict.json文件存储gpu推理结果
 
 3. NPU 上,在\${llm_path}目录下执行以下指令：
    ```bash
@@ -131,11 +131,11 @@ max_input_length长度设置可参考模型权重路径下config.json里的max_p
    ```
    运行完成后会在{script_path}生成predict_result.json文件存储npu的推理结果
 
-4. 对结果进行评分：分别使用GPU和NPU推理得到的两组图片描述(gpu_coco_predict.json、predict_result.json)作为输入,执行clip_score_llava.py 脚本输出评分结果
+4. 对结果进行评分：分别使用GPU和NPU推理得到的两组图片描述(coco_predict.json、predict_result.json)作为输入,执行clip_score_llava.py 脚本输出评分结果
 ```bash
    python examples/models/llava/precision/clip_score_llava.py \ 
    --model_weights_path {open_clip_path}/open_clip_pytorch_model.bin \ 
-   --image_info {gpu_coco_predict.json 或 predict_result.json的路径} \
+   --image_info {coco_predict.json 或 predict_result.json的路径} \
    --dataset_path {iamge_path}
 ```
 

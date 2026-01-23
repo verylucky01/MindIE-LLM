@@ -16,8 +16,10 @@
 
 namespace atb_speed {
 namespace common {
-
-AclrtCmoAsyncOperation::AclrtCmoAsyncOperation(const std::string &opName) : opName_(opName) {}
+constexpr size_t BYTES_PER_KB = 1024;
+constexpr size_t BYTES_PER_MB = BYTES_PER_KB * BYTES_PER_KB;
+AclrtCmoAsyncOperation::AclrtCmoAsyncOperation(const std::string &opName,
+    size_t dataSize): opName_(opName), dataSize_(dataSize * BYTES_PER_MB) {}
 
 AclrtCmoAsyncOperation::~AclrtCmoAsyncOperation()
 {
@@ -95,8 +97,12 @@ atb::Status AclrtCmoAsyncOperation::Execute(const atb::VariantPack &variantPack,
                         << " ,variantPack dataSize: " << variantPack.inTensors.at(0).dataSize
                         << " ,stream: " << streams[1]);
 
+    if (dataSize_ > variantPack.inTensors.at(0).dataSize || dataSize_ == 0) {
+        dataSize_ = variantPack.inTensors.at(0).dataSize;
+    }
+
     CheckAcl(aclrtCmoAsync(variantPack.inTensors.at(0).deviceData,
-                           variantPack.inTensors.at(0).dataSize,
+                           dataSize_,
                            cmoType,
                            streams[1]));
 

@@ -416,6 +416,7 @@ class W8A8PerTokenFusedMoEMethod(FusedMoEMethodBase):
         layer.register_parameter("down_weight", down_weight)
 
         weight_scale_type = torch.float32 if weight_dtype == torch.float16 else torch.bfloat16
+        layer.output_dtype = torch.bfloat16 if weight_scale_type == torch.bfloat16 else torch.float16
         gate_up_weight_scale = ColumnParameter(
             torch.empty(num_experts,
                         2 * intermediate_size_per_partition,
@@ -446,9 +447,12 @@ class W8A8PerTokenFusedMoEMethod(FusedMoEMethodBase):
               layer: torch.nn.Module,
               x: torch.Tensor,
               group_list: torch.Tensor,
-              group_list_type: int = 1) -> torch.Tensor:
-        _output_dtype = x.dtype
-        x, pertoken_scale = torch_npu.npu_dynamic_quant(x)
+              group_list_type: int = 1,
+              dynamic_scale: torch.Tensor = None) -> torch.Tensor:
+        if dynamic_scale is None:
+            x, pertoken_scale = torch_npu.npu_dynamic_quant(x)
+        else:
+            pertoken_scale = dynamic_scale
 
         hidden_states = torch_npu.npu_grouped_matmul(
             x=[x],
@@ -481,7 +485,7 @@ class W8A8PerTokenFusedMoEMethod(FusedMoEMethodBase):
             group_list_type=group_list_type,
             group_type=0,
             group_list=group_list,
-            output_dtype=_output_dtype)[0]
+            output_dtype=layer.output_dtype)[0]
 
         return hidden_states
 

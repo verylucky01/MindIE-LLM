@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2026. All rights reserved.
  * MindIE is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -376,7 +376,7 @@ void SingleReqTritonTextInferInterface::SetDMIReComputeBuilder()
         std::bind(&SingleReqTritonTextInferInterface::BuildTritonTextReComputeBody, this, std::placeholders::_1));
 }
 
-std::unique_ptr<std::string> SingleReqTritonTextInferInterface::BuildTritonTextReComputeBody(
+std::string SingleReqTritonTextInferInterface::BuildTritonTextReComputeBody(
     const std::vector<BestNTokens>& tokens)
 {
     OrderedJson newReqJsonObj;
@@ -423,6 +423,6 @@ std::unique_ptr<std::string> SingleReqTritonTextInferInterface::BuildTritonTextR
     newReqJsonObj["parameters"]["timeout"] = this->inputParam->timeout;
     newReqJsonObj["parameters"]["firstTokenCost"] = singleLLMReqHandlerBase_->GetMetrics().firstTokenCost;
     newReqJsonObj["parameters"]["decodeTime"] = singleLLMReqHandlerBase_->GetMetrics().decodeTime;
-    return std::make_unique<std::string>(newReqJsonObj.dump());
+    return newReqJsonObj.dump();
 }
 } // namespace mindie_llm

@@ -12,6 +12,6 @@ add_compile_options(-fPIC)
 
 add_library(mindieservice_tokenizer SHARED ${TOKENIZER_SRCS})
 
-target_link_libraries(mindieservice_tokenizer PUBLIC config_manager mindie_llm_utils pybind11::embed)
+target_link_libraries(mindieservice_tokenizer PUBLIC config_manager mindie_llm_utils ${RE2_SO_FILES} pybind11::embed)
 
 install(TARGETS mindieservice_tokenizer LIBRARY DESTINATION lib)

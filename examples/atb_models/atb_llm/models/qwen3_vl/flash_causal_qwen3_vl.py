@@ -13,6 +13,7 @@ import torch
 import numpy as np
 
 from atb_llm.utils.shm_utils import get_data_from_shm
+from atb_llm.utils.log.logging import logger
 from atb_llm.models.base.flash_causal_multimodal import MultiModalLLm
 from .modeling_qwen3_vl_vit import Qwen3VLVisionModel
 from .modeling_qwen3_vl_text import FlashQwen3VLTextModelForCausalLM
@@ -49,12 +50,36 @@ class FlashQwen3vlForCausalLM(MultiModalLLm):
                                                                llm_config=self.llm_config,
                                                                inference_mode=self.inference_mode)
 
-    def prepare_prefill_token_service(self, total_input_ids, position_ids, input_lengths):
+    def prepare_prefill_token_service(self, total_input_ids, total_position_ids, input_lengths):
+        """
+        Generates model inputs for the prefill stage of large language model (LLM) inference,
+        supporting multimodal sequences with or without visual information.
+
+        This method first checks for visual start tokens in the batch-level input sequence,
+        processes text-only batches in bulk for efficiency, and splits multimodal batches into
+        individual samples for modality-specific processing before concatenating results to
+        maintain batch consistency for LLM inference.
+
+        Args:
+            total_input_ids: Combined token sequence for all samples in the batch, including text
+                             and special vision start tokens
+            total_position_ids: Position ID sequence corresponding to the total_input_ids tensor
+            input_lengths: Sequence length of each individual sample in the batch, used to split
+                           the combined input tensor into per-sample sequences
+
+        Returns:
+            torch.Tensor: Concatenated input embeddings, shape [batch_size, seq_len, hidden_dim]
+            torch.Tensor: Concatenated position IDs (thw: time/height/width for vision-lang model),
+                          shape [batch_size, ..., total_seq_len]
+            list[torch.Tensor]: Deepstack visual embeddings list,
+                                each tensor shape [batch_size, num_patches, visual_hidden_dim]
+
+        """
         has_vision = torch.any(torch.eq(total_input_ids, self.vision_start_token_id))
         
         if not has_vision:
             inputs_embeds, position_ids_thw, deepstack_visual_embeds = self._get_llm_model_inputs_without_vision_info(
-                total_input_ids, position_ids
+                total_input_ids, total_position_ids
             )
             return inputs_embeds, position_ids_thw, deepstack_visual_embeds
         
@@ -65,14 +90,14 @@ class FlashQwen3vlForCausalLM(MultiModalLLm):
         
         for input_length in input_lengths.tolist():
             input_ids = total_input_ids[seqlen_offset: seqlen_offset + input_length]
-            position_ids_slice = position_ids[seqlen_offset: seqlen_offset + input_length]
+            position_ids = total_position_ids[seqlen_offset: seqlen_offset + input_length]
             
             if torch.any(torch.eq(input_ids, self.vision_start_token_id)):
                 inputs_embeds, position_ids_thw, deepstack_visual_embeds = \
-                    self._get_llm_model_inputs_with_vision_info(input_ids)
+                    self._get_llm_model_inputs_with_vision_info(input_ids, position_ids)
             else:
                 inputs_embeds, position_ids_thw, deepstack_visual_embeds = \
-                    self._get_llm_model_inputs_without_vision_info(input_ids, position_ids_slice)
+                    self._get_llm_model_inputs_without_vision_info(input_ids, position_ids)
             
             inputs_embeds_list.append(inputs_embeds)
             position_ids_thw_list.append(position_ids_thw)
@@ -337,7 +362,8 @@ class FlashQwen3vlForCausalLM(MultiModalLLm):
     
     def _get_llm_model_inputs_with_vision_info(
         self,
-        input_ids: torch.Tensor
+        input_ids: torch.Tensor,
+        position_ids: torch.Tensor
     ) -> Tuple[torch.Tensor, torch.Tensor, List[torch.Tensor]]:
         """
         Prepares LLM model inputs when visual information (image/video) is present in the input.
@@ -348,13 +374,23 @@ class FlashQwen3vlForCausalLM(MultiModalLLm):
         Args:
             input_ids (torch.Tensor): 
                 Token IDs containing both text and visual tokens, with shape [seq_len].
+            position_ids (torch.Tensor): 
+                Position IDs for the input sequences.
         """
         boi_pos = torch.where(torch.eq(input_ids, self.vision_start_token_id))[0][0].item() + 1
         shm_info_idx = input_ids[boi_pos + 1: boi_pos + 1 + _SHM_TOKEN_LEN].detach().cpu().tolist()
         input_ids[boi_pos + 1: boi_pos + 1 + _SHM_TOKEN_LEN].copy_(
             torch.tensor([input_ids[boi_pos]] * _SHM_TOKEN_LEN, dtype=input_ids.dtype))
-        inputs_embeds, vision_mask, deepstack_image_embeds, deepstack_video_embeds, position_ids_thw = \
-            self._get_visual_features_from_shm(input_ids, shm_info_idx)
+        try:
+            inputs_embeds, vision_mask, deepstack_image_embeds, deepstack_video_embeds, position_ids_thw = \
+                self._get_visual_features_from_shm(input_ids, shm_info_idx)
+        except Exception as e:
+            logger.warning(
+                f"Get vision features from share memory failed. The request will be handled without vision info."
+            )
+            inputs_embeds, position_ids_thw, deepstack_visual_embeds = \
+                self._get_llm_model_inputs_without_vision_info(input_ids, position_ids)
+            return inputs_embeds, position_ids_thw, deepstack_visual_embeds
         image_mask, video_mask = vision_mask
         deepstack_visual_embeds = self._get_deepstack_embeds_for_llm_model(
             inputs_embeds, image_mask, video_mask,

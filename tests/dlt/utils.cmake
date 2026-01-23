@@ -106,7 +106,7 @@ function(build_test module type list_libraries list_includes)
     add_test(NAME ${module}_${type} COMMAND ${TEST_BINARY} --gtest_color=yes --gtest_brief=0 --gtest_output=xml:${CMAKE_BINARY_DIR}/dlt_info/${module}_${type}_detail.xml --gtest_break_on_failure)
     
     add_custom_target(${module}_${type} ALL
-        COMMAND env LD_LIBRARY_PATH=${THIRD_PARTY_OUTPUT_DIR}/grpc/lib:${THIRD_PARTY_OUTPUT_DIR}/openssl/lib:${THIRD_PARTY_OUTPUT_DIR}/boost/lib
+        COMMAND env LD_LIBRARY_PATH=${THIRD_PARTY_OUTPUT_DIR}/grpc/lib:${THIRD_PARTY_OUTPUT_DIR}/re2/lib:${THIRD_PARTY_OUTPUT_DIR}/zlib/lib:${THIRD_PARTY_OUTPUT_DIR}/protobuf/lib:${THIRD_PARTY_OUTPUT_DIR}/abseil-cpp/lib:${THIRD_PARTY_OUTPUT_DIR}/cares/lib:${THIRD_PARTY_OUTPUT_DIR}/openssl/lib:${THIRD_PARTY_OUTPUT_DIR}/boost/lib
         bash -c "ctest --verbose" || exit -1
         COMMENT "Run testing: ${TEST_BINARY}"
     )

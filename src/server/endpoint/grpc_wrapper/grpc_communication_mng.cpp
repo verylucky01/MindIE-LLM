@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2026. All rights reserved.
  * MindIE is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -87,10 +87,10 @@ namespace mindie_llm {
                 ULOG_INFO(SUBMODLE_NAME_ENDPOINT, "Finish destructor ~GrpcCommunicationMng()");
             } catch (const std::exception &e) {
                 ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SERVER_REQUEST,
-                REMOVE_ERROR), "Exception in destructor ~GrpcCommunicationMng(). " << e.what());
+                    REMOVE_ERROR), "Exception in destructor ~GrpcCommunicationMng(). " << e.what());
             } catch (...) {
-            ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SERVER_REQUEST,
-                REMOVE_ERROR), "Unknown exception in destructor ~GrpcCommunicationMng()");
+                ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SERVER_REQUEST,
+                    REMOVE_ERROR), "Unknown exception in destructor ~GrpcCommunicationMng()");
             }
         }
 
@@ -527,15 +527,6 @@ namespace mindie_llm {
                     return false;
                 }
             }
-            RegisterKvReleaseHandler([](const std::string &requestID) {
-                RequestIdNew reqId(requestID);
-                Status status = GetInferInstance()->ControlRequest(reqId, OperationV2::RELEASE_KV);
-                if (status.StatusCode() != Error::Code::OK) {
-                    ULOG_WARN(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SPLITWISE,
-                        CHECK_ERROR), "Failed to control request(release kvcache).");
-                }
-                return;
-            });
             RegisterForceReleaseLinkHandler([]([[maybe_unused]] const std::vector<std::string>& deviceIp) -> bool {
                 if (!GetInferInstance()->ForcePRelease().IsOk()) {
                     ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SPLITWISE,

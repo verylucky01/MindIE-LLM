@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2026. All rights reserved.
  * MindIE is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -130,6 +130,7 @@ struct BestNTokens {
     };
 
     enum MsgType : uint16_t {
+        MSG_TYPE_INVALID,
         MSG_TYPE_TGI,
         MSG_TYPE_GENERAL_TGI,
         MSG_TYPE_VLLM,
@@ -138,7 +139,6 @@ struct BestNTokens {
         MSG_TYPE_VLLM_OPENAI_COMP,
         MSG_TYPE_KSERVE,
         MSG_TYPE_INFER,
-        MSG_TYPE_INVALID,
         MSG_TYPE_TRITON,
         MSG_TYPE_TRITON_TOKEN
     };

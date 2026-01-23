@@ -24,6 +24,9 @@ namespace atb_speed {
 constexpr int QWEN3VL_WEIGHT_COUNT_PER_LAYER = 52;
 constexpr int QWEN3VL_INTENSORS_SIZE_PREFILL = 64;
 constexpr int QWEN3VL_INTENSORS_SIZE_DECODE = 61;
+constexpr int QWEN3VL_INTENSORS_SIZE_FLASHCOMM = 72;
+constexpr int NUM3 = 3;
+constexpr int NUM4 = 4;
 
 std::string GenerateModelParam(bool isPrefillValue)
 {
@@ -34,14 +37,20 @@ std::string GenerateModelParam(bool isPrefillValue)
         "normType": 0,
         "numAttentionHeadsPerRank": 8,
         "hiddenSizePerAttentionHead": 128,
-        "numHiddenLayers": 1,
+        "numHiddenLayers": 4,
         "numKeyValueHeadsPerRank": 1,
         "isFA": false,
         "isBF16": true,
-        "packQuantType": [[1, 1]],
+        "packQuantType": [[1, 1], [1, 1], [1, 1], [1, 1]],
         "quantGroupSize": 0,
-        "linearQuantType": [[0, -1, -1, 0, -1, -1, -1]],
-        "linearTransposeType": [[1, -1, -1, 1, 1, -1, 1]],
+        "linearQuantType": [[0, -1, -1, 0, -1, -1, -1],
+                            [0, -1, -1, 0, -1, -1, -1],
+                            [0, -1, -1, 0, -1, -1, -1],
+                            [0, -1, -1, 0, -1, -1, -1]],
+        "linearTransposeType": [[1, -1, -1, 1, 1, -1, 1],
+                                [1, -1, -1, 1, 1, -1, 1],
+                                [1, -1, -1, 1, 1, -1, 1],
+                                [1, -1, -1, 1, 1, -1, 1]],
         "lmHeadTransposeType": 1,
         "isUnpadInputs": true,
         "skipWordEmbedding": true,
@@ -51,14 +60,26 @@ std::string GenerateModelParam(bool isPrefillValue)
         "worldSize": 1,
         "backend": "hccl",
         "positionEmbeddingType": 0,
-        "linearHasBias": [[false, false, false, false]],
+        "linearHasBias": [[false, false, false, false],
+                          [false, false, false, false],
+                          [false, false, false, false],
+                          [false, false, false, false]],
         "useQKNorm": true,
         "isPrefill":)";
     oss << (isPrefillValue ? "true" : "false");
     oss << R"(,
-        "supportLcoc": false
+        "enableLcoc": false
     })";
     return oss.str();
+}
+
+void AddFlashCommParam(std::string &param)
+{
+    std::string target = "\"enableLcoc\": false";
+    size_t pos = param.find(target);
+    if (pos != std::string::npos) {
+        param.insert(pos + target.length(), ",\"enableFlashComm\": true");
+    }
 }
 
 std::string CreateModelParam(bool isPrefillValue)
@@ -99,7 +120,7 @@ TEST(Qwen3vlDecoderModelTest, Qwen3vlDecoderModelSetLayerNodeInputPrefillTrue)
     atb_speed::Model::Node layerNode;
     decoderModel.graph_.inTensors.resize(decoderModel.inTensorMap.size());
     decoderModel.graph_.outTensors.resize(decoderModel.outTensorMap.size());
-    decoderModel.graph_.weightTensors.resize(QWEN3VL_WEIGHT_COUNT_PER_LAYER);
+    decoderModel.graph_.weightTensors.resize(QWEN3VL_WEIGHT_COUNT_PER_LAYER * NUM4);
     decoderModel.graph_.internalTensors.resize(decoderModel.internalTensorMap.size());
     decoderModel.graph_.kCacheTensors.resize(decoderModel.param.numHiddenLayers);
     decoderModel.graph_.vCacheTensors.resize(decoderModel.param.numHiddenLayers);
@@ -148,7 +169,7 @@ TEST(Qwen3vlDecoderModelTest, Qwen3vlDecoderModelSetLayerNodeInputPrefillFalse)
     atb_speed::Model::Node layerNode;
     decoderModel.graph_.inTensors.resize(decoderModel.inTensorMap.size());
     decoderModel.graph_.outTensors.resize(decoderModel.outTensorMap.size());
-    decoderModel.graph_.weightTensors.resize(QWEN3VL_WEIGHT_COUNT_PER_LAYER);
+    decoderModel.graph_.weightTensors.resize(QWEN3VL_WEIGHT_COUNT_PER_LAYER * NUM4);
     decoderModel.graph_.internalTensors.resize(decoderModel.internalTensorMap.size());
     decoderModel.graph_.kCacheTensors.resize(decoderModel.param.numHiddenLayers);
     decoderModel.graph_.vCacheTensors.resize(decoderModel.param.numHiddenLayers);
@@ -171,6 +192,29 @@ TEST(Qwen3vlDecoderModelTest, Qwen3vlDecoderModelCreateLayerOperationPrefillFals
     .with(any(), any()).will(returnValue(0));
     atb::Status ret = decoderModel.CreateLayerOperation(&op, 0);
     EXPECT_EQ(ret, atb::NO_ERROR);
+}
+
+TEST(Qwen3vlDecoderModelTest, Qwen3vlDecoderModelSetLayerNodeInputFlashComm)
+{
+    GlobalMockObject::verify();
+    std::string param = GenerateModelParam(true);
+    AddFlashCommParam(param);
+    atb_speed::qwen3vl::DecoderModel decoderModel(param);
+    decoderModel.ConstructInTensorMap();
+    decoderModel.ConstructInternalTensorMap();
+    decoderModel.ConstructOutTensorMap();
+
+    atb_speed::Model::Node layerNode;
+    decoderModel.graph_.inTensors.resize(decoderModel.inTensorMap.size());
+    decoderModel.graph_.outTensors.resize(decoderModel.outTensorMap.size());
+    decoderModel.graph_.weightTensors.resize(QWEN3VL_WEIGHT_COUNT_PER_LAYER * NUM4);
+    decoderModel.graph_.internalTensors.resize(decoderModel.internalTensorMap.size());
+    decoderModel.graph_.kCacheTensors.resize(decoderModel.param.numHiddenLayers);
+    decoderModel.graph_.vCacheTensors.resize(decoderModel.param.numHiddenLayers);
+    layerNode.inTensors.resize(QWEN3VL_INTENSORS_SIZE_FLASHCOMM);
+    layerNode.inTensorReshapeFuncs.resize(QWEN3VL_INTENSORS_SIZE_FLASHCOMM);
+    decoderModel.SetLayerNodeInput(layerNode, NUM3);
+    EXPECT_NE(layerNode.inTensors.back(), nullptr);
 }
 
 }

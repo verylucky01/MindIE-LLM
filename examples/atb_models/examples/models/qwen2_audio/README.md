@@ -190,9 +190,9 @@ max_input_length长度设置可参考模型权重路径下config.json里的max_p
   mm_model:
   warm_up_audio_path: ['/data_mm/datasets/vs_release_16k/audio_16k/f0003_0_cough.wav']
   ```
-- 将modeltest/config/task/vocalsound.yaml中的model_path修改为subset_npu_gpu_16k文件夹的绝对路径
+- 将modeltest/config/task/vocalsound.yaml中的model_path修改为audio_vocalsound_16k_subset文件夹的绝对路径
   ```yaml
-  local_dataset_path: /data_mm/datasets/vocalsound_all/subset_npu_gpu_16k
+  local_dataset_path: /data_mm/datasets/vocalsound_all/audio_vocalsound_16k_subset
   ```
 - 设置可见卡数，修改mm_run.sh文件中的ASCEND_RT_VISIBLE_DEVICES。依需求设置单卡或多卡可见。
   ```shell

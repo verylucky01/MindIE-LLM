@@ -14,6 +14,7 @@
 #include <mockcpp/mockcpp.hpp>
 #include <thread>
 #include "ipc_communicator.h"
+#include "shared_memory.h"
 
 #define MOCKER_CPP(api, TT) (MOCKCPP_NS::mockAPI((#api), (reinterpret_cast<TT>(api))))
 
@@ -23,7 +24,7 @@ protected:
     void SetUp() override
     {
         // Mock the SharedMemory::SharedMemorySizeCheck because "/dev/shm" can be symlink for some systems
-        MOCKER_CPP(&SharedMemory::SharedMemorySizeCheck, bool (*)(const uint32_t &)).stubs().will(returnValue(true));
+        MOCKER_CPP(&SharedMemorySizeCheck, bool (*)(const uint32_t &)).stubs().will(returnValue(true));
         MOCKER_CPP(&SharedMemory::Create, bool (*)(const std::string &, uint32_t)).stubs().will(returnValue(true));
 
         prefix_ = "/gtest_ipc_" + std::to_string(reinterpret_cast<std::uintptr_t>(this));
@@ -61,7 +62,8 @@ TEST_F(IPCCommunicatorTest, SerializeExecuteMessageReturnsTrue)
 // Test that SetupChannel() succeeds and returns true.
 TEST_F(IPCCommunicatorTest, SetupChannelReturnsTrue)
 {
-    bool ok = iPCCommunicator_->SetupChannel();
+    ShmSizeConfig shmConfig{DEFAULT_SHARED_MEMORY_SIZE, DEFAULT_SHARED_MEMORY_SIZE};
+    bool ok = iPCCommunicator_->SetupChannel(shmConfig);
     EXPECT_TRUE(ok);
     didSetup_ = ok;
 }
@@ -69,7 +71,8 @@ TEST_F(IPCCommunicatorTest, SetupChannelReturnsTrue)
 // Test RegisterResponseHandler: first time succeeds, second time fails.
 TEST_F(IPCCommunicatorTest, RegisterResponseHandler_DuplicateFails)
 {
-    ASSERT_TRUE(iPCCommunicator_->SetupChannel());
+    ShmSizeConfig shmConfig{DEFAULT_SHARED_MEMORY_SIZE, DEFAULT_SHARED_MEMORY_SIZE};
+    ASSERT_TRUE(iPCCommunicator_->SetupChannel(shmConfig));
     didSetup_ = true;
 
     // First registration should succeed.
@@ -84,7 +87,8 @@ TEST_F(IPCCommunicatorTest, RegisterResponseHandler_DuplicateFails)
 // Test StartHandleResponseThread() without registering a handler: should return false.
 TEST_F(IPCCommunicatorTest, StartHandleResponseThread_NoHandlerFails)
 {
-    ASSERT_TRUE(iPCCommunicator_->SetupChannel());
+    ShmSizeConfig shmConfig{DEFAULT_SHARED_MEMORY_SIZE, DEFAULT_SHARED_MEMORY_SIZE};
+    ASSERT_TRUE(iPCCommunicator_->SetupChannel(shmConfig));
     didSetup_ = true;
 
     // StartHandleResponseThread without a registered handler should fail
@@ -96,7 +100,8 @@ TEST_F(IPCCommunicatorTest, StartHandleResponseThread_AfterRegisterSucceeds)
 {
     MOCKER_CPP(&IPCCommunicator::ParseResponse, bool (*)(ExecuteResponse &, char *)).stubs().will(returnValue(true));
     
-    ASSERT_TRUE(iPCCommunicator_->SetupChannel());
+    ShmSizeConfig shmConfig{DEFAULT_SHARED_MEMORY_SIZE, DEFAULT_SHARED_MEMORY_SIZE};
+    ASSERT_TRUE(iPCCommunicator_->SetupChannel(shmConfig));
     didSetup_ = true;
 
     bool reg = iPCCommunicator_->RegisterResponseHandler([](ExecuteResponse &) {});
@@ -114,7 +119,8 @@ TEST_F(IPCCommunicatorTest, SendMessageViaSM_ReturnsTrueAfterSetup)
 {
     MOCKER_CPP(&IPCCommunicator::WriteMessage, bool (*)(const char *, uint32_t)).stubs().will(returnValue(true));
 
-    ASSERT_TRUE(iPCCommunicator_->SetupChannel());
+    ShmSizeConfig shmConfig{DEFAULT_SHARED_MEMORY_SIZE, DEFAULT_SHARED_MEMORY_SIZE};
+    ASSERT_TRUE(iPCCommunicator_->SetupChannel(shmConfig));
     didSetup_ = true;
 
     ExecuteRequest request;

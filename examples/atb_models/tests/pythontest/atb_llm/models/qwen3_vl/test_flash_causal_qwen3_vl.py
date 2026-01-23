@@ -188,7 +188,8 @@ class TestFlashQwen3vlForCausalLM(unittest.TestCase):
         self.model.language_model = mock_llm_model
         
         input_ids = torch.tensor([1, 2, 3, 4, 5])
-        position_ids_slice = torch.tensor([0, 1, 2, 3, 4])
+        seq_len = input_ids.shape[0]
+        position_ids = torch.arange(seq_len)
         mock_inputs_embeds = torch.randn(14, 4096, dtype=torch.float16)
         mock_image_mask = torch.tensor([False] * 3 + [True] + [False] * 10, dtype=torch.bool)
         mock_video_mask = None
@@ -201,7 +202,7 @@ class TestFlashQwen3vlForCausalLM(unittest.TestCase):
         )
 
         inputs_embeds, position_ids_thw, deepstack_visual_embeds = \
-        self.model._get_llm_model_inputs_without_vision_info(input_ids, position_ids_slice)
+        self.model._get_llm_model_inputs_without_vision_info(input_ids, position_ids)
         
         self.assertIsNotNone(inputs_embeds)
         self.assertEqual(position_ids_thw.shape, (3, len(input_ids)))
@@ -219,6 +220,8 @@ class TestFlashQwen3vlForCausalLM(unittest.TestCase):
         vision_start = self.model.vision_start_token_id
         image_token = self.model.image_token_id
         input_ids = torch.tensor([1, 2, vision_start, image_token, 0, 0, 0, 0, 0, 0, 0, 0, 100, 101])
+        seq_len = input_ids.shape[0]
+        position_ids = torch.arange(seq_len)
         
         mock_inputs_embeds = torch.randn(14, 4096, dtype=torch.float32)
         mock_image_mask = torch.tensor([False] * 3 + [True] + [False] * 10, dtype=torch.bool)
@@ -233,7 +236,7 @@ class TestFlashQwen3vlForCausalLM(unittest.TestCase):
         )
         
         inputs_embeds, position_ids_thw, deepstack_visual_embeds = \
-        self.model._get_llm_model_inputs_with_vision_info(input_ids)
+        self.model._get_llm_model_inputs_with_vision_info(input_ids, position_ids)
         
         self.assertIsNotNone(inputs_embeds)
         self.assertIsNotNone(position_ids_thw)
@@ -249,11 +252,12 @@ class TestFlashQwen3vlForCausalLM(unittest.TestCase):
         self.model.language_model = mock_llm_model
         
         total_input_ids = torch.tensor([1, 2, 3, 4, 5])
-        position_ids = torch.tensor([0, 1, 2, 3, 4])
+        seq_len = total_input_ids.shape[0]
+        total_position_ids = torch.arange(seq_len)
         input_lengths = torch.tensor([5])
         
         inputs_embeds, position_ids_thw, deepstack_visual_embeds = self.model.prepare_prefill_token_service(
-            total_input_ids, position_ids, input_lengths
+            total_input_ids, total_position_ids, input_lengths
         )
         
         self.assertIsNotNone(inputs_embeds)
@@ -272,7 +276,8 @@ class TestFlashQwen3vlForCausalLM(unittest.TestCase):
         
         vision_start = self.model.vision_start_token_id
         total_input_ids = torch.tensor([1, 2, vision_start, 3, 4, 5, 6, 7])
-        position_ids = torch.tensor([0, 1, 2, 3, 4, 5, 6, 7])
+        seq_len = total_input_ids.shape[0]
+        total_position_ids = torch.arange(seq_len)
         input_lengths = torch.tensor([8])
         
         mock_inputs_embeds = torch.randn(8, 4096, dtype=torch.float16)
@@ -282,7 +287,7 @@ class TestFlashQwen3vlForCausalLM(unittest.TestCase):
         mock_process_multimodal.return_value = (mock_inputs_embeds, mock_position_ids_thw, mock_deepstack_visual_embeds)
         
         inputs_embeds, position_ids_thw, deepstack_visual_embeds = self.model.prepare_prefill_token_service(
-            total_input_ids, position_ids, input_lengths
+            total_input_ids, total_position_ids, input_lengths
         )
         
         self.assertIsNotNone(inputs_embeds)
@@ -306,7 +311,8 @@ class TestFlashQwen3vlForCausalLM(unittest.TestCase):
         mock_prepare_prefill.return_value = (mock_inputs_embeds, mock_position_ids_thw, mock_deepstack_visual_embeds)
         
         input_ids = torch.tensor([1, 2, 3, 4, 5])
-        position_ids = torch.tensor([0, 1, 2, 3, 4])
+        seq_len = input_ids.shape[0]
+        position_ids = torch.arange(seq_len)
         kv_cache = [(torch.zeros(1, 1, 1, 1), torch.zeros(1, 1, 1, 1))]
         block_tables = torch.tensor([[0]])
         slots = torch.tensor([0, 1, 2, 3, 4])

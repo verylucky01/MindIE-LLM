@@ -189,10 +189,10 @@ class FlashQwen2ForCausalLM(FlashForCausalLM):
             self.graph_manager = ATBGraphManager(prefill_graph, decode_graph, LayerwiseCombinedATBGraphWrapper)
         else:
             self.graph_manager = ATBGraphManager()
-        self.flash_comm_modifier = FlashCommModifier(weights, self.hidden_size, self.flash_comm_gate(weights))
-        self.qlen_modifier = QLenModifier()
         self.lora_modifier = LoraModifier(weights, self, lora_adapter=kwargs.get("lora_adapter"), \
             lora_model_config=kwargs.get("lora_model_config"))
+        self.flash_comm_modifier = FlashCommModifier(weights, self.hidden_size, self.flash_comm_gate(weights))
+        self.qlen_modifier = QLenModifier()
         self.long_seq_modifier = LongSeqModifier(self.config)
         self.layerwise_modifier = LayerwiseModifier(self.layerwise)
 
@@ -506,6 +506,7 @@ class FlashQwen2ForCausalLM(FlashForCausalLM):
             "enableLcoc": False,
             "linearDescs": decode_linear_descs_configs if not self.layerwise_disaggregated else None,
             "enableRopeQuantKvcache": self.enable_rope_quant_kvcache,
+            "preFetchWeightSize": 0, # MB
         }
 
         if not self.layerwise_disaggregated:
@@ -597,6 +598,8 @@ class FlashQwen2ForCausalLM(FlashForCausalLM):
 
     # Static condition check for FlashComm enablement, called during model initialization
     def flash_comm_gate(self, weights) -> bool:
+        if self.lora_modifier.active:
+            return False
         if self.enable_dap:
             return False
         if self.tp_world_size == 1:

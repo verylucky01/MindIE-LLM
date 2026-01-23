@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2026. All rights reserved.
  * MindIE is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -257,8 +257,8 @@ TEST_F(TritonTokenInferTest, testBuildTritonTokenReComputeBody)
     })");
     tritonTokenInferInterface->isReCompute_ = true;
     EXPECT_EQ(tritonTokenInferInterface->ValidateAndPrepareReqToken(body, msg, timestamp), true);
-    std::unique_ptr<std::string> ret = tritonTokenInferInterface->BuildTritonTokenReComputeBody(tempTokens);
-    OrderedJson newReqJsonObj = OrderedJson::parse(*ret);
+    std::string ret = tritonTokenInferInterface->BuildTritonTokenReComputeBody(tempTokens);
+    OrderedJson newReqJsonObj = OrderedJson::parse(ret);
     EXPECT_EQ(newReqJsonObj["id"], "a-valid-id");
     EXPECT_EQ(newReqJsonObj["outputs"][0]["name"], "output0");
     EXPECT_EQ(newReqJsonObj["inputs"][0]["name"], "input0");

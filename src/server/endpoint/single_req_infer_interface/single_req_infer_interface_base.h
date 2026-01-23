@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2026. All rights reserved.
  * MindIE is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -64,7 +64,7 @@ public:
     virtual bool BuildResponseJson(ResponseSPtr response, const std::vector<BestNTokens> &tempTokens,
                                     RespBodyQueue &jsonStrings, const uint64_t &timestamp = 0) = 0;
     RequestIdNew GetRequestId();
-    std::shared_ptr<SingleLLMReqHandlerBase> &GetSingleLLMReqHandlerBase();
+    Metrics &GetMetrics();
     virtual bool SetupInferParams(RequestSPtr tmpReq, std::string &msg) = 0;
 
 public:

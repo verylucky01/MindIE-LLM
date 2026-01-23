@@ -319,7 +319,7 @@ class FlashQwen3VLMOETextModelForCausalLM(FlashForCausalLM):
             "isUnpadInputs": True,
             "skipWordEmbedding": True,
             "isLmHeadParallel": True,
-            "enableSwiGLU": True if self.soc_info.soc_version != 240 else False,
+            "enableSwiGLU": True,
             "rank": self.tp_rank,
             "worldSize": self.tp_world_size,
             "numOfExperts": self.config.num_experts,
@@ -338,13 +338,13 @@ class FlashQwen3VLMOETextModelForCausalLM(FlashForCausalLM):
         encoder_param = {
             **coder_param,
             "isPrefill": True,
-            "supportLcoc": False if self.soc_info.need_nz else True,
+            "enableLcoc": self.lcoc_enable,
             "enableGMMSwigluQuant": False
         }
         decoder_param = {
             **coder_param,
             "isPrefill": False,
-            "supportLcoc": False,
+            "enableLcoc": False,
             "enableGMMSwigluQuant": True if (is_w8a8_dynamic and (not self.soc_info.need_nz)) else False
         }
         if self.speculate_enable:

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2026. All rights reserved.
  * MindIE is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -306,8 +306,8 @@ void SingleLLMDecodeReqHandler::SetBackManagerCallBack(RequestSPtr request)
                 self->constructOneResponseCallBack_ = nullptr;
                 return;
             }
-            std::unique_ptr<std::string> reCompBody = self->dmiReCompBuildMeothd_(self->respTokens_);
-            self->ResponseReCompute(std::move(reCompBody));
+            std::string reCompBody = self->dmiReCompBuildMeothd_(self->respTokens_);
+            self->ResponseReCompute(reCompBody);
             self->isFinish_.store(true);
             self->constructOneResponseCallBack_ = nullptr;
             return;
@@ -427,12 +427,12 @@ bool SingleLLMDecodeReqHandler::SendKvRelease([[maybe_unused]] const std::string
     return GrpcCommunicationMng::GetInstance().SendKvReleaseMsg(id, pNodeAddr_);
 }
 
-void SingleLLMDecodeReqHandler::ResponseReCompute(std::unique_ptr<std::string> body)
+void SingleLLMDecodeReqHandler::ResponseReCompute(const std::string& body)
 {
     auto reComputeSpan = PROF(INFO, Domain("Communication")
         .Resource(this->reqId_.c_str()).SpanStart("decodeReCompute"));
     std::string msg = "";
-    DResultWrapParam param { *body, "retry:", this->reqId_, this->tritonReqId_ };
+    DResultWrapParam param { body, "retry:", this->reqId_, this->tritonReqId_ };
     DResultEventDispatcher::WrapChunkedDResponse(msg, param);
     this->SendDResult(msg, this->reqId_);
     PROF(reComputeSpan.SpanEnd());

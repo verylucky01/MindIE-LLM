@@ -8,7 +8,7 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 from mindie_llm.runtime.models.base.input_builder import InputBuilder
-from mindie_llm.runtime.models.deepseek_v32.deepseek_v32_encoding import encode_messages
+from mindie_llm.runtime.models.deepseek_v32.encoding_deepseek_v32 import encode_messages
 
 TOOLS = "tools"
 

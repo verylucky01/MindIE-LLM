@@ -330,7 +330,7 @@
   | device                | 是        | string                |                            | 指定devicee_id | 
   | model_name            | 是        | string                |                            | 模型名称 |
   | model_weights_path    | 是        | string                |                            | 权重路径 |
-  | image_info            | 是        | string                |                            | gpu_coco_predict.json的路径 |
+  | image_info            | 是        | string                |                            | predict_result.json的路径 |
   | dataset_path          | 是        | string                |                            | 数据集路径 |
 - 示例
 ```shell
@@ -338,14 +338,14 @@ python clip_score_base_runner.py \
 --device_ids "0" \
 --model_name ViT-H-14 \
 --model_weights_path /data/datasets/open_clip_pytorch_model.bin \
---image_info /home/******/Downloads/gpu_coco_predict.json \
+--image_info /home/******/Downloads/predict_result.json \
 --dataset_path /data/datasets/coco_data/test_images
 ```
 
 ### models/coco_base_runner.py文件介绍
 - 文件：`${llm_path}/examples/models/coco_base_runner.py`
 - 功能：获得模型的COCO数据集上的精度。使用时，需要继承CocoBaseRunner基类之后实现prepare和process两个方法。
-- 示例：可参考`${llm_path}/examples/models/llava/precision/run_coco_gpu.py`
+- 示例：可参考`${llm_path}/examples/models/llava/precision/run_coco.py`
 
 
 ### 特殊场景说明

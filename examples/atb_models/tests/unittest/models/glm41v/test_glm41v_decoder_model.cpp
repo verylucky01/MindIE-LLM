@@ -17,7 +17,7 @@
 
 namespace atb_speed {
 
-bool CheckGlm41vWeightCountPerLayer(const atb_speed::glm41v::Glm41vDecoderModel &decoderModel)
+bool CheckGlm41vWeightCountPerLayer(const atb_speed::glm41v::DecoderModel &decoderModel)
 {
     constexpr int GLM4_WEIGHT_COUNT_PER_LAYER = 52;
     if (decoderModel.weightCountPerLayer != GLM4_WEIGHT_COUNT_PER_LAYER) {
@@ -26,7 +26,7 @@ bool CheckGlm41vWeightCountPerLayer(const atb_speed::glm41v::Glm41vDecoderModel 
     return true;
 }
 
-TEST(Glm41vDecoderModelTest, Glm41vDecoderModel)
+TEST(Glm41vDecoderModelTest, DecoderModel)
 {
     GlobalMockObject::verify();
 
@@ -44,11 +44,15 @@ TEST(Glm41vDecoderModelTest, Glm41vDecoderModel)
         "\"enableSwiGLU\": false, "
         "\"rank\": 0, \"worldSize\": 2, \"backend\": \"hccl\", "
         "\"positionEmbeddingType\": 0, \"linearHasBias\": [[true, false, false, false]], "
-        "\"isPrefill\": false, \"supportLcoc\": false}";
-    atb_speed::glm41v::Glm41vDecoderModel decoderModel(param);
+        "\"isPrefill\": false, \"enableLcoc\": false}";
+    atb_speed::glm41v::DecoderModel decoderModel(param);
     EXPECT_TRUE(CheckGlm41vWeightCountPerLayer(decoderModel));
+    decoderModel.ConstructInTensorMap();
+    MOCKER(atb::CreateOperation<atb::GraphParam>).expects(atLeast(1))
+    .with(any(), any()).will(returnValue(0));
     atb::Operation *op = nullptr;
     atb::Status ret = decoderModel.CreateLayerOperation(&op, 0);
+    EXPECT_EQ(ret, atb::NO_ERROR);
 }
 
 } // namespace atb_speed

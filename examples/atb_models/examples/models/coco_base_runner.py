@@ -19,7 +19,7 @@ from atb_llm.utils.file_utils import safe_open, check_file_safety
 from atb_llm.utils.log import logger
 
 torch.manual_seed(1234)
-OUTPUT_JSON_PATH = "./gpu_coco_predict.json"
+OUTPUT_JSON_PATH = "./coco_predict.json"
 
 
 class CocoBaseRunner:
@@ -64,7 +64,7 @@ class CocoBaseRunner:
             sorted_dict = dict(sorted(old_data.items()))
             with safe_open(OUTPUT_JSON_PATH, "w", encoding="utf-8") as fw:
                 json.dump(sorted_dict, fw, ensure_ascii=ensure_ascii, indent=indent)
-        logger.info("run run_coco_gpu.py finish! output file: ./gpu_coco_predict.json")
+        logger.info(f"run coco precision finish! output file: {OUTPUT_JSON_PATH}")
 
     # prepare model and data
     def prepare(self):

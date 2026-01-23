@@ -10,6 +10,6 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 
-from .base import MemPool
-
 __all__ = ["MemPool"]
+
+from .base import MemPool

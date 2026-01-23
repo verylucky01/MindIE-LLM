@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2026. All rights reserved.
  * MindIE is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -706,8 +706,7 @@ bool SingleReqVllmOpenAiCompletionsInferInterface::EncodeStreamResponse(RespBody
     return status;
 }
 
-std::unique_ptr<std::string> SingleReqVllmOpenAiCompletionsInferInterface::BuildReComputeBody(
-    const std::vector<BestNTokens>& tokens)
+std::string SingleReqVllmOpenAiCompletionsInferInterface::BuildReComputeBody(const std::vector<BestNTokens>& tokens)
 {
     OrderedJson newReqJsonObj;
     // Get tokens in non-stream mode
@@ -728,15 +727,7 @@ std::unique_ptr<std::string> SingleReqVllmOpenAiCompletionsInferInterface::Build
     if (request_->seed.has_value()) {
         newReqJsonObj["seed"] = request_->seed.value();
     }
-    std::string stopStr = request_->stopStrings.has_value() ? request_->stopStrings.value() : "";
-    if (stopStr != "") {
-        try {
-            newReqJsonObj["stop"] = nlohmann::json::parse(stopStr, CheckJsonDepthCallbackUlog);
-        } catch(...) {
-            ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SINGLE_INFERENCE,
-                JSON_PARSE_ERROR), "Failed to parse stopStrings");
-        }
-    }
+    ParseStopString(newReqJsonObj);
     newReqJsonObj["stream"] = this->inputParam->streamMode;
     if (request_->temperature.has_value()) {
         newReqJsonObj["temperature"] = request_->temperature.value();
@@ -762,6 +753,19 @@ std::unique_ptr<std::string> SingleReqVllmOpenAiCompletionsInferInterface::Build
     if (request_->skipSpecialTokens.has_value()) {
         newReqJsonObj["skip_special_tokens"] = request_->skipSpecialTokens.value();
     }
-    return std::make_unique<std::string>(newReqJsonObj.dump());
+    return newReqJsonObj.dump();
+}
+
+void SingleReqVllmOpenAiCompletionsInferInterface::ParseStopString(nlohmann::ordered_json& newReqJsonObj)
+{
+    std::string stopStr = request_->stopStrings.has_value() ? request_->stopStrings.value() : "";
+    if (stopStr != "") {
+        try {
+            newReqJsonObj["stop"] = nlohmann::json::parse(stopStr, CheckJsonDepthCallbackUlog);
+        } catch(...) {
+            ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SINGLE_INFERENCE,
+                JSON_PARSE_ERROR), "Failed to parse stopStrings");
+        }
+    }
 }
 } // namespace mindie_llm

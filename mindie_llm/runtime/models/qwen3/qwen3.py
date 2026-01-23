@@ -15,20 +15,17 @@ import torch_npu
 from torch import nn
 
 from mindie_llm.runtime.config.huggingface_config import HuggingFaceConfig
-from mindie_llm.runtime.config.mindie_llm_config import MindIELLMConfig
 from mindie_llm.runtime.layers.normalization import RMSNorm
-from mindie_llm.runtime.layers.linear.linear import RowParallelLinear, QKVParallelLinear, MergedColumnParallelLinear
-from mindie_llm.runtime.layers.embedding.embedding import VocabParallelEmbedding, ParallelLMHead
+from mindie_llm.runtime.config.mindie_llm_config import MindIELLMConfig
 
-from mindie_llm.runtime.layers.attention.attention_layer import Attention
-from mindie_llm.runtime.utils.distributed import get_parallel_info_manager
-from mindie_llm.runtime.utils.distributed.parallel_info_manager import ParallelType
+
 from mindie_llm.runtime.layers.quantization.quantization_config_base import QuantizationConfigBase
-from mindie_llm.runtime.models.base.model import BaseModelForCausalLM
+
 from mindie_llm.runtime.model_runner.forward_context import get_forward_context
+from mindie_llm.runtime.models.qwen2.qwen2 import Qwen2Attention, Qwen2Mlp, Qwen2Layer, Qwen2Model, Qwen2ForCausalLM
 
 
-class Qwen3Attention(nn.Module):
+class Qwen3Attention(Qwen2Attention):
     """
     Qwen3 attention module that handles multi-head attention with rotary position embeddings.
 
@@ -75,51 +72,13 @@ class Qwen3Attention(nn.Module):
             prefix: Parameter naming prefix
             quant_config: Quantization configuration (optional)
         """
-        super().__init__()
-        self.config = config
-        self.prefix = prefix
-        self.quant_config = quant_config
-        self.head_dim = config.head_dim
-        self.num_heads_per_rank = config.get_num_attention_heads_per_rank()
-        self.num_key_value_heads_per_rank = config.get_num_kv_heads_per_rank()
-        
-        self.q_size = self.num_heads_per_rank * self.head_dim
-        self.kv_size = self.num_key_value_heads_per_rank * self.head_dim
-        self.scale = self.head_dim**-0.5
-        attn_tp = get_parallel_info_manager().get(ParallelType.ATTN_TP)
-        self.qkv_proj = QKVParallelLinear(
-            config.hidden_size,
-            self.head_dim,
-            config.num_attention_heads,
-            config.num_key_value_heads,
-            bias=getattr(config, "attention_bias", False),
-            quant_config=quant_config,
-            prefix=[f"{prefix}.q_proj", f"{prefix}.k_proj", f"{prefix}.v_proj"],
-            parallel_info=attn_tp
-        )
-
-        self.o_proj = RowParallelLinear(
-            config.num_attention_heads * self.head_dim,
-            config.hidden_size,
-            bias=False,
-            quant_config=quant_config,
-            prefix=f"{prefix}.o_proj",
-            parallel_info=attn_tp
-        )
+        super().__init__(config, prefix, quant_config)
 
         if config.use_qk_norm:
             self.q_norm = RMSNorm(
                 self.head_dim, config.rms_norm_eps, quant_config=quant_config, prefix=f"{prefix}.q_norm")
             self.k_norm = RMSNorm(
                 self.head_dim, config.rms_norm_eps, quant_config=quant_config, prefix=f"{prefix}.k_norm")
-
-        self.attn = Attention(
-            head_size=self.head_dim,
-            num_heads=self.num_heads_per_rank,
-            scale=self.scale,
-            prefix=self.prefix,
-            num_kv_heads=self.num_key_value_heads_per_rank
-        )
 
     def forward(
         self,
@@ -170,7 +129,7 @@ class Qwen3Attention(nn.Module):
         return output
 
 
-class Qwen3Mlp(nn.Module):
+class Qwen3Mlp(Qwen2Mlp):
     """
     Qwen3 MLP (feed-forward) module.
 
@@ -206,46 +165,10 @@ class Qwen3Mlp(nn.Module):
             prefix: Parameter naming prefix
             quant_config: Quantization configuration (optional)
         """
-        super().__init__()
-        self.config = config
-        self.prefix = prefix
-        self.quant_config = quant_config
-        mlp_tp = get_parallel_info_manager().get(ParallelType.MLP_TP)
-        self.gate_up_proj = MergedColumnParallelLinear(
-            config.hidden_size,
-            [config.intermediate_size] * 2,
-            bias=False,
-            quant_config=quant_config,
-            prefix=[f"{prefix}.gate_proj", f"{prefix}.up_proj"],
-            parallel_info=mlp_tp
-        )
+        super().__init__(config, prefix, quant_config)
+ 
 
-        self.down_proj = RowParallelLinear(
-            config.intermediate_size,
-            config.hidden_size,
-            bias=False,
-            quant_config=quant_config,
-            prefix=f"{prefix}.down_proj",
-            parallel_info=mlp_tp
-        )
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Forward pass of the MLP module.
-
-        Args:
-            x: Input hidden states
-
-        Returns:
-            torch.Tensor: Output hidden states after MLP
-        """
-        gateup = self.gate_up_proj(x)
-        x = torch_npu.npu_swiglu(gateup)
-        x = self.down_proj(x)
-        return x
-
-
-class Qwen3Layer(nn.Module):
+class Qwen3Layer(Qwen2Layer):
     """
     Qwen3 transformer layer.
 
@@ -289,61 +212,12 @@ class Qwen3Layer(nn.Module):
             layer_idx: Index of this layer
             quant_config: Quantization configuration (optional)
         """
-        super().__init__()
-        
-        self.config = config
-        self.prefix = f"{prefix}.layers.{layer_idx}"
-        self.layer_idx = layer_idx
-        self.quant_config = quant_config
-
-        self.self_attn_prefix = f"{self.prefix}.self_attn"
+        super().__init__(config, prefix, layer_idx, quant_config)
         self.self_attn = Qwen3Attention(config, self.self_attn_prefix, quant_config=quant_config)
-        
         self.mlp = Qwen3Mlp(config, f"{self.prefix}.mlp", quant_config=quant_config)
 
-        self.input_layernorm = RMSNorm(
-            config.hidden_size, config.rms_norm_eps,
-            quant_config=quant_config, prefix=f"{self.prefix}.input_layernorm")
-        self.post_attention_layernorm = RMSNorm(
-            config.hidden_size, config.rms_norm_eps,
-            quant_config=quant_config, prefix=f"{self.prefix}.post_attention_layernorm")
 
-    def forward(
-        self,
-        positions: torch.Tensor,
-        hidden_states: torch.Tensor,
-        residual: torch.Tensor | None,
-    ) -> tuple[torch.Tensor, torch.Tensor]:
-        """
-        Forward pass of the transformer layer.
-
-        Args:
-            positions: Position indices for rotary embeddings
-            hidden_states: Input hidden states
-            residual: Residual connection from previous layer
-
-        Returns:
-            tuple[torch.Tensor, torch.Tensor]: 
-                - Output hidden states
-                - Updated residual for next layer
-        """
-        # Self Attention
-        if residual is None:
-            residual = hidden_states
-            hidden_states = self.input_layernorm(hidden_states)
-        else:
-            hidden_states, residual = self.input_layernorm(hidden_states, residual)
-        hidden_states = self.self_attn(
-            positions=positions,
-            hidden_states=hidden_states,
-        )
-        # Fully Connected
-        hidden_states, residual = self.post_attention_layernorm(hidden_states, residual)
-        hidden_states = self.mlp(hidden_states)
-        return hidden_states, residual
-
-
-class Qwen3Model(nn.Module):
+class Qwen3Model(Qwen2Model):
     """
     Qwen3 base model.
 
@@ -381,19 +255,7 @@ class Qwen3Model(nn.Module):
             prefix: Parameter naming prefix
             quant_config: Quantization configuration (optional)
         """
-        super().__init__()
-        
-        self.config = config
-        self.prefix = prefix
-        self.quant_config = quant_config
-
-        self.embed_tokens = VocabParallelEmbedding(
-            config.vocab_size,
-            config.hidden_size,
-            quant_config=None,
-            prefix=f"{prefix}.embed_tokens",
-            partition_weights=True,
-        )
+        super().__init__(config, prefix, quant_config)
 
         self.layers = nn.ModuleList(
             [
@@ -401,39 +263,9 @@ class Qwen3Model(nn.Module):
                 for layer_idx in range(config.num_hidden_layers)
             ]
         )
-        self.norm = RMSNorm(
-            config.hidden_size, config.rms_norm_eps, quant_config=quant_config, prefix=f"{prefix}.norm")
-
-    def forward(
-        self,
-        input_ids: torch.Tensor,
-        positions: torch.Tensor,
-        intermediate_tensors: torch.Tensor | None = None,
-        inputs_embeds: torch.Tensor | None = None
-    ) -> torch.Tensor:
-        """
-        Forward pass of the base model.
-
-        Args:
-            input_ids: Input token IDs
-            positions: Position indices
-            intermediate_tensors: Intermediate tensors
-            inputs_embeds: Embedding vectors for input tokens
-
-        Returns:
-            torch.Tensor: Final hidden states
-        """
-        residual = None
-        hidden_states = self.embed_tokens(input_ids)
-        for layer in self.layers:
-            hidden_states, residual = layer(positions, hidden_states, residual)
-        
-        hidden_states, _ = self.norm(hidden_states, residual)
-
-        return hidden_states
 
 
-class Qwen3ForCausalLM(BaseModelForCausalLM):
+class Qwen3ForCausalLM(Qwen2ForCausalLM):
     """
     Qwen3 model for causal language modeling.
 
@@ -466,60 +298,12 @@ class Qwen3ForCausalLM(BaseModelForCausalLM):
         """
         super().__init__(mindie_llm_config)
 
-        self.hf_config = mindie_llm_config.hf_config
-        self.quant_config = mindie_llm_config.quant_config
-        self.parallel_info_manager = get_parallel_info_manager()
         self.model = Qwen3Model(
             config=mindie_llm_config.hf_config,
             prefix="model",
             quant_config=self.quant_config
         )
 
-        self.lm_head = ParallelLMHead(
-            self.hf_config.vocab_size,
-            self.hf_config.hidden_size,
-            bias=False,
-            quant_config=None,
-            prefix=f"lm_head",
-        )
-
-        if self.hf_config.tie_word_embeddings:
-            self.lm_head = self.lm_head.tie_weights(self.model.embed_tokens)
-
-    def forward(
-        self,
-        input_ids: torch.Tensor,
-        positions: torch.Tensor,
-        intermediate_tensors: torch.Tensor | None = None,
-        inputs_embeds: torch.Tensor | None = None
-    ) -> Qwen3Model:
-        """
-        Forward pass of the model (without LM head).
-
-        Args:
-            input_ids: Input token IDs
-            positions: Position indices
-            intermediate_tensors: Intermediate tensors
-            inputs_embeds: Embedding vectors for input tokens
-
-        Returns:
-            torch.Tensor: Hidden states before LM head
-        """
-        return self.model(input_ids, positions)
-
-    def compute_logits(
-        self,
-        hidden_states: torch.Tensor,
-    ) -> torch.Tensor | None:
-        """
-        Forward pass through the LM head.
-
-        Args:
-            hidden_states: Hidden states from the base model
-
-        Returns:
-            torch.Tensor: Logits for token prediction
-        """
-        forward_context = get_forward_context()
-        lm_head_indices = forward_context.lmhead_metadata.lm_head_indices
-        return self.lm_head.forward(hidden_states, lm_head_indices)
+        
+        
+        

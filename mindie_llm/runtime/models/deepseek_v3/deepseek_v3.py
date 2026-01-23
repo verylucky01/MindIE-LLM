@@ -20,11 +20,10 @@ from mindie_llm.runtime.layers.linear.linear import RowParallelLinear, MergedCol
 from mindie_llm.runtime.layers.embedding.embedding import VocabParallelEmbedding, ParallelLMHead
 from mindie_llm.runtime.layers.attention.sparse_attention_layer import SFA
 from mindie_llm.runtime.layers.fused_moe.experts_selector import select_experts
-from mindie_llm.runtime.layers.fused_moe.fused_moe import FusedMoE, assign
+from mindie_llm.runtime.layers.fused_moe.fused_moe import FusedMoE, assign_experts
 from mindie_llm.runtime.model_runner.forward_context import get_forward_context
 from mindie_llm.runtime.utils.distributed import get_parallel_info_manager
 from mindie_llm.runtime.layers.attention import get_global_attn_dict
-from mindie_llm.runtime.layers.fused_moe.moe_comm_method import select_moe_comm_method, get_cached_dispatcher
 from mindie_llm.runtime.layers.parameter import BaseParameter
 
 
@@ -129,7 +128,7 @@ class DeepseekV3Moe(nn.Module):
         self.topk_group = config.topk_group
         self.topk_num = config.num_experts_per_tok
         self.expert_num = config.n_routed_experts
-        self.expert_list = assign(config.n_routed_experts,
+        self.expert_list = assign_experts(config.n_routed_experts,
             parallel_info.moe_ep.group_size)[parallel_info.moe_ep.rank]
 
         self.experts = FusedMoE(
@@ -153,7 +152,8 @@ class DeepseekV3Moe(nn.Module):
             config,
             f"{self.prefix}.shared_experts",
             quant_config=quant_config,
-            intermediate_size=config.moe_intermediate_size
+            intermediate_size=config.moe_intermediate_size,
+            is_moe=True
         )
         self.gate.e_score_correction_bias = BaseParameter(torch.empty(config.n_routed_experts))
         self.gate.e_score_correction_bias.add_attrs({"weight_loader": self.weight_loader})
@@ -498,7 +498,7 @@ class DeepseekV3Attention(nn.Module):
 
 
 class DeepseekV3MLP(nn.Module):
-    def __init__(self, config, prefix: str, quant_config, intermediate_size) -> None:
+    def __init__(self, config, prefix: str, quant_config, intermediate_size, is_moe=False) -> None:
         """
         Initialize the Deepseek MLP module.
 
@@ -512,13 +512,14 @@ class DeepseekV3MLP(nn.Module):
         parallel_info = get_parallel_info_manager()
         self.config = config
         self.prefix = prefix
+        cur_parallel_info = parallel_info.mlp_tp if not is_moe else parallel_info.moe_tp        
         self.gate_up_proj = MergedColumnParallelLinear(
             config.hidden_size,
             [intermediate_size] * 2,
             bias=False,
             quant_config=quant_config,
             prefix=[f"{prefix}.gate_proj", f"{prefix}.up_proj"],
-            parallel_info=parallel_info.mlp_tp
+            parallel_info=cur_parallel_info
         )
         self.down_proj = RowParallelLinear(
             intermediate_size,
@@ -526,7 +527,7 @@ class DeepseekV3MLP(nn.Module):
             bias=False,
             quant_config=quant_config,
             prefix=f"{prefix}.down_proj",
-            parallel_info=parallel_info.mlp_tp,
+            parallel_info=cur_parallel_info,
             reduce_results=True
         )
     
