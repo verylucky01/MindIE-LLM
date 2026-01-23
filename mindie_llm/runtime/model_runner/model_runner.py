@@ -340,11 +340,14 @@ class ModelRunner:
         except KeyError as e:
             raise ValueError("Inputs must contains `input_ids` and `position_ids`.") from e
 
+        is_prefill_or_no_mtp = is_prefill or self.num_speculative_tokens == 0
+        is_mtp_0 = self.is_draft_model and self.mtp_count % self.num_speculative_tokens == 0
+        is_mtp_0_or_main = not self.is_draft_model or is_mtp_0
+
         # NOTE: I recommend to put the following things to Attention and LMHead module's `build_input_metadata` methods.
         mask = self.mask
         slot_mapping = kwargs.get("slots", None).to(torch.int32)
-        if is_prefill or self.num_speculative_tokens == 0 or \
-            (not self.is_draft_model or self.mtp_count % self.num_speculative_tokens == 0):
+        if is_prefill_or_no_mtp or is_mtp_0_or_main:
             seq_lens = kwargs.get("input_lengths", None).to(torch.int32)
             seq_lens_list = seq_lens.cpu().tolist()
             block_tables = kwargs.get("block_tables", None)
@@ -360,8 +363,7 @@ class ModelRunner:
             block_tables = ModelRunner.input_metadata["block_tables"]
             lm_head_indices = ModelRunner.input_metadata["lm_head_indices"]
 
-        if is_prefill or self.num_speculative_tokens == 0 or \
-            (self.is_draft_model and self.mtp_count % self.num_speculative_tokens == 0):
+        if ModelRunner.input_metadata is None or is_prefill_or_no_mtp or is_mtp_0:
             q_lens = kwargs.get("q_lens", None)
             actual_seq_lengths_kv = None
             actual_seq_lengths_query = None
@@ -420,6 +422,9 @@ class ModelRunner:
         actual_seq_lengths_query = input_metadata["actual_seq_lengths_query"]
 
         mc2_mask = ModelRunner.input_metadata["mc2_mask"] if ModelRunner.input_metadata is not None else None
+        
+        is_mtp_0 = self.is_draft_model and self.mtp_count % self.num_speculative_tokens == 0
+        is_mtp_0_or_main = not self.is_draft_model or is_mtp_0
 
         num_actual_tokens = input_ids.shape[0]
         num_tokens = self.model.find_padding_bs(
@@ -440,8 +445,7 @@ class ModelRunner:
         position_ids = self.position_ids[:num_tokens]
         slot_mapping = self.slot_mapping[:num_tokens]
 
-        if self.num_speculative_tokens == 0 or \
-            (not self.is_draft_model or self.mtp_count % self.num_speculative_tokens == 0):
+        if self.num_speculative_tokens == 0 or is_mtp_0_or_main:
             self.seq_lens[:num_reqs].copy_(seq_lens[:num_reqs])
             max_len = seq_lens.max().item()
             max_seq_pages = (max_len + self.block_size - 1) // self.block_size
@@ -473,8 +477,7 @@ class ModelRunner:
         num_padded_tokens = num_tokens + (tp_size - num_tokens % tp_size) % tp_size
         unit_size = num_padded_tokens // tp_size
     
-        if self.num_speculative_tokens == 0 or \
-            (self.is_draft_model and self.mtp_count % self.num_speculative_tokens == 0):
+        if ModelRunner.input_metadata is None or self.num_speculative_tokens == 0 or is_mtp_0:
             if actual_seq_lengths_kv is not None:
                 actual_len, last_req_tokens = \
                     get_speculative_reqs_padding_length(
