@@ -83,12 +83,12 @@ def select_moe_comm_method(quant_type: Optional[str] = None
     else:
         raise ValueError(f"Unsupported soc_version: {ascend_device_type}")
 
-    # (note) MoECommType.ALLGATHER: Currently does not support enabling DP.
+    # NOTE: MoECommType.ALLGATHER: Currently does not support enabling DP.
     if moe_comm_type == MoECommType.ALLGATHER and parallel_info_manager.get(ParallelType.ATTN_DP).is_enabled():
         moe_comm_type = MoECommType.ALLTOALL
         logger.debug('Currently do not support MoECommType.ALLGATHER with dp.')
 
-    # (note) MoECommType.MC2 and MoECommType.ALLTOALL: Do not support moe_tp > 1,
+    # NOTE: MoECommType.MC2 and MoECommType.ALLTOALL: Do not support moe_tp > 1,
     # and require flash_comm to be enabled.
     if moe_comm_type in (MoECommType.MC2, MoECommType.ALLTOALL):
         if parallel_info_manager.get(ParallelType.MOE_TP).is_enabled():

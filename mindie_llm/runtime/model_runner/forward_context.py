@@ -10,32 +10,12 @@
 
 from dataclasses import dataclass, fields
 import torch
-
-
-@dataclass
-class ModuleMetadata:
-    @classmethod
-    def from_dict(cls, dict_data):
-        field_names = {field.name for field in fields(cls)}
-        filtered_dict = {k: v for k, v in dict_data.items() if k in field_names}
-
-        return cls(**filtered_dict)
-
-
-@dataclass
-class AttentionMetadata(ModuleMetadata):
-    slot_mapping: torch.Tensor
-    seq_lens: torch.Tensor
-    block_tables: torch.Tensor
-    attn_mask: torch.Tensor
-    cos_table: torch.Tensor
-    sin_table: torch.Tensor
-    seq_lens_list: list | None = None
-
-
-@dataclass
-class LMHeadMetadata(ModuleMetadata):
-    lm_head_indices: torch.Tensor
+from mindie_llm.runtime.model_runner.forward_context_exp import BatchDescriptor,\
+    set_forward_context, get_forward_context
+from mindie_llm.runtime.model_runner.forward_metadata.module_metadata import ModuleMetadata
+from mindie_llm.runtime.model_runner.forward_metadata.attn_metadata import AttentionMetadata
+from mindie_llm.runtime.utils.distributed import get_parallel_info_manager
+from mindie_llm.runtime.utils.distributed.parallel_info_manager import ParallelType
 
 
 @dataclass
@@ -45,8 +25,8 @@ class MtpMetadata(ModuleMetadata):
 
 @dataclass
 class ForwardContext:
-    attn_metadata: dict[str, AttentionMetadata | torch.Tensor]
-    lmhead_metadata: LMHeadMetadata
+    attn_metadata: AttentionMetadata
+    lm_head_indices: torch.Tensor
     mtp_metadata: MtpMetadata
     is_prefill: bool
     num_tokens_across_dp_cpu: torch.Tensor
@@ -54,46 +34,34 @@ class ForwardContext:
     capturing: bool = False  # default eager mode
     num_tokens: int = 0
     num_actual_tokens: int = 0
-    # (NOTE): rope generate in DeepSeekV3Model;
+    # NOTE: rope generate in DeepSeekV3Model;
     seq_lens: torch.Tensor = None     
+    batch_descriptor: BatchDescriptor = None
+    attn_metadata_dict: dict[str, AttentionMetadata] = None
     mc2_mask: torch.Tensor = None
 
 
 _forward_context: ForwardContext | None = None
 
 
-def get_forward_context() -> ForwardContext:
-    """Get the current forward context."""
-    if _forward_context is None:
-        raise RuntimeError(
-            "Forward context is not set. "
-            "Please use `set_forward_context` to set the forward context."
-        )
-    return _forward_context
-
-
-def set_forward_context(context: ForwardContext):
-    """Set the current forward context."""
-    global _forward_context
-    _forward_context = context
-
-
 def create_forward_context(
     input_metadata: dict, capturing: bool = False
 ):
     attn_metadata = AttentionMetadata.from_dict(input_metadata)
-    lmhead_metadata = LMHeadMetadata.from_dict(input_metadata)
+    lm_head_indices = input_metadata.get("lm_head_indices", None)
     mtp_metadata = MtpMetadata.from_dict(input_metadata)
     is_prefill = input_metadata["is_prefill"]
     num_tokens = input_metadata.get("num_tokens", 0)
     num_actual_tokens = input_metadata.get("num_actual_tokens", 0)
     seq_lens = input_metadata["seq_lens"]
     num_tokens_across_dp_cpu = input_metadata["num_tokens_across_dp_cpu"]
+    batch_descriptor = BatchDescriptor(num_tokens,
+        get_parallel_info_manager().get(ParallelType.ATTN_DP).is_enabled())
     mc2_mask = input_metadata.get("mc2_mask", None)
 
     return ForwardContext(
         attn_metadata=attn_metadata,
-        lmhead_metadata=lmhead_metadata,
+        lm_head_indices=lm_head_indices,
         mtp_metadata=mtp_metadata,
         is_prefill=is_prefill,
         num_tokens=num_tokens,
@@ -101,5 +69,6 @@ def create_forward_context(
         capturing=capturing,
         seq_lens=seq_lens,
         num_tokens_across_dp_cpu=num_tokens_across_dp_cpu,
+        batch_descriptor=batch_descriptor,
         mc2_mask=mc2_mask,
     )

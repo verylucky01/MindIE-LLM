@@ -705,7 +705,7 @@ class DeepseekV3Model(nn.Module):
         forward_context = get_forward_context()    
         cos_sin = self.rotary_emb(
             hidden_states, 
-            positions, forward_context.seq_lens, 
+            positions, forward_context.attn_metadata.seq_lens, 
             self.config.max_position_embeddings
         )
         bind_cos_sin_table(cos_sin)
@@ -777,5 +777,5 @@ class DeepseekV3ForCausalLM(BaseModelForCausalLM):
             torch.Tensor: Logits for token prediction.
         """
         forward_context = get_forward_context()
-        lm_head_indices = forward_context.lmhead_metadata.lm_head_indices
+        lm_head_indices = forward_context.lm_head_indices
         return self.lm_head.forward(hidden_states, lm_head_indices)

@@ -20,7 +20,7 @@ from mindie_llm.runtime.utils.distributed import get_parallel_info_manager, init
 from mindie_llm.runtime.utils.distributed.parallel_info_manager import ParallelInfo, ParallelType
 from mindie_llm.runtime.model_runner.forward_context import get_forward_context
 from mindie_llm.utils.log.logging import logger
-
+from mindie_llm.utils.env import ENV as ENV_utils
 
 # Mapping from Linear layer class name to candidate custom LinearOp implementations.
 # Each value is a callable returning a tuple of op classes to try in order.
@@ -112,7 +112,7 @@ class SequenceColumnParallelOp(ColumnParallelOp):
     @staticmethod
     def enable(layer_cls) -> bool:
         forward_context = get_forward_context()
-        if not forward_context.enable_flash_comm:
+        if not forward_context.batch_descriptor.is_flash_comm_enabled:
             return False
         # AllGather should be handled elsewhere in MLA.
         if "q_b_proj" in layer_cls.prefix:
@@ -138,7 +138,7 @@ class SequenceRowParallelOp(RowParallelOp):
     @staticmethod
     def enable(layer_cls) -> bool:
         forward_context = get_forward_context()
-        if forward_context.enable_flash_comm:
+        if forward_context.batch_descriptor.is_flash_comm_enabled:
             return True
         return False
 
@@ -225,7 +225,10 @@ def maybe_unpad_cross_dp(
     except AssertionError:
         return input_
 
-    num_tokens_across_dp_cpu = forward_context.num_tokens_across_dp_cpu
+    if ENV_utils.model_runner_exp:
+        num_tokens_across_dp_cpu = forward_context.dp_metadata.num_tokens_across_dp_cpu
+    else:
+        num_tokens_across_dp_cpu = forward_context.num_tokens_across_dp_cpu
 
     ratio = cur_world_size // attn_tp_world_size
     cur_dp_num_tokens_across_dp_cpu = num_tokens_across_dp_cpu.view(-1, ratio)[attn_dp.rank // ratio]

@@ -138,6 +138,15 @@ class GeneratorBackend:
         max_lora_rank = parse_config(model_config, 'max_lora_rank', required=False, parse_type=ParseType.TO_INT, default_value=0)
         self.__parse_config_key(model_config)
 
+        sampler_config = SamplerConfig(
+            backend_type=backend_type,
+            npu_id=self.npu_device_id,
+            num_threads=num_threads,
+            rank=self.rank,
+            splitfuse_enabled=self.splitfuse_enabled
+        )
+        self.sampler = Sampler(sampler_config)
+
         model_config["rank"] = self.rank
         model_config["world_size"] = self.world_size
         model_config['npu_device_id'] = self.npu_device_id
@@ -156,6 +165,7 @@ class GeneratorBackend:
         model_config['lccl_comm_shard_id'] = lccl_comm_shard_id
         model_config['max_loras'] = max_loras
         model_config['max_lora_rank'] = max_lora_rank
+        model_config['sampler_config'] = sampler_config
 
         self.backend_type = backend_type
         self.model_wrapper = get_model_wrapper(model_config, backend_type)
@@ -168,15 +178,6 @@ class GeneratorBackend:
         self.enable_dap = False
         self.obfuscation_func = None
         self.device = None
-
-        sampler_config = SamplerConfig(
-            backend_type=backend_type,
-            npu_id=self.npu_device_id,
-            num_threads=num_threads,
-            rank=self.rank,
-            splitfuse_enabled=self.splitfuse_enabled
-        )
-        self.sampler = Sampler(sampler_config)
 
         self.max_position_embeddings = self.model_wrapper.max_position_embeddings
 

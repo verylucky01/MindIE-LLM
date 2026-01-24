@@ -45,6 +45,36 @@ class TestPluginLwd(unittest.TestCase):
         self.plugin_lwd.forward_loop = Mock()
         self.metadata_ = Mock()
 
+        self.plugin = self.plugin_lwd
+
+        # ====== model_inputs mock ======
+        self.model_inputs = Mock()
+        self.model_inputs.input_ids = MagicMock()
+        self.model_inputs.position_ids = MagicMock()
+        self.model_inputs.input_lengths = MagicMock()
+
+        self.model_inputs.context_length = np.array([1, 2, 3], dtype=np.int32)
+        self.model_inputs.max_seq_len = 3
+
+        self.model_inputs.forward_context = Mock()
+        self.model_inputs.forward_context.attn_metadata = Mock()
+        self.model_inputs.forward_context.attn_metadata.max_seq_len = 3
+
+        # ====== sampling_output mock ======
+        self.sampling_output = Mock()
+        token_ids_tensor = MagicMock()
+        token_ids_tensor.index_select.return_value = MagicMock()
+        token_ids_tensor.index_select.return_value.flatten.return_value = np.array([10, 11])
+        self.sampling_output.token_ids = token_ids_tensor
+
+        # ====== model_output_wrapper ======
+        self.model_output_wrapper = Mock()
+        self.model_output_wrapper.sampling_output = self.sampling_output
+
+        # ====== model_input_wrapper ======
+        self.model_input_wrapper = Mock()
+        self.model_input_wrapper.model_inputs = self.model_inputs
+
     @classmethod
     def setUpClass(cls):
         print("TestPluginLwd start")
@@ -117,11 +147,18 @@ class TestPluginLwd(unittest.TestCase):
 
         def prepare_model_inputs_(model_input, q_lens, attn_mask):
             return [0, 1], {"a": 1}
+
+        def to_tensor_mock(data):
+            tensor_mock = MagicMock()
+            tensor_mock.nonzero.return_value = (np.array([0]),)
+            return tensor_mock
+
         generator_backend_ = Mock()
         generator_backend_.get_new_stream = read_lock_
         generator_backend_.prepare_model_inputs = prepare_model_inputs_
         generator_backend_.dp = 0
         generator_backend_.forward_from_model_inputs = Mock()
+        generator_backend_.to_tensor = Mock(side_effect=to_tensor_mock)
         self.plugin_lwd.generator_backend = generator_backend_
 
         tmp_metadata = InputMetadata(batch_size=1, is_prefill=True, batch_request_ids=np.array([0]),
@@ -151,11 +188,18 @@ class TestPluginLwd(unittest.TestCase):
 
         def prepare_model_inputs_(model_input, q_lens, attn_mask):
             return [0, 1], {"a": 1}
+
+        def to_tensor_mock(data):
+            tensor_mock = MagicMock()
+            tensor_mock.nonzero.return_value = (np.array([0]),)
+            return tensor_mock
+
         generator_backend_ = Mock()
         generator_backend_.get_new_stream = read_lock_
         generator_backend_.prepare_model_inputs = prepare_model_inputs_
         generator_backend_.dp = 0
         generator_backend_.forward_from_model_inputs = Mock()
+        generator_backend_.to_tensor = Mock(side_effect=to_tensor_mock)
         self.plugin_lwd.generator_backend = generator_backend_
         tmp_metadata = InputMetadata(batch_size=1, is_prefill=False, batch_request_ids=np.array([0]),
             batch_sequence_ids=[np.array([0])], batch_max_output_lens=[100, 101], block_tables=np.array([[0, 1]]),
@@ -206,11 +250,18 @@ class TestPluginLwd(unittest.TestCase):
 
         def prepare_model_inputs_(model_input, q_lens, attn_mask):
             return [0, 1], {"a": 1}
+
+        def to_tensor_mock(data):
+            tensor_mock = MagicMock()
+            tensor_mock.nonzero.return_value = (np.array([0]),)
+            return tensor_mock
+
         generator_backend_ = Mock()
         generator_backend_.get_new_stream = read_lock_
         generator_backend_.prepare_model_inputs = prepare_model_inputs_
         generator_backend_.dp = 0
         generator_backend_.forward_from_model_inputs = Mock()
+        generator_backend_.to_tensor = Mock(side_effect=to_tensor_mock)
         self.plugin_lwd.generator_backend = generator_backend_
         tmp_metadata = InputMetadata(batch_size=1, is_prefill=True, batch_request_ids=np.array([0]),
             batch_sequence_ids=[np.array([0])], batch_max_output_lens=[100, 101], block_tables=np.array([[0, 1]]),
@@ -263,6 +314,94 @@ class TestPluginLwd(unittest.TestCase):
         self.plugin_lwd.prepare_inputs_for_longseq_chunk(model_input_wrapper)
         model_input_wrapper.input_metadata.layerwise_disaggregated_exe_stage.long_seq_start_idx = 1
         self.plugin_lwd.prepare_inputs_for_longseq_chunk(model_input_wrapper)
+
+    def test_fill_in_model_result_with_updates(self):
+        """命中 mask 且 update_indices 非空，完整 scatter 路径"""
+
+        filling_masks = {
+            "hit_sequence_ids_mask": np.array([True, False, True]),
+            "hit_indices_tensor": MagicMock(),
+            "update_indices": np.array([0, 2]),
+            "ones_int32": np.array([1, 1], dtype=np.int32),
+            "ones_int64": np.array([1, 1], dtype=np.int64),
+        }
+
+        self.model_input_wrapper.filling_masks = filling_masks
+
+        self.plugin._fill_in_model_result_exp(
+            self.model_input_wrapper,
+            self.model_output_wrapper
+        )
+
+        # ====== token index_select 被调用 ======
+        self.sampling_output.token_ids.index_select.assert_called_once()
+
+        # ====== scatter 被调用 ======
+        self.model_inputs.input_ids.scatter_.assert_called_once()
+        self.model_inputs.position_ids.scatter_add_.assert_called_once()
+        self.model_inputs.input_lengths.scatter_add_.assert_called_once()
+
+        # ====== context_length 更新 ======
+        self.assertEqual(
+            self.model_inputs.context_length.tolist(),
+            [2, 2, 4]
+        )
+
+        # ====== max_seq_len 更新 ======
+        self.assertEqual(self.model_inputs.max_seq_len, 4)
+        self.assertEqual(
+            self.model_inputs.forward_context.attn_metadata.max_seq_len,
+            4
+        )
+
+    def test_fill_in_model_result_no_update_indices(self):
+        """命中 mask 但 update_indices 为空，不走 scatter"""
+
+        filling_masks = {
+            "hit_sequence_ids_mask": np.array([True, True, False]),
+            "hit_indices_tensor": MagicMock(),
+            "update_indices": [],
+            "ones_int32": np.array([], dtype=np.int32),
+            "ones_int64": np.array([], dtype=np.int64),
+        }
+
+        self.model_input_wrapper.filling_masks = filling_masks
+
+        self.plugin._fill_in_model_result_exp(
+            self.model_input_wrapper,
+            self.model_output_wrapper
+        )
+
+        # ====== scatter 不应被调用 ======
+        self.model_inputs.input_ids.scatter_.assert_not_called()
+        self.model_inputs.position_ids.scatter_add_.assert_not_called()
+        self.model_inputs.input_lengths.scatter_add_.assert_not_called()
+
+        # ====== context_length 仍然增加 ======
+        self.assertEqual(
+            self.model_inputs.context_length.tolist(),
+            [2, 3, 3]
+        )
+
+        # ====== max_seq_len 更新 ======
+        self.assertEqual(self.model_inputs.max_seq_len, 3)
+
+    def test_fill_in_model_result_no_hit_mask(self):
+        """没有 hit_sequence_ids_mask，整个函数应安全返回"""
+
+        filling_masks = {}
+        self.model_input_wrapper.filling_masks = filling_masks
+
+        self.plugin._fill_in_model_result_exp(
+            self.model_input_wrapper,
+            self.model_output_wrapper
+        )
+
+        # ====== 不应调用任何 tensor 操作 ======
+        self.sampling_output.token_ids.index_select.assert_not_called()
+        self.model_inputs.input_ids.scatter_.assert_not_called()
+        self.model_inputs.position_ids.scatter_add_.assert_not_called()
+        self.model_inputs.input_lengths.scatter_add_.assert_not_called()
 
 if __name__ == "__main__":
     unittest.main()

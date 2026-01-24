@@ -10,10 +10,12 @@
 import importlib
 import queue
 import threading
-from typing import Iterable, Optional
-
+import copy
+from typing import Iterable, Optional, Any
+from dataclasses import fields
+import torch
 import numpy as np
-import numpy.typing as npt
+import numpy.typing as npt 
 from mindie_llm.utils.status import CoreThread
 from .plugin_data_param import PluginDataParam
 from ..utils.generation_output import GenerationOutput
@@ -26,7 +28,6 @@ from ...utils.decorators.time_decorator import timer
 from ...utils.env import ENV
 from ...utils.prof.profiler import span_start, span_end, span_req, span_attr, count_block
 from ...utils.log.logging import logger
-
 
 SPECULATIVE_PLUGIN_LIST = ["la", "memory_decoding"]
 LAUNCH_DONE_TIMEOUT = 1
@@ -77,6 +78,41 @@ class PluginManager:
         sampling_output.logprobs = np.expand_dims(sampling_output.logprobs, 1)
         sampling_output.top_token_ids = np.expand_dims(sampling_output.top_token_ids, 1)
         sampling_output.top_logprobs = np.expand_dims(sampling_output.top_logprobs, 1)
+
+    @staticmethod
+    def _to_host(data_instance: Any):
+        if data_instance is None:
+            return None
+        new_instance = copy.deepcopy(data_instance)
+        for field in fields(new_instance):
+            field_value = getattr(new_instance, field.name)
+            if isinstance(field_value, torch.Tensor):
+                host_array = field_value.cpu().numpy()
+                setattr(new_instance, field.name, host_array)
+        return new_instance
+
+    @staticmethod
+    def _fill_in_model_result_exp(model_input_wrapper, model_output_wrapper):
+        filling_masks = model_input_wrapper.filling_masks
+        model_inputs = model_input_wrapper.model_inputs
+        method = None
+        if method is None:
+            # NOTE: Add MTP and other plugin-based capabilites later
+            sampling_output = model_output_wrapper.sampling_output
+            hit_sequence_ids_mask = filling_masks.get('hit_sequence_ids_mask')
+            if hit_sequence_ids_mask is not None:
+                hit_indices_tensor = filling_masks.get('hit_indices_tensor')
+                true_token_ids = sampling_output.token_ids.index_select(dim=0, index=hit_indices_tensor).flatten()
+                update_indices = filling_masks.get('update_indices')
+                ones_int32 = filling_masks.get('ones_int32')
+                ones_int64 = filling_masks.get('ones_int64')
+                if len(update_indices) > 0:
+                    model_inputs.input_ids.scatter_(0, update_indices, true_token_ids)
+                    model_inputs.position_ids.scatter_add_(0, update_indices, ones_int64)
+                    model_inputs.input_lengths.scatter_add_(0, update_indices, ones_int32)
+                model_inputs.context_length[hit_sequence_ids_mask] += 1
+                model_inputs.max_seq_len = max(model_inputs.context_length)
+                model_inputs.forward_context.attn_metadata.max_seq_len = model_inputs.max_seq_len
 
     def clear_cache(
         self,
@@ -218,7 +254,7 @@ class PluginManager:
             postprocess_done = threading.Event()
             model_input_wrapper = ModelInputWrapper(
                 cache_ids, input_metadata, model_input, model_kwargs, sampling_metadata,
-                trace_ids, current_dp_sequence_ids, postprocess_done)
+                trace_ids, current_dp_sequence_ids, postprocess_done, filling_masks)
             span_end(prof)
 
             prof = span_start('get_from_output_queue')
@@ -226,12 +262,16 @@ class PluginManager:
             span_end(prof)
 
             is_mock = model_output_wrapper.is_mock
-            prof = span_start("fill_in_model_result")
+            # Move '_fill_in_model_result' into 'forward_loop' to reduce inter-token latency.
+            # This requires 'Sampler' to perform on-device post-processing.
+            if ENV.model_runner_exp is False:
+                prof = span_start("fill_in_model_result") 
+                if not is_mock and model_output_wrapper.model_output:	 
+                    self._fill_in_model_result(input_metadata, model_input_wrapper, model_output_wrapper, 
+                                                filling_masks, cache_ids)
+                span_end(prof)
 
-            if not is_mock and model_output_wrapper.model_output:
-                self._fill_in_model_result(input_metadata, model_input_wrapper, model_output_wrapper,
-                                       filling_masks, cache_ids)
-                                       
+            prof = span_start("synchronize_processing_stream")
             self.generator_backend.synchronize()
             span_end(prof)
 
@@ -250,6 +290,13 @@ class PluginManager:
                 span_end(prof)
             self.previous_batch_is_prefill = input_metadata.is_prefill
 
+            # Maintain backward compatibility with the previous implementation
+            sampling_output = model_output_wrapper.sampling_output
+            if ENV.model_runner_exp:
+                if model_output_wrapper.execution_done is not None:
+                    model_output_wrapper.execution_done.synchronize()
+                sampling_output = self._to_host(model_output_wrapper.sampling_output)
+
             prof = span_start("postprocess")
             if not is_mock and model_output_wrapper.cache_ids is not None and \
                 not model_output_wrapper.input_metadata.is_dummy_batch:
@@ -263,7 +310,7 @@ class PluginManager:
                     model_output_wrapper.input_metadata,
                     model_result,
                     model_output_wrapper.sampling_metadata,
-                    model_output_wrapper.sampling_output,
+                    sampling_output,
                 )
                 generation_output.trace_ids = model_output_wrapper.trace_ids
             else:
@@ -412,12 +459,19 @@ class PluginManager:
     def forward_loop(self):
         self.generator_backend.set_device()
         launch_done = None
+        model_output_wrapper = None
         while True:
             prof = span_start("get_from_input_queue")
             model_input_wrapper = self.input_queue.get()
             span_end(prof)
+            # Maintain backward compatibility with the previous implementation
+            if ENV.model_runner_exp:
+                prof = span_start("fill_in_model_result")
+                if model_output_wrapper is not None:
+                    self._fill_in_model_result_exp(model_input_wrapper, model_output_wrapper)
+                span_end(prof)
             try:
-                prof = span_start("forward", True)
+                prof = span_start("forward")
                 span_req(prof, model_input_wrapper.trace_ids)
                 span_attr(prof, "async", True)
                 if ENV.framework_backend == BackendType.ATB:
@@ -426,7 +480,7 @@ class PluginManager:
                     model_input_wrapper.model_inputs, **model_input_wrapper.model_kwargs)
                 if launch_done is not None:
                     launch_done.set()
-                span_end(prof, True)
+                span_end(prof)
 
                 prof = span_start("sample")
                 draft_filtered_logits = self.sample_preprocess_manager(
@@ -443,9 +497,19 @@ class PluginManager:
 
                 if not self.is_inference_pause:
                     model_input_wrapper.postprocess_done.wait()
-                prof = span_start("verify")
-                self.plugin_verify_manager(sampling_output, model_input_wrapper.cache_ids, model_output.original_result)
-                span_end(prof)
+
+                if ENV.model_runner_exp:
+                # NOTE: Add MTP and other plugin-based capabilites later
+                    if len(sampling_output.token_ids.shape) != 2:
+                        sampling_output.token_ids = torch.unsqueeze(sampling_output.token_ids, 1)
+                        sampling_output.logprobs = np.expand_dims(sampling_output.logprobs, 1)
+                        sampling_output.top_token_ids = np.expand_dims(sampling_output.top_token_ids, 1)
+                        sampling_output.top_logprobs = np.expand_dims(sampling_output.top_logprobs, 1)
+                else:
+                    prof = span_start("verify")	 
+                    self.plugin_verify_manager(
+                        sampling_output, model_input_wrapper.cache_ids, model_output.original_result)
+                    span_end(prof)
 
                 prof = span_start("put_prefix_kvcache_to_mempool")
                 if model_input_wrapper.cache_ids is not None and not model_input_wrapper.input_metadata.is_dummy_batch:
@@ -488,6 +552,11 @@ class PluginManager:
                     f"Terminating inference thread. Error: {e}"
                 )
                 raise e
+            
+            if ENV.model_runner_exp:
+                execution_done = torch.npu.Event()
+                execution_done.record(torch.npu.current_stream())
+                model_output_wrapper.execution_done = execution_done
             self.output_queue.put(model_output_wrapper)
 
     def _prepare_masks_for_filling(self, model_inputs, current_dp_sequence_ids, input_metadata):
@@ -514,8 +583,17 @@ class PluginManager:
                     masks['hit_mask_per_token'] = self.generator_backend.to_tensor(hit_mask_per_token)
                 hit_indices = np.where(hit_sequence_ids[:, None] == self.last_sequence_ids[None, :])[1]
                 masks['hit_sequence_ids_mask'] = hit_sequence_ids_mask
-                masks['hit_sequence_ids_mask_tensor'] = self.generator_backend.to_tensor(hit_sequence_ids_mask)
+                hit_sequence_ids_mask_tensor = self.generator_backend.to_tensor(hit_sequence_ids_mask)
+                masks['hit_sequence_ids_mask_tensor'] = hit_sequence_ids_mask_tensor
                 masks['hit_indices'] = hit_indices
+                masks['hit_indices_tensor'] = self.generator_backend.to_tensor(hit_indices)
+                if ENV.model_runner_exp:
+                    update_indices = hit_sequence_ids_mask_tensor.nonzero(as_tuple=True)[0]
+                    ones_int32 = torch.ones((len(update_indices),), device='npu', dtype=torch.int32)
+                    ones_int64 = torch.ones((len(update_indices),), device='npu', dtype=torch.int64)
+                    masks['update_indices'] = update_indices
+                    masks['ones_int32'] = ones_int32
+                    masks['ones_int64'] = ones_int64
         return masks
 
     def _fill_in_model_result(self, input_metadata, model_input_wrapper, model_output_wrapper,

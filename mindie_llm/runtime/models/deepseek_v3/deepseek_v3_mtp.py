@@ -228,5 +228,5 @@ class DeepseekV3MTP(BaseModelForCausalLM):
             torch.Tensor: Logits for token prediction.
         """
         forward_context = get_forward_context()
-        lm_head_indices = forward_context.lmhead_metadata.lm_head_indices
+        lm_head_indices = forward_context.lm_head_indices
         return self.lm_head.forward(hidden_states, lm_head_indices)

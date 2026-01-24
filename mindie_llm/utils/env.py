@@ -145,6 +145,8 @@ class EnvVar:
     performance_prefix_tree: bool = field(default_factory=get_performance_prefix_tree)
 
     async_inference: bool = field(default_factory=lambda: os.getenv("MINDIE_ASYNC_SCHEDULING_ENABLE", "0") == "1")
+    # model_runner 是否为 exp
+    model_runner_exp: bool = False
 
     def __post_init__(self):
         # 校验

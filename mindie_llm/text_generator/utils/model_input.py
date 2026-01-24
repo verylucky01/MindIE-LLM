@@ -11,8 +11,10 @@ from dataclasses import dataclass
 from threading import Event
 from typing import Any, Dict, List, Optional, Union
 
+import torch
 import numpy as np
 
+from mindie_llm.runtime.model_runner.forward_context_exp import ForwardContext
 from .input_metadata import InputMetadata
 from .sampling_metadata import SamplingMetadata
 from ...utils.tensor import BackendTensor
@@ -54,6 +56,8 @@ class ModelInput:
     kwargs: Optional[Dict[str, Any]] = None
     layerwise_disaggregated_exe_stage = None
 
+    forward_context: ForwardContext = None
+
     def __post_init__(self):
         if self.cached_context_length is None:
             self.cached_context_length = self.context_length
@@ -69,3 +73,4 @@ class ModelInputWrapper:
     trace_ids: List[Any]
     current_dp_sequence_ids: np.ndarray
     postprocess_done: Event
+    filling_masks: np.ndarray = None

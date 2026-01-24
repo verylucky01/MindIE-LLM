@@ -28,11 +28,13 @@
 
 from typing import Tuple, Type
 from dataclasses import dataclass
-
+import numpy as np
 import torch
 import torch_npu
 
-from mindie_llm.runtime.model_runner.forward_context import AttentionMetadata, ForwardContext, get_forward_context
+from mindie_llm.runtime.model_runner.forward_context import AttentionMetadata
+from mindie_llm.runtime.model_runner.forward_context_exp import ForwardContext, get_forward_context
+from mindie_llm.runtime.model_runner.input_buffer import input_buffer
 from .abstract import AttentionBackend, AttentionImpl, AttentionLayer
 
 
@@ -54,16 +56,53 @@ class FiaAttentionBackend(AttentionBackend):
 @dataclass
 class FiaAttentionMetadata(AttentionMetadata):
     # NOTE: This class is used for building attention metadata in the future.
-    seq_lens: torch.Tensor
-    seq_lens_list: list | None = None
+    # The following attributes are only filled by `from_model_input`.
 
-    slot_mapping: torch.Tensor
-    block_tables: torch.Tensor
+    @staticmethod
+    def from_model_input(model_inputs, cos_table, sin_table, mask, num_speculative_tokens=0):
+        return FiaAttentionMetadata(
+            seq_lens=model_inputs.context_length,
+            slot_mapping=model_inputs.slots,
+            block_tables=model_inputs.block_tables,
+            attn_mask=mask,
+            cos_table=cos_table,
+            sin_table=sin_table,
+            max_seq_len=model_inputs.max_seq_len,
+        )
 
-    attn_mask: torch.Tensor
+    @staticmethod
+    def register_buffer(max_num_token, device):
+        input_buffer.register("seq_lens", torch.zeros(max_num_token, dtype=torch.int32, device=device))
+        input_buffer.register("block_tables", torch.zeros((max_num_token, 64), dtype=torch.int32, device=device))
+        input_buffer.register("slot_mapping", -torch.ones(max_num_token, dtype=torch.int32, device=device))
 
-    cos_table: torch.Tensor
-    sin_table: torch.Tensor
+    def to_device(self, device):
+        self.block_tables = torch.tensor(self.block_tables, dtype=torch.int32).to(device)
+        self.slot_mapping = torch.tensor(self.slot_mapping, dtype=torch.int32).to(device)
+        self.seq_lens_list = self.seq_lens
+        self.seq_lens = torch.tensor(self.seq_lens).to(device)
+
+    def copy(self, num_actual_tokens, num_tokens):
+        # D2D operation
+
+        input_buffer_seq_lens = input_buffer.get("seq_lens")
+        input_buffer_seq_lens[:num_actual_tokens].copy_(self.seq_lens[:num_actual_tokens])
+        input_buffer_seq_lens[num_actual_tokens:num_tokens].fill_(0)
+        self.seq_lens = input_buffer_seq_lens[:num_tokens]
+        
+        self.seq_lens_list = self.seq_lens_list.tolist() + [0] * (num_tokens - num_actual_tokens)
+
+        max_seq_pages = (self.max_seq_len + 128 - 1) // 128
+
+        input_buffer_block_tables = input_buffer.get("block_tables")
+        input_buffer_block_tables[:num_actual_tokens, :self.block_tables.shape[-1]].copy_(self.block_tables)
+        input_buffer_block_tables[:num_tokens, max_seq_pages:].fill_(0)
+        input_buffer_block_tables[num_tokens:, :].fill_(0)
+        self.block_tables = input_buffer_block_tables
+
+        input_buffer_slot_mapping = input_buffer.get("slot_mapping")
+        input_buffer_slot_mapping[:num_actual_tokens].copy_(self.slot_mapping[:num_actual_tokens])
+        self.slot_mapping = input_buffer_slot_mapping[:num_tokens]
 
 
 class FiaAttentionMetadataBuilder: 
@@ -84,6 +123,10 @@ class FiaAttentionMetadataBuilder:
             sin_table=common_attn_metadata.sin_table
         )
         return attn_metadata
+
+    @staticmethod
+    def get_metadata_cls():
+        return FiaAttentionMetadata
 
 
 class FiaAttentionBackendImpl(AttentionImpl):
@@ -237,7 +280,7 @@ class FiaAttentionBackendImpl(AttentionImpl):
 
     def forward(
         self,
-        layer: AttentionLayer, # NOTE: C8 will use this param in the future.
+        layer: AttentionLayer,  # NOTE: C8 will use this param in the future.
         query: torch.Tensor,
         key: torch.Tensor,
         value: torch.Tensor,

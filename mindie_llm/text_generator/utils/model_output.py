@@ -10,7 +10,7 @@
 from dataclasses import dataclass
 from typing import Optional, Tuple
 from threading import Event
-
+import torch
 import numpy as np
 
 from .input_metadata import InputMetadata
@@ -38,6 +38,7 @@ class ModelOutputWrapper:
     current_dp_sequence_ids: Optional[np.ndarray] = None
     launch_done: Optional[Event] = None
     is_mock: bool = False
+    execution_done: torch.npu.Event = None
 
     @classmethod
     def make_empty(cls):

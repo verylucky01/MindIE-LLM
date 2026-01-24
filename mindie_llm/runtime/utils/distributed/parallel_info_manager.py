@@ -69,6 +69,7 @@ class ParallelInfo:
     rank: int | None = None
     process_group: ProcessGroup | None = None
     cpu_process_group: ProcessGroup | None = None
+    preprocess_group: ProcessGroup | None = None
 
     def is_enabled(self) -> bool:
         """Checks if this parallel group is active (group_size > 1)."""
@@ -100,10 +101,10 @@ class ParallelInfoManager:
             self.hccl_buffer = self.parallel_config.hccl_buffer
         self.server_config = {} if server_config is None else server_config
 
-
         self.world_size: int = torch.distributed.get_world_size()
         self.rank = torch.distributed.get_rank()
         self.local_rank = local_rank
+        self.is_distribution_enabled = server_config.get("distributed_enable", False)
 
         # NOTE: --- Legacy convenience attributes (deprecated) begin---
         # Resolve parallel config
@@ -278,5 +279,5 @@ class ParallelInfoManager:
         parallel_info.rank = parallel_info.rank_per_group[parallel_info.current_group_id].index(self.rank)
 
         parallel_info.process_group = self._create_npu_process_group(parallel_info)
-
+        parallel_info.preprocess_group = self._create_npu_process_group(parallel_info)
         return parallel_info

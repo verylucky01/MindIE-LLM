@@ -291,7 +291,7 @@ class ParallelLMHead(VocabParallelEmbedding):
 def maybe_slice_cross_tp(input_, parallel_info):
     # After enabling flash_comm, slice hidden_states from the attn_tp range onto each device.
     forward_context = get_forward_context()
-    if not forward_context.enable_flash_comm:
+    if not forward_context.batch_descriptor.is_flash_comm_enabled:
         return input_
 
     world_size = parallel_info.group_size
