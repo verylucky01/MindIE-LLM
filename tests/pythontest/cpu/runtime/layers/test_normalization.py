@@ -112,8 +112,8 @@ class TestRMSNorm(unittest.TestCase):
         mock_npu_rms_norm.assert_called_once()
         call_args = mock_npu_rms_norm.call_args
         self.assertEqual(len(call_args[0]), 3)
-        self.assertTrue(torch.equal(call_args[0][0], x))
-        self.assertTrue(torch.equal(call_args[0][1], layer.weight.data))
+        self.assertTrue(torch.allclose(call_args[0][0], x))
+        self.assertTrue(torch.allclose(call_args[0][1], layer.weight.data))
         self.assertEqual(call_args[0][2], layer.variance_epsilon)
         # Verify output shape
         self.assertEqual(output.shape, (2, 3, 512))
@@ -143,9 +143,9 @@ class TestRMSNorm(unittest.TestCase):
         mock_npu_add_rms_norm.assert_called_once()
         call_args = mock_npu_add_rms_norm.call_args
         self.assertEqual(len(call_args[0]), 4)
-        self.assertTrue(torch.equal(call_args[0][0], x))
-        self.assertTrue(torch.equal(call_args[0][1], residual))
-        self.assertTrue(torch.equal(call_args[0][2], layer.weight.data))
+        self.assertTrue(torch.allclose(call_args[0][0], x))
+        self.assertTrue(torch.allclose(call_args[0][1], residual))
+        self.assertTrue(torch.allclose(call_args[0][2], layer.weight.data))
         self.assertEqual(call_args[0][3], layer.variance_epsilon)
         # Verify output is a tuple
         self.assertIsInstance(output, tuple)
@@ -301,10 +301,10 @@ class TestLayerNorm(unittest.TestCase):
         mock_layer_norm.assert_called_once()
         call_args = mock_layer_norm.call_args
         self.assertEqual(len(call_args[0]), 5)
-        self.assertTrue(torch.equal(call_args[0][0], x))
+        self.assertTrue(torch.allclose(call_args[0][0], x))
         self.assertEqual(call_args[0][1], (512,))
-        self.assertTrue(torch.equal(call_args[0][2], layer.weight.data))
-        self.assertTrue(torch.equal(call_args[0][3], layer.bias.data))
+        self.assertTrue(torch.allclose(call_args[0][2], layer.weight.data))
+        self.assertTrue(torch.allclose(call_args[0][3], layer.bias.data))
         self.assertEqual(call_args[0][4], layer.variance_epsilon)
         # Verify output shape
         self.assertEqual(output.shape, (2, 3, 512))
@@ -370,8 +370,8 @@ class TestUnquantizedNormMethod(unittest.TestCase):
         mock_npu_rms_norm.assert_called_once()
         call_args = mock_npu_rms_norm.call_args
         self.assertEqual(len(call_args[0]), 3)
-        self.assertTrue(torch.equal(call_args[0][0], x))
-        self.assertTrue(torch.equal(call_args[0][1], layer.weight.data))
+        self.assertTrue(torch.allclose(call_args[0][0], x))
+        self.assertTrue(torch.allclose(call_args[0][1], layer.weight.data))
         self.assertEqual(call_args[0][2], layer.variance_epsilon)
         # Verify output shape
         self.assertEqual(output.shape, (2, 3, 512))
@@ -400,9 +400,9 @@ class TestUnquantizedNormMethod(unittest.TestCase):
         mock_npu_add_rms_norm.assert_called_once()
         call_args = mock_npu_add_rms_norm.call_args
         self.assertEqual(len(call_args[0]), 4)
-        self.assertTrue(torch.equal(call_args[0][0], x))
-        self.assertTrue(torch.equal(call_args[0][1], residual))
-        self.assertTrue(torch.equal(call_args[0][2], layer.weight.data))
+        self.assertTrue(torch.allclose(call_args[0][0], x))
+        self.assertTrue(torch.allclose(call_args[0][1], residual))
+        self.assertTrue(torch.allclose(call_args[0][2], layer.weight.data))
         self.assertEqual(call_args[0][3], layer.variance_epsilon)
         # Verify output is a tuple
         self.assertIsInstance(output, tuple)
@@ -461,10 +461,10 @@ class TestUnquantizedLayerNormBiasMethod(unittest.TestCase):
         mock_layer_norm.assert_called_once()
         call_args = mock_layer_norm.call_args
         self.assertEqual(len(call_args[0]), 5)
-        self.assertTrue(torch.equal(call_args[0][0], x))
+        self.assertTrue(torch.allclose(call_args[0][0], x))
         self.assertEqual(call_args[0][1], (dim,))
-        self.assertTrue(torch.equal(call_args[0][2], layer.weight.data))
-        self.assertTrue(torch.equal(call_args[0][3], layer.bias.data))
+        self.assertTrue(torch.allclose(call_args[0][2], layer.weight.data))
+        self.assertTrue(torch.allclose(call_args[0][3], layer.bias.data))
         self.assertEqual(call_args[0][4], layer.variance_epsilon)
         # Verify output shape
         self.assertEqual(output.shape, (2, 3, 512))

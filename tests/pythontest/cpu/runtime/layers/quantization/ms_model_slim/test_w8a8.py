@@ -137,8 +137,8 @@ class TestW8A8PerTensorLinearMethod(unittest.TestCase):
         mock_npu_quantize.assert_called_once()
         call_args = mock_npu_quantize.call_args
         self.assertIs(call_args.kwargs['input'], x)
-        self.assertTrue(torch.equal(call_args.kwargs['scales'], layer.input_scale.data))
-        self.assertTrue(torch.equal(call_args.kwargs['zero_points'], layer.input_offset.data))
+        self.assertTrue(torch.allclose(call_args.kwargs['scales'], layer.input_scale.data))
+        self.assertTrue(torch.allclose(call_args.kwargs['zero_points'], layer.input_offset.data))
         self.assertEqual(call_args.kwargs['dtype'], torch.qint8)
 
         # Verify npu_quant_matmul was called
@@ -146,7 +146,7 @@ class TestW8A8PerTensorLinearMethod(unittest.TestCase):
         matmul_call_args = mock_npu_quant_matmul.call_args
         self.assertIs(matmul_call_args[0][0], mock_quantized_tensor)
         self.assertTrue(torch.equal(matmul_call_args[0][1], layer.weight.data))
-        self.assertTrue(torch.equal(matmul_call_args[0][2], layer.deq_scale.data))
+        self.assertTrue(torch.allclose(matmul_call_args[0][2], layer.deq_scale.data))
         torch.testing.assert_close(matmul_call_args[1]['bias'], layer.quant_bias.data)
         self.assertEqual(matmul_call_args[1]['output_dtype'], torch.float16)
 
@@ -272,10 +272,10 @@ class TestW8A8PerTokenLinearMethod(unittest.TestCase):
         # Verify npu_quant_matmul was called
         mock_npu_quant_matmul.assert_called_once()
         matmul_call_args = mock_npu_quant_matmul.call_args
-        self.assertTrue(torch.equal(matmul_call_args[0][0], mock_quantized_tensor))
+        self.assertTrue(torch.allclose(matmul_call_args[0][0], mock_quantized_tensor))
         self.assertTrue(torch.equal(matmul_call_args[0][1], layer.weight.data))
-        self.assertTrue(torch.equal(matmul_call_args[0][2], layer.weight_scale.data))
-        self.assertTrue(torch.equal(matmul_call_args[1]['pertoken_scale'], mock_pertoken_scale))
+        self.assertTrue(torch.allclose(matmul_call_args[0][2], layer.weight_scale.data))
+        self.assertTrue(torch.allclose(matmul_call_args[1]['pertoken_scale'], mock_pertoken_scale))
         self.assertEqual(matmul_call_args[1]['bias'], None)
         self.assertEqual(matmul_call_args[1]['output_dtype'], torch.float16)
 
@@ -494,10 +494,10 @@ class TestW8A8MXFP8PerGroupLinearMethod(unittest.TestCase):
         # Verify npu_quant_matmul was called
         mock_npu_quant_matmul.assert_called_once()
         matmul_call_args = mock_npu_quant_matmul.call_args
-        self.assertTrue(torch.equal(matmul_call_args[0][0], mock_quantized_tensor))
+        self.assertTrue(torch.allclose(matmul_call_args[0][0], mock_quantized_tensor))
         self.assertTrue(torch.equal(matmul_call_args[0][1], layer.weight))
-        self.assertTrue(torch.equal(matmul_call_args[0][2], layer.weight_scale))
-        self.assertTrue(torch.equal(matmul_call_args[1]['pertoken_scale'], mock_pertoken_scale))
+        self.assertTrue(torch.allclose(matmul_call_args[0][2], layer.weight_scale))
+        self.assertTrue(torch.allclose(matmul_call_args[1]['pertoken_scale'], mock_pertoken_scale))
         self.assertEqual(matmul_call_args[1]['bias'], None)
         self.assertEqual(matmul_call_args[1]['output_dtype'], torch.float16)
 

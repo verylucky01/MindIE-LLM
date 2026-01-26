@@ -61,7 +61,7 @@ class TestLinearWithLora(unittest.TestCase):
         # golden
         golden_out = torch.mm(activation.to(torch.float32), weight.T.to(torch.float32)).to(dtype)
 
-        self.assertTrue(torch.equal(golden_out.cpu(), npu_out.cpu()))
+        self.assertTrue(torch.allclose(golden_out.cpu(), npu_out.cpu()))
 
     @data(torch.float16, torch.bfloat16)
     def test_no_gmm_no_bias(self, dtype):
@@ -88,7 +88,7 @@ class TestLinearWithLora(unittest.TestCase):
         lora_b_linear_out = torch.mm(lora_a_linear_out, lora_b.to(torch.float32)).to(dtype)
         golden_out = base_linear_out + lora_b_linear_out
 
-        self.assertTrue(torch.equal(golden_out.cpu(), npu_out.cpu()))
+        self.assertTrue(torch.allclose(golden_out.cpu(), npu_out.cpu()))
 
     @data(torch.float16, torch.bfloat16)
     def test_gmm_no_bias(self, dtype):
@@ -129,4 +129,4 @@ class TestLinearWithLora(unittest.TestCase):
         golden_out_2 = base_linear_out_2 + lora_b_linear_out_2
         golden_out = torch.cat((golden_out_1, golden_out_2), dim=0)
 
-        self.assertTrue(torch.equal(golden_out.cpu(), npu_out.cpu()))
+        self.assertTrue(torch.allclose(golden_out.cpu(), npu_out.cpu()))

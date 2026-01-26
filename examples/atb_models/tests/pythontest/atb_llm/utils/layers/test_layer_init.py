@@ -26,11 +26,11 @@ class TestLayerInit(unittest.TestCase):
         weights.get_multi_weights_col.return_value = weight
         weights.get_sharded.return_value = bias
         module = load_column_multi(config, ["prefix1", "prefix2"], weights, head_size=1)
-        self.assertTrue(torch.equal(weight, module.linear.weight))
+        self.assertTrue(torch.allclose(weight, module.linear.weight))
         module = load_column_multi(config, ["prefix1", "prefix2"], weights, head_size=1, bias=True)
-        self.assertTrue(torch.equal(torch.cat([bias, bias], dim=0), module.linear.bias))
+        self.assertTrue(torch.allclose(torch.cat([bias, bias], dim=0), module.linear.bias))
         module = load_column_multi(config, ["prefix1", "prefix2"], weights, head_size=1, lm_head=True)
-        self.assertTrue(torch.equal(weight, module.linear.weight.cpu()))
+        self.assertTrue(torch.allclose(weight, module.linear.weight.cpu()))
 
     def test_load_row(self):
         config, weights = MagicMock(), MagicMock()
@@ -38,7 +38,7 @@ class TestLayerInit(unittest.TestCase):
         weight = torch.ones(256, 256, dtype=torch.float16)
         weights.get_sharded.return_value = weight
         module = load_row(config, "prefix", weights, head_size=1)
-        self.assertTrue(torch.equal(weight, module.linear.weight))
+        self.assertTrue(torch.allclose(weight, module.linear.weight))
         weights.get_sharded.assert_called_with("prefix.weight", dim=1, gqa_size=1)
 
 

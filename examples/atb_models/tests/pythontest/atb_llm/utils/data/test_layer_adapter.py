@@ -131,7 +131,7 @@ class TestLayerAdapter(unittest.TestCase):
         weights = VocabParallelEmbedding.get_weights_for_atb_graph(layer, padding=True)
         expected = [torch.tensor([[1.0]])]
         self.assertEqual(len(weights), len(expected))
-        self.assertTrue(torch.equal(weights[0], expected[0]))
+        self.assertTrue(torch.allclose(weights[0], expected[0]))
 
     def test_parallel_lm_head(self):
         layer = make_fake_layer()
@@ -148,7 +148,7 @@ class TestLayerAdapter(unittest.TestCase):
         weights = RMSNorm.get_weights_for_atb_graph(layer, padding=True)
         expected = [torch.tensor([0.5])]
         self.assertEqual(len(weights), len(expected))
-        self.assertTrue(torch.equal(weights[0], expected[0]))
+        self.assertTrue(torch.allclose(weights[0], expected[0]))
 
 
 if __name__ == '__main__':

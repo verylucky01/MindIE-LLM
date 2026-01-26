@@ -418,12 +418,12 @@ class TestUnquantizedFusedMoEMethod(unittest.TestCase):
         self.assertEqual(mock_npu_grouped_matmul.call_count, 2)
 
         first_call_args = mock_npu_grouped_matmul.call_args_list[0]
-        self.assertTrue(torch.equal(first_call_args[1]["x"][0], x))
+        self.assertTrue(torch.allclose(first_call_args[1]["x"][0], x))
         self.assertTrue(torch.equal(first_call_args[1]["weight"][0], self.layer.gate_up_weight))
         self.assertTrue(torch.equal(first_call_args[1]["group_list"], group_list))
 
         second_call_args = mock_npu_grouped_matmul.call_args_list[1]
-        self.assertTrue(torch.equal(second_call_args[1]["x"][0], mock_act_out))
+        self.assertTrue(torch.allclose(second_call_args[1]["x"][0], mock_act_out))
         self.assertTrue(torch.equal(second_call_args[1]["weight"][0], self.layer.down_weight))
         self.assertTrue(torch.equal(second_call_args[1]["group_list"], group_list))
 

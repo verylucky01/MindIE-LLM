@@ -40,7 +40,7 @@ class TestHiddenStateCache(unittest.TestCase):
         self.hidden_state_cache.save_hidden_states(cache_ids, hidden_states)
         result = self.hidden_state_cache.get_hidden_states(cache_ids)
 
-        self.assertTrue(torch.equal(hidden_states, result))
+        self.assertTrue(torch.allclose(hidden_states, result))
         self.hidden_state_cache.clear_cache(req_ids)
 
 

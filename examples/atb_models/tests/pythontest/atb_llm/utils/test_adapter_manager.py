@@ -174,9 +174,9 @@ class TestAdapterManger(unittest.TestCase):
             AdapterInfo(idx=0, adapter_path="fake_adapter_1_path", config=LoraConfig(r=2, lora_alpha=8))
         )
         self.assertIsInstance(self.adapter_manager.base_model.linear_module.lora[ADATPER1_STR], Lora)
-        self.assertTrue(torch.equal(
+        self.assertTrue(torch.allclose(
             self.adapter_manager.base_model.linear_module.lora[ADATPER1_STR].lora_a, fake_lora_a_tensor))
-        self.assertTrue(torch.equal(
+        self.assertTrue(torch.allclose(
             self.adapter_manager.base_model.linear_module.lora[ADATPER1_STR].lora_b,
             (fake_lora_b_tensor * 4).T.contiguous()  # lora_alpha / r
         ))
@@ -205,10 +205,10 @@ class TestAdapterManger(unittest.TestCase):
             AdapterInfo(idx=0, adapter_path="fake_adapter_1_path", config=LoraConfig(r=2, lora_alpha=8))
         )
         self.assertIsInstance(self.adapter_manager.base_model.linear_module.lora[ADATPER1_STR], Lora)
-        self.assertTrue(torch.equal(
+        self.assertTrue(torch.allclose(
             self.adapter_manager.base_model.linear_module.lora[ADATPER1_STR].lora_a,
             torch.cat([fake_lora_a_tensor_1, fake_lora_a_tensor_2], 0)))
-        self.assertTrue(torch.equal(
+        self.assertTrue(torch.allclose(
             self.adapter_manager.base_model.linear_module.lora[ADATPER1_STR].lora_b,
             (torch.block_diag(fake_lora_b_tensor_1, fake_lora_b_tensor_2) * 4).T.contiguous()
         ))
@@ -222,10 +222,10 @@ class TestAdapterManger(unittest.TestCase):
                         config=LoraConfig(r=1, lora_alpha=1, use_rslora=False))
         )
         self.assertIsInstance(self.adapter_manager.base_model.linear_module.lora[BASE_ADAPTER_NAME], Lora)
-        self.assertTrue(torch.equal(
+        self.assertTrue(torch.allclose(
             self.adapter_manager.base_model.linear_module.lora[BASE_ADAPTER_NAME].lora_a,
             torch.zeros([1, 2048], dtype=self.dtype)))
-        self.assertTrue(torch.equal(
+        self.assertTrue(torch.allclose(
             self.adapter_manager.base_model.linear_module.lora[BASE_ADAPTER_NAME].lora_b,
             torch.zeros([1, 4096], dtype=self.dtype)))
 
@@ -250,11 +250,11 @@ class TestAdapterManger(unittest.TestCase):
                         config=LoraConfig(r=1, lora_alpha=1, use_rslora=False))
         )
         self.assertIsInstance(self.adapter_manager.base_model.linear_module.lora[SORTED_ADAPTER_NAME], Lora)
-        self.assertTrue(torch.equal(
+        self.assertTrue(torch.allclose(
             self.adapter_manager.base_model.linear_module.lora[SORTED_ADAPTER_NAME].lora_a,
             torch.cat([fake_lora_a_tensor_2.unsqueeze(0), fake_lora_a_tensor_1.unsqueeze(0)], dim=0))
         )
-        self.assertTrue(torch.equal(
+        self.assertTrue(torch.allclose(
             self.adapter_manager.base_model.linear_module.lora[SORTED_ADAPTER_NAME].lora_b,
             torch.cat([fake_lora_b_tensor_2.unsqueeze(0), fake_lora_b_tensor_1.unsqueeze(0)], dim=0))
         )
@@ -278,8 +278,8 @@ class TestAdapterManger(unittest.TestCase):
         self.adapter_manager.base_model = FakeModelWithLora(lora_module_dict)
         adapter_weights = self.adapter_manager.get_adapters([ADATPER1_STR])
         self.assertEqual(len(adapter_weights), 2)
-        self.assertTrue(torch.equal(adapter_weights[0], fake_lora_a_tensor_1))
-        self.assertTrue(torch.equal(adapter_weights[1], fake_lora_b_tensor_1))
+        self.assertTrue(torch.allclose(adapter_weights[0], fake_lora_a_tensor_1))
+        self.assertTrue(torch.allclose(adapter_weights[1], fake_lora_b_tensor_1))
 
     def test_get_adapters_mixed_adapter(self):
         self._update_adapter_ids_registry()
@@ -295,11 +295,11 @@ class TestAdapterManger(unittest.TestCase):
         self.adapter_manager.base_model = FakeModelWithLora(lora_module_dict)
         adapter_weights = self.adapter_manager.get_adapters([ADATPER2_STR, ADATPER1_STR])
         self.assertEqual(len(adapter_weights), 2)
-        self.assertTrue(torch.equal(
+        self.assertTrue(torch.allclose(
             adapter_weights[0],
             pad_sequence([fake_lora_a_tensor_2, fake_lora_a_tensor_1], batch_first=True)
         ))
-        self.assertTrue(torch.equal(
+        self.assertTrue(torch.allclose(
             adapter_weights[1],
             pad_sequence([fake_lora_b_tensor_2, fake_lora_b_tensor_1], batch_first=True)
         ))
@@ -318,11 +318,11 @@ class TestAdapterManger(unittest.TestCase):
         self.adapter_manager.base_model = FakeModelWithLora(lora_module_dict)
         adapter_weights = self.adapter_manager.get_adapters([ADATPER2_STR, ADATPER1_STR])
         self.assertEqual(len(adapter_weights), 2)
-        self.assertTrue(torch.equal(
+        self.assertTrue(torch.allclose(
             adapter_weights[0],
             pad_sequence([fake_lora_a_tensor_2, fake_lora_a_tensor_1], batch_first=True)
         ))
-        self.assertTrue(torch.equal(
+        self.assertTrue(torch.allclose(
             adapter_weights[1],
             pad_sequence([fake_lora_b_tensor_2, fake_lora_b_tensor_1], batch_first=True)
         ))

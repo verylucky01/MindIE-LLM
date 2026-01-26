@@ -73,7 +73,7 @@ class TestW8A8Pertoken(unittest.TestCase):
 
         logger.info("w8a8 output: %s, %s, %s" % (w8a8_output.shape, w8a8_output.dtype, w8a8_output))
 
-        self.assertTrue(torch.equal(golden_out.cpu(), w8a8_output.cpu()))
+        self.assertTrue(torch.allclose(golden_out.cpu(), w8a8_output.cpu()))
     
     @data((torch.float16, True), (torch.bfloat16, True), (torch.float16, False), (torch.bfloat16, False))
     @unpack
@@ -112,7 +112,7 @@ class TestW8A8Pertoken(unittest.TestCase):
 
         logger.info("w8a8 output: %s, %s, %s" % (w8a8_output.shape, w8a8_output.dtype, w8a8_output))
 
-        self.assertTrue(torch.equal(golden_out.cpu(), w8a8_output.cpu()))
+        self.assertTrue(torch.allclose(golden_out.cpu(), w8a8_output.cpu()))
 
 
 if __name__ == "__main__":

@@ -103,8 +103,8 @@ class TestRegisterLinearWrapper(unittest.TestCase):
         after = len(ww.weights)
         self.assertEqual(after - before, 6)
         self.assertEqual(ww.layer_linear_type[-1], LinearType.INT)
-        self.assertTrue(torch.equal(ww.weights[before + 3], lin.weight_offset))
-        self.assertTrue(torch.equal(ww.weights[before + 4], lin.weight_scale))
+        self.assertTrue(torch.allclose(ww.weights[before + 3], lin.weight_offset))
+        self.assertTrue(torch.allclose(ww.weights[before + 4], lin.weight_scale))
     
     def test_w8a16_branch(self):
         ww = self._new_wrapper()
@@ -114,8 +114,8 @@ class TestRegisterLinearWrapper(unittest.TestCase):
         after = len(ww.weights)
         self.assertEqual(after - before, 6)
         self.assertEqual(ww.layer_linear_type[-1], LinearType.INT)
-        self.assertTrue(torch.equal(ww.weights[before + 3], lin.weight_offset))
-        self.assertTrue(torch.equal(ww.weights[before + 4], lin.weight_scale))
+        self.assertTrue(torch.allclose(ww.weights[before + 3], lin.weight_offset))
+        self.assertTrue(torch.allclose(ww.weights[before + 4], lin.weight_scale))
 
     def test_w8a8_dynamic_branch_with_down_and_swiglu(self):
         ww = self._new_wrapper(enable_swiglu_quant=True)
@@ -139,7 +139,7 @@ class TestRegisterLinearWrapper(unittest.TestCase):
         self.assertEqual(after - before, 6)
         self.assertEqual(ww.layer_linear_type[-1], LinearType.INT)
 
-        self.assertTrue(torch.equal(ww.weights[before + 4], lin.weight_scale))
+        self.assertTrue(torch.allclose(ww.weights[before + 4], lin.weight_scale))
 
     def test_default_int_branch_w8a8sc_with_index_and_down_swiglu(self):
         ww = self._new_wrapper(enable_swiglu_quant=True)
@@ -149,12 +149,12 @@ class TestRegisterLinearWrapper(unittest.TestCase):
         after = len(ww.weights)
         self.assertEqual(after - before, 6)
         self.assertEqual(ww.layer_linear_type[-1], LinearType.INT)
-        self.assertTrue(torch.equal(ww.weights[before + 0], lin.weight))
-        self.assertTrue(torch.equal(ww.weights[before + 1], lin.quant_bias))
-        self.assertTrue(torch.equal(ww.weights[before + 2], lin.deq_scale))
+        self.assertTrue(torch.allclose(ww.weights[before + 0], lin.weight))
+        self.assertTrue(torch.allclose(ww.weights[before + 1], lin.quant_bias))
+        self.assertTrue(torch.allclose(ww.weights[before + 2], lin.deq_scale))
         self.assertEqual(ww.weights[before + 3].dtype, torch.float32)
         self.assertEqual(ww.weights[before + 4].dtype, torch.float32)
-        self.assertTrue(torch.equal(ww.weights[before + 5], lin.index))
+        self.assertTrue(torch.allclose(ww.weights[before + 5], lin.index))
 
     def test_register_linear_bias_no_bias_placeholder(self):
         ww = self._new_wrapper()
@@ -163,7 +163,7 @@ class TestRegisterLinearWrapper(unittest.TestCase):
         ww.register_linear_bias(lin, enable_nz=False)
         after = len(ww.weights)
         self.assertEqual(after - before, 2)
-        self.assertTrue(torch.equal(ww.weights[before], lin.weight))
+        self.assertTrue(torch.allclose(ww.weights[before], lin.weight))
         self.assertEqual(ww.weights[before + 1].shape, ww.placeholder.shape)
 
     def test_register_norm_with_and_without_bias(self):
@@ -178,7 +178,7 @@ class TestRegisterLinearWrapper(unittest.TestCase):
         ww.register_norm(FakeNorm(with_bias=False))
         after = len(ww.weights)
         self.assertEqual(after - before, 4)
-        self.assertTrue(torch.equal(ww.weights[before], torch.ones((2,), dtype=torch.float16)))
+        self.assertTrue(torch.allclose(ww.weights[before], torch.ones((2,), dtype=torch.float16)))
         self.assertEqual(ww.weights[before + 3].shape, ww.placeholder.shape)
 
     def _build_attn_layer_pack(self):

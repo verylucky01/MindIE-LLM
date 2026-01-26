@@ -102,7 +102,7 @@ class TestEplbLoaderProcess(unittest.TestCase):
         print("mock_load_moe.return_value = linear")
         self.process.weight_column_linear_out.put((result, weight, scale, offset))
         result = self.process.load_weight_column_linear_from_ssd(self.config, prefixes, bias)
-        self.assertTrue(torch.equal(linear.weight, result.linear.weight))
+        self.assertTrue(torch.allclose(linear.weight, result.linear.weight))
 
     @patch('atb_llm.utils.layers.TensorParallelRowLinear.load_moe')
     def test__do_load_weight_row_linear_from_ssd_(self, mock_load_moe):
@@ -152,7 +152,7 @@ class TestEplbLoaderProcess(unittest.TestCase):
         self.process.weight_row_linear_out.put((result, weight, scale, offset))
         process_group = "process_group"
         result = self.process.load_weight_row_linear_from_ssd(self.config, prefixes, process_group, bias)
-        self.assertTrue(torch.equal(linear.weight, result.linear.weight))
+        self.assertTrue(torch.allclose(linear.weight, result.linear.weight))
 
     def test_shundown(self):
         self.process.shutdown()

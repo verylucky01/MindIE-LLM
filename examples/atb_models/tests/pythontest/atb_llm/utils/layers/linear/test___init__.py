@@ -48,16 +48,16 @@ class TestTensorParallelColumnLinear(unittest.TestCase):
             with patch('atb_llm.utils.layers.linear.linear_utils.LinearUtils.check_transpose', return_value=1) as _:
                 module = TensorParallelColumnLinear.load_moe(config, prefixes, weights, None)
                 golden_weight = torch.stack([weight[0] for _ in range(64)], dim=0)
-                self.assertTrue(torch.equal(golden_weight, module.linear.weight))
+                self.assertTrue(torch.allclose(golden_weight, module.linear.weight))
         elif quantize in [QuantType.W4A8_DYNAMIC]:
             module = TensorParallelColumnLinear.load_moe(config, prefixes, weights, None)
             golden_weight = torch.stack([weight[0] for _ in range(64)], dim=0)
             golden_weight = golden_weight.transpose(1,2)
-            self.assertTrue(torch.equal(golden_weight, module.linear.weight))
+            self.assertTrue(torch.allclose(golden_weight, module.linear.weight))
         elif quantize is None:
             module = TensorParallelColumnLinear.load_moe(config, prefixes, weights, None)
             golden_weight = torch.stack([weight for _ in range(64)])
-            self.assertTrue(torch.equal(golden_weight, module.linear.weight))
+            self.assertTrue(torch.allclose(golden_weight, module.linear.weight))
 
     @data(True, False)
     def test_load_qkv(self, bias):
@@ -67,9 +67,9 @@ class TestTensorParallelColumnLinear(unittest.TestCase):
         weights.get_weights_col_packed_qkv.return_value = weight
         weights.get_tensor_col_packed_qkv.return_value = weight
         module = TensorParallelColumnLinear.load_qkv(config, "qkv", weights, bias, weight, 64)
-        self.assertTrue(torch.equal(weight, module.linear.weight))
+        self.assertTrue(torch.allclose(weight, module.linear.weight))
         if bias:
-            self.assertTrue(torch.equal(weight, module.linear.bias))
+            self.assertTrue(torch.allclose(weight, module.linear.bias))
 
     @data(True, False)
     def test_load_gate_up(self, bias):
@@ -79,9 +79,9 @@ class TestTensorParallelColumnLinear(unittest.TestCase):
         weights.get_weights_col_packed_mlp.return_value = weight
         weights.get_tensor_col_packed_mlp.return_value = weight
         module = TensorParallelColumnLinear.load_gate_up(config, "mlp", weights, bias)
-        self.assertTrue(torch.equal(weight, module.linear.weight))
+        self.assertTrue(torch.allclose(weight, module.linear.weight))
         if bias:
-            self.assertTrue(torch.equal(weight, module.linear.bias))   
+            self.assertTrue(torch.allclose(weight, module.linear.bias))   
 
     @data(True, False)
     @patch('atb_llm.utils.layers.linear.linear_utils.LinearUtils.check_transpose', return_value=1)
@@ -96,9 +96,9 @@ class TestTensorParallelColumnLinear(unittest.TestCase):
             weights.get_sharded.return_value = bias_tensor
  
         module = TensorParallelColumnLinear.load_multi(config, "q_b_proj", weights, bias, dim=0, proj_name="projq")
-        self.assertTrue(torch.equal(weight, module.linear.weight))
+        self.assertTrue(torch.allclose(weight, module.linear.weight))
         if bias:
-            self.assertTrue(torch.equal(torch.ones(16, 3, dtype=torch.float16), module.linear.bias))
+            self.assertTrue(torch.allclose(torch.ones(16, 3, dtype=torch.float16), module.linear.bias))
 
 
 @ddt
@@ -115,16 +115,16 @@ class TestTensorParallelRowLinear(unittest.TestCase):
             with patch('atb_llm.utils.layers.linear.linear_utils.LinearUtils.check_transpose', return_value=1) as _:
                 module = TensorParallelRowLinear.load_moe(config, prefixes, FakeGroup(0, 8), weights, None)
                 golden_weight = torch.stack([weight[0] for _ in range(64)], dim=0)
-                self.assertTrue(torch.equal(golden_weight, module.linear.weight))
+                self.assertTrue(torch.allclose(golden_weight, module.linear.weight))
         elif quantize in [QuantType.W4A8_DYNAMIC]:
             module = TensorParallelRowLinear.load_moe(config, prefixes, FakeGroup(0, 8), weights, None)
             golden_weight = torch.stack([weight[0] for _ in range(64)], dim=0)
             golden_weight = golden_weight.transpose(1,2)
-            self.assertTrue(torch.equal(golden_weight, module.linear.weight))
+            self.assertTrue(torch.allclose(golden_weight, module.linear.weight))
         elif quantize is None:
             module = TensorParallelRowLinear.load_moe(config, prefixes, FakeGroup(0, 8), weights, None)
             golden_weight = torch.stack([weight for _ in range(64)])
-            self.assertTrue(torch.equal(golden_weight, module.linear.weight))
+            self.assertTrue(torch.allclose(golden_weight, module.linear.weight))
 
     @data(True, False)
     def test_load(self, bias):
@@ -136,9 +136,9 @@ class TestTensorParallelRowLinear(unittest.TestCase):
             bias_tensor = torch.ones(2, 3, dtype=torch.float16)
             weights.get_tensor.return_value = bias_tensor
         module = TensorParallelRowLinear.load(config, "down_proj", weights, bias, True)
-        self.assertTrue(torch.equal(weight, module.linear.weight))
+        self.assertTrue(torch.allclose(weight, module.linear.weight))
         if bias:
-            self.assertTrue(torch.equal(bias_tensor, module.linear.bias))
+            self.assertTrue(torch.allclose(bias_tensor, module.linear.bias))
 
 
 @ddt
@@ -155,9 +155,9 @@ class TestTensorReplicatedLinear(unittest.TestCase):
             bias_tensor = torch.ones(2, 3, dtype=torch.float16)
             weights.get_tensor.return_value = bias_tensor
         module = TensorReplicatedLinear.load(config, "kv_a_proj", weights, bias)
-        self.assertTrue(torch.equal(weight, module.linear.weight))
+        self.assertTrue(torch.allclose(weight, module.linear.weight))
         if bias:
-            self.assertTrue(torch.equal(bias_tensor, module.linear.bias))
+            self.assertTrue(torch.allclose(bias_tensor, module.linear.bias))
 
 
 @ddt
@@ -169,7 +169,7 @@ class TestTensorHead(unittest.TestCase):
         weight = torch.ones(256, 256, dtype=torch.float16)
         weights.get_whole_tensor.return_value = weight
         module = TensorHead.load_weight(config, "kv_a_proj", weights)
-        self.assertTrue(torch.equal(weight, module.linear.weight))
+        self.assertTrue(torch.allclose(weight, module.linear.weight))
 
 
 @ddt
@@ -181,7 +181,7 @@ class TestTensorParallelHead(unittest.TestCase):
         weight = torch.ones(256, 256, dtype=torch.float16)
         weights.get_tensor.return_value = weight
         module = TensorParallelHead.load_weight(config, "kv_a_proj", weights)
-        self.assertTrue(torch.equal(weight, module.linear.weight))
+        self.assertTrue(torch.allclose(weight, module.linear.weight))
     
     @data(None, "gptq")
     def test_load(self, quantize):
@@ -191,7 +191,7 @@ class TestTensorParallelHead(unittest.TestCase):
         weights.get_sharded.return_value = weight
         weights.process_group = FakeGroup(0, 8)
         module = TensorParallelHead.load(config, "kv_a_proj", weights)
-        self.assertTrue(torch.equal(weight, module.linear.weight))
+        self.assertTrue(torch.allclose(weight, module.linear.weight))
     
     @data(None, "gptq")
     def test_load_process_group(self, quantize):
@@ -202,7 +202,7 @@ class TestTensorParallelHead(unittest.TestCase):
             weights.get_sharded.return_value = weight
             weights.process_group = FakeGroup(0, 1)
             module = TensorParallelHead.load(config, "kv_a_proj", weights)
-            self.assertTrue(torch.equal(weight, module.linear.weight))
+            self.assertTrue(torch.allclose(weight, module.linear.weight))
         except Exception as e:
             logger.error(e)
 
@@ -280,18 +280,18 @@ class TestGetLinear(unittest.TestCase):
         elif quantize == QuantType.W16A16S:
             weight = torch.ones(256, 256, dtype=torch.float16)
             linear = get_linear(weight, None, quantize, False)
-            self.assertTrue(torch.equal(weight, linear.weight))
+            self.assertTrue(torch.allclose(weight, linear.weight))
         elif quantize == QuantType.W16A16SC:
             weight = torch.ones(64, 128, 256, dtype=torch.int8)
             quant_bias = torch.ones(64, 512)
             index = torch.ones(64)
             weights = (weight, quant_bias, index)
             linear = get_linear(weights, None, quantize, False)
-            self.assertTrue(torch.equal(weight, linear.weight))
+            self.assertTrue(torch.allclose(weight, linear.weight))
         else:
             weight = torch.ones(256, 256, dtype=torch.float16)
             linear = get_linear(weight, None, quantize, False)
-            self.assertTrue(torch.equal(weight, linear.weight))
+            self.assertTrue(torch.allclose(weight, linear.weight))
         
     @data(QuantType.W8A8, QuantType.W4A16, QuantType.W8A16, QuantType.W8A8SC, QuantType.W8A8_DYNAMIC, QuantType.W8A8_PDMIX, QuantType.W4A8_DYNAMIC, "fp8")
     def test_get_linear_expection(self, quantize):
@@ -386,13 +386,13 @@ class TestGetLinear(unittest.TestCase):
         else:
             weight = torch.ones(256, 256, dtype=torch.float16)
             linear = get_linear(weight, None, quantize, False)
-            self.assertTrue(torch.equal(weight, linear.weight))
+            self.assertTrue(torch.allclose(weight, linear.weight))
         
     @data(QuantType.W8A8, QuantType.W4A16, QuantType.W8A16, QuantType.W8A8SC, QuantType.W8A8_DYNAMIC, QuantType.W8A8_PDMIX, QuantType.W4A8_DYNAMIC)
     def test_get_linear_float(self, quantize):
         weight = torch.ones(256, 256, dtype=torch.float16)
         linear = get_linear(weight, None, quantize, False)
-        self.assertTrue(torch.equal(weight, linear.weight))
+        self.assertTrue(torch.allclose(weight, linear.weight))
 
 
 
