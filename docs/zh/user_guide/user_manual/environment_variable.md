@@ -10,12 +10,7 @@ MindIE LLM安装完成后，提供进程级环境变量设置脚本“set\_env.s
 |环境变量名|功能描述|取值范围|默认值|
 |--|--|--|--|
 |**MindIE_LLM相关环境变量**|
-|MINDIE_LLM_CONTINUOUS_BATCHING|MindIE LLM是否连续batching的开关。|0：不开启<br>1：开启|1|
 |MINDIE_LLM_HOME_PATH|MindIE LLM主目录所在路径。|N/A|N/A|
-|MINDIE_LLM_PYTHON_LOG_TO_FILE|MindIE LLM中Python程序运行时产生的日志是否写入文件的开关。|0：不开启<br>1：开启|1|
-|MINDIE_LLM_PYTHON_LOG_LEVEL|用于设定ATB的Python日志级别。|DEBUG<br>INFO<br>WARN<br>ERROR<br>CRITICAL|INFO|
-|MINDIE_LLM_PYTHON_LOG_PATH|MindIE LLM中Python程序运行时所产生日志文件的存储路径。|字符串路径，默认“~/mindie/log/debug/”|~/mindie/log/debug/|
-|MINDIE_LLM_PYTHON_LOG_TO_STDOUT|MindIE LLM中Python程序运行时产生的日志是否写入标准输出流的开关。|0：不开启<br>1：开启|0|
 |MINDIE_LLM_RECOMPUTE_THRESHOLD|MindIE LLM中重计算阈值。|[0,1]|0.5|
 |PYTORCH_INSTALL_PATH|torch三方件的安装路径，使用以下方式获取python3 -c 'import torch, os; print(os.path.dirname(os.path.abspath(torch.__file__)))'。|N/A|N/A|
 |PYTORCH_NPU_INSTALL_PATH|torch_npu三方件的安装路径，使用以下方式获取python3 -c 'import torch, torch_npu, os; print(os.path.dirname(os.path.abspath(torch_npu.__file__)))'。|N/A|N/A|
@@ -25,9 +20,9 @@ MindIE LLM安装完成后，提供进程级环境变量设置脚本“set\_env.s
 |HCCL_INTRA_PCIE_ENABLE|控制是否开启All2All分层通信及INT8通信特性。“HCCL_INTRA_PCIE_ENABLE”和“HCCL_INTRA_ROCE_ENABLE”必须同时设置为开启，才能开启该功能。这两个环境变量的更多描述请参见《CANN 环境变量参考》中的“集合通信”章节。建议在Atlas 800I A2 推理服务器和Atlas 800I A3 超节点服务器，MoE模型的Combine INT8算子场景下打开 ，提升性能优化。|0：关闭<br>1：开启|N/A|
 |HCCL_INTRA_ROCE_ENABLE|0：开启1：关闭|N/A|
 |**日志相关环境变量**|
-|MINDIE_LLM_LOG_TO_FILE|MindIE LLM C++日志写入文件开关。|0：不开启<br>1：开启|1|
-|MINDIE_LLM_LOG_LEVEL|MindIE LLM C++日志级别。|DEBUG<br>INFO<br>WARN<br>ERROR<br>CRITICAL|INFO|
-|MINDIE_LLM_LOG_TO_STDOUT|MindIE LLM C++日志写入标准输出流开关。|0：不开启<br>1：开启|0|
+|MINDIE_LOG_TO_FILE|MindIE日志写入文件开关。|0：不开启<br>1：开启|1|
+|MINDIE_LOG_LEVEL|MindIE日志级别。|DEBUG<br>INFO<br>WARN<br>ERROR<br>CRITICAL|INFO|
+|MINDIE_LOG_TO_STDOUT|MindIE日志写入标准输出流开关。|0：不开启<br>1：开启|0|
 |**Ascend Extension for PyTorch相关环境变量**|
 |MASTER_IP|多机服务化设置的主机ip|若值非空，则IP应该是合法ip|None|
 |MASTER_PORT|多机服务化设置的主机接口|若值非空，则端口号[0,65535]|None|
@@ -54,8 +49,6 @@ Server相关环境变量请参考**表2**。
 |HCCL_BUFFSIZE|控制两个NPU之间共享数据的缓存区大小。|大于或等于1，单位：MB。|120|
 |EP_OPENSSL_PATH|EndPoint开启HTTPS认证后，通过该环境变量来指定openssl加载运行时so文件。该环境变量在EndPoint模块启动时自动设置，不需要用户手动设置。|路径参数。|${MIES_INSTALL_PATH}/lib|
 |HSECEASY_PATH|EndPoint开启HTTPS认证后，使用HSECEASY工具对密钥口令进行加密。该环境变量指定HSECEASY加载运行时so文件路径。|路径参数。|${MIES_INSTALL_PATH}/lib|
-|OCK_LOG_LEVEL|后处理环境变量。|TRACE<br>DEBUG<br>INFO<br>WARN<br>ERROR<br>FATAL|ERROR|
-|OCK_LOG_TO_STDOUT|后处理环境变量，加速库日志打印控制开关。|0：关闭。<br>1：开启。|0|
 |MIES_CERTS_LOG_TO_FILE|证书管理工具环境变量，日志是否输出到文件。|0：输出到文件。<br>1：不输出。|0|
 |MIES_CERTS_LOG_TO_STDOUT|证书管理工具环境变量，日志打印控制开关。|0：不打印日志。<br>1：打印日志。|1|
 |MIES_CERTS_LOG_LEVEL|证书管理工具环境变量，日志级别。|DEBUG<br>INFO<br>WARNING<br>ERROR<br>FATAL|INFO|
@@ -130,20 +123,13 @@ ATB\_Models相关环境变量请参考**表4**。
 
 |环境变量名|功能描述|取值范围|默认值|
 |--|--|--|--|
-|ATB_LOG_LEVEL|控制日志级别。|DEBUGINFOWARNWARNINGERRORCRITICAL|INFO|
-|ATB_LOG_TO_FILE|控制日志是否保存到文件，设置为1则开启。|other：不开启<br>1：开启|other|
-|ATB_LOG_TO_STDOUT|控制日志是否打印，设置为1则开启。|other：不开启<br>1：开启|other|
-|LOG_LEVEL|用于设定ATB的Python日志级别。|DEBUG<br>INFO<br>WARN<br>ERROR<br>CRITICAL|INFO|
-|LOG_TO_FILE|决定ATB的Python日志是否写入文件，以及文件路径。|字符串路径，默认“~/mindie/log/debug/”|~/mindie/log/debug/|
-|MINDIE_LLM_PYTHON_LOG_MAXNUM|MindIE LLM Python日志最大数量。|[0,64]|10|
-|MINDIE_LLM_PYTHON_LOG_MAXSIZE|MindIE LLM单Python日志最大大小（单位：字节）。|[0, 20971520]|20971520|
 |MINDIE_LOG_LEVEL|控制日志级别。|DEBUG<br>INFO<br>WARN<br>ERROR<br>CRITICAL|INFO|
 |MINDIE_LOG_PATH|控制日志写入路径。|N/A|"mindie/log/debug"|
 |MINDIE_LOG_ROTATE|控制日志轮转。|-fs：每个日志文件的大小，单位MB，取值范围[1, 500]<br>-r：每个进程可写日志文件个数，取值范围[1, 64]<br>例如：export MINDIE_LOG_ROTATE="-fs 40 -r 2"|-fs：20-r：10|
 |MINDIE_LOG_TO_FILE|控制日志是否保存到文件，设置为1则开启。|{0, 1, true, false}|true|
 |MINDIE_LOG_TO_STDOUT|控制日志是否打印，设置为1则开启。|{0, 1, true, false}|false|
 |MINDIE_LOG_VERBOSE|控制日志中是否加入可选日志内容。|{0, 1, true, false}|true|
-|PYTHON_LOG_MAXSIZE|ATB Python日志单个文件的最大容量（单位：字节）。|[0, 2147483648]|1073741824（1GB）|
+|PYTHON_LOG_MAXSIZE|ATB Python日志单个文件的最大容量（单位：字节）。|[0, 524288000]|None|
 
 
 加速库相关环境变量请参考**表6**。
