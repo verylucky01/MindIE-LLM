@@ -560,6 +560,9 @@ class PluginManager:
             self.output_queue.put(model_output_wrapper)
 
     def _prepare_masks_for_filling(self, model_inputs, current_dp_sequence_ids, input_metadata):
+        if input_metadata.batch_is_prefill is None and input_metadata.is_prefill:
+            # Under forced preemption, prefill batch must not be hit.
+            return {}
         current_all_sequence_ids = input_metadata.all_sequence_ids
         method = None
         for plugin in self.plugin_list:

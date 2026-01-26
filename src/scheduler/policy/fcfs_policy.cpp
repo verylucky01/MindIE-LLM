@@ -442,16 +442,20 @@ PreemptionMode FcfsPolicy::Preempt(SequenceGroupSPtr &seqGroup,
         preemptionMode = PreemptionMode::SWAP;
         swapNum++;
     }
-    
-    const int warningFrequency = 50;
-    MINDIE_LLM_LOG_WARN_REQUEST("Preemption num exceeds threshold. CumulativePreemptionNum:"
-                        << (numCumulativePreemption_ + 1) << "; warningFrequency:" << warningFrequency
-                        << "; seqId: " << seqGroup->firstSeq->seqId_
-                        << "; requestId: " << seqGroup->metrics_.inferReqId_
-                        << "; preempt mode:" << static_cast<int>(preemptionMode)
-                        << "; maxPreemptCount config:" << schedulerConfig_->maxPreemptCount
-                        << "; swapNum:" << swapNum);
+
+    MINDIE_LLM_LOG_INFO_REQUEST("Preemption is triggered. CumulativePreemptionNum:"
+                                << (numCumulativePreemption_ + 1)
+                                << "; seqId: " << seqGroup->firstSeq->seqId_
+                                << "; requestId: " << seqGroup->metrics_.inferReqId_
+                                << "; preempt mode:" << static_cast<int>(preemptionMode)
+                                << "; maxPreemptCount config:" << schedulerConfig_->maxPreemptCount
+                                << "; swapNum:" << swapNum);
     numCumulativePreemption_ += 1;
+
+    if (newRequestFirst_) {
+        MINDIE_LLM_LOG_WARN_REQUEST("Preemption is triggered to ensure that some requests with long waiting time "
+                                    "can be scheduled with priority.");
+    }
 
     // do preempt
     if (preemptionMode == PreemptionMode::RECOMPUTE) {
