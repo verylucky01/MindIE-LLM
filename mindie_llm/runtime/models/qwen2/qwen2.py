@@ -21,6 +21,7 @@ from mindie_llm.runtime.layers.linear.linear import RowParallelLinear, QKVParall
 from mindie_llm.runtime.layers.embedding.embedding import VocabParallelEmbedding, ParallelLMHead
 
 from mindie_llm.runtime.layers.attention.attention_layer import Attention
+
 from mindie_llm.runtime.utils.distributed import get_parallel_info_manager
 from mindie_llm.runtime.utils.distributed.parallel_info_manager import ParallelType
 from mindie_llm.runtime.layers.quantization.quantization_config_base import QuantizationConfigBase
@@ -111,8 +112,11 @@ class Qwen2Attention(nn.Module):
             head_size=self.head_dim,
             num_heads=self.num_heads_per_rank,
             scale=self.scale,
+            num_kv_heads=self.num_key_value_heads_per_rank,
+            num_kv_heads_replicas=attn_tp.group_size // config.num_key_value_heads,
+            weight_dtype=config.torch_dtype,
+            quant_config=quant_config,
             prefix=self.prefix,
-            num_kv_heads=self.num_key_value_heads_per_rank
         )
 
     def forward(

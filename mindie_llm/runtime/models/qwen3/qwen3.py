@@ -18,9 +18,7 @@ from mindie_llm.runtime.config.huggingface_config import HuggingFaceConfig
 from mindie_llm.runtime.layers.normalization import RMSNorm
 from mindie_llm.runtime.config.mindie_llm_config import MindIELLMConfig
 
-
 from mindie_llm.runtime.layers.quantization.quantization_config_base import QuantizationConfigBase
-
 from mindie_llm.runtime.model_runner.forward_context import get_forward_context
 from mindie_llm.runtime.models.qwen2.qwen2 import Qwen2Attention, Qwen2Mlp, Qwen2Layer, Qwen2Model, Qwen2ForCausalLM
 

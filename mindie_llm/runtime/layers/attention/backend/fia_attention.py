@@ -32,6 +32,7 @@ import numpy as np
 import torch
 import torch_npu
 
+from mindie_llm.runtime.layers.quantization.ms_model_slim.c8 import AttnQuantMethodBase
 from mindie_llm.runtime.model_runner.forward_context import AttentionMetadata
 from mindie_llm.runtime.model_runner.forward_context_exp import ForwardContext, get_forward_context
 from mindie_llm.runtime.model_runner.input_buffer import input_buffer
@@ -137,6 +138,7 @@ class FiaAttentionBackendImpl(AttentionImpl):
         head_size: int,
         scale: float,
         num_kv_heads: int,
+        quant_method: AttnQuantMethodBase,
         **kwargs,
     ) -> None:
         self.num_heads = num_heads
@@ -152,6 +154,7 @@ class FiaAttentionBackendImpl(AttentionImpl):
         self.key_cache = None
         self.value_cache = None
         self.block_size = 128   # NOTE: currently hard-coding.
+        self.quant_method = quant_method
 
     def reshape_and_cache(
         self,
@@ -162,9 +165,16 @@ class FiaAttentionBackendImpl(AttentionImpl):
     ):
         if self.key_cache is None or id(self.key_cache) != id(kv_cache[0]):
             self.key_cache, self.value_cache = kv_cache[0], kv_cache[1]
+        
+        if self.quant_method:
+            shape = key.shape
+            key_int8, value_int8 = self.quant_method.apply(key.view(-1, self.head_size * self.num_kv_heads),
+                value.view(-1, self.head_size * self.num_kv_heads))
+            key_int8 = key_int8.view(shape)
+            value_int8 = value_int8.view(shape)
         torch_npu._npu_reshape_and_cache(
-            key=key,
-            value=value,
+            key=key_int8 if self.quant_method else key,
+            value=value_int8 if self.quant_method else value,
             key_cache=kv_cache[0],
             value_cache=kv_cache[1],
             slot_indices=attn_metadata.slot_mapping)
@@ -216,7 +226,10 @@ class FiaAttentionBackendImpl(AttentionImpl):
             scale=self.scale,
             block_table=block_tables,
             actual_seq_lengths=[1] * len(seq_lens),
-            actual_seq_lengths_kv=seq_lens)
+            actual_seq_lengths_kv=seq_lens,
+            antiquant_scale=self.quant_method.kv_dequant_scale if self.quant_method else None,
+            antiquant_offset=self.quant_method.kv_dequant_offset if self.quant_method else None,
+        )
         attn_output = attn_output.view(batch_size, -1)
         return attn_output
     
@@ -228,17 +241,19 @@ class FiaAttentionBackendImpl(AttentionImpl):
         seq_lens_list = attn_metadata.seq_lens_list
         batch_size = query.shape[0]
         workspace = torch_npu._npu_fused_infer_attention_score_get_max_workspace(
-                    query,
-                    k_cache,
-                    v_cache,
-                    block_table=attn_metadata.block_tables,
-                    block_size=block_size,
-                    num_heads=self.num_heads,
-                    num_key_value_heads=self.num_kv_heads,
-                    input_layout="BSH",
-                    scale=self.scale,
-                    actual_seq_lengths_kv=seq_lens_list
-                )
+            query,
+            k_cache,
+            v_cache,
+            block_table=attn_metadata.block_tables,
+            block_size=block_size,
+            num_heads=self.num_heads,
+            num_key_value_heads=self.num_kv_heads,
+            input_layout="BSH",
+            scale=self.scale,
+            actual_seq_lengths_kv=seq_lens_list,
+            antiquant_scale=self.quant_method.kv_dequant_scale if self.quant_method else None,
+            antiquant_offset=self.quant_method.kv_dequant_offset if self.quant_method else None,
+        )
         output = torch.empty(
             (batch_size, 1, self.num_heads * self.head_size),
             dtype=query.dtype,
@@ -247,19 +262,21 @@ class FiaAttentionBackendImpl(AttentionImpl):
         softmax_lse = torch.empty(1, dtype=query.dtype, device=query.device)
 
         torch_npu.npu_fused_infer_attention_score.out(
-                query,
-                k_cache,
-                v_cache,
-                block_table=attn_metadata.block_tables,
-                block_size=block_size,
-                num_heads=self.num_heads,
-                num_key_value_heads=self.num_kv_heads,
-                input_layout="BSH",
-                scale=self.scale,
-                actual_seq_lengths_kv=seq_lens_list,
-                workspace=workspace,
-                out=[output, softmax_lse],
-            )
+            query,
+            k_cache,
+            v_cache,
+            block_table=attn_metadata.block_tables,
+            block_size=block_size,
+            num_heads=self.num_heads,
+            num_key_value_heads=self.num_kv_heads,
+            input_layout="BSH",
+            scale=self.scale,
+            actual_seq_lengths_kv=seq_lens_list,
+            antiquant_scale=self.quant_method.kv_dequant_scale if self.quant_method else None,
+            antiquant_offset=self.quant_method.kv_dequant_offset if self.quant_method else None,
+            workspace=workspace,
+            out=[output, softmax_lse],
+        )
         output = output.view(batch_size, -1)
         return output
 

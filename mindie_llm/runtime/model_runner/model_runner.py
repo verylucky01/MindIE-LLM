@@ -123,8 +123,6 @@ class ModelRunner:
             self.max_position_embeddings = 2048
         self.dtype = self.config.torch_dtype
 
-        # NOTE: need to refactor
-        self.kv_cache_dtype = self.dtype
         self.enable_nz = self.llm_config.llm.kv_cache_options.enable_nz
 
         print_log(rank, logger.info, f'model_runner.dtype: {self.dtype}', need_filter=True)
@@ -144,7 +142,8 @@ class ModelRunner:
             router_ins.generation_config,
             speculative_config=SpeculativeConfig(self.num_speculative_tokens)
         )
-
+        # NOTE: need to refactor
+        self.kv_cache_dtype = self.dtype if self.mindie_llm_config.quant_config.kv_quant_type is None else torch.int8
         self.mask = None
         self.rotary_emb = None
         self.cos_table = None
