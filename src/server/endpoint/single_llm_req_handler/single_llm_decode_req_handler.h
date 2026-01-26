@@ -46,7 +46,6 @@ public:
     void UpdateInferRequest(const std::vector<int64_t> &reqTokens,
                             const int64_t &oriReqTokenLen, RequestSPtr request) override;
     void SetBackManagerCallBack(RequestSPtr request) override;
-    void SetSimulateBackManagerCallBack(RequestSPtr request) override;
     void SendResponseInfo(int code, const std::string& responseStr, bool needMetricsCollect = true) override;
     void SendResponse(int code, const std::string& responseStr) override;
     void SendResponseStream(bool isEnd, const std::string& responseStr) override;

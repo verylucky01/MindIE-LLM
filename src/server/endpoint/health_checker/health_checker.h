@@ -21,9 +21,13 @@
 #include <string>
 #include <set>
 #include <unordered_map>
+#include <mutex>
+#include <memory>
 #include "log.h"
 #include "concurrent_deque.h"
 #include "infer_instances.h"
+#include "config_manager.h"
+#include "simulate_task_runner.h"
 
 namespace mindie_llm {
 
@@ -32,7 +36,8 @@ enum ServiceStatus : uint32_t {
     SERVICE_NORMAL = 1,
     SERVICE_ABNORMAL = 2,
     SERVICE_PAUSE = 3,
-    SERVICE_INIT = 4
+    SERVICE_INIT = 4,
+    SERVICE_BUSY = 5
 };
 
 enum EndpointStatusCode : uint32_t {
@@ -86,7 +91,7 @@ public:
     std::string StatusToString(const ServiceStatus &status) const;
     bool Start();
     void Stop();
-
+    SimulateResult RunHttpTimedHealthCheck(uint32_t waitTime);
     HealthChecker(const HealthChecker &) = delete;
     HealthChecker &operator=(const HealthChecker &) = delete;
     HealthChecker(HealthChecker &&) = delete;

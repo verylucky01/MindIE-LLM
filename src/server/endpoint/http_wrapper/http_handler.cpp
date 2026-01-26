@@ -555,9 +555,26 @@ void HttpHandler::InitializeServiceStatusResource(HttpsServerHelper &server)
         if (!CheckWaitTime(g_waitTime, waitTime, context)) {
             return;
         }
-        auto singleLLMPnDReqHandler = std::make_shared<SingleLLMPnDReqHandler>(context);
-        auto triton = std::make_shared<SingleReqTritonTextInferInterface>(singleLLMPnDReqHandler, false);
-        triton->SimulateProcess(waitTime);
+
+        // 直接调用 HealthChecker 执行虚推
+        HealthChecker &checker = HealthChecker::GetInstance();
+        SimulateResult result = checker.RunHttpTimedHealthCheck(waitTime);
+
+        // 将 SimulateResult 转换为 HTTP 响应
+        switch (result.status) {
+            case SimulateResult::Status::SUCCESS:
+            case SimulateResult::Status::BUSY:
+                HttpRestResource::ResponseJsonBody(context, httplib::StatusCode::OK_200,
+                    HttpRestResource::WrapperStatusJson("healthy"));
+                break;
+            case SimulateResult::Status::TIMEOUT:
+            case SimulateResult::Status::ERROR:
+            default:
+                HttpRestResource::ResponseJsonBody(context, httplib::StatusCode::InternalServerError_500,
+                    HttpRestResource::WrapperJson(result.message,
+                        g_exceptionInfo.at(httplib::StatusCode::InternalServerError_500)));
+                break;
+        }
         return;
     });
 

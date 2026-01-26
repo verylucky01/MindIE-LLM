@@ -37,7 +37,6 @@ public:
                             const int64_t &tokenLen, RequestSPtr request) override;
     void UpdateInferParam(RequestSPtr request, const InferParamSPtr &inferParam) override;
     void SetBackManagerCallBack(RequestSPtr request) override;
-    void SetSimulateBackManagerCallBack(RequestSPtr request) override;
     void SendResponseInfo(int code, const std::string& responseStr, bool needMetricsCollect = true) override;
     void SendResponse(int code, const std::string& responseStr) override;
     void SendResponseStream(bool isEnd, const std::string& responseStr) override;

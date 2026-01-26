@@ -15,6 +15,7 @@
 
 #include "endpoint_def.h"
 #include "http_rest_resource.h"
+#include "health_checker/health_checker.h"
 
 namespace mindie_llm {
 class HttpWrapper;

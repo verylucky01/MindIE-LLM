@@ -19,6 +19,7 @@
 #include "config_manager.h"
 #include "endpoint_def.h"
 #include "http_metrics.h"
+#include "health_checker/health_checker.h"
 
 namespace mindie_llm {
 #define GET_PARA_DAFAULT(expr, target, inputValue, defValue) \

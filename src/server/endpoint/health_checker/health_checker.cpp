@@ -14,6 +14,10 @@
 #include <cstdio>
 #include <iostream>
 #include <sstream>
+#include "config_manager.h"
+#include "config_manager_impl.h"
+#include "endpoint_def.h"
+#include "simulate_request_executor.h"
 #include "infer_instances.h"
 #include "health_checker.h"
 
@@ -418,6 +422,27 @@ void HealthChecker::UpdateNpuDeviceIds(const std::set<int> &npuDeviceIds)
         }
     }
     PrintNpuDeviceIds();
+}
+
+SimulateResult HealthChecker::RunHttpTimedHealthCheck(uint32_t waitTime)
+{
+    auto &serverConfig = GetServerConfig();
+    InferReqType reqType = (serverConfig.inferMode == INFER_MODE_DMI)
+        ? InferReqType::REQ_PREFILL : InferReqType::REQ_STAND_INFER;
+
+    ULOG_DEBUG(SUBMODLE_NAME_HEALTHCHECKER,
+        "HealthChecker: RunHttpTimedHealthCheck. reqType=" << static_cast<int>(reqType)
+        << ", waitTime=" << waitTime << "s");
+
+    auto executor = SimulateRequestExecutor::Create(reqType);
+    SimulateResult result = executor->RunSimulateOnce(waitTime);
+    // BUSY 状态在 HTTP 接口中视为健康
+    if (result.status == SimulateResult::Status::BUSY) {
+        ULOG_INFO(SUBMODLE_NAME_HEALTHCHECKER,
+            "HealthChecker: RunHttpTimedHealthCheck busy but healthy");
+    }
+
+    return result;
 }
 
 } // namespace mindie_llm
