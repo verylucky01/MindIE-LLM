@@ -232,6 +232,8 @@ class Qwen2Mlp(nn.Module):
 
 
 class Qwen2Layer(nn.Module):
+    attn_cls = Qwen2Attention
+    mlp_cls = Qwen2Mlp
     """
     Qwen2 transformer layer.
 
@@ -283,9 +285,8 @@ class Qwen2Layer(nn.Module):
         self.quant_config = quant_config
 
         self.self_attn_prefix = f"{self.prefix}.self_attn"
-        self.self_attn = Qwen2Attention(config, self.self_attn_prefix, quant_config=quant_config)
-        
-        self.mlp = Qwen2Mlp(config, f"{self.prefix}.mlp", quant_config=quant_config)
+        self.self_attn = self.attn_cls(config, self.self_attn_prefix, quant_config=quant_config)
+        self.mlp = self.mlp_cls(config, f"{self.prefix}.mlp", quant_config=quant_config)
 
         self.input_layernorm = RMSNorm(
             config.hidden_size, config.rms_norm_eps,
@@ -330,6 +331,7 @@ class Qwen2Layer(nn.Module):
 
 
 class Qwen2Model(nn.Module):
+    layer_cls = Qwen2Layer
     """
     Qwen2 base model.
 
@@ -383,7 +385,7 @@ class Qwen2Model(nn.Module):
 
         self.layers = nn.ModuleList(
             [
-                Qwen2Layer(config, self.prefix, layer_idx, quant_config=self.quant_config)
+                self.layer_cls(config, self.prefix, layer_idx, quant_config=self.quant_config)
                 for layer_idx in range(config.num_hidden_layers)
             ]
         )
@@ -420,6 +422,7 @@ class Qwen2Model(nn.Module):
 
 
 class Qwen2ForCausalLM(BaseModelForCausalLM):
+    model_cls = Qwen2Model
     """
     Qwen2 model for causal language modeling.
 
@@ -455,7 +458,7 @@ class Qwen2ForCausalLM(BaseModelForCausalLM):
         self.hf_config = mindie_llm_config.hf_config
         self.quant_config = mindie_llm_config.quant_config
         self.parallel_info_manager = get_parallel_info_manager()
-        self.model = Qwen2Model(
+        self.model = self.model_cls(
             config=mindie_llm_config.hf_config,
             prefix="model",
             quant_config=self.quant_config

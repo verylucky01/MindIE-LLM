@@ -169,6 +169,8 @@ class Qwen3Mlp(Qwen2Mlp):
  
 
 class Qwen3Layer(Qwen2Layer):
+    attn_cls = Qwen3Attention
+    mlp_cls = Qwen3Mlp
     """
     Qwen3 transformer layer.
 
@@ -213,11 +215,10 @@ class Qwen3Layer(Qwen2Layer):
             quant_config: Quantization configuration (optional)
         """
         super().__init__(config, prefix, layer_idx, quant_config)
-        self.self_attn = Qwen3Attention(config, self.self_attn_prefix, quant_config=quant_config)
-        self.mlp = Qwen3Mlp(config, f"{self.prefix}.mlp", quant_config=quant_config)
 
-
+        
 class Qwen3Model(Qwen2Model):
+    layer_cls = Qwen3Layer
     """
     Qwen3 base model.
 
@@ -257,15 +258,9 @@ class Qwen3Model(Qwen2Model):
         """
         super().__init__(config, prefix, quant_config)
 
-        self.layers = nn.ModuleList(
-            [
-                Qwen3Layer(config, self.prefix, layer_idx, quant_config=self.quant_config)
-                for layer_idx in range(config.num_hidden_layers)
-            ]
-        )
-
 
 class Qwen3ForCausalLM(Qwen2ForCausalLM):
+    model_cls = Qwen3Model
     """
     Qwen3 model for causal language modeling.
 
@@ -298,11 +293,6 @@ class Qwen3ForCausalLM(Qwen2ForCausalLM):
         """
         super().__init__(mindie_llm_config)
 
-        self.model = Qwen3Model(
-            config=mindie_llm_config.hf_config,
-            prefix="model",
-            quant_config=self.quant_config
-        )
 
         
         
