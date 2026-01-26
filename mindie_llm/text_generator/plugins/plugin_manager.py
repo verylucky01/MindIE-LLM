@@ -1,4 +1,4 @@
-# Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+# Copyright (c) Huawei Technologies Co., Ltd. 2025-2026. All rights reserved.
 # MindIE is licensed under Mulan PSL v2.
 # You can use this software according to the terms and conditions of the Mulan PSL v2.
 # You may obtain a copy of Mulan PSL v2 at:
@@ -7,6 +7,7 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
+
 import importlib
 import queue
 import threading
@@ -28,6 +29,7 @@ from ...utils.decorators.time_decorator import timer
 from ...utils.env import ENV
 from ...utils.prof.profiler import span_start, span_end, span_req, span_attr, count_block
 from ...utils.log.logging import logger
+from ...utils.log.logging_base import HandlerType
 
 SPECULATIVE_PLUGIN_LIST = ["la", "memory_decoding"]
 LAUNCH_DONE_TIMEOUT = 1
@@ -191,7 +193,7 @@ class PluginManager:
             if ENV.framework_backend == BackendType.ATB:
                 self.model_wrapper.model_runner.clear_internal_tensors()
             span_end(prof)
-
+            logger.info("sample end", extra={"handler_ids": HandlerType.TOKEN})
             prof = span_start("postprocess")
             self.put_prefix_kvcache_to_mempool(input_metadata, cache_ids)
             generation_output = self.postprocess(
@@ -494,7 +496,7 @@ class PluginManager:
                 if ENV.framework_backend == BackendType.ATB:
                     self.model_wrapper.model_runner.clear_internal_tensors()
                 span_end(prof)
-
+                logger.info("sample end", extra={"handler_ids": HandlerType.TOKEN})
                 if not self.is_inference_pause:
                     model_input_wrapper.postprocess_done.wait()
 

@@ -1,6 +1,4 @@
-#!/usr/bin/env python
-# coding=utf-8
-# Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+# Copyright (c) Huawei Technologies Co., Ltd. 2025-2026. All rights reserved.
 # MindIE is licensed under Mulan PSL v2.
 # You can use this software according to the terms and conditions of the Mulan PSL v2.
 # You may obtain a copy of Mulan PSL v2 at:
@@ -45,6 +43,7 @@ from mindie_llm.text_generator.generator import Generator
 from mindie_llm.utils.status import MindieLlmStatusCode
 
 from mindie_llm.utils.log.logging import logger
+from mindie_llm.utils.log.logging_base import HandlerType
 from mindie_llm.utils.prof.profiler import span_start, span_end, span_req, span_attr
 
 from mindie_llm.utils.layerwise.request_metadata import lwd_metadata_manager
@@ -418,6 +417,11 @@ class RouterImpl:
             dummy_input_metadata = make_dummy_input_metadata_dmi_decoder(dummy_input_metadata,
                                                                          self.generator.kvcache_settings.num_npu_blocks,
                                                                          self.config)
+        logger.info(
+            f"execute empty dummy batch with execute_type: {execute_request.execute_type}, "
+            f"forward_type: {execute_request.execute_model_request.forward_type}",
+            extra={"handler_ids": HandlerType.TOKEN}
+        )
         self.generator.generate_token(dummy_input_metadata)
         proto_response = ExecuteResponse(msg_type=execute_request.execute_type)
         send_model_execute_response(proto_response)
@@ -447,6 +451,12 @@ class RouterImpl:
                 is_mix_model=self.is_mix_model,
                 layerwise_disaggregated_exe_stage=None,
                 config=self.config
+            )
+            logger.info(
+                f"execute real batch with batch_size: {input_metadata_composite.input_metadata.batch_size}, "
+                f"execute_type: {execute_request.execute_type}, "
+                f"forward_type: {execute_request.execute_model_request.forward_type}",
+                extra={"handler_ids": HandlerType.TOKEN}
             )
         else:
             layerwise_disaggregated_exe_stage = lwd_metadata_manager.get_metadata()

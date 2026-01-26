@@ -1,4 +1,4 @@
-# Copyright (c) Huawei Technologies Co., Ltd. 2024-2025. All rights reserved.
+# Copyright (c) Huawei Technologies Co., Ltd. 2024-2026. All rights reserved.
 # MindIE is licensed under Mulan PSL v2.
 # You can use this software according to the terms and conditions of the Mulan PSL v2.
 # You may obtain a copy of Mulan PSL v2 at:
@@ -7,6 +7,7 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
+
 from functools import reduce
 import os
 import stat
@@ -14,6 +15,7 @@ import stat
 MAX_PATH_LENGTH = 4096
 MAX_FILE_SIZE = 10 * 1024 * 1024
 MAX_LINENUM_PER_FILE = 10 * 1024 * 1024
+MAX_LOG_DIR_PERM = 0o750
 
 FLAG_OS_MAP = {
     'r': os.O_RDONLY, 'r+': os.O_RDWR,
@@ -26,16 +28,26 @@ FLAG_OS_MAP = {
 }
 
 
+def makedir_and_change_permissions(path, mode=MAX_LOG_DIR_PERM):
+    parts = path.strip(os.sep).split(os.sep)    
+    current_path = os.sep
+    
+    for part in parts:
+        current_path = os.path.join(current_path, part)
+        if not os.path.exists(current_path):
+            os.makedirs(current_path, mode, exist_ok=True)
+
+
 def safe_open(file_path: str, mode='r', encoding=None, permission_mode=0o600, is_exist_ok=True, **kwargs):
     """
-    :param file_path: 文件路径
-    :param mode: 文件打开模式
-    :param encoding: 文件编码方式
-    :param permission_mode: 文件权限模式
-    :param is_exist_ok: 是否允许文件存在
-    :param max_path_length: 文件路径最大长度
-    :param max_file_size: 文件最大大小，单位: 字节, 默认值10MB
-    :param check_link: 是否校验软链接
+    :param file_path: File path
+    :param mode: File opening mode
+    :param encoding: File encoding
+    :param permission_mode: File permission mode
+    :param is_exist_ok: Whether to allow file existence
+    :param max_path_length: Maximum path length
+    :param max_file_size: Maximum file size in bytes, default 10MB
+    :param check_link: Whether to check symbolic links
     :param kwargs:
     :return:
     """
@@ -61,7 +73,7 @@ def safe_open(file_path: str, mode='r', encoding=None, permission_mode=0o600, is
 
 def standardize_path(path: str, max_path_length=MAX_PATH_LENGTH, check_link=True):
     """
-    check path
+    Check path
     param: path
     return: data real path after check
     """
@@ -104,7 +116,7 @@ def check_file_size_lt(path: str, max_file_size=MAX_FILE_SIZE):
 
 def check_owner(path: str):
     """
-    check the path owner
+    Check the path owner
     param: the input path
     """
     path_stat = os.stat(path)
@@ -120,7 +132,7 @@ def check_owner(path: str):
 
 def check_other_write_permission(file_path: str):
     """
-    check if the specified file is writable by group users or others who are neither the owner nor in the group
+    Check if the specified file is writable by group users or others who are neither the owner nor in the group
     param: the path to the file to be checked
     """
     # Get the status of the file

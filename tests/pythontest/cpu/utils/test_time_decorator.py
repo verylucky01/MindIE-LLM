@@ -1,4 +1,4 @@
-# Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+# Copyright (c) Huawei Technologies Co., Ltd. 2025-2026. All rights reserved.
 # MindIE is licensed under Mulan PSL v2.
 # You can use this software according to the terms and conditions of the Mulan PSL v2.
 # You may obtain a copy of Mulan PSL v2 at:
@@ -7,6 +7,7 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
+
 import os
 import time
 import uuid
@@ -125,7 +126,7 @@ class TestTimer(unittest.TestCase):
 
         fake_file = io.StringIO()
 
-        with patch('mindie_llm.utils.decorators.time_decorator.prepare_log_path') as mock_prepare_log_path, \
+        with patch('mindie_llm.utils.decorators.time_decorator.create_log_dir_and_check_permission') as mock_create_log_dir_and_check_permission, \
              patch('mindie_llm.utils.decorators.time_decorator.safe_open') as mock_safe_open, \
              patch('os.path.exists', return_value=False), \
              patch('os.path.getsize', return_value=0), \
@@ -135,7 +136,7 @@ class TestTimer(unittest.TestCase):
 
             self.timer.log_time(0, request_ids, token_indices)
 
-        mock_prepare_log_path.assert_called_once_with(ENV.benchmark_filepath)
+        mock_create_log_dir_and_check_permission.assert_called_once_with(ENV.benchmark_filepath)
         mock_safe_open.assert_called_once()
         self.assertEqual(mock_safe_open.call_args.args[1], 'a')
         self.assertEqual(mock_safe_open.call_args.kwargs.get('encoding'), 'utf-8')
@@ -212,7 +213,7 @@ class TestTimer(unittest.TestCase):
             {"batch_id": "2", "request_id": "req2", "token_idx": 20, "unit": "ms"}
         ]
         
-        with patch('mindie_llm.utils.decorators.time_decorator.prepare_log_path'), \
+        with patch('mindie_llm.utils.decorators.time_decorator.create_log_dir_and_check_permission'), \
              patch('mindie_llm.utils.decorators.time_decorator.safe_open'):
             self.timer._write_to_file(cache_to_write)
 
@@ -230,7 +231,7 @@ class TestTimer(unittest.TestCase):
             {"batch_id": "2", "request_id": "req2", "token_idx": 20, "unit": "ms"}
         ]
         
-        with patch('mindie_llm.utils.decorators.time_decorator.prepare_log_path'), \
+        with patch('mindie_llm.utils.decorators.time_decorator.create_log_dir_and_check_permission'), \
              patch('mindie_llm.utils.decorators.time_decorator.safe_open'):
             self.timer._write_to_file(cache_to_write)
 

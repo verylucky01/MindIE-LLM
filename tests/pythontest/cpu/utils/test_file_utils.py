@@ -1,6 +1,4 @@
-#!/usr/bin/env python
-# coding=utf-8
-# Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+# Copyright (c) Huawei Technologies Co., Ltd. 2025-2026. All rights reserved.
 # MindIE is licensed under Mulan PSL v2.
 # You can use this software according to the terms and conditions of the Mulan PSL v2.
 # You may obtain a copy of Mulan PSL v2 at:
@@ -30,8 +28,28 @@ from mindie_llm.utils.file_utils import (
     check_file_safety,
     safe_chmod,
     has_owner_write_permission,
-    safe_readlines
+    safe_readlines,
+    makedir_and_change_permissions
 )
+
+
+class TestMakeDirAndChangePermissions(unittest.TestCase): 
+    @patch('os.makedirs')
+    @patch('os.path.exists')
+    def test_makedir_and_change_permissions(self, mock_exists, mock_makedirs):
+        mock_exists.return_value = False
+        
+        path = 'test/dir/structure'
+        mode = 0o750
+        
+        makedir_and_change_permissions(path, mode)
+        
+        parts = path.strip(os.sep).split(os.sep)
+        current_path = os.sep
+        for part in parts:
+            current_path = os.path.join(current_path, part)
+            mock_exists.assert_any_call(current_path)
+            mock_makedirs.assert_any_call(current_path, mode, exist_ok=True)
 
 
 class TestFileUtils(unittest.TestCase):

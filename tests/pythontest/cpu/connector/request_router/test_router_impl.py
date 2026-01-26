@@ -169,13 +169,13 @@ class TestRouterImpl(unittest.TestCase):
         self.assertEqual(result["cpuBlockNum"], "5")
 
         mock_config.max_seq_len = 3000
-        with self.assertLogs(logger="mindie_llm.utils.log.logging", level='WARNING') as log:
+        with self.assertLogs(logger="llm", level='WARNING') as log:
             self.router.initialize(mock_config)
             self.assertGreater(len(log.output), 0)
-            self.assertIn("WARN:mindie_llm.utils.log.logging:[MIE04E13030A]", log.output[0])
+            self.assertIn("WARN:llm:[MIE04E13030A]", log.output[0])
             self.assertIn("from model(/mock/path/weights)", log.output[0])
 
-        # 测试有DP场景
+        # Test DP scenario
         mock_mapping.has_dp = Mock(return_value=True)
         result_with_dp = self.router.initialize(mock_config)
         self.assertEqual(result_with_dp["npuBlockNum"], "8")

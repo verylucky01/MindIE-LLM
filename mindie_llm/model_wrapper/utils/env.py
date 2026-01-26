@@ -1,6 +1,4 @@
-#!/usr/bin/env python
-# coding=utf-8
-# Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+# Copyright (c) Huawei Technologies Co., Ltd. 2025-2026. All rights reserved.
 # MindIE is licensed under Mulan PSL v2.
 # You can use this software according to the terms and conditions of the Mulan PSL v2.
 # You may obtain a copy of Mulan PSL v2 at:
@@ -36,34 +34,6 @@ def get_benchmark_reserving_ratio():
     )
 
 
-def get_log_file_level():
-    return str(
-        os.getenv("MINDIE_LOG_LEVEL", "INFO")
-    )
-
-
-def get_log_to_file():
-    return str(
-        os.getenv("MINDIE_LOG_TO_FILE", "1")
-    )
-
-
-def get_log_file_path():
-    return str(
-        os.getenv(
-            "MINDIE_LOG_PATH", ""
-        )
-    )
-
-
-def get_log_to_stdout():
-    return str(
-        os.getenv(
-            "MINDIE_LOG_TO_STDOUT", "0"
-        )
-    )
-
-
 def get_use_mb_swapper():
     value = os.getenv(
         "MINDIE_LLM_USE_MB_SWAPPER", os.getenv("MIES_USE_MB_SWAPPER", "0")
@@ -96,60 +66,50 @@ def get_visible_devices():
 @dataclass
 class EnvVar:
     """
-    环境变量
+    Environment Variables
     """
-    # 模型框架类型， ATB 或者 MS, 默认为ATB, 和 mindie_llm 中环境变量同名
+    # Model framework type, ATB or MS, default is ATB, same name as environment variable in mindie_llm
     framework_backend = os.getenv('MINDIE_LLM_FRAMEWORK_BACKEND', "ATB").lower()
 
 
 @dataclass
 class EnvLLMVar:
     """
-    环境变量
+    Environment Variables
     """
-    # 模型运行时动态申请现存池大小（单位：GB）
+    # Size of dynamically allocated memory pool during model runtime (unit: GB)
     reserved_memory_gb: int = field(default_factory=lambda: int(os.getenv("RESERVED_MEMORY_GB", "0")))
 
-    # 使用哪些卡
+    # Which devices to use
     visible_devices: list[int] | None = field(default_factory=get_visible_devices)
-    # 是否绑核
+    # Whether to bind CPU cores
     bind_cpu: bool = field(default_factory=lambda: os.getenv("BIND_CPU", "1") == "1")
 
     memory_fraction: float = field(default_factory=lambda: float(os.getenv("NPU_MEMORY_FRACTION", "0.8")))
 
-    # 是否记录服务化benchmark所需的性能数据
+    # Whether to record performance data required for service benchmarking
     benchmark_enable: bool = field(default_factory=lambda: os.getenv("MINDIE_LLM_BENCHMARK_ENABLE", "0") == "1")
     benchmark_enable_async: bool = field(default_factory=lambda: os.getenv("MINDIE_LLM_BENCHMARK_ENABLE", "0") == "2")
     benchmark_filepath: str = field(default_factory=get_benchmark_filepath)
     benchmark_reserving_ratio: float = field(default_factory=get_benchmark_reserving_ratio)
-    # 日志级别
-    log_file_level: str = field(default_factory=get_log_file_level)
-    # 日志是否打印
-    log_to_file: str = field(default_factory=get_log_to_file)
-    # 日志路径
-    log_file_path: str = field(default_factory=get_log_file_path)
-    # 日志是否输出到命令行
-    log_to_stdout: str = field(default_factory=get_log_to_stdout)
-    # 日志可选内容
-    log_verbose: str = field(default_factory=lambda: str(os.getenv("MINDIE_LOG_VERBOSE", "1")))
 
-    # 是否开启基于memory bridge 的swapper优化
+    # Whether to enable memory bridge based swapper optimization
     use_mb_swapper: bool = field(default_factory=get_use_mb_swapper)
 
-    # 选择后处理加速模式
+    # Select post-processing acceleration mode
     speed_mode_type: int = field(default_factory=lambda: int(os.getenv("POST_PROCESSING_SPEED_MODE_TYPE", "0")))
 
     rank: int = field(default_factory=lambda: int(os.getenv("RANK", "0")))
     local_rank: int = field(default_factory=lambda: int(os.getenv("LOCAL_RANK", "0")))
     world_size: int = field(default_factory=lambda: int(os.getenv("WORLD_SIZE", "1")))
 
-    # 模型框架类型， ATB 或者 MS, 默认为ATB
+    # Model framework type, ATB or MS, default is ATB
     framework_backend: str = field(default_factory=lambda: os.getenv('MINDIE_LLM_FRAMEWORK_BACKEND', "ATB").lower())
 
     performance_prefix_tree: bool = field(default_factory=get_performance_prefix_tree)
 
     def __post_init__(self):
-        # 校验
+        # Validation
         if self.reserved_memory_gb >= 64 or self.reserved_memory_gb < 0:
             raise ValueError("RESERVED_MEMORY_GB should be in the range of 0 to 64, 64 is not inclusive.")
 
@@ -170,7 +130,7 @@ class EnvLLMVar:
             raise ValueError("The path of MINDIE_LLM_BENCHMARK_FILEPATH must be absolute.")
         
         if pathlib.Path(self.benchmark_filepath).is_dir():
-            raise ValueError("The path of MINDIE_LLM_BENCHMARK_FILEPATH is a director and not a file.")
+            raise ValueError("The path of MINDIE_LLM_BENCHMARK_FILEPATH is a directory and not a file.")
         
         if pathlib.Path(self.benchmark_filepath).exists():
             if not os.access(pathlib.Path(self.benchmark_filepath), os.R_OK):

@@ -1,4 +1,4 @@
-# Copyright (c) Huawei Technologies Co., Ltd. 2024-2025. All rights reserved.
+# Copyright (c) Huawei Technologies Co., Ltd. 2024-2026. All rights reserved.
 # MindIE is licensed under Mulan PSL v2.
 # You can use this software according to the terms and conditions of the Mulan PSL v2.
 # You may obtain a copy of Mulan PSL v2 at:
@@ -7,6 +7,7 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
+
 import functools
 import json
 import os
@@ -19,7 +20,8 @@ from threading import Lock, Condition
 
 from ..env import ENV
 from ..file_utils import safe_open
-from ..log.logging import logger, prepare_log_path
+from ..log.logging import logger
+from ..log.utils import create_log_dir_and_check_permission
 from ..tensor import npu
 
 MAX_FILE_SIZE = 10 * 1024 * 1024 * 100
@@ -40,7 +42,7 @@ class Timer:
     @staticmethod
     def _write_to_file(cache_to_write):
         reserved_lines = None
-        prepare_log_path(ENV.benchmark_filepath)
+        create_log_dir_and_check_permission(ENV.benchmark_filepath)
 
         if os.path.exists(ENV.benchmark_filepath) and os.path.getsize(ENV.benchmark_filepath) > MAX_FILE_SIZE:
             with safe_open(ENV.benchmark_filepath, 'r', encoding='utf-8', max_file_size=2 * MAX_FILE_SIZE) as file:
@@ -136,7 +138,7 @@ class Timer:
     def log_time(self, rank, request_ids, token_indices):
         if rank == 0:
             reserved_lines = None
-            prepare_log_path(ENV.benchmark_filepath)
+            create_log_dir_and_check_permission(ENV.benchmark_filepath)
             if os.path.exists(ENV.benchmark_filepath) and os.path.getsize(ENV.benchmark_filepath) > MAX_FILE_SIZE:
                 with safe_open(ENV.benchmark_filepath, 'r', encoding='utf-8', max_file_size=2 * MAX_FILE_SIZE) as file:
                     lines = file.readlines()

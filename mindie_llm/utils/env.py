@@ -1,6 +1,4 @@
-#!/usr/bin/env python
-# coding=utf-8
-# Copyright (c) Huawei Technologies Co., Ltd. 2024-2025. All rights reserved.
+# Copyright (c) Huawei Technologies Co., Ltd. 2024-2026. All rights reserved.
 # MindIE is licensed under Mulan PSL v2.
 # You can use this software according to the terms and conditions of the Mulan PSL v2.
 # You may obtain a copy of Mulan PSL v2 at:
@@ -64,6 +62,16 @@ def get_log_to_stdout():
     )
 
 
+def get_atb_llm_log_maxsize():
+    """Get maximum log file size
+    
+    Returns:
+        Optional[int]: Returns None if environment variable is not set
+    """
+    value = os.getenv("PYTHON_LOG_MAXSIZE")
+    return int(value) if value else None
+
+
 def get_use_mb_swapper():
     value = os.getenv(
         "MINDIE_LLM_USE_MB_SWAPPER", os.getenv("MIES_USE_MB_SWAPPER", "0")
@@ -96,40 +104,42 @@ def get_visible_devices():
 @dataclass
 class EnvVar:
     """
-    环境变量
+    Environment Variables
     """
-    # 模型运行时动态申请现存池大小（单位：GB）
+    # Size of dynamically allocated memory pool during model runtime (unit: GB)
     reserved_memory_gb: int = field(default_factory=lambda: _parse_int_env("RESERVED_MEMORY_GB", 0))
 
-    # 使用哪些卡
+    # Which devices to use
     visible_devices: list[int] | None = field(default_factory=get_visible_devices)
-    # 是否绑核
+    # Whether to bind CPU cores
     bind_cpu: bool = field(default_factory=lambda: os.getenv("BIND_CPU", "1") == "1")
 
     memory_fraction: float = field(default_factory=lambda: float(os.getenv("NPU_MEMORY_FRACTION", "0.8")))
 
-    # 是否记录服务化benchmark所需的性能数据
+    # Whether to record performance data required for service benchmarking
     benchmark_enable: bool = field(default_factory=lambda: os.getenv("MINDIE_LLM_BENCHMARK_ENABLE", "0") == "1")
     benchmark_enable_async: bool = field(default_factory=lambda: os.getenv("MINDIE_LLM_BENCHMARK_ENABLE", "0") == "2")
     benchmark_filepath: str = field(default_factory=get_benchmark_filepath)
     benchmark_reserving_ratio: float = field(default_factory=get_benchmark_reserving_ratio)
-    # 日志级别
+    # Log level
     log_file_level: str = field(default_factory=get_log_file_level)
-    # 日志是否打印
+    # Whether to enable logging to file
     log_to_file: str = field(default_factory=get_log_to_file)
-    # 日志路径
+    # Log file path
     log_file_path: str = field(default_factory=get_log_file_path)
-    # 日志是否输出到命令行
+    # Whether to output logs to stdout
     log_to_stdout: str = field(default_factory=get_log_to_stdout)
-    # 日志轮转最大大小、最大数量
+    # Maximum size of ATB_LLM log file
+    atb_llm_log_maxsize: int = field(default_factory=get_atb_llm_log_maxsize)
+    # Maximum size and number of log rotations
     log_file_rotate: str = os.getenv("MINDIE_LOG_ROTATE", "")
-    # 日志可选内容
+    # Optional log content
     log_verbose: str = field(default_factory=lambda: str(os.getenv("MINDIE_LOG_VERBOSE", "1")))
 
-    # 是否开启基于memory bridge 的swapper优化
+    # Whether to enable memory bridge based swapper optimization
     use_mb_swapper: bool = field(default_factory=get_use_mb_swapper)
 
-    # 选择后处理加速模式
+    # Select post-processing acceleration mode
     speed_mode_type: int = field(default_factory=lambda: _parse_int_env("POST_PROCESSING_SPEED_MODE_TYPE", 0))
 
     rank: int = field(default_factory=lambda: _parse_int_env("RANK", 0))
@@ -138,7 +148,7 @@ class EnvVar:
     enable_dp_move_up: bool = os.getenv("DP_MOVE_UP_ENABLE", "0") == "1"
     enable_dp_partition_up: bool = os.getenv("DP_PARTITION_UP_ENABLE", "0") == "1"
 
-    # 模型框架类型， ATB 或者 MS, 默认为ATB
+    # Model framework type, ATB or MS, default is ATB
     framework_backend: str = field(default_factory=lambda: os.getenv('MINDIE_LLM_FRAMEWORK_BACKEND', "ATB").lower())
 
 
@@ -149,7 +159,7 @@ class EnvVar:
     model_runner_exp: bool = False
 
     def __post_init__(self):
-        # 校验
+        # Validation
         if self.reserved_memory_gb >= 64 or self.reserved_memory_gb < 0:
             raise ValueError("RESERVED_MEMORY_GB should be in the range of 0 to 64, 64 is not inclusive.")
      
@@ -170,7 +180,7 @@ class EnvVar:
             raise ValueError("The path of MINDIE_LLM_BENCHMARK_FILEPATH must be absolute.")
         
         if pathlib.Path(self.benchmark_filepath).is_dir():
-            raise ValueError("The path of MINDIE_LLM_BENCHMARK_FILEPATH is a director and not a file.")
+            raise ValueError("The path of MINDIE_LLM_BENCHMARK_FILEPATH is a directory and not a file.")
         
         if pathlib.Path(self.benchmark_filepath).exists():
             if not os.access(pathlib.Path(self.benchmark_filepath), os.R_OK):
@@ -178,6 +188,12 @@ class EnvVar:
 
         if self.framework_backend not in {"atb", "ms"}:
             raise ValueError("MINDIE_LLM_FRAMEWORK_BACKEND must be 'ATB' or 'MS'")
+
+        if self.atb_llm_log_maxsize is not None and \
+            (self.atb_llm_log_maxsize < 0 or self.atb_llm_log_maxsize > 524288000):   # 500MB
+            raise ValueError(
+                "PYTHON_LOG_MAXSIZE should be a number in the range of 0 to 524288000 (500MB).\n"
+            )
 
 
 def _parse_int_env(var_name: str, default: int) -> int:
