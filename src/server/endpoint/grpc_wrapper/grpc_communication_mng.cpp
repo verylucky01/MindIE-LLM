@@ -94,23 +94,23 @@ namespace mindie_llm {
             }
         }
 
-        bool GrpcCommunicationMng::RegisterDecodeRequestHandler(GetDecodeRequestFunc getDecodeRequestFunc)
+        bool GrpcCommunicationMng::RegisterDecodeRequestHandler(DecodeRequestHandler decodeRequestHandler)
         {
             if (isRunning_ == true) {
                 ULOG_INFO(SUBMODLE_NAME_ENDPOINT, "Server is already running");
                 return false;
             }
-            getDecodeRequestFunc_ = std::move(getDecodeRequestFunc);
+            decodeRequestHandler_ = std::move(decodeRequestHandler);
             return true;
         }
 
-        bool GrpcCommunicationMng::RegisterKvReleaseHandler(GetRequestIDFunc getRequestIDFunc)
+        bool GrpcCommunicationMng::RegisterKvReleaseHandler(KVReleaseHandler kvReleaseHandler)
         {
             if (isRunning_ == true) {
                 ULOG_INFO(SUBMODLE_NAME_ENDPOINT, "Server is running");
                 return false;
             }
-            getRequestIDFunc_ = std::move(getRequestIDFunc);
+            kvReleaseHandler_ = std::move(kvReleaseHandler);
             return true;
         }
 
@@ -165,7 +165,7 @@ namespace mindie_llm {
         {
             // decode请求服务注册
             DecodeRequestReceiver decodeService{serverAddr};
-            if (!decodeService.RegisterMsgHandler(getDecodeRequestFunc_)) {
+            if (!decodeService.RegisterMsgHandler(decodeRequestHandler_)) {
                 ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SPLITWISE,
                     ABNORMAL_TRANSMISSION_ERROR), "Failed to register decode request handler");
                 return false;
@@ -174,7 +174,7 @@ namespace mindie_llm {
             ULOG_INFO(SUBMODLE_NAME_ENDPOINT, "RegisterService decoder " << serverAddr);
             // kv释放服务注册
             KvReleaseReceiver kvService{serverAddr};
-            if (!kvService.RegisterMsgHandler(getRequestIDFunc_)) {
+            if (!kvService.RegisterMsgHandler(kvReleaseHandler_)) {
                 ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SPLITWISE,
                     ABNORMAL_TRANSMISSION_ERROR), "Failed to register kv release handler");
                 return false;

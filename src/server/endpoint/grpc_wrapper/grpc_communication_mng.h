@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2026. All rights reserved.
  * MindIE is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -52,8 +52,8 @@ namespace mindie_llm {
             bool SendForceReleaseMsg(prefillAndDecodeCommunication::DeviceList& deviceIp,
                                   const std::string& prefillNodeIp);
 
-            bool RegisterDecodeRequestHandler(GetDecodeRequestFunc getDecodeRequestFunc);
-            bool RegisterKvReleaseHandler(GetRequestIDFunc getRequestIDFunc);
+            bool RegisterDecodeRequestHandler(DecodeRequestHandler decodeRequestHandler);
+            bool RegisterKvReleaseHandler(KVReleaseHandler kvReleaseHandler);
             bool RegisterForceReleaseLinkHandler(GetDeviceListFunc getDeviceListFunc);
 
         private:
@@ -125,8 +125,8 @@ namespace mindie_llm {
 
             std::string localAddr_;
             std::string port_;
-            GetDecodeRequestFunc getDecodeRequestFunc_;
-            GetRequestIDFunc getRequestIDFunc_;
+            DecodeRequestHandler decodeRequestHandler_;
+            KVReleaseHandler kvReleaseHandler_;
             GetDeviceListFunc getDeviceListFunc_;
 
             // 安全相关配置成员

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2026. All rights reserved.
  * MindIE is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -31,23 +31,23 @@ namespace mindie_llm {
                 }
                 return grpc::Status::CANCELLED;
             }
-            if (getDecodeRequestFunc_ == nullptr) {
+            if (decodeRequestHandler_ == nullptr) {
                 ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SPLITWISE,
-                    CHECK_ERROR), "The getDecodeRequestFunc_ is invalid");
+                    CHECK_ERROR), "The decodeRequestHandler_ is invalid");
                 return grpc::Status::CANCELLED;
             }
-            getDecodeRequestFunc_(*request, *response);
+            decodeRequestHandler_(*request, *response);
             return grpc::Status::OK;
         }
 
-        bool DecodeRequestReceiver::RegisterMsgHandler(GetDecodeRequestFunc callBack)
+        bool DecodeRequestReceiver::RegisterMsgHandler(DecodeRequestHandler callback)
         {
-            if (callBack == nullptr) {
+            if (callback == nullptr) {
                 ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SPLITWISE,
-                    CHECK_ERROR), "The callBack is nullptr");
+                    CHECK_ERROR), "The callback is nullptr");
                 return false;
             }
-            getDecodeRequestFunc_ = std::move(callBack);
+            decodeRequestHandler_ = std::move(callback);
             return true;
         }
 
@@ -92,30 +92,30 @@ namespace mindie_llm {
                     CHECK_ERROR), "Request is invalid");
                 return grpc::Status::CANCELLED;
             }
-            if (getRequestIDFunc_ == nullptr) {
+            if (kvReleaseHandler_ == nullptr) {
                 ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SPLITWISE,
-                    CHECK_ERROR), "The getRequestIDFunc_ is invalid");
+                    CHECK_ERROR), "The kvReleaseHandler_ is invalid");
                 return grpc::Status::CANCELLED;
             }
             auto reqId = request->reqid();
             std::thread([this, reqId]() {
                 pthread_setname_np(pthread_self(), "GRPCRequest");
                 // 执行请求处理逻辑
-                this->getRequestIDFunc_(reqId);
+                this->kvReleaseHandler_(reqId);
             }).detach();
 
             ULOG_INFO(SUBMODLE_NAME_ENDPOINT, "Get kv release request, requestId: " << reqId);
             return grpc::Status::OK;
         }
 
-        bool KvReleaseReceiver::RegisterMsgHandler(GetRequestIDFunc callBack)
+        bool KvReleaseReceiver::RegisterMsgHandler(KVReleaseHandler callback)
         {
-            if (callBack == nullptr) {
+            if (callback == nullptr) {
                 ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SPLITWISE,
-                    CHECK_ERROR), "The callBack is nullptr");
+                    CHECK_ERROR), "The callback is nullptr");
                 return false;
             }
-            getRequestIDFunc_ = std::move(callBack);
+            kvReleaseHandler_ = std::move(callback);
             return true;
         }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2026. All rights reserved.
  * MindIE is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -73,7 +73,7 @@ TEST_F(DmiMsgReceiverTest, DecodeRequestReceiver_InvalidRequestReturnsCancelled)
     }
 }
 
-TEST_F(DmiMsgReceiverTest, DecodeRequestReceiver_GetDecodeRequestFunc_IsNull)
+TEST_F(DmiMsgReceiverTest, DecodeRequestReceiver_DecodeRequestHandler_IsNull)
 {
     grpc::ServerContext context_;
     DecodeParameters invalid_request;
@@ -93,7 +93,7 @@ TEST_F(DmiMsgReceiverTest, DecodeRequestReceiver_ValidRequestCallsRegisteredHand
     DecodeRequestResponse response;
     
     bool handlerCalled = false;
-    GetDecodeRequestFunc mockHandler = [&](const DecodeParameters& req,
+    DecodeRequestHandler mockHandler = [&](const DecodeParameters& req,
                                            DecodeRequestResponse& res) {
         handlerCalled = true;
 
@@ -126,7 +126,7 @@ TEST_F(DmiMsgReceiverTest, KvReleaseReceiver_InvalidRequestReturnsCancelled)
     EXPECT_EQ(status.error_code(), grpc::StatusCode::CANCELLED);
 }
 
-TEST_F(DmiMsgReceiverTest, KvReleaseReceiver_GetDecodeRequestFunc_IsNull)
+TEST_F(DmiMsgReceiverTest, KvReleaseReceiver_DecodeRequestHandler_IsNull)
 {
     grpc::ServerContext context_;
     RequestId invalid_request;
@@ -148,7 +148,7 @@ TEST_F(DmiMsgReceiverTest, KvReleaseReceiver_ValidRequestCallsRegisteredHandler)
     std::mutex mtx;
     std::condition_variable cv;
 
-    GetRequestIDFunc mockHandler = [&](const std::string& requestID) {
+    KVReleaseHandler mockHandler = [&](const std::string& requestID) {
         std::lock_guard<std::mutex> lock(mtx);
         handlerCalled = true;
         EXPECT_EQ(requestID, "test");
@@ -183,7 +183,7 @@ TEST_F(DmiMsgReceiverTest, ForceReleaseLinkReceiver_InvalidRequestReturnsCancell
     EXPECT_EQ(status.error_code(), grpc::StatusCode::CANCELLED);
 }
 
-TEST_F(DmiMsgReceiverTest, ForceReleaseLinkReceiver_GetDecodeRequestFunc_IsNull)
+TEST_F(DmiMsgReceiverTest, ForceReleaseLinkReceiver_DecodeRequestHandler_IsNull)
 {
     grpc::ServerContext context_;
     DeviceList invalid_request;
