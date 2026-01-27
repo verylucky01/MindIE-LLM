@@ -14,9 +14,10 @@ from torch import nn
 import torch_npu
 
 from atb_llm.utils.env import ENV
-from ....utils.initial import NPUSocInfo
-from ....utils.quantize.pack_type import TransposeType
-from ....utils.quantize.quant_type import LinearTypeV2
+from atb_llm.utils.log import logger
+from atb_llm.utils.initial import NPUSocInfo
+from atb_llm.utils.quantize.pack_type import TransposeType
+from atb_llm.utils.quantize.quant_type import LinearTypeV2
 
 
 class LinearUtils:
@@ -56,7 +57,16 @@ class LinearUtils:
                 self.weight = nn.Parameter(torch.transpose(self.weight, -2, -1).contiguous(), requires_grad=False)
 
     def check_transpose(self, weight):
-        if self.soc_info.need_nz or not ENV.auto_transpose_enable:
+        if self.soc_info.need_nz:
+            return TransposeType.TRANSPOSE
+
+        if not ENV.auto_transpose_enable:
+            if self.soc_info.matmul_nd_nz:
+                logger.warning("NZ weight format is enabled. To ensure hardware compatibility, "
+                               "weights must be transposed to [k, n]. The environment variable "
+                               "`ATB_LLM_ENABLE_AUTO_TRANSPOSE=0` is being ignored.")
+                ENV.auto_transpose_enable = True
+                return TransposeType.NOT_TRANSPOSE
             return TransposeType.TRANSPOSE
         
         if self.soc_info.matmul_nd_nz:

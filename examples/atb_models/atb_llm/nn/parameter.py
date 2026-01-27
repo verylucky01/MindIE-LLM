@@ -92,7 +92,16 @@ class Parameter(BaseParameter):
         if len(weight.shape) == 1:
             return TransposeType.INVALID
 
-        if self.soc_info.need_nz or not ENV.auto_transpose_enable or not self.enable_auto_transpose:
+        if self.soc_info.need_nz or not self.enable_auto_transpose:
+            return TransposeType.TRANSPOSE
+        
+        if not ENV.auto_transpose_enable:
+            if self.soc_info.matmul_nd_nz:
+                logger.warning("NZ weight format is enabled. To ensure hardware compatibility, "
+                               "weights must be transposed to [k, n]. The environment variable "
+                               "`ATB_LLM_ENABLE_AUTO_TRANSPOSE=0` is being ignored.")
+                ENV.auto_transpose_enable = True
+                return TransposeType.NOT_TRANSPOSE
             return TransposeType.TRANSPOSE
         
         if self.soc_info.matmul_nd_nz:
