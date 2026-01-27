@@ -98,8 +98,11 @@ int64_t ModelTorch::SetParam(const std::string &param)
                         << "Examples: REGISTER_MODEL(chatglm2_6b, ChatGlm2CommonModelFa). "
                         << "And then set `chatglm2_6b_ChatGlm2CommonModelFa` as input modelName_.");
     } else {
-        ATB_SPEED_LOG_ERROR("Not support modelName: " << modelName_ << ", not found in ModelFactory.");
-        throw std::runtime_error("Not support modelName, check ATB_LOG");
+        std::stringstream ss;
+        ss << "Unsupported model name: [" << modelName_ << "]. "
+           << "Please check if the model is registered in ModelFactory correctly.";
+        ATB_SPEED_LOG_ERROR(ss.str());
+        throw std::runtime_error(ss.str());
     }
 
     const char *taskQueueEnv = std::getenv("TASK_QUEUE_ENABLE");
