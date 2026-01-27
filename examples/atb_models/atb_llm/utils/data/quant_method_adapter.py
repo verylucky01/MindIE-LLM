@@ -323,7 +323,8 @@ class UnquantizedNormMethod(MethodSupportAtbGraph):
     def get_weights_for_atb_graph(self, layer: torch.nn.Module, padding: bool = True) -> list[torch.Tensor]:
         if not padding:
             return [layer.weight.data]
-        return [layer.weight.data, self._PLACEHOLDER, self._PLACEHOLDER, self._PLACEHOLDER]
+        bias_placeholder = torch.tensor([0] * layer.weight.data.shape[0], dtype=torch.get_default_dtype(), device='npu')
+        return [layer.weight.data, bias_placeholder, self._PLACEHOLDER, self._PLACEHOLDER]
 
 
 class AntiOutlierNormMethod(MethodSupportAtbGraph):

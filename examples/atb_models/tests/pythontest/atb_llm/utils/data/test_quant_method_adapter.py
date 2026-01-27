@@ -229,8 +229,12 @@ class TestQuantMethodAdapter(unittest.TestCase):
 
         weights = method.get_weights_for_atb_graph(layer, padding=True)
         self.assertEqual(len(weights), 4)
-        self.assertTrue(torch.allclose(weights[0], layer.weight.data))
-        for w in weights[1:]:
+        self.assertTrue(torch.equal(weights[0], layer.weight.data))
+
+        self.assertTrue(torch.all(weights[1] == 0).item())
+        self.assertEqual(weights[1].shape, torch.Size([64]))
+
+        for w in weights[2:]:
             self.assertEqual(w.item(), 555.0)
 
     def test_anti_outlier_norm_method(self):

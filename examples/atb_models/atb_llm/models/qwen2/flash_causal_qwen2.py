@@ -849,7 +849,9 @@ class FlashQwen2ForCausalLM(FlashForCausalLM):
         """
         if not self.weight_initialized:
             self.get_adapter_ids(**kwargs)
-            self.init_ascend_weight()
+            from mindie_llm.runtime.utils.torch_utils import set_default_torch_dtype
+            with set_default_torch_dtype(self.config.torch_dtype):
+                self.init_ascend_weight()
         self.init_kvcache(kv_cache)
 
         acl_inputs, acl_param = self.prepare_inputs_for_ascend(input_ids, position_ids, is_prefill, kv_cache,
