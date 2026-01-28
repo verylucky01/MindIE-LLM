@@ -178,24 +178,8 @@ void Scheduler::WaitingAvoidDummyBatch(PDPriorityType priority, bool needSync)
     }
 }
 
-void Scheduler::RecordKVCacheMetrics(const SchedulerOutputs& schedulerOut, size_t beforeFreeBlocks, size_t totalBlocks)
-{
-    size_t afterFreeBlocks = blockManager_->GetNumFreeNpuBlocks();
-
-    if (!schedulerOut.scheduledSeqGroups_.empty()) {
-        auto kv_cache_prof = PROF(INFO, Domain("KVCache"));
-        PROF(kv_cache_prof.Metric("TotalBlocks", totalBlocks)
-                     .Metric("FreeBlocksBefore", beforeFreeBlocks)
-                     .Metric("FreeBlocksAfter", afterFreeBlocks)
-                     .Event("KVCacheStatus"));
-    }
-}
-
 std::pair<SequenceGroupMetaDatas, SchedulerOutputs> Scheduler::Schedule(bool needSync)
 {
-    size_t beforeFreeBlocks = blockManager_->GetNumFreeNpuBlocks();
-    size_t totalBlocks = schedulerConfig_->npuBlockNum;
-
     PDPriorityType pdPriorityType = DecidePDPriority(needSync);
     if (role_ == Role::P) {
         WaitingAvoidDummyBatch(pdPriorityType, needSync);
@@ -233,8 +217,6 @@ std::pair<SequenceGroupMetaDatas, SchedulerOutputs> Scheduler::Schedule(bool nee
     // 4. statistic meta data
     SchedulerOutputs schedulerOut = ConvertToSchedulerOutput(budget, policyOutput);
     auto seqGroupMetadata = GenerateSequenceGroupMetadata(schedulerOut);
-
-    RecordKVCacheMetrics(schedulerOut, beforeFreeBlocks, totalBlocks);
 
     // 本轮调度结束，mark供下一轮调度使用
     blockManager_->MarkBlocksAsComputed();
@@ -1291,6 +1273,12 @@ void Scheduler::ClearSeqGrp(SequenceGroupSPtr seqGroup, SequenceStatus finalStat
         ClearSeq(seq->seqId_);
         seq->status_ = finalStatus;
     }
+    PROF(INFO, Domain("KVCache")
+                    .Resource(seqGroup->requestId)
+                    .Metric("deviceBlock", blockManager_->GetNumFreeNpuBlocks())
+                    .Metric("hostBlock", blockManager_->GetNumFreeCpuBlocks())
+                    .MetricScope("dp", blockManager_->GetLocalDPRank())
+                    .Event("Free"));
 }
 
 /**

@@ -180,8 +180,6 @@ private:
 
     void AccumulateComputedTokens(std::vector<ScheduledSequenceGroupSPtr> &seqGrps) const;
 
-    void RecordKVCacheMetrics(const SchedulerOutputs& schedulerOut, size_t beforeFreeBlocks, size_t totalBlocks);
-
     bool ShouldImmediatePrefill();
 
     void ClearQueueAndSendAbortedResponse(ConcurrentDeque<SequenceGroupSPtr> &srcQueue);
