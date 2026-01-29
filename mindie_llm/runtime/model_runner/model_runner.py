@@ -142,8 +142,11 @@ class ModelRunner:
             router_ins.generation_config,
             speculative_config=SpeculativeConfig(self.num_speculative_tokens)
         )
-        # NOTE: need to refactor
-        self.kv_cache_dtype = self.dtype if self.mindie_llm_config.quant_config.kv_quant_type is None else torch.int8
+        quant_config = getattr(self.mindie_llm_config, 'quant_config', None)
+        if quant_config and getattr(quant_config, 'kv_quant_type', None) is not None:
+            self.kv_cache_dtype = torch.int8
+        else:
+            self.kv_cache_dtype = self.dtype
         self.mask = None
         self.rotary_emb = None
         self.cos_table = None
