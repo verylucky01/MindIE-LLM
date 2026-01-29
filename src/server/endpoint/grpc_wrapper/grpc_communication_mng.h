@@ -45,16 +45,11 @@ namespace mindie_llm {
 
             bool SendDecodeRequest(prefillAndDecodeCommunication::DecodeParameters& decodeParameters,
                                    const std::string& decodeNodeIp, const std::string& reqId, std::string& errMsg);
-
             bool SendKvReleaseMsg(const prefillAndDecodeCommunication::RequestId& requestId,
-                                  const std::string& prefillNodeIp);
-
-            bool SendForceReleaseMsg(prefillAndDecodeCommunication::DeviceList& deviceIp,
                                   const std::string& prefillNodeIp);
 
             bool RegisterDecodeRequestHandler(DecodeRequestHandler decodeRequestHandler);
             bool RegisterKvReleaseHandler(KVReleaseHandler kvReleaseHandler);
-            bool RegisterForceReleaseLinkHandler(GetDeviceListFunc getDeviceListFunc);
 
         private:
             GrpcCommunicationMng() = default;
@@ -84,8 +79,6 @@ namespace mindie_llm {
             bool CreateDecodeRequestSender(const std::string& decodeRequestReceiveNode);
 
             bool CreateKvReleaseSender(const std::string& kvReleaseReceiveNode);
-
-            bool CreateForceReleaseLinkSender(const std::string& forceReleaseLinkReceiveNode);
 
             bool RunServer();
 
@@ -117,17 +110,15 @@ namespace mindie_llm {
             std::thread serverThread_;
             std::mutex decodeReqSenderMutex_;
             std::mutex kvReleaseSenderMutex_;
-            std::mutex forceReleaseLinkSenderMutex_;
+
             // 目标地址:发送对象
             std::unordered_map<std::string, std::shared_ptr<DecodeRequestSender>> decodeRequestSenders_;
             std::unordered_map<std::string, std::shared_ptr<KvReleaseSender>> kvReleaseSenders_;
-            std::unordered_map<std::string, std::shared_ptr<ForceReleaseLinkSender>> forceReleaseLinkSenders_;
 
             std::string localAddr_;
             std::string port_;
             DecodeRequestHandler decodeRequestHandler_;
             KVReleaseHandler kvReleaseHandler_;
-            GetDeviceListFunc getDeviceListFunc_;
 
             // 安全相关配置成员
             bool useTls_{true};

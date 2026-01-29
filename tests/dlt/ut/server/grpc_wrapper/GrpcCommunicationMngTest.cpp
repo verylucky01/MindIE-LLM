@@ -148,7 +148,6 @@ TEST_F(GrpcCommunicationMngTest, InitWithValidAddress)
     GlobalMockObject::verify();
     MockServerConfig();
     EXPECT_TRUE(mng->Init(false, "127.0.0.1", "50051"));
-    EXPECT_TRUE(mng->getDeviceListFunc_({"test"}));
 }
 
 TEST_F(GrpcCommunicationMngTest, SetTlsOpsSuccess)
@@ -216,28 +215,6 @@ TEST_F(GrpcCommunicationMngTest, CreateKvReleaseSenderAndSendKvReleaseMsg)
     EXPECT_TRUE(mng->SendKvReleaseMsg(requestId, "127.0.0.1"));
 }
 
-TEST_F(GrpcCommunicationMngTest, CreateForceReleaseLinkSenderAndSendForceReleaseMsg)
-{
-    prefillAndDecodeCommunication::DeviceList deviceList;
-    EXPECT_FALSE(mng->SendForceReleaseMsg(deviceList, "127.0.0.1"));
-    EXPECT_FALSE(mng->Init(true, "127.0.0.1", "50051"));
-    EXPECT_FALSE(mng->CreateForceReleaseLinkSender("127.0.0.1"));
-    MOCKER_CPP(&GrpcCommunicationMng::GetClientTlsOpts,
-               bool (*)(std::unique_ptr<grpc::experimental::TlsChannelCredentialsOptions> &))
-        .stubs()
-        .will(returnValue(true));
-    EXPECT_FALSE(mng->CreateForceReleaseLinkSender("127.0.0.1"));
-    MOCKER_CPP(&ForceReleaseLinkSender::Init, bool (*)()).stubs().will(returnValue(true));
-    EXPECT_TRUE(mng->CreateForceReleaseLinkSender("127.0.0.1"));
-    EXPECT_FALSE(mng->SendForceReleaseMsg(deviceList, "valid_node"));
-    EXPECT_FALSE(mng->SendForceReleaseMsg(deviceList, "127.0.0.1"));
-    MOCKER_CPP(&ForceReleaseLinkSender::SendForceReleaseMsg,
-               bool (*)(const prefillAndDecodeCommunication::DeviceList &))
-        .stubs()
-        .will(returnValue(true));
-    EXPECT_TRUE(mng->SendForceReleaseMsg(deviceList, "127.0.0.1"));
-}
-
 TEST_F(GrpcCommunicationMngTest, GetKeyContentSuccess)
 {
     SensitiveInfoManager keyContent{nullptr, 0, MAX_PRIVATE_KEY_CONTENT_BYTE_LEN, MIN_PRIVATE_KEY_CONTENT_BYTE_LEN};
@@ -289,17 +266,14 @@ TEST_F(GrpcCommunicationMngTest, StopServerThreadHandlesErrors)
 
 auto decodeHandler = [](const auto &, auto &) {};
 auto kvHandler = [](const auto &) {};
-auto forceHandler = [](const auto &) { return true; };
 
 TEST_F(GrpcCommunicationMngTest, RegisterHandlersAndStartServiceSuccess)
 {
     EXPECT_TRUE(mng->RegisterDecodeRequestHandler(decodeHandler));
     EXPECT_TRUE(mng->RegisterKvReleaseHandler(kvHandler));
-    EXPECT_TRUE(mng->RegisterForceReleaseLinkHandler(forceHandler));
     mng->isRunning_.store(true);
     EXPECT_FALSE(mng->RegisterDecodeRequestHandler(decodeHandler));
     EXPECT_FALSE(mng->RegisterKvReleaseHandler(kvHandler));
-    EXPECT_FALSE(mng->RegisterForceReleaseLinkHandler(forceHandler));
     mng->StopServerThread();
 }
 

@@ -28,8 +28,6 @@ using DecodeRequestHandler = std::function<void(const prefillAndDecodeCommunicat
 
 using KVReleaseHandler = std::function<void(const std::string& requestID)>;
 
-using GetDeviceListFunc = std::function<bool(const std::vector<std::string>& deviceIp)>;
-
 namespace mindie_llm {
         class DecodeRequestReceiver : public prefillAndDecodeCommunication::DecodeService::Service {
         public:
@@ -68,23 +66,6 @@ namespace mindie_llm {
             KVReleaseHandler kvReleaseHandler_{nullptr};
         };
 
-        class ForceReleaseLinkReceiver : public prefillAndDecodeCommunication::ForcePReleaseService::Service {
-        public:
-            explicit ForceReleaseLinkReceiver(std::string localAddr): localAddr_(localAddr) {}
-
-            grpc::Status ForceReleaseLinkChannel(grpc::ServerContext* context,
-                                            const prefillAndDecodeCommunication::DeviceList* request,
-                                            google::protobuf::Empty* response) override;
-
-            bool RegisterMsgHandler(GetDeviceListFunc callback);
-
-        private:
-            bool isValidRequest(const prefillAndDecodeCommunication::DeviceList* request);
-
-            std::string localAddr_;
-
-            GetDeviceListFunc getDeviceListFunc_{nullptr};
-        };
 } // namespace mindie_llm
 
 #endif // PD_MSG_RECEIVER_H
