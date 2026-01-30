@@ -34,7 +34,6 @@ public:
     bool GetContextRequestId(std::string &) override { return true; }
     void UpdateInferRequest(const std::vector<int64_t> &, const int64_t &, RequestSPtr) override {}
     void SetBackManagerCallBack(RequestSPtr) override {}
-    void SetSimulateBackManagerCallBack(RequestSPtr) override {}
     void SendResponseInfo(int, const std::string &, bool) override {}
     void SendResponse(int, const std::string &) override {}
     void SendResponseStream(bool, const std::string &) override {}
@@ -286,5 +285,4 @@ TEST_F(SingleLLMReqHandlerBaseTest, Test_HeaderFile)
     RequestSPtr request = std::make_shared<Request>();
     prefillAndDecodeCommunication::DecodeRequestResponse resp;
     EXPECT_NO_THROW(handler.ProcessGrpcReq(request, "1", resp));
-    EXPECT_NO_THROW(handler.SimulateProcess(request, "1", 5));
 }

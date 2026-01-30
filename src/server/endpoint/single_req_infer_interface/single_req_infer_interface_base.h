@@ -51,9 +51,7 @@ public:
 public:
     void DecodeProcess(prefillAndDecodeCommunication::DecodeRequestResponse &response) noexcept;
     void Process() noexcept;
-    void SimulateProcess(uint32_t waitTime) noexcept;
     bool GenerateInferRequest(std::string &msg) noexcept;
-    bool SimulateGenerateInferRequest(RequestSPtr request) noexcept;
     void Stop() noexcept;
     bool ProcessResponseSingle(ResponseSPtr response, const uint64_t &timestamp) noexcept;
     bool ProcessResponseStream(ResponseSPtr response, const std::vector<BestNTokens> &bestNTokens,

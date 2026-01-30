@@ -151,18 +151,6 @@ TEST_F(PndReqHandlerTestF, SetBackManagerCallBack)
     EXPECT_EQ(handler->inferResponseQueue_.size(), 2);
 }
 
-TEST_F(PndReqHandlerTestF, SimulateProcess)
-{
-    RequestSPtr request = std::make_shared<Request>();
-    MOCKER_CPP(&InferInstance::Process, Status (*)(RequestSPtr)).stubs().will(returnValue(InvalidArg()));
-    GlobalMockObject::verify();
-    handler->SimulateProcess(request, "1", 5);
-    EXPECT_NE(request->serverResponseCallback_, nullptr);
-    MOCKER_CPP(&InferInstance::Process, Status (*)(RequestSPtr)).stubs().will(returnValue(Ok()));
-    handler->SimulateProcess(request, "1", 5);
-    EXPECT_NE(request->serverResponseCallback_, nullptr);
-}
-
 TEST_F(PndReqHandlerTestF, SendResponseStream)
 {
     EXPECT_NO_THROW(handler->SendResponseStream(true, ""));

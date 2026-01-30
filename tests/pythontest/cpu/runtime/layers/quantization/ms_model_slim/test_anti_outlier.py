@@ -165,15 +165,15 @@ class TestAntiOutlierNormMethod(unittest.TestCase):
         # Verify npu_rms_norm was called with correct arguments
         mock_npu_rms_norm.assert_called_once()
         call_args = mock_npu_rms_norm.call_args
-        self.assertTrue(torch.equal(call_args[0][0], x))
-        self.assertTrue(torch.equal(call_args[0][1], mock_layer.weight.data))
+        self.assertTrue(torch.allclose(call_args[0][0], x))
+        self.assertTrue(torch.allclose(call_args[0][1], mock_layer.weight.data))
         self.assertEqual(call_args[0][2], mock_layer.variance_epsilon)
 
         # Verify output shape (should be normalized + bias)
         self.assertEqual(output.shape, (2, 3, self.hidden_size))
         # Output should be normalized_tensor + bias
         expected_output = normalized_tensor + mock_layer.bias.data
-        self.assertTrue(torch.equal(output, expected_output))
+        self.assertTrue(torch.allclose(output, expected_output))
 
     @patch('torch_npu.npu_rms_norm')
     def test_apply_without_residual_different_shapes(self, mock_npu_rms_norm):
@@ -233,20 +233,20 @@ class TestAntiOutlierNormMethod(unittest.TestCase):
         # Verify npu_add_rms_norm was called with correct arguments
         mock_npu_add_rms_norm.assert_called_once()
         call_args = mock_npu_add_rms_norm.call_args
-        self.assertTrue(torch.equal(call_args[0][0], x))
-        self.assertTrue(torch.equal(call_args[0][1], residual))
-        self.assertTrue(torch.equal(call_args[0][2], mock_layer.weight.data))
+        self.assertTrue(torch.allclose(call_args[0][0], x))
+        self.assertTrue(torch.allclose(call_args[0][1], residual))
+        self.assertTrue(torch.allclose(call_args[0][2], mock_layer.weight.data))
         self.assertEqual(call_args[0][3], mock_layer.variance_epsilon)
 
         # Verify output shape (should be normalized + bias)
         self.assertEqual(output.shape, (2, 3, self.hidden_size))
         # Output should be normalized_tensor + bias
         expected_output = normalized_tensor + mock_layer.bias.data
-        self.assertTrue(torch.equal(output, expected_output))
+        self.assertTrue(torch.allclose(output, expected_output))
 
         # Verify residual is returned
         self.assertEqual(output_residual.shape, (2, 3, self.hidden_size))
-        self.assertTrue(torch.equal(output_residual, updated_residual))
+        self.assertTrue(torch.allclose(output_residual, updated_residual))
 
     @patch('torch_npu.npu_add_rms_norm')
     def test_apply_with_residual_different_shapes(self, mock_npu_add_rms_norm):

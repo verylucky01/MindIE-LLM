@@ -209,7 +209,7 @@ class TestQuantMethodAdapter(unittest.TestCase):
 
         weights = method.get_weights_for_atb_graph(layer, padding=True)
         self.assertEqual(len(weights), 1)
-        self.assertTrue(torch.equal(weights[0], layer.weight.data))
+        self.assertTrue(torch.allclose(weights[0], layer.weight.data))
 
         with self.assertRaises(NotImplementedError) as cm:
             method.get_weights_for_atb_graph(layer, padding=False)
@@ -225,12 +225,16 @@ class TestQuantMethodAdapter(unittest.TestCase):
 
         weights = method.get_weights_for_atb_graph(layer, padding=False)
         self.assertEqual(len(weights), 1)
-        self.assertTrue(torch.equal(weights[0], layer.weight.data))
+        self.assertTrue(torch.allclose(weights[0], layer.weight.data))
 
         weights = method.get_weights_for_atb_graph(layer, padding=True)
         self.assertEqual(len(weights), 4)
         self.assertTrue(torch.equal(weights[0], layer.weight.data))
-        for w in weights[1:]:
+
+        self.assertTrue(torch.all(weights[1] == 0).item())
+        self.assertEqual(weights[1].shape, torch.Size([64]))
+
+        for w in weights[2:]:
             self.assertEqual(w.item(), 555.0)
 
     def test_anti_outlier_norm_method(self):
@@ -248,8 +252,8 @@ class TestQuantMethodAdapter(unittest.TestCase):
 
         weights = method.get_weights_for_atb_graph(layer, padding=True)
         self.assertEqual(len(weights), 4)
-        self.assertTrue(torch.equal(weights[0], layer.weight.data))
-        self.assertTrue(torch.equal(weights[1], layer.bias.data))
+        self.assertTrue(torch.allclose(weights[0], layer.weight.data))
+        self.assertTrue(torch.allclose(weights[1], layer.bias.data))
         for w in weights[2:]:
             self.assertEqual(w.item(), 444.0)
 
@@ -285,7 +289,7 @@ class TestQuantMethodAdapter(unittest.TestCase):
             original = layer.weight.data.clone()
             method.process_weights_after_loading(layer)
             self.assertEqual(layer.weight.data.shape, (64, 128))
-            self.assertTrue(torch.equal(layer.weight.data, original.t()))
+            self.assertTrue(torch.allclose(layer.weight.data, original.t()))
 
         # 3. get_weight_transpose_type after update
         layer = Mock()

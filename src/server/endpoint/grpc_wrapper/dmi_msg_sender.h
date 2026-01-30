@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2026. All rights reserved.
  * MindIE is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -79,18 +79,6 @@ namespace mindie_llm {
             std::unique_ptr<prefillAndDecodeCommunication::PrefillService::Stub> stub_{nullptr};
         };
 
-        class ForceReleaseLinkSender final : public GrpcMsgSender {
-        public:
-            ForceReleaseLinkSender(const std::string &receiverAddr, const std::string &localAddr, bool useTls,
-                std::unique_ptr<grpc::experimental::TlsChannelCredentialsOptions> tlsChannelOpt)
-                : GrpcMsgSender(receiverAddr, localAddr, useTls, std::move(tlsChannelOpt)) {}
-            ~ForceReleaseLinkSender() override = default;
-            bool SendForceReleaseMsg(const prefillAndDecodeCommunication::DeviceList &message);
-        private:
-            void CreateStub(std::shared_ptr<grpc::Channel>& channel) override;
-
-            std::unique_ptr<prefillAndDecodeCommunication::ForcePReleaseService::Stub> stub_{nullptr};
-        };
 } // namespace mindie_llm
 
 #endif // PD_MSG_SENDER_H

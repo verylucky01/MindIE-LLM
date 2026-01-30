@@ -27,6 +27,7 @@
 #include "https_server_helper.h"
 #include "single_req_infer_interface_base.h"
 #include "request_response/response.h"
+#include "health_checker.h"
 
 using ordered_json = nlohmann::ordered_json;
 

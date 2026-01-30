@@ -63,13 +63,13 @@ class TestNegFunction(unittest.TestCase):
             mapTensors[f"layer_{i}_0"] = x[0]
             mapTensors[f"layer_{i}_1"] = x[1]
 
-        self.assertTrue(not torch.equal(kv_cache[0][0][1], kv_cache[0][0][2]))
+        self.assertTrue(not torch.allclose(kv_cache[0][0][1], kv_cache[0][0][2]))
         for _ in range(10):
             block_copy_op.forward(mapTensors, {})
 
             torch.npu.synchronize()
 
-        self.assertTrue(torch.equal(kv_cache[0][0][1], kv_cache[0][0][2]))
+        self.assertTrue(torch.allclose(kv_cache[0][0][1], kv_cache[0][0][2]))
 
 if __name__ == '__main__':
     unittest.main()

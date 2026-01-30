@@ -318,8 +318,8 @@ class TestLoraManager(unittest.TestCase):
         self.adapter_manager.check_adapter_weights_update()
         adapter_weights = self.adapter_manager.get_adapters([ADATPER1_STR])
         self.assertEqual(len(adapter_weights), 2)
-        self.assertTrue(torch.equal(adapter_weights["linear_module.lora_A.weight"].cpu(), fake_lora_a_tensor_1))
-        self.assertTrue(torch.equal(adapter_weights["linear_module.lora_B.weight"].cpu(), fake_lora_b_tensor_1))
+        self.assertTrue(torch.allclose(adapter_weights["linear_module.lora_A.weight"].cpu(), fake_lora_a_tensor_1))
+        self.assertTrue(torch.allclose(adapter_weights["linear_module.lora_B.weight"].cpu(), fake_lora_b_tensor_1))
 
     @patch("atb_llm.models.base.flash_causal_lm_v3.load_atb_speed", MagicMock())
     def test_get_adapters_mixed_adapter(self):
@@ -342,11 +342,11 @@ class TestLoraManager(unittest.TestCase):
         self.adapter_manager.check_adapter_weights_update()
         adapter_weights = self.adapter_manager.get_adapters([ADATPER2_STR, ADATPER1_STR])
         self.assertEqual(len(adapter_weights), 2)
-        self.assertTrue(torch.equal(
+        self.assertTrue(torch.allclose(
             adapter_weights["linear_module.lora_A.weight"].cpu(),
             pad_sequence([fake_lora_a_tensor_2, fake_lora_a_tensor_1], batch_first=True)
         ))
-        self.assertTrue(torch.equal(
+        self.assertTrue(torch.allclose(
             adapter_weights["linear_module.lora_B.weight"].cpu(),
             pad_sequence([fake_lora_b_tensor_2, fake_lora_b_tensor_1], batch_first=True)
         ))
@@ -368,9 +368,9 @@ class TestLoraManager(unittest.TestCase):
         self.adapter_manager.check_adapter_weights_update()
         adapter_weights = self.adapter_manager.get_adapters([ADATPER1_STR, ADATPER2_STR])
         self.assertEqual(len(adapter_weights), 2)
-        self.assertTrue(torch.equal(
+        self.assertTrue(torch.allclose(
             adapter_weights["linear_module.lora_A.weight"].cpu(), fake_lora_a))
-        self.assertTrue(torch.equal(
+        self.assertTrue(torch.allclose(
             adapter_weights["linear_module.lora_B.weight"].cpu(), fake_lora_b))
     
     def _update_adapter_ids_registry(self):

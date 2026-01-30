@@ -80,6 +80,7 @@ struct Request {
     std::map<uint64_t, int64_t> cpInfo{};
 
     InferReqType reqType = InferReqType::REQ_STAND_INFER;
+    bool isSimulateRequest = false;  //< 是否为虚推请求
     bool isRecompute = false;
     std::optional<InstanceId> pInstanceId; // pull kv will use management port (pInstanceId)
     std::vector<int64_t> srcBlockTable; // block table from prefill

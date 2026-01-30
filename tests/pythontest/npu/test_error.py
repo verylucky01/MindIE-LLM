@@ -21,11 +21,25 @@ from mindie_llm.text_generator.utils.config import ContextParams, SpCpParallelIn
 
 class TestError(unittest.TestCase):
     def setUp(self):
+        # Set environment variables
         ENV.framework_backend = 'atb'
         ENV.log_file_level = 'ERROR'
         ENV.log_to_file = 'true'
-        from mindie_llm.utils.log.logging import logger
-        self.log_path = logger.handlers[0].baseFilename
+        
+        # Correct way to get logger
+        from mindie_llm.utils.log.logging_base import get_logger, Component
+        logger = get_logger(Component.LLM)
+        
+        # Get actual log file path
+        self.log_path = None
+        for handler in logger.logger.handlers:
+            if hasattr(handler, 'baseFilename'):  # Ensure it's a file handler
+                self.log_path = handler.baseFilename
+                break
+                
+        if not self.log_path:
+            raise RuntimeError("No file handler found in logger")
+
         backend_type_key = 'backend_type'
 
         self.test_generator_backend_params = {

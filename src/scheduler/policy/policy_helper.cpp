@@ -112,6 +112,12 @@ size_t PolicyHelper::GetPromptLimit(SequenceGroupSPtr seqGroup, SchedulingBudget
 void PolicyHelper::AllocateAndSetRunning(SequenceGroupSPtr seqGroup) const
 {
     validateSequenceGroup(seqGroup, "AllocateAndSetRunning");
+
+    PROF(INFO, Domain("KVCache")
+                    .Resource(seqGroup->requestId)
+                    .Metric("deviceBlock", blockManager_->GetNumFreeNpuBlocks())
+                    .MetricScope("dp", blockManager_->GetLocalDPRank())
+                    .Event("Allocate"));
     blockManager_->Allocate(seqGroup);
     auto waitingSeqs = seqGroup->GetFirstSequence(SequenceStatus::WAITING);
     for (const auto &seq : waitingSeqs) {
@@ -136,6 +142,11 @@ void PolicyHelper::AppendSlotForSeqs(std::vector<SequenceSPtr> parallelSeqs, Req
 {
     reqId = reqId;
     for (auto seq : parallelSeqs) {
+        PROF(INFO, Domain("KVCache")
+                        .Resource(reqId)
+                        .Metric("deviceBlock", blockManager_->GetNumFreeNpuBlocks())
+                        .MetricScope("dp", blockManager_->GetLocalDPRank())
+                        .Event("AppendSlot"));
         const auto cows = blockManager_->AppendSlot(seq);
         if (!cows.empty()) {
             blockToCopy.insert(blockToCopy.end(), cows.begin(), cows.end());
@@ -289,6 +300,12 @@ void PolicyHelper::ForkSeq(SequenceSPtr parentSeq, SequenceSPtr &childSeq) const
 
 void PolicyHelper::FreeSeq(SequenceSPtr seq) const
 {
+    PROF(INFO, Domain("KVCache")
+                    .Resource(std::to_string(seq->seqId_))
+                    .Metric("deviceBlock", blockManager_->GetNumFreeNpuBlocks())
+                    .Metric("hostBlock", blockManager_->GetNumFreeCpuBlocks())
+                    .MetricScope("dp", blockManager_->GetLocalDPRank())
+                    .Event("Free"));
     blockManager_->Free(seq->seqId_);
 }
 
@@ -297,6 +314,12 @@ void PolicyHelper::FreeSeqGroup(SequenceGroupSPtr seqGroup) const
     validateSequenceGroup(seqGroup, "FreeSeqGroup");
 
     for (auto seq : seqGroup->seqs_) {
+        PROF(INFO, Domain("KVCache")
+                    .Resource(std::to_string(seq->seqId_))
+                    .Metric("deviceBlock", blockManager_->GetNumFreeNpuBlocks())
+                    .Metric("hostBlock", blockManager_->GetNumFreeCpuBlocks())
+                    .MetricScope("dp", blockManager_->GetLocalDPRank())
+                    .Event("Free"));
         blockManager_->Free(seq->seqId_);
     }
 }

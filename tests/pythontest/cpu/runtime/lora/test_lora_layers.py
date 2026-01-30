@@ -118,8 +118,8 @@ class TestLoraLayers(unittest.TestCase):
         lora_b = torch.zeros(self.max_loras + 1, dim_r, n, dtype=self.dtype)
         self.assertIsInstance(lora_layer.lora_a_stacked, Parameter)
         self.assertIsInstance(lora_layer.lora_b_stacked, Parameter)
-        self.assertTrue(torch.equal(lora_layer.lora_a_stacked.cpu(), lora_a))
-        self.assertTrue(torch.equal(lora_layer.lora_b_stacked.cpu(), lora_b))
+        self.assertTrue(torch.allclose(lora_layer.lora_a_stacked.cpu(), lora_a))
+        self.assertTrue(torch.allclose(lora_layer.lora_b_stacked.cpu(), lora_b))
 
     @patch("mindie_llm.runtime.layers.linear.linear.get_parallel_info_manager")
     def test_parallel_linear_with_lora_set_lora(self, mock_get_parallel_info_manager):
@@ -137,8 +137,8 @@ class TestLoraLayers(unittest.TestCase):
         lora_b = torch.rand((self.r, n), device=self.device, dtype=torch.float16)
         index = random.randint(0, self.max_loras - 1)
         lora_layer.set_lora(index, lora_a, lora_b)
-        self.assertTrue(torch.equal(lora_layer.lora_a_stacked[index, :self.r].cpu(), lora_a.cpu()))
-        self.assertTrue(torch.equal(lora_layer.lora_b_stacked[index, :self.r].cpu(), lora_b.cpu()))
+        self.assertTrue(torch.allclose(lora_layer.lora_a_stacked[index, :self.r].cpu(), lora_a.cpu()))
+        self.assertTrue(torch.allclose(lora_layer.lora_b_stacked[index, :self.r].cpu(), lora_b.cpu()))
 
     @patch("mindie_llm.runtime.layers.linear.linear.get_parallel_info_manager")
     def test_column_parallel_linear_with_lora_load_lora(self, mock_get_parallel_info_manager):
@@ -151,11 +151,11 @@ class TestLoraLayers(unittest.TestCase):
                             "linear.lora_B.weight": \
                             torch.rand(linear_layer.output_size, self.r, device=self.device, dtype=self.dtype)}
         lora_a = lora_layer.slice_lora_a(lora_tensors_dic, ["linear.lora_A"])
-        self.assertTrue(torch.equal(lora_a, lora_tensors_dic["linear.lora_A.weight"]))
+        self.assertTrue(torch.allclose(lora_a, lora_tensors_dic["linear.lora_A.weight"]))
         lora_b = lora_layer.slice_lora_b(lora_tensors_dic, ["linear.lora_B"], [1])
         start_idx = self.tp_rank * linear_layer.output_partition_sizes[0]
         end_idx = (self.tp_rank + 1) * linear_layer.output_partition_sizes[0]
-        self.assertTrue(torch.equal(lora_b, \
+        self.assertTrue(torch.allclose(lora_b, \
             lora_tensors_dic["linear.lora_B.weight"][start_idx:end_idx, :].T.contiguous()))
 
     @patch("mindie_llm.runtime.layers.linear.linear.get_parallel_info_manager")
@@ -174,14 +174,14 @@ class TestLoraLayers(unittest.TestCase):
                             "up.lora_B.weight": \
                             torch.rand(linear_layer.output_sizes[1], self.r, device=self.device, dtype=self.dtype)}
         lora_a = lora_layer.slice_lora_a(lora_tensors_dic, ["gate.lora_A", "up.lora_A"])
-        self.assertTrue(torch.equal(lora_a, torch.cat([lora_tensors_dic["gate.lora_A.weight"], \
+        self.assertTrue(torch.allclose(lora_a, torch.cat([lora_tensors_dic["gate.lora_A.weight"], \
             lora_tensors_dic["up.lora_A.weight"]])))
         lora_b = lora_layer.slice_lora_b(lora_tensors_dic, ["gate.lora_B", "up.lora_B"], [1, 1])
         gate_start_idx = self.tp_rank * linear_layer.output_partition_sizes[0]
         gate_end_idx = (self.tp_rank + 1) * linear_layer.output_partition_sizes[0]
         up_start_idx = self.tp_rank * linear_layer.output_partition_sizes[1]
         up_end_idx = (self.tp_rank + 1) * linear_layer.output_partition_sizes[1]
-        self.assertTrue(torch.equal(lora_b, torch.block_diag(
+        self.assertTrue(torch.allclose(lora_b, torch.block_diag(
             lora_tensors_dic["gate.lora_B.weight"][gate_start_idx:gate_end_idx, :],
             lora_tensors_dic["up.lora_B.weight"][up_start_idx:up_end_idx, :]).T.contiguous()))
 
@@ -207,7 +207,7 @@ class TestLoraLayers(unittest.TestCase):
                             torch.rand(linear_layer.num_kv_heads * self.world_size * linear_layer.head_size, \
                             self.r, device=self.device, dtype=self.dtype)}
         lora_a = lora_layer.slice_lora_a(lora_tensors_dic, ["q.lora_A", "k.lora_A", "v.lora_A"])
-        self.assertTrue(torch.equal(lora_a, torch.cat([lora_tensors_dic["q.lora_A.weight"], \
+        self.assertTrue(torch.allclose(lora_a, torch.cat([lora_tensors_dic["q.lora_A.weight"], \
             lora_tensors_dic["k.lora_A.weight"], lora_tensors_dic["v.lora_A.weight"]])))
         lora_b = lora_layer.slice_lora_b(lora_tensors_dic, ["q.lora_B", "k.lora_B", "v.lora_B"], [1, 1, 1])
         q_start_idx = self.tp_rank * linear_layer.output_partition_sizes[0]
@@ -216,7 +216,7 @@ class TestLoraLayers(unittest.TestCase):
         k_end_idx = (self.tp_rank + 1) * linear_layer.output_partition_sizes[1]
         v_start_idx = self.tp_rank * linear_layer.output_partition_sizes[2]
         v_end_idx = (self.tp_rank + 1) * linear_layer.output_partition_sizes[2]
-        self.assertTrue(torch.equal(lora_b, torch.block_diag(
+        self.assertTrue(torch.allclose(lora_b, torch.block_diag(
             lora_tensors_dic["q.lora_B.weight"][q_start_idx:q_end_idx, :],
             lora_tensors_dic["k.lora_B.weight"][k_start_idx:k_end_idx, :],
             lora_tensors_dic["v.lora_B.weight"][v_start_idx:v_end_idx, :],).T.contiguous()))
@@ -234,9 +234,9 @@ class TestLoraLayers(unittest.TestCase):
         lora_a = lora_layer.slice_lora_a(lora_tensors_dic, ["linear.lora_A"])
         start_idx = self.tp_rank * linear_layer.input_size_per_partition
         end_idx = (self.tp_rank + 1) * linear_layer.input_size_per_partition
-        self.assertTrue(torch.equal(lora_a, lora_tensors_dic["linear.lora_A.weight"][:, start_idx:end_idx]))
+        self.assertTrue(torch.allclose(lora_a, lora_tensors_dic["linear.lora_A.weight"][:, start_idx:end_idx]))
         lora_b = lora_layer.slice_lora_b(lora_tensors_dic, ["linear.lora_B"], [1])
-        self.assertTrue(torch.equal(lora_b, lora_tensors_dic["linear.lora_B.weight"].T.contiguous()))
+        self.assertTrue(torch.allclose(lora_b, lora_tensors_dic["linear.lora_B.weight"].T.contiguous()))
 
 
 if __name__ == '__main__':

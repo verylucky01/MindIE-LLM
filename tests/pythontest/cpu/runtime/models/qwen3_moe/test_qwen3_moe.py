@@ -428,8 +428,7 @@ class TestQwen3MoeForCausalLM(unittest.TestCase):
 
         # Mock forward context
         mock_forward_context = MagicMock()
-        mock_forward_context.lmhead_metadata = MagicMock()
-        mock_forward_context.lmhead_metadata.lm_head_indices = None
+        mock_forward_context.lm_head_indices = None
         mock_get_forward_context.return_value = mock_forward_context
 
         # Mock config
@@ -471,8 +470,7 @@ class TestQwen3MoeForCausalLM(unittest.TestCase):
 
         # Mock forward context with indices
         mock_forward_context = MagicMock()
-        mock_forward_context.lmhead_metadata = MagicMock()
-        mock_forward_context.lmhead_metadata.lm_head_indices = torch.tensor([0])
+        mock_forward_context.lm_head_indices = torch.tensor([0])
         mock_get_forward_context.return_value = mock_forward_context
 
         # Mock config

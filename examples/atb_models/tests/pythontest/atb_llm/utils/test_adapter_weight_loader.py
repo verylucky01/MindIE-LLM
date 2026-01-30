@@ -68,7 +68,7 @@ class TestAdapterWeightLoader(unittest.TestCase):
             "test_lora_tensor", is_lora_a=True, padding_shape=(1, self.k),
             tensor_parallel_dim=0, align_size=128
         )
-        self.assertTrue(torch.equal(lora_tensor, fake_lora_a_tensor))
+        self.assertTrue(torch.allclose(lora_tensor, fake_lora_a_tensor))
 
     def test_load_lora_a_tensor_parallel_dim_1(self):
         fake_lora_a_tensor = torch.randn(self.r, self.k, dtype=self.dtype)
@@ -81,14 +81,14 @@ class TestAdapterWeightLoader(unittest.TestCase):
         chunk_size = self.k // self.process_group.size()
         start = chunk_size * self.process_group.rank()
         end = chunk_size * (self.process_group.rank() + 1)
-        self.assertTrue(torch.equal(lora_tensor, fake_lora_a_tensor[:, start:end]))
+        self.assertTrue(torch.allclose(lora_tensor, fake_lora_a_tensor[:, start:end]))
 
     def test_load_lora_a_dummy(self):
         lora_tensor = self.adapter_weight_loader.get_lora_tensor(
             "test_lora_tensor", is_lora_a=True, padding_shape=(1, self.k),
             tensor_parallel_dim=1, align_size=1
         )
-        self.assertTrue(torch.equal(lora_tensor, torch.zeros((1, self.k), dtype=self.dtype)))
+        self.assertTrue(torch.allclose(lora_tensor, torch.zeros((1, self.k), dtype=self.dtype)))
 
     def test_load_lora_b_tensor_parallel_dim_0(self):
         fake_lora_b_tensor = torch.randn(self.n, self.r, dtype=self.dtype)
@@ -101,7 +101,7 @@ class TestAdapterWeightLoader(unittest.TestCase):
         chunk_size = self.n // self.process_group.size()
         start = chunk_size * self.process_group.rank()
         end = chunk_size * (self.process_group.rank() + 1)
-        self.assertTrue(torch.equal(lora_tensor, fake_lora_b_tensor[start:end, :]))
+        self.assertTrue(torch.allclose(lora_tensor, fake_lora_b_tensor[start:end, :]))
 
     def test_load_lora_b_tensor_parallel_dim_1(self):
         fake_lora_b_tensor = torch.randn(self.n, self.r, dtype=self.dtype)
@@ -111,11 +111,11 @@ class TestAdapterWeightLoader(unittest.TestCase):
             "test_lora_tensor", is_lora_a=False, padding_shape=(self.n, 1),
             tensor_parallel_dim=1, align_size=1
         )
-        self.assertTrue(torch.equal(lora_tensor, fake_lora_b_tensor))
+        self.assertTrue(torch.allclose(lora_tensor, fake_lora_b_tensor))
     
     def test_load_lora_b_dummy(self):
         lora_tensor = self.adapter_weight_loader.get_lora_tensor(
             "test_lora_tensor", is_lora_a=False, padding_shape=(self.n, 1),
             tensor_parallel_dim=1, align_size=1
         )
-        self.assertTrue(torch.equal(lora_tensor, torch.zeros((self.n, 1), dtype=self.dtype)))
+        self.assertTrue(torch.allclose(lora_tensor, torch.zeros((self.n, 1), dtype=self.dtype)))

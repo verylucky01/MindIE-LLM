@@ -1,4 +1,4 @@
-# Copyright (c) Huawei Technologies Co., Ltd. 2024-2025. All rights reserved.
+# Copyright (c) Huawei Technologies Co., Ltd. 2024-2026. All rights reserved.
 # MindIE is licensed under Mulan PSL v2.
 # You can use this software according to the terms and conditions of the Mulan PSL v2.
 # You may obtain a copy of Mulan PSL v2 at:
@@ -7,6 +7,7 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
+
 import json
 import os
 import re
@@ -20,43 +21,18 @@ from . import file_utils
 DEVICE = "device"
 
 
-def get_atb_llm_log_maxsize():
-    """获取日志最大大小
-    
-    Returns:
-        Optional[int]: 如果环境变量未设置则返回None
-    """
-    value = os.getenv("PYTHON_LOG_MAXSIZE")
-    return int(value) if value else None
-
-
 @dataclass
 class EnvVar:
     """
-    环境变量
+    Environment Variables
     """
-    # ATB_LLM日志级别
-    atb_llm_log_level: str = os.getenv("MINDIE_LOG_LEVEL", "INFO")
-    # ATB_LLM日志文件存储路径
-    atb_llm_log_path: str = os.getenv("MINDIE_LOG_PATH", "")
-    # ATB_LLM日志开关
-    atb_llm_log_to_file: str = str(os.getenv("MINDIE_LOG_TO_FILE", 1))
-    # ATB_LLM打印开关
-    atb_llm_log_to_stdout: str = str(os.getenv("MINDIE_LOG_TO_STDOUT", 1))
-    # ATB_LLM日志文件最大容量	
-    atb_llm_log_maxsize: int = field(default_factory=get_atb_llm_log_maxsize)
-    # 日志轮转最大大小、最大数量
-    log_file_rotate: str = os.getenv("MINDIE_LOG_ROTATE", "")
-    # ATB_LLM日志可选内容
-    atb_llm_log_verbose: str = str(os.getenv("MINDIE_LOG_VERBOSE", 1))
-
-    # 模型运行时动态申请现存池大小（单位：GB）
+    # Size of dynamically allocated memory pool during model runtime (unit: GB)
     reserved_memory_gb: int = int(os.getenv("RESERVED_MEMORY_GB", "3"))
-    # 使用哪些卡
+    # Which devices to use
     visible_devices: str = os.getenv("ASCEND_RT_VISIBLE_DEVICES", None)
-    # 是否绑核
+    # Whether to bind CPU cores
     bind_cpu: bool = os.getenv("BIND_CPU", "1") == "1"
-    # 是否清除generation后处理参数
+    # Whether to remove post-processing parameters after generation
     remove_generation_config_dict: bool = os.getenv("REMOVE_GENERATION_CONFIG_DICT", "0") == "1"
 
     cpu_binding_num: int | None = os.getenv("CPU_BINDING_NUM", None)
@@ -121,7 +97,7 @@ class EnvVar:
         master_port = int(master_port)
 
     def __post_init__(self):
-        # 校验
+        # Validation
         if self.reserved_memory_gb >= 64 or self.reserved_memory_gb < 0:
             raise ValueError("RESERVED_MEMORY_GB should be in the range of 0 to 64, 64 is not inclusive.")
 

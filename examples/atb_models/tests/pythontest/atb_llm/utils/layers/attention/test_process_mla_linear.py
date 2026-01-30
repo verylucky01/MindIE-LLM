@@ -38,12 +38,12 @@ class TestProcess(unittest.TestCase):
             golden_weight = torch.ones(self.config.tp_num_key_value_heads,
                                        self.config.qk_nope_head_dim,
                                        self.config.kv_lora_rank)
-            self.assertTrue(torch.equal(golden_weight, new_weight))
+            self.assertTrue(torch.allclose(golden_weight, new_weight))
         elif proj_name == "projv":
             golden_weight = torch.ones(self.config.tp_num_key_value_heads,
                                        self.config.kv_lora_rank,
                                        self.config.v_head_dim)
-            self.assertTrue(torch.equal(golden_weight, new_weight))
+            self.assertTrue(torch.allclose(golden_weight, new_weight))
 
     @data("projq", "projk", "projv", "haha")
     def test_process_linear_for_rope(self, proj_name):

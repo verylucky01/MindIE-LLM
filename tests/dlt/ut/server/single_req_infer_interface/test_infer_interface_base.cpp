@@ -146,29 +146,8 @@ TEST_F(InferInterfaceBaseTest, testProcess)
     EXPECT_NO_THROW(inferInterface->Process());
 }
 
-TEST_F(InferInterfaceBaseTest, testSimulateProcess)
-{
-    uint32_t waitTime = 0;
-    EXPECT_NO_THROW(inferInterface->SimulateProcess(waitTime));
-    // case : generate infer request failed.
-    MOCKER_CPP(&SingleReqInferInterfaceBase::SimulateGenerateInferRequest, bool (*)(RequestSPtr))
-        .stubs()
-        .will(returnValue(false));
-    EXPECT_NO_THROW(inferInterface->SimulateProcess(waitTime));
-}
-
-TEST_F(InferInterfaceBaseTest, testSimulateGenerateInferRequest)
-{
-    // valid values
-    RequestSPtr request = std::make_shared<Request>(RequestIdNew("mockRequest"));
-    EXPECT_TRUE(inferInterface->SimulateGenerateInferRequest(request));
-    // invalid values
-    //      should return false when infer param type is wrong
-    inferInterface->reqJsonBody_ = OrderedJson::parse(R"({
-        "ignore_eos": "abc"
-    })");
-    EXPECT_FALSE(inferInterface->SimulateGenerateInferRequest(request));
-}
+// testSimulateProcess removed: method moved to HealthChecker::RunHttpTimedHealthCheck
+// testSimulateGenerateInferRequest removed: method moved to SimulateRequestExecutor
 
 TEST_F(InferInterfaceBaseTest, testStop)
 {

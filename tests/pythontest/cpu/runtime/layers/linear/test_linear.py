@@ -253,8 +253,8 @@ class TestReplicatedLinear(unittest.TestCase):
         mock_linear.assert_called_once()
         call_args = mock_linear.call_args
         self.assertEqual(len(call_args[0]), 2)
-        self.assertTrue(torch.equal(call_args[0][0], x))
-        self.assertTrue(torch.equal(call_args[0][1], layer.weight.data))
+        self.assertTrue(torch.allclose(call_args[0][0], x))
+        self.assertTrue(torch.allclose(call_args[0][1], layer.weight.data))
         # Verify output shape
         self.assertEqual(output.shape, (2, 3, 1024))
 

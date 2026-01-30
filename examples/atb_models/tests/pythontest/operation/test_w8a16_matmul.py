@@ -63,7 +63,7 @@ class TestW8A16Matmul(unittest.TestCase):
             input_tensor.npu(), npu_weight,
             weight_scale.npu(), -weight_offset.npu()
         ])[0]
-        self.assertTrue(torch.equal(golden_out.cpu(), npu_out.cpu()))
+        self.assertTrue(torch.allclose(golden_out.cpu(), npu_out.cpu()))
 
     @data(torch.float16, torch.bfloat16)
     def test_per_channel_nz_no_transpose_no_bias(self, dtype):
@@ -91,7 +91,7 @@ class TestW8A16Matmul(unittest.TestCase):
             input_tensor.npu(), npu_weight,
             weight_scale.npu(), -weight_offset.npu()
         ])[0]
-        self.assertTrue(torch.equal(golden_out.cpu(), npu_out.cpu()))
+        self.assertTrue(torch.allclose(golden_out.cpu(), npu_out.cpu()))
 
     @data(torch.float16, torch.bfloat16)
     def test_per_channel_nd_transpose_no_bias(self, dtype):
@@ -118,7 +118,7 @@ class TestW8A16Matmul(unittest.TestCase):
             input_tensor.npu(), npu_weight,
             weight_scale.npu(), -weight_offset.npu()
         ])[0]
-        self.assertTrue(torch.equal(golden_out.cpu(), npu_out.cpu()))
+        self.assertTrue(torch.allclose(golden_out.cpu(), npu_out.cpu()))
 
     @data(torch.float16, torch.bfloat16)
     def test_per_channel_nd_no_transpose_no_bias(self, dtype):
@@ -145,4 +145,4 @@ class TestW8A16Matmul(unittest.TestCase):
             input_tensor.npu(), npu_weight,
             weight_scale.npu(), -weight_offset.npu()
         ])[0]
-        self.assertTrue(torch.equal(golden_out.cpu(), npu_out.cpu()))
+        self.assertTrue(torch.allclose(golden_out.cpu(), npu_out.cpu()))

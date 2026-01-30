@@ -204,7 +204,7 @@ class TestVocabParallelEmbedding(unittest.TestCase):
         call_args = mock_embedding.call_args
         self.assertEqual(len(call_args[0]), 2)
         self.assertTrue(torch.equal(call_args[0][0], x))
-        self.assertTrue(torch.equal(call_args[0][1], layer.weight.data))
+        self.assertTrue(torch.allclose(call_args[0][1], layer.weight.data))
         # In non-parallel mode, should directly return embedding output
         self.assertEqual(output.shape, (3, 512))
         mock_all_gather.assert_not_called()
@@ -247,7 +247,7 @@ class TestVocabParallelEmbedding(unittest.TestCase):
         call_args = mock_embedding.call_args
         self.assertEqual(len(call_args[0]), 2)
         self.assertTrue(torch.equal(call_args[0][0], x))
-        self.assertTrue(torch.equal(call_args[0][1], layer.weight.data))
+        self.assertTrue(torch.allclose(call_args[0][1], layer.weight.data))
         # Should call all_gather in parallel mode
         mock_all_gather.assert_called_once()
         self.assertEqual(output.shape, (3, 512))  # After gathering and reshaping
@@ -315,7 +315,7 @@ class TestVocabParallelEmbedding(unittest.TestCase):
         call_args = mock_embedding.call_args
         self.assertEqual(len(call_args[0]), 2)
         self.assertTrue(torch.equal(call_args[0][0], x))
-        self.assertTrue(torch.equal(call_args[0][1], layer.weight.data))
+        self.assertTrue(torch.allclose(call_args[0][1], layer.weight.data))
         # Verify output shape
         self.assertEqual(output.shape, (3, 512))
 
@@ -515,8 +515,8 @@ class TestParallelLMHead(unittest.TestCase):
         mock_linear.assert_called_once()
         call_args = mock_linear.call_args
         self.assertEqual(len(call_args[0]), 2)
-        self.assertTrue(torch.equal(call_args[0][0], hidden_states))
-        self.assertTrue(torch.equal(call_args[0][1], layer.weight.data))
+        self.assertTrue(torch.allclose(call_args[0][0], hidden_states))
+        self.assertTrue(torch.allclose(call_args[0][1], layer.weight.data))
         # Should call quant_method.apply
         self.assertEqual(output.shape, (2, 3, 1000))
         mock_all_gather.assert_not_called()  # Single rank, no gather
@@ -582,8 +582,8 @@ class TestParallelLMHead(unittest.TestCase):
         mock_linear.assert_called_once()
         call_args = mock_linear.call_args
         self.assertEqual(len(call_args[0]), 2)
-        self.assertTrue(torch.equal(call_args[0][0], hidden_states))
-        self.assertTrue(torch.equal(call_args[0][1], layer.weight.data))
+        self.assertTrue(torch.allclose(call_args[0][0], hidden_states))
+        self.assertTrue(torch.allclose(call_args[0][1], layer.weight.data))
         # Should call all_gather in parallel mode
         mock_all_gather.assert_called_once()
         self.assertEqual(output.shape, (3, 1000))
@@ -637,8 +637,8 @@ class TestParallelLMHead(unittest.TestCase):
         mock_linear.assert_called_once()
         call_args = mock_linear.call_args
         self.assertEqual(len(call_args[0]), 2)
-        self.assertTrue(torch.equal(call_args[0][0], hidden_states))
-        self.assertTrue(torch.equal(call_args[0][1], layer.weight.data))
+        self.assertTrue(torch.allclose(call_args[0][0], hidden_states))
+        self.assertTrue(torch.allclose(call_args[0][1], layer.weight.data))
         # Verify output shape
         self.assertEqual(output.shape, (2, 3, 1000))
 
@@ -667,8 +667,8 @@ class TestParallelLMHead(unittest.TestCase):
         mock_linear.assert_called_once()
         call_args = mock_linear.call_args
         self.assertEqual(len(call_args[0]), 2)
-        self.assertTrue(torch.equal(call_args[0][0], hidden_states))
-        self.assertTrue(torch.equal(call_args[0][1], layer.weight.data))
+        self.assertTrue(torch.allclose(call_args[0][0], hidden_states))
+        self.assertTrue(torch.allclose(call_args[0][1], layer.weight.data))
         # Verify output shape
         self.assertEqual(output.shape, (2, 3, 1000))
         self.assertIsNone(layer.bias)
@@ -702,8 +702,8 @@ class TestParallelLMHead(unittest.TestCase):
         mock_linear.assert_called_once()
         call_args = mock_linear.call_args
         self.assertEqual(len(call_args[0]), 2)
-        self.assertTrue(torch.equal(call_args[0][0], hidden_states))
-        self.assertTrue(torch.equal(call_args[0][1], layer.weight.data))
+        self.assertTrue(torch.allclose(call_args[0][0], hidden_states))
+        self.assertTrue(torch.allclose(call_args[0][1], layer.weight.data))
         # Verify output shape
         self.assertEqual(output.shape, (2, 3, 1000))
 

@@ -21,6 +21,7 @@ from mindie_llm.runtime.layers.linear.linear import RowParallelLinear, QKVParall
 from mindie_llm.runtime.layers.embedding.embedding import VocabParallelEmbedding, ParallelLMHead
 
 from mindie_llm.runtime.layers.attention.attention_layer import Attention
+
 from mindie_llm.runtime.utils.distributed import get_parallel_info_manager
 from mindie_llm.runtime.utils.distributed.parallel_info_manager import ParallelType
 from mindie_llm.runtime.layers.quantization.quantization_config_base import QuantizationConfigBase
@@ -111,8 +112,11 @@ class Qwen2Attention(nn.Module):
             head_size=self.head_dim,
             num_heads=self.num_heads_per_rank,
             scale=self.scale,
+            num_kv_heads=self.num_key_value_heads_per_rank,
+            num_kv_heads_replicas=attn_tp.group_size // config.num_key_value_heads,
+            weight_dtype=config.torch_dtype,
+            quant_config=quant_config,
             prefix=self.prefix,
-            num_kv_heads=self.num_key_value_heads_per_rank
         )
 
     def forward(
@@ -232,6 +236,8 @@ class Qwen2Mlp(nn.Module):
 
 
 class Qwen2Layer(nn.Module):
+    attn_cls = Qwen2Attention
+    mlp_cls = Qwen2Mlp
     """
     Qwen2 transformer layer.
 
@@ -283,9 +289,8 @@ class Qwen2Layer(nn.Module):
         self.quant_config = quant_config
 
         self.self_attn_prefix = f"{self.prefix}.self_attn"
-        self.self_attn = Qwen2Attention(config, self.self_attn_prefix, quant_config=quant_config)
-        
-        self.mlp = Qwen2Mlp(config, f"{self.prefix}.mlp", quant_config=quant_config)
+        self.self_attn = self.attn_cls(config, self.self_attn_prefix, quant_config=quant_config)
+        self.mlp = self.mlp_cls(config, f"{self.prefix}.mlp", quant_config=quant_config)
 
         self.input_layernorm = RMSNorm(
             config.hidden_size, config.rms_norm_eps,
@@ -330,6 +335,7 @@ class Qwen2Layer(nn.Module):
 
 
 class Qwen2Model(nn.Module):
+    layer_cls = Qwen2Layer
     """
     Qwen2 base model.
 
@@ -383,7 +389,7 @@ class Qwen2Model(nn.Module):
 
         self.layers = nn.ModuleList(
             [
-                Qwen2Layer(config, self.prefix, layer_idx, quant_config=self.quant_config)
+                self.layer_cls(config, self.prefix, layer_idx, quant_config=self.quant_config)
                 for layer_idx in range(config.num_hidden_layers)
             ]
         )
@@ -420,6 +426,7 @@ class Qwen2Model(nn.Module):
 
 
 class Qwen2ForCausalLM(BaseModelForCausalLM):
+    model_cls = Qwen2Model
     """
     Qwen2 model for causal language modeling.
 
@@ -455,7 +462,7 @@ class Qwen2ForCausalLM(BaseModelForCausalLM):
         self.hf_config = mindie_llm_config.hf_config
         self.quant_config = mindie_llm_config.quant_config
         self.parallel_info_manager = get_parallel_info_manager()
-        self.model = Qwen2Model(
+        self.model = self.model_cls(
             config=mindie_llm_config.hf_config,
             prefix="model",
             quant_config=self.quant_config
@@ -507,5 +514,5 @@ class Qwen2ForCausalLM(BaseModelForCausalLM):
             torch.Tensor: Logits for token prediction
         """
         forward_context = get_forward_context()
-        lm_head_indices = forward_context.lmhead_metadata.lm_head_indices
+        lm_head_indices = forward_context.lm_head_indices
         return self.lm_head.forward(hidden_states, lm_head_indices)

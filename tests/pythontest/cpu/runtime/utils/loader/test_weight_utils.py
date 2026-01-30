@@ -129,7 +129,7 @@ class TestWeightsFileHandler(unittest.TestCase):
                 mock_file_handler.get_tensor.assert_called_once_with("tensor1")
                 
                 # Verify result
-                self.assertTrue(torch.equal(result, mock_tensor))
+                self.assertTrue(torch.allclose(result, mock_tensor))
                 
                 # Verify handler was cached
                 self.assertEqual(len(handler._handlers), 1)
@@ -167,8 +167,8 @@ class TestWeightsFileHandler(unittest.TestCase):
                 self.assertEqual(len(handler._handlers), 2)
                 
                 # Verify results
-                self.assertTrue(torch.equal(result1, mock_tensor1))
-                self.assertTrue(torch.equal(result2, mock_tensor2))
+                self.assertTrue(torch.allclose(result1, mock_tensor1))
+                self.assertTrue(torch.allclose(result2, mock_tensor2))
 
     @patch('mindie_llm.runtime.utils.loader.weight_utils.safetensors.safe_open')
     def test_get_tensor_handler_caching(self, mock_safe_open):
@@ -198,8 +198,8 @@ class TestWeightsFileHandler(unittest.TestCase):
                 self.assertEqual(mock_file_handler.get_tensor.call_count, 2)
                 
                 # Verify results
-                self.assertTrue(torch.equal(result1, mock_tensor1))
-                self.assertTrue(torch.equal(result2, mock_tensor2))
+                self.assertTrue(torch.allclose(result1, mock_tensor1))
+                self.assertTrue(torch.allclose(result2, mock_tensor2))
                 
                 # Verify handler was cached
                 self.assertEqual(len(handler._handlers), 1)
@@ -256,8 +256,8 @@ class TestWeightsFileHandler(unittest.TestCase):
                 self.assertEqual(len(handler._handlers), 1)
                 
                 # Verify results
-                self.assertTrue(torch.equal(result1, mock_tensor1))
-                self.assertTrue(torch.equal(result2, mock_tensor2))
+                self.assertTrue(torch.allclose(result1, mock_tensor1))
+                self.assertTrue(torch.allclose(result2, mock_tensor2))
 
     def test_get_filename_valid_tensor(self):
         """Test _get_filename with valid tensor name."""

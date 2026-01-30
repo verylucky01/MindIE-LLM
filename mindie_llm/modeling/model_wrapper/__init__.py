@@ -11,12 +11,17 @@
 # See the Mulan PSL v2 for more details.
 
 from ..backend_type import BackendType
+from ...utils.env import ENV
 
 
 def get_model_wrapper(model_config, backend_type):
     if backend_type == BackendType.TORCH:
-        from .aclgraph.aclgraph_model_wrapper import AclGraphModelWrapper
-        wrapper_cls = AclGraphModelWrapper
+        if ENV.model_runner_exp:
+            from .aclgraph.aclgraph_model_wrapper_exp import AclGraphModelWrapperExp
+            wrapper_cls = AclGraphModelWrapperExp
+        else:
+            from .aclgraph.aclgraph_model_wrapper import AclGraphModelWrapper
+            wrapper_cls = AclGraphModelWrapper
     elif backend_type == BackendType.ATB:
         from .atb.atb_model_wrapper import ATBModelWrapper
         wrapper_cls = ATBModelWrapper

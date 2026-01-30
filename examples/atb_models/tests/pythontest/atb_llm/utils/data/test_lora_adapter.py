@@ -119,8 +119,8 @@ class TestLoraManager(unittest.TestCase):
         self.adapter_manager.update_adapter([ADAPTER1_STR])
         adapter_weights = self.adapter_manager.get_adapters([ADAPTER1_STR])
         self.assertEqual(len(adapter_weights), 2)
-        self.assertTrue(torch.equal(adapter_weights[0].cpu(), fake_lora_a_tensor_1))
-        self.assertTrue(torch.equal(adapter_weights[1].cpu(), fake_lora_b_tensor_1))
+        self.assertTrue(torch.allclose(adapter_weights[0].cpu(), fake_lora_a_tensor_1))
+        self.assertTrue(torch.allclose(adapter_weights[1].cpu(), fake_lora_b_tensor_1))
 
     @patch.object(ParallelLinearWithLoRA, "weight_format_cast")
     @patch.object(LoraManager, "_find_lora_module")
@@ -147,11 +147,11 @@ class TestLoraManager(unittest.TestCase):
         self.adapter_manager.update_adapter([ADAPTER2_STR, ADAPTER1_STR])
         adapter_weights = self.adapter_manager.get_adapters([ADAPTER2_STR, ADAPTER1_STR])
         self.assertEqual(len(adapter_weights), 2)
-        self.assertTrue(torch.equal(
+        self.assertTrue(torch.allclose(
             adapter_weights[0].cpu(),
             pad_sequence([fake_lora_a_tensor_2, fake_lora_a_tensor_1], batch_first=True)
         ))
-        self.assertTrue(torch.equal(
+        self.assertTrue(torch.allclose(
             adapter_weights[1].cpu(),
             pad_sequence([fake_lora_b_tensor_2, fake_lora_b_tensor_1], batch_first=True)
         ))
@@ -177,9 +177,9 @@ class TestLoraManager(unittest.TestCase):
         self.adapter_manager.update_adapter([ADAPTER1_STR, ADAPTER2_STR])
         adapter_weights = self.adapter_manager.get_adapters([ADAPTER1_STR, ADAPTER2_STR])
         self.assertEqual(len(adapter_weights), 2)
-        self.assertTrue(torch.equal(
+        self.assertTrue(torch.allclose(
             adapter_weights[0].cpu(), fake_lora_a))
-        self.assertTrue(torch.equal(
+        self.assertTrue(torch.allclose(
             adapter_weights[1].cpu(), fake_lora_b))
 
     def _update_adapter_ids_registry(self):

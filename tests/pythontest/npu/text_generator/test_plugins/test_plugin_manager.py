@@ -342,5 +342,53 @@ class TestPlugin(unittest.TestCase):
                 plugin_manager.forward_thread.join(timeout=5)
                 self.assertTrue(mock_exit.called)
                 mock_exit.assert_called_with(1)
+
+    def test_model_runner_exp_to_host_path(self):
+        def side_effect_initialize_distributed(rank, npu_id, world_size):
+            return FakeGroup(rank, world_size), torch.device("cpu")
+
+        with patch.object(GeneratorTorch, 'forward') as _, \
+             patch('atb_llm.utils.dist.initialize_distributed') as mock_initialize_distributed, \
+             patch('atb_llm.runner.model_runner.ModelRunner', return_value=FakeModelRunner()), \
+             patch('mindie_llm.text_generator.utils.kvcache_settings.NPUSocInfo.support_nz', return_value=True), \
+             patch('mindie_llm.text_generator.utils.kvcache_settings.KVCacheSettings') as mock_kvcache_settings_class, \
+             patch('torch.npu.synchronize', return_value=None), \
+             patch('mindie_llm.utils.env.ENV.async_inference', return_value=True), \
+             patch('mindie_llm.utils.env.ENV.model_runner_exp', True), \
+             patch('torch.npu.Event', return_value=MagicMock(synchronize=lambda: None)), \
+             patch('mindie_llm.text_generator.adapter.generator_torch.GeneratorTorch._get_obfuscation_func',
+                   return_value=None):
+
+            mock_initialize_distributed.side_effect = side_effect_initialize_distributed
+            mock_kvcache_settings_class.return_value = MagicMock(dtype=None)
+
+            generator = Generator(self.model_config)
+            plugin_manager = generator.plugin
+
+            # 构造最小请求
+            sample_dtype = generator.infer_context._batch_context.default_sampling_params.dtype
+            greedy_param = np.array([(1.0, 0., 0., 0.7, 3., 0.92, False, 0)], dtype=sample_dtype)
+
+            input1 = [1, 2, 3]
+            block_tables = np.array([[0, 1, -1, -1]])
+
+            req = Request.request_from_token(
+                input1,
+                sampling_params=greedy_param,
+                generation_params=GenerationParams(max_new_tokens=1)
+            )
+
+            meta_data = InputMetadata.from_requests([req], block_tables, True)
+            meta_data.batch_block_tables = block_tables
+
+            # 触发 async + model_runner_exp 路径
+            generation_output = plugin_manager.generate_token_async(meta_data)
+
+            # 验证 sampling_output 已经被 _to_host 转成 numpy
+            self.assertIsInstance(
+                generation_output.token_ids,
+                np.ndarray
+            )
+
 if __name__ == "__main__":
     unittest.main()

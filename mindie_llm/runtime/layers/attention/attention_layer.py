@@ -13,7 +13,7 @@ from abc import ABC, abstractmethod
 import torch
 
 from mindie_llm.runtime.layers.custom_layer import CustomLayer
-
+from mindie_llm.runtime.layers.quantization.quantization_config_base import QuantizationConfigBase
 from .backend import get_attn_backend
 from .backend.abstract import AttentionBackend
 from . import update_global_attn_dict
@@ -26,6 +26,25 @@ class AttentionLayerBase(CustomLayer, ABC):
         pass
 
 
+class AttentionQuant(torch.nn.Module):
+    def __init__(
+        self,
+        head_size, num_kv_heads, num_kv_heads_replicas, weight_dtype, quant_config, prefix):
+        super().__init__()
+        self.prefix = None # prefix differs from different quant methods, e.g., k_proj for c8, fa_q for fa3 
+        self.quant_method = quant_config.get_quant_method(self, prefix=prefix) if quant_config else None
+        self.enable_kv_quant = False
+        if self.quant_method:
+            self.quant_method.create_weights(
+                self,
+                head_size=head_size,
+                num_kv_heads=num_kv_heads,
+                num_kv_heads_replicas=num_kv_heads_replicas,
+                weight_dtype=weight_dtype,
+                prefix=prefix
+            )
+
+
 class Attention(AttentionLayerBase):
 
     def __init__(
@@ -34,6 +53,9 @@ class Attention(AttentionLayerBase):
         head_size: int,
         scale: float,
         num_kv_heads: int | None = None,
+        num_kv_heads_replicas: int | None = None,
+        weight_dtype: torch.dtype | None = None,
+        quant_config: QuantizationConfigBase | None = None,
         prefix: str = "",
         attn_backend: type[AttentionBackend] | None = None,
         **extra_impl_args,
@@ -50,6 +72,8 @@ class Attention(AttentionLayerBase):
             )
         else:
             self.attn_backend = attn_backend
+        self.attn_quant = AttentionQuant(head_size, num_kv_heads,
+            num_kv_heads_replicas, weight_dtype, quant_config, prefix)
 
         impl_cls = self.attn_backend.get_impl_cls()
         self.impl = impl_cls(
@@ -57,6 +81,7 @@ class Attention(AttentionLayerBase):
             head_size,
             scale,
             num_kv_heads,
+            self.attn_quant.quant_method,
             **extra_impl_args,
         )
 

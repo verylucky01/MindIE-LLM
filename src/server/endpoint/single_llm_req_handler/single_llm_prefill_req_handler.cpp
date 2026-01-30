@@ -324,8 +324,6 @@ void SingleLLMPrefillReqHandler::SetBackManagerCallBack(RequestSPtr request)
     };
 }
 
-void SingleLLMPrefillReqHandler::SetSimulateBackManagerCallBack([[maybe_unused]] RequestSPtr request) { return; }
-
 // 发送响应信息
 void SingleLLMPrefillReqHandler::SendResponseInfo(int code, const std::string &responseStr,
                                                   [[maybe_unused]] bool needMetricsCollect)

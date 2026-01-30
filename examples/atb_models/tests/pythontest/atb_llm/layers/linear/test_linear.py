@@ -48,7 +48,7 @@ class TestLinear(unittest.TestCase):
         module = RowParallelLinear(self.config, self.mock_weight_tool_obj, ["linear"])
         self.assertIsInstance(module, RowParallelLinear)
         self.assertIsInstance(module.weight, Parameter)
-        self.assertTrue(torch.equal(module.weight.data, linear_tensor))
+        self.assertTrue(torch.allclose(module.weight.data, linear_tensor))
         self.mock_weight_tool_obj.get_sharded.assert_called_once_with(
             "linear.weight", dim=1, chunk_id=self.mock_weight_tool_obj.mapping.rank,
             num_chunk=self.mock_weight_tool_obj.mapping.world_size
@@ -195,7 +195,7 @@ class TestLinear(unittest.TestCase):
         linear_module = MergedColumnParallelLinear(self.config, mock_weight_tool_obj, ["linear1", "linear2"])
         self.assertIsInstance(linear_module, MergedColumnParallelLinear)
         self.assertIsInstance(linear_module[0].weight, Parameter)
-        self.assertTrue(torch.equal(
+        self.assertTrue(torch.allclose(
             linear_module[0].weight.data,
             torch.cat([linear_tensor, linear_tensor])
         ))

@@ -11,7 +11,7 @@
 import gc
 import math
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
 import torch_npu
@@ -24,6 +24,9 @@ from ...utils.decorators.time_decorator import timer
 from ...utils.log.error_code import ErrorCode
 from ...utils.log.logging import logger
 from ...utils.env import ENV
+from ..utils.model_output import ModelOutput
+from ..utils.sampling_output import SamplingOutput
+from ..utils.sampling_metadata import SamplingMetadata, SamplingData, SamplingParam
 
 
 class ExpertParallelDegree(int, Enum):
@@ -89,6 +92,8 @@ class GeneratorAclGraph(GeneratorBackend):
         super().__init__(model_config)
         check_model_config(model_config)
 
+        self.new_stream = torch_npu.npu.Stream(self.device)
+
         self.tokenizer = self.model_wrapper.tokenizer
         self.device = self.model_wrapper.device
         self.rank = self.model_wrapper.rank
@@ -108,44 +113,79 @@ class GeneratorAclGraph(GeneratorBackend):
         if self.mapping.has_attn_cp():
             self.cp_rank = self.mapping.attn_cp.rank
             self.cp_size = self.mapping.attn_cp.group_size
+        
+        if ENV.model_runner_exp and ENV.async_inference:
+            self.sampler = self.model_wrapper.model_runner.sampler
+
+    @staticmethod
+    def synchronize():
+        torch_npu.npu.current_stream().synchronize()
+
+    def get_new_stream(self):
+        return torch.npu.stream(self.new_stream)
 
     def set_device(self):
         torch_npu.npu.set_device(self.npu_device_id)
 
+    def to_tensor_async(self, array):
+        host_tensor = torch.from_numpy(array).pin_memory()
+        device_tensor = host_tensor.to(self.device, non_blocking=True)
+        return device_tensor
+
     def to_tensor(self, data):
         return torch.tensor(data, device=self.device)
 
-    def forward_tensor(
-        self,
-        input_ids: torch.Tensor,
-        position_ids: torch.Tensor,
-        is_prefill: bool,
-        kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
-        block_tables: torch.Tensor,
-        slots: torch.Tensor,
-        input_lengths: torch.Tensor,
-        max_seq_len: int,
-        lm_head_indices: Optional[torch.Tensor] = None,
-        **kwargs
-    ):
-        """Call the `forward_tensor` of `model_wrapper`."""
-        logits = self.model_wrapper.forward_tensor(
-            input_ids=input_ids,
-            position_ids=position_ids,
-            is_prefill=is_prefill,
-            kv_cache=kv_cache,
-            block_tables=block_tables,
-            slots=slots,
-            input_lengths=input_lengths,
-            max_seq_len=max_seq_len,
-            lm_head_indices=lm_head_indices,
-            **kwargs,
-        )
-        return logits
+    def prepare_model_inputs(self, model_input: ModelInput, **kwargs):
+        if self.mapping.has_dp() and model_input.dp_rank_ids is None:
+            error_msg = "The `dp_rank_ids` is not given when data parallel size > 1."
+            logger.error(error_msg, ErrorCode.TEXT_GENERATOR_INTERNAL_ERROR)
+            raise AssertionError(error_msg)
+        self._prepare_model_inputs(model_input, kwargs)
+        model_input = self.model_wrapper.prepare_model_inputs(model_input)
+        return model_input, kwargs
+
+    def forward_from_model_inputs(self, model_input: ModelInput, **kwargs):
+        result = self.model_wrapper.forward_from_model_inputs(self.cache_pool.npu_cache,
+            model_input.input_ids, model_input.position_ids, model_input.forward_context)
+
+        if isinstance(result, tuple):
+            if len(result) == 2:
+                logits, hidden_states = result
+                model_output = ModelOutput(logits=logits, hidden_states=hidden_states)
+            else:
+                logits, hidden_states, draft_tokens = result
+                model_output = ModelOutput(logits=logits, hidden_states=hidden_states, draft_tokens=draft_tokens)
+        else:
+            model_output = ModelOutput(logits=result)
+        model_output.original_result = result
+
+        return model_output
+
+    @timer.track_time('sample')
+    def sample(
+            self,
+            logits: Any,
+            sampling_metadata: Optional[Union[SamplingMetadata, SamplingData]] = None,
+            sampling_param: Optional[SamplingParam] = None,
+            **kwargs
+    ) -> Union[SamplingOutput, Tuple[np.ndarray, Optional[np.ndarray]]]:
+        sampling_data = None
+        if isinstance(sampling_metadata, SamplingData):
+            sampling_data = sampling_metadata
+        elif 'sampling_data' in kwargs:
+            sampling_data = kwargs.get('sampling_data')
+        if sampling_data is not None:  # Enter deprecated branch
+            sampling_metadata = SamplingMetadata.from_deprecated(sampling_data, sampling_param)
+            output = self.sampler(logits, sampling_metadata)
+            output = (output.token_ids, output.logprobs)
+        else:
+            output = self.sampler(logits, sampling_metadata)
+        return output
 
     @timer.track_time('forward')
     def forward(self, model_inputs: ModelInput, **kwargs):
-        logits = self._forward(model_inputs, **kwargs)
+        self._prepare_model_inputs(model_inputs, kwargs)  # NOTE：to remove after mixPD server support dp in dp out.
+        logits = self.model_wrapper.forward(model_inputs, self.cache_pool.npu_cache, **kwargs)
         return logits
 
     def update_cache_policy(self, kvcache_settings, sepd_worker=None):
@@ -244,16 +284,8 @@ class GeneratorAclGraph(GeneratorBackend):
             batch_size = sampling_metadata.repetition_penalty.shape[0]
             _ = self.sample(warmup_logits[:batch_size, :], sampling_metadata)
 
-    def _forward(self, model_inputs: ModelInput, **kwargs):
-        """
-        Preprocess the inputs involving multi-lora and data parallelism, and pass the processed inputs to the model
-        wrapper for forward inference.
-        """
-        self._prepare_model_inputs(model_inputs, kwargs)  # (lzp) to remove after mixPD server support dp in dp out.
-        logits = self.model_wrapper.forward(model_inputs, self.cache_pool.npu_cache, **kwargs)
-        return logits
-    
     def _prepare_model_inputs(self, model_inputs: ModelInput, model_kwargs: Dict[str, Any]):
+        # NOTE: Changes to `model_kwargs` will not take effect if `aclgraph_model_wrapper_exp.py` is in use.
         if self.mapping.has_dp() and not self.distributed_enable:
             tmp_dict = {'q_lens': model_kwargs.get('q_lens', None),
                             'sub_model': True}

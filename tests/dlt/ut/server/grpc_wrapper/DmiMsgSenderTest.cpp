@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2026. All rights reserved.
  * MindIE is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -160,50 +160,6 @@ TEST_F(DmiMsgSenderTest, KvReleaseSender_DecodeRequestChannelError)
                 .stubs().will(returnValue(grpc::Status::CANCELLED));
     RequestId request;
     EXPECT_FALSE(sender.SendKvReleaseMsg(request));
-}
-
-TEST_F(DmiMsgSenderTest, ForceReleaseLinkSender_CreateStubSuccess)
-{
-    auto channel = grpc::CreateChannel("127.0.0.1:50051", grpc::InsecureChannelCredentials());
-    ForceReleaseLinkSender sender("127.0.0.1:50051", "127.0.0.1:50052", false, nullptr);
-    sender.CreateStub(channel);
-    EXPECT_EQ(sender.receiverAddr_, "127.0.0.1:50051");
-    EXPECT_EQ(sender.localAddr_, "127.0.0.1:50052");
-}
-
-TEST_F(DmiMsgSenderTest, ForceReleaseLinkSender_Success)
-{
-    auto channel = grpc::CreateChannel("127.0.0.1:50051", grpc::InsecureChannelCredentials());
-    ForceReleaseLinkSender sender("127.0.0.1:50051", "127.0.0.1:50052", false, nullptr);
-    sender.CreateStub(channel);
-    MOCKER_CPP(&ForcePReleaseService::Stub::ForceReleaseLinkChannel, grpc::Status (*)(
-                grpc::ClientContext*, const RequestId&, google::protobuf::Empty*))
-                .stubs().will(returnValue(grpc::Status::OK));
-    DeviceList request;
-    EXPECT_TRUE(sender.SendForceReleaseMsg(request));
-}
-
-TEST_F(DmiMsgSenderTest, ForceReleaseLinkSender_StubNull)
-{
-    ForceReleaseLinkSender sender("127.0.0.1:50051", "127.0.0.1:50052", false, nullptr);
-    MOCKER_CPP(&ForcePReleaseService::Stub::ForceReleaseLinkChannel, grpc::Status (*)(
-                grpc::ClientContext*, const RequestId&, google::protobuf::Empty*))
-                .stubs().will(returnValue(grpc::Status::OK));
-    DeviceList request;
-    std::string reqId = "req-";
-    EXPECT_FALSE(sender.SendForceReleaseMsg(request));
-}
-
-TEST_F(DmiMsgSenderTest, ForceReleaseLinkSender_DecodeRequestChannelError)
-{
-    auto channel = grpc::CreateChannel("127.0.0.1:50051", grpc::InsecureChannelCredentials());
-    ForceReleaseLinkSender sender("127.0.0.1:50051", "127.0.0.1:50052", false, nullptr);
-    sender.CreateStub(channel);
-    MOCKER_CPP(&ForcePReleaseService::Stub::ForceReleaseLinkChannel, grpc::Status (*)(
-                grpc::ClientContext*, const RequestId&, google::protobuf::Empty*))
-                .stubs().will(returnValue(grpc::Status::CANCELLED));
-    DeviceList request;
-    EXPECT_FALSE(sender.SendForceReleaseMsg(request));
 }
 
 } // namespace mindie_llm

@@ -31,14 +31,12 @@ public:
     ~SingleLLMPnDReqHandler() override;
 
     void Process(RequestSPtr request, const std::string &inputId, const uint64_t &timestamp = 0) override;
-    void SimulateProcess(RequestSPtr request, const std::string &inputId, uint32_t waitTime);
     bool GetContextJsonBody(nlohmann::ordered_json &body) override;
     bool GetContextRequestId(std::string& requestId) override;
     void UpdateInferRequest(const std::vector<int64_t> &reqTokens,
                             const int64_t &oriReqTokenLen, RequestSPtr request) override;
     void UpdateInferParam(RequestSPtr request, const InferParamSPtr &inferParam) override;
     void SetBackManagerCallBack(RequestSPtr request) override;
-    void SetSimulateBackManagerCallBack(RequestSPtr request) override;
     void SendResponseInfo(int code, const std::string& responseStr, bool needMetricsCollect = true) override;
     void SendResponse(int code, const std::string& responseStr) override;
     void SendResponseStream(bool isEnd, const std::string& responseStr) override;
@@ -60,8 +58,6 @@ private:
 
     // 处理流式请求中，一次来自引擎层的响应，返回值表示是否结束
     bool ProcessOneStreamResponse(const ResponseSPtr &response, RespBodyQueue &text);
-
-    void ProcessSimulatorRequest(const std::string &inputId, uint32_t waitTime);
 
     void ProcessOneResponsePrometheusMetrics(const ResponseSPtr &response);
 

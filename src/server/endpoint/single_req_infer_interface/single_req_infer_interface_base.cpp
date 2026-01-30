@@ -444,28 +444,6 @@ void SingleReqInferInterfaceBase::Process() noexcept
     PROF(INFO, Domain("Request").Resource(requestId_.c_str()).Event("httpRes"));
 }
 
-void SingleReqInferInterfaceBase::SimulateProcess(uint32_t waitTime) noexcept
-{
-    std::string strMsg = "";
-    RequestSPtr request = std::make_shared<Request>(requestId_);
-    if (!SimulateGenerateInferRequest(request)) {
-        ULOG_ERROR(SUBMODLE_NAME_ENDPOINT,
-                   GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SINGLE_INFERENCE, INFERENCE_GENERATE_REQUEST_ERROR),
-                   "Failed to generate simulate infer request. The requestId is " << requestId_);
-        strMsg = "Failed to generate simulate infer request";
-        singleLLMReqHandlerBase_->SendResponseInfo(
-            httplib::StatusCode::InternalServerError_500,
-            HttpRestResource::WrapperJson(strMsg, g_exceptionInfo.at(httplib::StatusCode::InternalServerError_500)));
-        return;
-    }
-
-    // 设置stream mode
-    singleLLMReqHandlerBase_->SetStreamMode(inputParam->streamMode);
-
-    // forward
-    singleLLMReqHandlerBase_->SimulateProcess(request, requestId_, waitTime);
-}
-
 bool SingleReqInferInterfaceBase::GenerateInferRequest(std::string &msg) noexcept
 {
     std::vector<int64_t> inferTokens = reqTokens_; // 在D节点和重计算场景，本次推理的请求id需要加上respTokens
@@ -492,31 +470,6 @@ bool SingleReqInferInterfaceBase::GenerateInferRequest(std::string &msg) noexcep
         }
         request_->maxOutputLen = static_cast<uint64_t>(maxOutputLen);
     }
-    return true;
-}
-
-bool SingleReqInferInterfaceBase::SimulateGenerateInferRequest(RequestSPtr request) noexcept
-{
-    reqTokens_ = {1};
-    request->input_ids = reqTokens_;
-    request->input_token_num = static_cast<int64_t>(reqTokens_.size());
-    std::string msg = "";
-    if (!SetupInferParams(request, msg)) {
-        ULOG_ERROR(SUBMODLE_NAME_ENDPOINT,
-                   GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SINGLE_INFERENCE, INFERENCE_GENERATE_REQUEST_ERROR),
-                   "Generate infer request failed. The requestId is " << requestId_);
-        return false;
-    }
-
-    if (inputParam == nullptr) {
-        inputParam = std::make_shared<InferParam>();
-    }
-
-    singleLLMReqHandlerBase_->UpdateInferRequest(reqTokens_, oriReqTokenLen_, request);
-    singleLLMReqHandlerBase_->UpdateInferParam(request, inputParam);
-    singleLLMReqHandlerBase_->DumpInferParam(request);
-
-    request->maxOutputLen = 1;
     return true;
 }
 

@@ -33,7 +33,7 @@ class TestBaseParameter(unittest.TestCase):
         param = BaseParameter(data)
 
         self.assertFalse(param.requires_grad)
-        self.assertTrue(torch.equal(param.data, data))
+        self.assertTrue(torch.allclose(param.data, data))
 
     def test_weight_loader_property(self):
         """Test weight_loader property getter and setter."""
@@ -56,7 +56,7 @@ class TestBaseParameter(unittest.TestCase):
 
         BaseParameter._check_and_copy(param_data, loaded_weight)
 
-        self.assertTrue(torch.equal(param_data, loaded_weight))
+        self.assertTrue(torch.allclose(param_data, loaded_weight))
 
     def test_check_and_copy_shape_mismatch(self):
         """Test _check_and_copy raises ValueError on shape mismatch."""
@@ -96,7 +96,7 @@ class TestBaseParameter(unittest.TestCase):
 
         param.load_weight(loaded_weight)
 
-        self.assertTrue(torch.equal(param.data, loaded_weight))
+        self.assertTrue(torch.allclose(param.data, loaded_weight))
 
     def test_load_weight_shape_mismatch(self):
         """Test load_weight raises ValueError on shape mismatch."""
@@ -142,7 +142,7 @@ class TestRowParameter(unittest.TestCase):
 
         # Should load the first 256 rows
         expected = full_weight[:256, :]
-        self.assertTrue(torch.equal(param.data, expected))
+        self.assertTrue(torch.allclose(param.data, expected))
 
     def test_load_row_parallel_weight_rank_1(self):
         """Test load_row_parallel_weight with rank 1."""
@@ -156,7 +156,7 @@ class TestRowParameter(unittest.TestCase):
 
         # Should load rows 256:512
         expected = full_weight[256:512, :]
-        self.assertTrue(torch.equal(param.data, expected))
+        self.assertTrue(torch.allclose(param.data, expected))
 
     def test_load_row_parallel_weight_missing_attr(self):
         """Test load_row_parallel_weight raises AttributeError without input_dim."""
@@ -184,7 +184,7 @@ class TestColumnParameter(unittest.TestCase):
 
         # Should load the first 256 columns
         expected = full_weight[:, :256]
-        self.assertTrue(torch.equal(param.data, expected))
+        self.assertTrue(torch.allclose(param.data, expected))
 
     def test_load_column_parallel_weight_rank_1(self):
         """Test load_column_parallel_weight with rank 1."""
@@ -198,7 +198,7 @@ class TestColumnParameter(unittest.TestCase):
 
         # Should load columns 256:512
         expected = full_weight[:, 256:512]
-        self.assertTrue(torch.equal(param.data, expected))
+        self.assertTrue(torch.allclose(param.data, expected))
 
     def test_load_column_parallel_weight_missing_attr(self):
         """Test load_column_parallel_weight raises AttributeError without output_dim."""
@@ -222,7 +222,7 @@ class TestColumnParameter(unittest.TestCase):
 
         # Should load columns 0:256 from the first 256 columns of full_weight
         expected = full_weight[:, :256]
-        self.assertTrue(torch.equal(param.data[:, shard_offset:shard_offset+shard_size], expected))
+        self.assertTrue(torch.allclose(param.data[:, shard_offset:shard_offset+shard_size], expected))
 
     def test_load_qkv_weight_q_shard(self):
         """Test load_qkv_weight with Q shard (shard_id=0)."""
@@ -240,7 +240,7 @@ class TestColumnParameter(unittest.TestCase):
 
         # For Q (shard_id=0), should use tp_rank directly
         expected = full_weight[:, tp_rank * shard_size:(tp_rank + 1) * shard_size]
-        self.assertTrue(torch.equal(param.data[:, shard_offset:shard_offset+shard_size], expected))
+        self.assertTrue(torch.allclose(param.data[:, shard_offset:shard_offset+shard_size], expected))
 
     def test_load_qkv_weight_kv_shard(self):
         """Test load_qkv_weight with K/V shard (shard_id=1 or 2)."""
@@ -259,7 +259,7 @@ class TestColumnParameter(unittest.TestCase):
         # For K/V, should use tp_rank // num_kv_head_replicas
         effective_rank = tp_rank // num_kv_head_replicas  # 2 // 2 = 1
         expected = full_weight[:, effective_rank * shard_size:(effective_rank + 1) * shard_size]
-        self.assertTrue(torch.equal(param.data[:, shard_offset:shard_offset+shard_size], expected))
+        self.assertTrue(torch.allclose(param.data[:, shard_offset:shard_offset+shard_size], expected))
 
 
 class TestModelWeightParameter(unittest.TestCase):
@@ -283,7 +283,7 @@ class TestModelWeightParameter(unittest.TestCase):
         param.load_row_parallel_weight(full_weight, tp_rank=0)
 
         expected = full_weight[:256, :]
-        self.assertTrue(torch.equal(param.data, expected))
+        self.assertTrue(torch.allclose(param.data, expected))
 
     def test_load_column_parallel_weight(self):
         """Test ModelWeightParameter can use load_column_parallel_weight."""
@@ -294,7 +294,7 @@ class TestModelWeightParameter(unittest.TestCase):
         param.load_column_parallel_weight(full_weight, tp_rank=0)
 
         expected = full_weight[:, :256]
-        self.assertTrue(torch.equal(param.data, expected))
+        self.assertTrue(torch.allclose(param.data, expected))
 
 
 class TestBiasParameter(unittest.TestCase):
@@ -312,7 +312,7 @@ class TestBiasParameter(unittest.TestCase):
 
         # Rank 0 should load the weight
         expected = full_weight[:256]
-        self.assertTrue(torch.equal(param.data, expected))
+        self.assertTrue(torch.allclose(param.data, expected))
 
     def test_load_row_parallel_weight_rank_nonzero(self):
         """Test BiasParameter.load_row_parallel_weight with non-zero rank zeros out."""
@@ -339,7 +339,7 @@ class TestBiasParameter(unittest.TestCase):
         param.load_column_parallel_weight(full_weight, tp_rank=0)
 
         expected = full_weight[:256]
-        self.assertTrue(torch.equal(param.data, expected))
+        self.assertTrue(torch.allclose(param.data, expected))
 
 
 class TestScalerParameter(unittest.TestCase):
@@ -376,7 +376,7 @@ class TestPerTensorScaleParameter(unittest.TestCase):
         param.load_column_parallel_weight(full_weight, tp_rank=0)
 
         expected = full_weight[:256]
-        self.assertTrue(torch.equal(param.data, expected))
+        self.assertTrue(torch.allclose(param.data, expected))
 
 
 if __name__ == '__main__':

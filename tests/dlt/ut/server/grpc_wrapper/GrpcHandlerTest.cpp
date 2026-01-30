@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2026. All rights reserved.
  * MindIE is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -202,18 +202,18 @@ protected:
 
 TEST_F(GrpcHandlerTest, GetInstance) { EXPECT_TRUE(&GrpcHandler::GetInstance() != nullptr); }
 
-using GetDecodeRequestFunc = std::function<void(const prefillAndDecodeCommunication::DecodeParameters& request,
+using DecodeRequestHandler = std::function<void(const prefillAndDecodeCommunication::DecodeParameters& request,
                                                 prefillAndDecodeCommunication::DecodeRequestResponse& response)>;
 
-using GetRequestIDFunc = std::function<void(const std::string& requestID)>;
+using KVReleaseHandler = std::function<void(const std::string& requestID)>;
 
 TEST_F(GrpcHandlerTest, InitDmiBusiness)
 {
-    MOCKER_CPP(&GrpcCommunicationMng::RegisterKvReleaseHandler, bool (*)(GetRequestIDFunc))
+    MOCKER_CPP(&GrpcCommunicationMng::RegisterKvReleaseHandler, bool (*)(KVReleaseHandler))
     .stubs()
     .will(returnValue(false));
     EXPECT_FALSE(GrpcHandler::GetInstance().InitDmiBusiness());
-    MOCKER_CPP(&GrpcCommunicationMng::RegisterDecodeRequestHandler, bool (*)(GetDecodeRequestFunc))
+    MOCKER_CPP(&GrpcCommunicationMng::RegisterDecodeRequestHandler, bool (*)(DecodeRequestHandler))
         .stubs()
         .will(returnValue(false));
     EXPECT_FALSE(GrpcHandler::GetInstance().InitDmiBusiness());
@@ -222,7 +222,7 @@ TEST_F(GrpcHandlerTest, InitDmiBusiness)
     EXPECT_TRUE(GrpcHandler::GetInstance().InitDmiBusiness());
     prefillAndDecodeCommunication::DecodeParameters para;
     prefillAndDecodeCommunication::DecodeRequestResponse response;
-    GrpcCommunicationMng::GetInstance().getRequestIDFunc_("test");
+    GrpcCommunicationMng::GetInstance().kvReleaseHandler_("test");
     void DecodeProcess(prefillAndDecodeCommunication::DecodeRequestResponse &response) noexcept;
     MOCKER_CPP(&SingleReqVllmOpenAiInferInterface::DecodeProcess,
         void (*)(prefillAndDecodeCommunication::DecodeRequestResponse&))
@@ -230,7 +230,7 @@ TEST_F(GrpcHandlerTest, InitDmiBusiness)
     for (int i = 0; i <= 10; i++) {
         try {
             para.set_msgtype(i);
-            GrpcCommunicationMng::GetInstance().getDecodeRequestFunc_(para, response);
+            GrpcCommunicationMng::GetInstance().decodeRequestHandler_(para, response);
         } catch (const std::exception& e) {
             std::cerr << "Exception for msgtype = " << i << ": " << e.what() << std::endl;
         }

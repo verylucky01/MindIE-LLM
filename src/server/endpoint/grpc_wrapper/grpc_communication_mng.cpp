@@ -94,33 +94,23 @@ namespace mindie_llm {
             }
         }
 
-        bool GrpcCommunicationMng::RegisterDecodeRequestHandler(GetDecodeRequestFunc getDecodeRequestFunc)
+        bool GrpcCommunicationMng::RegisterDecodeRequestHandler(DecodeRequestHandler decodeRequestHandler)
         {
             if (isRunning_ == true) {
                 ULOG_INFO(SUBMODLE_NAME_ENDPOINT, "Server is already running");
                 return false;
             }
-            getDecodeRequestFunc_ = std::move(getDecodeRequestFunc);
+            decodeRequestHandler_ = std::move(decodeRequestHandler);
             return true;
         }
 
-        bool GrpcCommunicationMng::RegisterKvReleaseHandler(GetRequestIDFunc getRequestIDFunc)
+        bool GrpcCommunicationMng::RegisterKvReleaseHandler(KVReleaseHandler kvReleaseHandler)
         {
             if (isRunning_ == true) {
                 ULOG_INFO(SUBMODLE_NAME_ENDPOINT, "Server is running");
                 return false;
             }
-            getRequestIDFunc_ = std::move(getRequestIDFunc);
-            return true;
-        }
-
-        bool GrpcCommunicationMng::RegisterForceReleaseLinkHandler(GetDeviceListFunc getDeviceListFunc)
-        {
-            if (isRunning_ == true) {
-                ULOG_INFO(SUBMODLE_NAME_ENDPOINT, "Server is running");
-                return false;
-            }
-            getDeviceListFunc_ = std::move(getDeviceListFunc);
+            kvReleaseHandler_ = std::move(kvReleaseHandler);
             return true;
         }
 
@@ -165,31 +155,24 @@ namespace mindie_llm {
         {
             // decode请求服务注册
             DecodeRequestReceiver decodeService{serverAddr};
-            if (!decodeService.RegisterMsgHandler(getDecodeRequestFunc_)) {
+            if (!decodeService.RegisterMsgHandler(decodeRequestHandler_)) {
                 ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SPLITWISE,
                     ABNORMAL_TRANSMISSION_ERROR), "Failed to register decode request handler");
                 return false;
             }
             builder.RegisterService(&decodeService);
             ULOG_INFO(SUBMODLE_NAME_ENDPOINT, "RegisterService decoder " << serverAddr);
+
             // kv释放服务注册
             KvReleaseReceiver kvService{serverAddr};
-            if (!kvService.RegisterMsgHandler(getRequestIDFunc_)) {
+            if (!kvService.RegisterMsgHandler(kvReleaseHandler_)) {
                 ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SPLITWISE,
                     ABNORMAL_TRANSMISSION_ERROR), "Failed to register kv release handler");
                 return false;
             }
             ULOG_INFO(SUBMODLE_NAME_ENDPOINT, "RegisterService kvService " << serverAddr);
             builder.RegisterService(&kvService);
-            // 强制断链服务注册
-            ForceReleaseLinkReceiver forcePReleaseService{serverAddr};
-            if (!forcePReleaseService.RegisterMsgHandler(getDeviceListFunc_)) {
-                ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SPLITWISE,
-                    ABNORMAL_TRANSMISSION_ERROR), "Failed to register force release link handler");
-                return false;
-            }
-            ULOG_INFO(SUBMODLE_NAME_ENDPOINT, "RegisterService force release link " << serverAddr);
-            builder.RegisterService(&forcePReleaseService);
+
             std::unique_ptr<Server> server(builder.BuildAndStart());
             ULOG_INFO(SUBMODLE_NAME_ENDPOINT, "Bind port " << serverAddr << " success");
             isRunning_.store(true);
@@ -445,41 +428,6 @@ namespace mindie_llm {
             return true;
         }
 
-        bool GrpcCommunicationMng::CreateForceReleaseLinkSender(const std::string& forceReleaseLinkReceiveNode)
-        {
-            std::unique_ptr<grpc::experimental::TlsChannelCredentialsOptions> tlsChannelOpts = nullptr;
-            std::unique_ptr<ForceReleaseLinkSender> forceReleaseLinkSender = nullptr;
-            if (useTls_) {
-                if (!GetClientTlsOpts(tlsChannelOpts)) {
-                    ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SPLITWISE,
-                        CHECK_ERROR), "Failed to init client tls opt");
-                    return false;
-                }
-            }
-            try {
-                forceReleaseLinkSender = std::make_unique<ForceReleaseLinkSender>(forceReleaseLinkReceiveNode,
-                    localAddr_, useTls_, std::move(tlsChannelOpts));
-            } catch (const std::bad_alloc &e) {
-                ULOG_ERROR(SUBMODLE_NAME_ENDPOINT,
-                    GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SPLITWISE, ABNORMAL_TRANSMISSION_ERROR),
-                    "Failed to alloc mem.");
-                return false;
-            } catch (...) {
-                ULOG_ERROR(SUBMODLE_NAME_ENDPOINT,
-                    GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SPLITWISE, ABNORMAL_TRANSMISSION_ERROR),
-                    "Failed to make unique ptr.");
-                return false;
-            }
-            if (forceReleaseLinkSender == nullptr || !forceReleaseLinkSender->Init()) {
-                ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SPLITWISE,
-                    CHECK_ERROR), "Failed to init force release link sender");
-                return false;
-            }
-            forceReleaseLinkSenders_[forceReleaseLinkReceiveNode] = std::move(forceReleaseLinkSender);
-            ULOG_INFO(SUBMODLE_NAME_ENDPOINT, "Init force release link sender success");
-            return true;
-        }
-
         void GrpcCommunicationMng::StopServerThread()
         {
             if (terminateSemInitialized_ && sem_post(&terminateSem_) != 0) {
@@ -527,14 +475,7 @@ namespace mindie_llm {
                     return false;
                 }
             }
-            RegisterForceReleaseLinkHandler([]([[maybe_unused]] const std::vector<std::string>& deviceIp) -> bool {
-                if (!GetInferInstance()->ForcePRelease().IsOk()) {
-                    ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SPLITWISE,
-                        ABNORMAL_TRANSMISSION_ERROR), "Force P release failed.");
-                    return false;
-                }
-                return true;
-            });
+
             if (!IsValidServerAddr(localIp, port)) {
                 ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SPLITWISE,
                     CHECK_ERROR), "The localAddr_ is invalid to bind");
@@ -638,48 +579,6 @@ namespace mindie_llm {
             ULOG_INFO(SUBMODLE_NAME_ENDPOINT,
                       "[GrpcCommunicationMng::SendKvReleaseMsg] Finish sending kv release request requestId: "
                           << requestId.reqid() << " to node " << prefillNodeAddr);
-            return true;
-        }
-
-        bool GrpcCommunicationMng::SendForceReleaseMsg(prefillAndDecodeCommunication::DeviceList& deviceIp,
-            const std::string& prefillNodeIp)
-        {
-            std::string prefillNodeAddr = prefillNodeIp;
-            FillIpAddress(prefillNodeAddr);
-            ULOG_DEBUG(SUBMODLE_NAME_ENDPOINT, "Send force release link request to node " << prefillNodeAddr);
-            if (!IsValidNetAddr(prefillNodeIp)) {
-                ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SPLITWISE,
-                    CHECK_ERROR), "Prefill node addr is invalid");
-                return false;
-            }
-
-            std::shared_ptr<ForceReleaseLinkSender> currSender;
-            {
-                std::lock_guard <std::mutex> lock(this->forceReleaseLinkSenderMutex_);
-                auto iter = forceReleaseLinkSenders_.find(prefillNodeAddr);
-                if (iter == forceReleaseLinkSenders_.end()) {
-                    if (!CreateForceReleaseLinkSender(prefillNodeAddr)) {
-                        ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SPLITWISE,
-                            ABNORMAL_TRANSMISSION_ERROR), "Failed to create force release link sender");
-                        return false;
-                    }
-                    currSender = forceReleaseLinkSenders_.find(prefillNodeAddr)->second;
-                } else {
-                    currSender = iter->second;
-                }
-            }
-
-            if (currSender == nullptr) {
-                ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SPLITWISE,
-                    ABNORMAL_TRANSMISSION_ERROR), "Failed to find ForceReleaseLinkSender");
-                return false;
-            }
-            if (!currSender->SendForceReleaseMsg(deviceIp)) {
-                ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SPLITWISE,
-                    ABNORMAL_TRANSMISSION_ERROR), "Failed to send force release link request");
-                return false;
-            }
-            ULOG_DEBUG(SUBMODLE_NAME_ENDPOINT, "Send force release link to node " << prefillNodeAddr);
             return true;
         }
 

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2026. All rights reserved.
  * MindIE is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -125,33 +125,4 @@ namespace mindie_llm {
             return true;
         }
 
-        void ForceReleaseLinkSender::CreateStub(std::shared_ptr<grpc::Channel>& channel)
-        {
-            stub_ = std::move(prefillAndDecodeCommunication::ForcePReleaseService::NewStub(channel));
-        }
-
-        bool ForceReleaseLinkSender::SendForceReleaseMsg(const prefillAndDecodeCommunication::DeviceList &message)
-        {
-            std::unique_lock<std::mutex> lock(lock_);
-            grpc::ClientContext context;
-            // 设置超时为1秒
-            context.set_deadline(CalDeadLine(1000U));
-            // 配置 "Wait-for-Ready"
-            context.set_wait_for_ready(true);
-            google::protobuf::Empty response;
-            if (stub_ == nullptr) {
-                ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SPLITWISE,
-                    CHECK_ERROR), "The stub_ is nullptr");
-                return false;
-            }
-            grpc::Status status = stub_->ForceReleaseLinkChannel(&context, message, &response);
-            if (!status.ok()) {
-                ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SPLITWISE,
-                    ABNORMAL_TRANSMISSION_ERROR), "Failed to send force release link msg because ["
-                    << status.error_code() << "] " << status.error_message() << " receiverAddr is " << receiverAddr_);
-                return false;
-            }
-            ULOG_DEBUG(SUBMODLE_NAME_ENDPOINT, "Send force release link msg success");
-            return true;
-        }
 } // namespace mindie_llm

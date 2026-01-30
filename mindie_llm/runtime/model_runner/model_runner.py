@@ -23,7 +23,7 @@ from mindie_llm.runtime.utils.npu.device_utils import get_npu_hbm_info
 from mindie_llm.runtime.layers.embedding.position_rotary_embedding import PositionRotaryEmbedding
 from mindie_llm.runtime.models import get_router_ins
 from mindie_llm.runtime.model_runner.forward_context import create_forward_context, set_forward_context, \
-    get_forward_context, AttentionMetadata
+    get_forward_context, AttentionMetadata, BatchDescriptor
 from mindie_llm.runtime.utils.npu.device_utils import get_npu_node_info
 from mindie_llm.runtime.utils.torch_utils import set_default_torch_dtype
 from mindie_llm.runtime.utils.loader.default_model_loader import DefaultModelLoader
@@ -31,9 +31,9 @@ from mindie_llm.runtime.utils.distributed import get_parallel_info_manager, init
 from mindie_llm.runtime.utils.distributed.parallel_info_manager import ParallelType
 from mindie_llm.runtime.utils.distributed.utils import set_device
 from mindie_llm.runtime.layers.attention import get_global_attn_dict, clear_global_attn_dict, flush_global_attn_dict
-from mindie_llm.runtime.compilation.acl_graph_wrapper import set_aclgraph_capturing_enabled, AclGraphWrapper, \
+from mindie_llm.runtime.compilation.aclgraph_backend import set_aclgraph_capturing_enabled, AclGraphBackend, \
     set_global_graph_memory_pool
-from mindie_llm.runtime.config.mindie_llm_config import MindIELLMConfig
+from mindie_llm.runtime.config.mindie_llm_config import MindIELLMConfig, SpeculativeConfig
 from mindie_llm.runtime.config.load_config import LoadConfig
 from mindie_llm.utils.log.logging import logger, print_log
 from mindie_llm.runtime.layers.attention.sparse_attention_layer import SFA
@@ -123,8 +123,6 @@ class ModelRunner:
             self.max_position_embeddings = 2048
         self.dtype = self.config.torch_dtype
 
-        # NOTE: need to refactor
-        self.kv_cache_dtype = self.dtype
         self.enable_nz = self.llm_config.llm.kv_cache_options.enable_nz
 
         print_log(rank, logger.info, f'model_runner.dtype: {self.dtype}', need_filter=True)
@@ -141,9 +139,14 @@ class ModelRunner:
             self.model_name_or_path,
             self.config,
             self.llm_config,
-            router_ins.generation_config
+            router_ins.generation_config,
+            speculative_config=SpeculativeConfig(self.num_speculative_tokens)
         )
-
+        quant_config = getattr(self.mindie_llm_config, 'quant_config', None)
+        if quant_config and getattr(quant_config, 'kv_quant_type', None) is not None:
+            self.kv_cache_dtype = torch.int8
+        else:
+            self.kv_cache_dtype = self.dtype
         self.mask = None
         self.rotary_emb = None
         self.cos_table = None
@@ -174,7 +177,7 @@ class ModelRunner:
             max_graph_batch_size = self.max_batch_size * \
                 (self.num_speculative_tokens + 1) if self.max_batch_size > 0 else 128 
             self.graph_batch_sizes = [1, 2, 4] + list(range(8, max_graph_batch_size + 8, 8))
-            max_num_token = self.graph_batch_sizes[-1] * (self.num_speculative_tokens + 1)
+            max_num_token = self.graph_batch_sizes[-1]
             self.input_ids = torch.zeros(max_num_token, dtype=torch.int32, device=self.device)
             self.position_ids = torch.zeros(max_num_token, dtype=torch.int64, device=self.device)
             self.seq_lens = torch.zeros(max_num_token, dtype=torch.int32, device=self.device)
@@ -252,7 +255,10 @@ class ModelRunner:
         print_log(self.rank, logger.info, f'model:\n {self.model}')
 
         if self.enable_acl_graph:
-            self.model = AclGraphWrapper(self.model, self.graph_batch_sizes)
+            # NOTE: `model_runner.py` and `model_runner_exp.py` share the same `AclGraphBackend` class.
+            # The calculation of capture sizes has been moved into `AclGraphBackend`.
+            self.model = AclGraphBackend(self.model, self.graph_batch_sizes[-1])
+            logger.info(f"AclGraph enabled. Graph batch sizes contains {self.model.capture_sizes}.")
 
     def warm_up_and_compile(self, **kwargs):
         if not self.enable_acl_graph:
@@ -309,10 +315,10 @@ class ModelRunner:
     
         attn_metadata_dict = build_layerwise_attn_metadata(input_metadata, self.attn_layers)
         forward_context = create_forward_context(input_metadata)
-        forward_context.attn_metadata = attn_metadata_dict
+        forward_context.attn_metadata_dict = attn_metadata_dict
         # NOTE: this flag will be update to FlashCommMetaData()
-        forward_context.enable_flash_comm = True \
-            if get_parallel_info_manager().get(ParallelType.ATTN_DP).is_enabled() else False
+        forward_context.batch_descriptor = BatchDescriptor(forward_context.batch_descriptor.num_tokens,
+            get_parallel_info_manager().get(ParallelType.ATTN_DP).is_enabled())
         set_forward_context(forward_context)
         hidden_states = self.model(input_ids, position_ids)
         hidden_states = maybe_gather_and_unpad_for_flashcomm(hidden_states)
@@ -427,7 +433,7 @@ class ModelRunner:
         is_mtp_0_or_main = not self.is_draft_model or is_mtp_0
 
         num_actual_tokens = input_ids.shape[0]
-        num_tokens = self.model.find_padding_bs(
+        num_tokens = self.model.get_padded_graph_size(
             input_metadata['num_tokens_across_dp_cpu'].max().item())
             
         if num_tokens > self.graph_batch_sizes[-1]:
@@ -547,10 +553,9 @@ class ModelRunner:
         attn_metadata_dict = build_layerwise_attn_metadata(input_metadata, self.attn_layers)
         forward_context = create_forward_context(input_metadata=input_metadata,
                                                  capturing=True)
-        forward_context.attn_metadata = attn_metadata_dict
-        # NOTE: this flag will be update to FlashCommMetaData()
-        forward_context.enable_flash_comm = True \
-            if get_parallel_info_manager().get(ParallelType.ATTN_DP).is_enabled() else False
+        forward_context.attn_metadata_dict = attn_metadata_dict
+        forward_context.batch_descriptor = BatchDescriptor(num_tokens,
+            get_parallel_info_manager().get(ParallelType.ATTN_DP).is_enabled())
         set_forward_context(forward_context)
         _ = self.model(input_ids, position_ids)
     
@@ -649,7 +654,7 @@ def get_speculative_reqs_padding_length(num_tokens, num_actual_tokens):
 
 def maybe_gather_and_unpad_for_flashcomm(hidden_states):
     forward_context = get_forward_context()
-    if not forward_context.enable_flash_comm:
+    if not forward_context.batch_descriptor.is_flash_comm_enabled:
         return hidden_states
 
     from mindie_llm.runtime.layers.linear.linear_op import maybe_all_gather_and_maybe_unpad
@@ -714,7 +719,7 @@ def maybe_unpad_cross_dp(hidden_states):
 
 
 def maybe_pad_and_gather_cross_dp_and_unpad(hidden_states):
-    # (lzp) Temporary support for DP for PDmix, will be removed after server support dp in and out.  
+    # NOTE: Temporary support for DP for PDmix, will be removed after server support dp in and out.  
     dp = get_parallel_info_manager().get(ParallelType.ATTN_DP)
     if not dp.is_enabled():
         return hidden_states

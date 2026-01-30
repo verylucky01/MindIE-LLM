@@ -19,6 +19,7 @@
 #include <string>
 #include <memory>
 #include <queue>
+#include <atomic>
 
 #include "prefillAndDecodeCommunication.grpc.pb.h"
 #include "httplib.h"
@@ -60,8 +61,6 @@ public:
     virtual void Process(RequestSPtr request, const std::string &inputId, const uint64_t &timestamp = 0) = 0;
     virtual void ProcessGrpcReq([[maybe_unused]] RequestSPtr request, [[maybe_unused]] const std::string &inputId,
                                 [[maybe_unused]] prefillAndDecodeCommunication::DecodeRequestResponse &response){};
-    virtual void SimulateProcess([[maybe_unused]] RequestSPtr request, [[maybe_unused]] const std::string &inputId,
-                                 [[maybe_unused]] uint32_t waitTime){};
     virtual bool GetContextJsonBody(nlohmann::ordered_json &body);
     virtual bool GetContextJsonBody(InferParamSPtr inputParam, RequestSPtr request, std::vector<int64_t> &reqTokens,
                                     std::vector<int64_t> &respTokens);
@@ -70,7 +69,6 @@ public:
                                     const int64_t &oriReqTokenLen, RequestSPtr request) = 0;
     virtual void UpdateInferParam(RequestSPtr request, const InferParamSPtr &inferParam);
     virtual void SetBackManagerCallBack(RequestSPtr request) = 0;
-    virtual void SetSimulateBackManagerCallBack(RequestSPtr request) = 0;
     virtual void SendResponseInfo(int code, const std::string& responseStr, bool needMetricsCollect = true) = 0;
     virtual void SendResponse(int code, const std::string& responseStr) = 0;
     virtual void SendResponseStream(bool isEnd, const std::string& responseStr) = 0;

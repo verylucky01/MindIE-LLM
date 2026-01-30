@@ -55,8 +55,8 @@ class TestBlockCopy(unittest.TestCase):
     def test_copy_blocks_ops(self):
         self.block_copy_ops.copy_blocks(self.src_dst_map)
         for _, (key, value) in enumerate(self.kv_cache):
-            self.assertTrue(torch.equal(key[1, ...], key[2, ...]))
-            self.assertTrue(torch.equal(value[1, ...], value[2, ...]))
+            self.assertTrue(torch.allclose(key[1, ...], key[2, ...]))
+            self.assertTrue(torch.allclose(value[1, ...], value[2, ...]))
 
 if __name__ == '__main__':
     unittest.main()

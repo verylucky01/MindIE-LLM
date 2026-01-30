@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025-2026. All rights reserved.
  * MindIE is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -23,12 +23,10 @@
 #include <grpcpp/grpcpp.h>
 #include "prefillAndDecodeCommunication.grpc.pb.h"
 
-using GetDecodeRequestFunc = std::function<void(const prefillAndDecodeCommunication::DecodeParameters& request,
+using DecodeRequestHandler = std::function<void(const prefillAndDecodeCommunication::DecodeParameters& request,
                                                 prefillAndDecodeCommunication::DecodeRequestResponse& response)>;
 
-using GetRequestIDFunc = std::function<void(const std::string& requestID)>;
-
-using GetDeviceListFunc = std::function<bool(const std::vector<std::string>& deviceIp)>;
+using KVReleaseHandler = std::function<void(const std::string& requestID)>;
 
 namespace mindie_llm {
         class DecodeRequestReceiver : public prefillAndDecodeCommunication::DecodeService::Service {
@@ -39,7 +37,7 @@ namespace mindie_llm {
                                               const prefillAndDecodeCommunication::DecodeParameters* request,
                                               prefillAndDecodeCommunication::DecodeRequestResponse* response) override;
 
-            bool RegisterMsgHandler(GetDecodeRequestFunc callBack);
+            bool RegisterMsgHandler(DecodeRequestHandler callback);
 
         private:
             bool isValidRequest(const prefillAndDecodeCommunication::DecodeParameters* request,
@@ -47,7 +45,7 @@ namespace mindie_llm {
 
             std::string localAddr_;
 
-            GetDecodeRequestFunc getDecodeRequestFunc_{nullptr};
+            DecodeRequestHandler decodeRequestHandler_{nullptr};
         };
 
         class KvReleaseReceiver : public prefillAndDecodeCommunication::PrefillService::Service {
@@ -58,33 +56,16 @@ namespace mindie_llm {
                                           const prefillAndDecodeCommunication::RequestId* request,
                                           google::protobuf::Empty* response) override;
 
-            bool RegisterMsgHandler(GetRequestIDFunc callBack);
+            bool RegisterMsgHandler(KVReleaseHandler callback);
 
         private:
             bool isValidRequest(const prefillAndDecodeCommunication::RequestId* request);
 
             std::string localAddr_;
 
-            GetRequestIDFunc getRequestIDFunc_{nullptr};
+            KVReleaseHandler kvReleaseHandler_{nullptr};
         };
 
-        class ForceReleaseLinkReceiver : public prefillAndDecodeCommunication::ForcePReleaseService::Service {
-        public:
-            explicit ForceReleaseLinkReceiver(std::string localAddr): localAddr_(localAddr) {}
-
-            grpc::Status ForceReleaseLinkChannel(grpc::ServerContext* context,
-                                            const prefillAndDecodeCommunication::DeviceList* request,
-                                            google::protobuf::Empty* response) override;
-
-            bool RegisterMsgHandler(GetDeviceListFunc callBack);
-
-        private:
-            bool isValidRequest(const prefillAndDecodeCommunication::DeviceList* request);
-
-            std::string localAddr_;
-
-            GetDeviceListFunc getDeviceListFunc_{nullptr};
-        };
 } // namespace mindie_llm
 
 #endif // PD_MSG_RECEIVER_H

@@ -156,60 +156,6 @@ void SingleLLMPnDReqHandler::SetBackManagerCallBack(RequestSPtr request)
     };
 }
 
-void SingleLLMPnDReqHandler::SimulateProcess(RequestSPtr request, const std::string &inputId, uint32_t waitTime)
-{
-    SetSimulateBackManagerCallBack(request);
-    Status status = GetInferInstance()->Process(request);
-    if (!status.IsOk()) {
-        ULOG_ERROR(SUBMODLE_NAME_ENDPOINT,
-                   GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SINGLE_INFERENCE, ABNORMAL_TRANSMISSION_ERROR),
-                   "Failed forward in for infer engine for");
-        std::string strMsg = "Failed forward in for infer engine.";
-        SendResponseInfo(
-            httplib::StatusCode::InternalServerError_500,
-            HttpRestResource::WrapperJson(strMsg, g_exceptionInfo.at(httplib::StatusCode::InternalServerError_500)));
-        return;
-    }
-
-    ProcessSimulatorRequest(inputId, waitTime);
-}
-
-void SingleLLMPnDReqHandler::SetSimulateBackManagerCallBack(RequestSPtr request)
-{
-    // 使用weak_ptr避免因request与handler之间循环引用导致的内存泄漏
-    std::weak_ptr<SingleLLMPnDReqHandler> weakSelf = shared_from_this();
-    auto requestId = request->requestId;
-    request->serverResponseCallback_ = [weakSelf, requestId](ResponseSPtr response) {
-        auto self = weakSelf.lock();
-        if (!self) {
-            return;
-        }
-        if (response == nullptr) {
-            ULOG_ERROR(SUBMODLE_NAME_ENDPOINT,
-                       GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SINGLE_INFERENCE, CHECK_ERROR),
-                       "Invoke callback failed: response is null. request_id=" << requestId);
-            return;
-        }
-        boost::unique_lock<boost::mutex> locker(self->lock);
-        if (self->isFinish_.load()) {
-            return;
-        }
-        std::vector<BestNTokens> bestNTokens;
-        if (!self->ParseTokensFromResponse(response, bestNTokens)) {
-            ULOG_ERROR(SUBMODLE_NAME_ENDPOINT,
-                       GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SINGLE_INFERENCE, CHECK_ERROR),
-                       "Invoke callback failed: fail to get tensor from response. request_id=" << requestId);
-            return;
-        } else {
-            std::for_each(bestNTokens.begin(), bestNTokens.end(), [self](BestNTokens &item) {
-                self->respTokens.insert(self->respTokens.end(), item.tokens.begin(), item.tokens.end());
-            });
-        }
-        self->inferResponseQueue_.push(response);
-        self->cv.notify_one();
-    };
-}
-
 // 发送响应信息
 void SingleLLMPnDReqHandler::SendResponseInfo(int code, const std::string &responseStr, bool needMetricsCollect)
 {
@@ -492,65 +438,6 @@ bool SingleLLMPnDReqHandler::ProcessOneStreamResponse(const ResponseSPtr &respon
 
     text = std::move(responseJsonQueue);
     return isEnd;
-}
-
-void SingleLLMPnDReqHandler::ProcessSimulatorRequest(const std::string &inputId, uint32_t waitTime)
-{
-    boost::cv_status status = boost::cv_status::no_timeout;
-    auto lastTimePoint = boost::chrono::steady_clock::now() + boost::chrono::seconds(waitTime);
-    ResponseSPtr response;
-    boost::unique_lock<boost::mutex> locker(lock);
-    while (inferResponseQueue_.empty() && status != boost::cv_status::timeout) {
-        status = cv.wait_until(locker, lastTimePoint);
-    }
-
-    if (!inferResponseQueue_.empty()) {
-        response = inferResponseQueue_.front();
-        inferResponseQueue_.pop();
-    }
-    isFinish_.store(true);
-    locker.unlock();
-
-    if (response == nullptr) {
-        RequestIdNew requestId{inputId};
-        Status stopResult = GetInferInstance()->ControlRequest(requestId, OperationV2::STOP);
-        if (stopResult.StatusCode() != Error::Code::OK) {
-            ULOG_WARN(SUBMODLE_NAME_ENDPOINT,
-                      GenerateEndpointErrCode(WARNING, SUBMODLE_FEATURE_SINGLE_INFERENCE, STATUS_WARNING),
-                      "Failed stop inference. request_id=" << inputId);
-        } else {
-            ULOG_WARN(SUBMODLE_NAME_ENDPOINT,
-                      GenerateEndpointErrCode(WARNING, SUBMODLE_FEATURE_SINGLE_INFERENCE, TIMEOUT_WARNING),
-                      "Failed forward in for engine callback timeout. request_id=" << inputId);
-        }
-        SendResponseInfo(
-            httplib::StatusCode::InternalServerError_500,
-            HttpRestResource::WrapperJson("Engine callback timeout.",
-                                          g_exceptionInfo.at(httplib::StatusCode::InternalServerError_500)));
-        return;
-    }
-
-    if (!HealthManager::GetHealth()) {
-        SendResponse(httplib::StatusCode::InternalServerError_500,
-                     HttpRestResource::WrapperJson("Health status changed during health detector.",
-                                                   g_exceptionInfo.at(httplib::StatusCode::InternalServerError_500)));
-        return;
-    }
-
-    std::vector<BestNTokens> bestNTokens;
-    if (!ParseTokensFromResponse(response, bestNTokens)) {
-        ULOG_ERROR(SUBMODLE_NAME_ENDPOINT,
-                   GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SINGLE_INFERENCE, ABNORMAL_TRANSMISSION_ERROR),
-                   "Failed to get engine response");
-
-        SendResponse(httplib::StatusCode::InternalServerError_500,
-                     HttpRestResource::WrapperJson("Failed to get engine response.",
-                                                   g_exceptionInfo.at(httplib::StatusCode::InternalServerError_500)));
-        return;
-    }
-    ULOG_DEBUG(SUBMODLE_NAME_ENDPOINT,
-               "Simulate ResponseCallback begin to send last response. requestId: " << response->reqId);
-    SendResponse(httplib::StatusCode::OK_200, HttpRestResource::WrapperStatusJson("healthy"));
 }
 
 void SingleLLMPnDReqHandler::ProcessOneResponsePrometheusMetrics(const ResponseSPtr &response)

@@ -15,10 +15,6 @@ service PrefillService {
     rpc ReleaseKVCacheChannel(RequestId) returns (google.protobuf.Empty) {}
 }
 
-service ForcePReleaseService {
-    rpc ForceReleaseLinkChannel(DeviceList) returns (google.protobuf.Empty) {}
-}
-
 message DecodeRequestResponse {
     bool isValidDecodeParameters = 1;
     string errorMessage = 2;
@@ -183,8 +179,4 @@ message Metrics {
 
 message RequestId {
     string reqId = 1;
-}
-
-message DeviceList {
-    repeated string deviceIp = 1;
 }

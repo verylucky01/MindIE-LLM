@@ -42,6 +42,12 @@ class LoraModelConfig:
 
 
 @dataclass
+class SpeculativeConfig:
+    num_speculative_tokens: int = field(default=0,\
+        metadata={'validator': IntParameterValidator(Field(ge=0), allow_none=False)})
+
+
+@dataclass
 class MindIELLMConfig:
     """
     Dataclass which contains all related configuration.
@@ -60,6 +66,7 @@ class MindIELLMConfig:
     generation_config: GenerationConfig
     quant_config: QuantizationConfigBase | None = None
     lora_model_config: LoraModelConfig | None = None
+    speculative_config: SpeculativeConfig | None = None
 
     def __post_init__(self):
         self.quant_config = self._init_quant_config()

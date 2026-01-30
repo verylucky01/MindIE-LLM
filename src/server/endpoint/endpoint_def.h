@@ -35,7 +35,6 @@
 #include "env_util.h"
 #include "infer_tokenizer.h"
 #include "request_response/response.h"
-#include "health_checker/health_checker.h"
 
 #ifdef WITH_PROF
 #include "msServiceProfiler/msServiceProfiler.h"

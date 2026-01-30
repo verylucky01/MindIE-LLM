@@ -22,6 +22,7 @@ from mindie_llm.runtime.layers.quantization.ms_model_slim.w8a8 import (
     W8A8PerTokenFusedMoEMethod
 )
 from mindie_llm.runtime.layers.quantization.ms_model_slim.w4a8 import W4A8PerTokenFusedMoEMethod
+from mindie_llm.runtime.layers.quantization.ms_model_slim.c8 import KVQuantMethod
 from mindie_llm.runtime.layers.quantization.unquantized import UnquantizedFusedMoEMethod
 from mindie_llm.runtime.layers.quantization.ms_model_slim.anti_outlier import AntiOutlierNormMethod
 from mindie_llm.runtime.layers.quantization.unquantized import UnquantizedLinearMethod, UnquantizedEmbeddingMethod, \
@@ -39,6 +40,7 @@ class QuantizationConfig(QuantizationConfigBase):
         super().__init__()
         self.version = config.get("version", "0.0.0")
         self.model_quant_type = config.get("model_quant_type", None)
+        self.kv_quant_type = config.get("kv_quant_type", None)
         self.quant_descs = config
 
     @staticmethod
@@ -105,10 +107,11 @@ class QuantizationConfig(QuantizationConfigBase):
                 return AntiOutlierNormMethod()
             return UnquantizedNormMethod()
 
-        quant_type = self.get_quant_type_by_weight_name(prefix, "weight")
         from mindie_llm.runtime.layers.linear.linear import LinearBase
         from mindie_llm.runtime.layers.fused_moe.fused_moe import FusedMoE
+        from mindie_llm.runtime.layers.attention.attention_layer import AttentionQuant
         if isinstance(layer, LinearBase):
+            quant_type = self.get_quant_type_by_weight_name(prefix, "weight")
             if quant_type == QuantType.W8A8_MIX and self.model_quant_type != QuantType.W8A8_MIX:
                 quant_type = self.model_quant_type
             quant_type_method_cls_map = {
@@ -126,6 +129,7 @@ class QuantizationConfig(QuantizationConfigBase):
             else:
                 return quant_method_cls()
         elif isinstance(layer, FusedMoE):
+            quant_type = self.get_quant_type_by_weight_name(prefix, "weight")
             quant_type_method_cls_map = {
                 QuantType.FLOAT: UnquantizedFusedMoEMethod,
                 QuantType.W8A8_DYNAMIC: W8A8PerTokenFusedMoEMethod,
@@ -142,5 +146,8 @@ class QuantizationConfig(QuantizationConfigBase):
             return UnquantizedLinearMethod()
         elif isinstance(layer, VocabParallelEmbedding):
             return UnquantizedEmbeddingMethod()
+        elif isinstance(layer, AttentionQuant):
+            if self.kv_quant_type is not None and f"{prefix}.k_proj.kv_cache_scale" in self.quant_descs:
+                return KVQuantMethod()
 
         return None

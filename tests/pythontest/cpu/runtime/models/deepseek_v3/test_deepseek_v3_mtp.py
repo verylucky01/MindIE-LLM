@@ -140,8 +140,7 @@ class TestDeepseekV3Mtp(unittest.TestCase):
             forward_context.mtp_metadata.last_hidden_states = torch.randn(num_tokens, self.config.hidden_size)
             forward_context.enable_flash_comm = False
             forward_context.seq_lens = torch.tensor([num_tokens])
-            forward_context.lmhead_metadata = MagicMock()
-            forward_context.lmhead_metadata.lm_head_indices = torch.tensor([0])
+            forward_context.lm_head_indices = torch.tensor([0])
             mock_get_forward_context.return_value = forward_context
             set_forward_context(forward_context)
 
@@ -228,8 +227,7 @@ class TestDeepseekV3Mtp(unittest.TestCase):
 
         # Mock forward_context
         forward_context = MagicMock()
-        forward_context.lmhead_metadata = MagicMock()
-        forward_context.lmhead_metadata.lm_head_indices = torch.tensor([0,1])
+        forward_context.lm_head_indices = torch.tensor([0,1])
         mock_get_forward_context.return_value = forward_context
         set_forward_context(forward_context)
 

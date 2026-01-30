@@ -37,6 +37,7 @@ from mindie_llm.runtime.layers.quantization.ms_model_slim.w8a8 import (
 )
 from mindie_llm.runtime.layers.quantization.ms_model_slim.anti_outlier import \
     AntiOutlierNormMethod as AntiOutlierNormMethodAdaptee
+from mindie_llm.utils.log.logging import logger
 
 
 class QuantizationConfig:
@@ -125,7 +126,16 @@ class LinearMethodSupportAtbGraph(MethodSupportAtbGraph):
         if self._soc_info is None:
             raise ValueError("``NPUSocInfo` is not set in `LinearMethodSupportAtbGraph`.")
 
-        if self._soc_info.need_nz or not ENV.auto_transpose_enable:
+        if self._soc_info.need_nz:
+            return TransposeType.TRANSPOSE
+
+        if not ENV.auto_transpose_enable:
+            if self._soc_info.matmul_nd_nz:
+                logger.warning("NZ weight format is enabled. To ensure hardware compatibility, "
+                               "weights must be transposed to [k, n]. The environment variable "
+                               "`ATB_LLM_ENABLE_AUTO_TRANSPOSE=0` is being ignored.")
+                ENV.auto_transpose_enable = True
+                return TransposeType.NOT_TRANSPOSE
             return TransposeType.TRANSPOSE
 
         if self._soc_info.matmul_nd_nz:
@@ -313,7 +323,8 @@ class UnquantizedNormMethod(MethodSupportAtbGraph):
     def get_weights_for_atb_graph(self, layer: torch.nn.Module, padding: bool = True) -> list[torch.Tensor]:
         if not padding:
             return [layer.weight.data]
-        return [layer.weight.data, self._PLACEHOLDER, self._PLACEHOLDER, self._PLACEHOLDER]
+        bias_placeholder = torch.tensor([0] * layer.weight.data.shape[0], dtype=torch.get_default_dtype(), device='npu')
+        return [layer.weight.data, bias_placeholder, self._PLACEHOLDER, self._PLACEHOLDER]
 
 
 class AntiOutlierNormMethod(MethodSupportAtbGraph):

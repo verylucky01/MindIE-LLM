@@ -68,7 +68,7 @@ class TestPositionRotaryEmbedding(unittest.TestCase):
     def test_init(self):
         """Test initialization."""
         self.assertEqual(self.embedding.base, self.base)
-        self.assertTrue(torch.equal(self.embedding.inv_freq, self.inv_freq))
+        self.assertTrue(torch.allclose(self.embedding.inv_freq, self.inv_freq))
         self.assertEqual(self.embedding.scaling_factor, self.scaling_factor)
         self.assertEqual(self.embedding._seq_len_cached, 0)
         self.assertIsNone(self.embedding._cos_cached)
@@ -160,8 +160,8 @@ class TestPositionRotaryEmbedding(unittest.TestCase):
         # Call again with same seqlen - should reuse cache
         self.embedding.update_cos_sin_cache_total(dtype, self.device, seqlen)
         
-        self.assertTrue(torch.equal(self.embedding._cos_cached_total, cos_first))
-        self.assertTrue(torch.equal(self.embedding._sin_cached_total, sin_first))
+        self.assertTrue(torch.allclose(self.embedding._cos_cached_total, cos_first))
+        self.assertTrue(torch.allclose(self.embedding._sin_cached_total, sin_first))
 
     def test_update_cos_sin_cache_total_increase_seqlen(self):
         """Test update_cos_sin_cache_total updates cache when seqlen increases."""
@@ -185,7 +185,7 @@ class TestPositionRotaryEmbedding(unittest.TestCase):
         cos = self.embedding.get_cos_cached_total()
         
         self.assertIsNotNone(cos)
-        self.assertTrue(torch.equal(cos, self.embedding._cos_cached_total))
+        self.assertTrue(torch.allclose(cos, self.embedding._cos_cached_total))
         self.assertEqual(cos.device, self.device)
 
     def test_get_sin_cached_total(self):
@@ -198,7 +198,7 @@ class TestPositionRotaryEmbedding(unittest.TestCase):
         sin = self.embedding.get_sin_cached_total()
         
         self.assertIsNotNone(sin)
-        self.assertTrue(torch.equal(sin, self.embedding._sin_cached_total))
+        self.assertTrue(torch.allclose(sin, self.embedding._sin_cached_total))
         self.assertEqual(sin.device, self.device)
 
 

@@ -377,8 +377,6 @@ void SingleLLMDecodeReqHandler::SetBackManagerCallBack(RequestSPtr request)
     };
 }
 
-void SingleLLMDecodeReqHandler::SetSimulateBackManagerCallBack([[maybe_unused]] RequestSPtr request) { return; }
-
 // 发送响应信息
 void SingleLLMDecodeReqHandler::SendResponseInfo([[maybe_unused]] int code,
                                                  [[maybe_unused]] const std::string &responseStr,
