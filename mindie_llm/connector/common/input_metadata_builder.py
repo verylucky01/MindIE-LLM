@@ -27,8 +27,9 @@ from mindie_llm.connector.common.model_execute_data_pb2 import (
 from mindie_llm.connector.common.input_metadata_composite import InputMetadataComposite
 from mindie_llm.model_wrapper.utils.common_util import split_list_equally, ip_string_to_list
 
-from mindie_llm.text_generator.utils.input_metadata import InputMetadata
+from mindie_llm.text_generator.utils.input_metadata import InputMetadata, SIMULATE_SEQUENCE_ID
 from mindie_llm.utils.prof.profiler import span_start, span_end, span_attr
+from ...utils.log.logging import logger
 
 REPETITION_PENALTY_INDEX = 0  # item 0 is used for repetition penalty in ndarray
 FREQUENCY_PENALTY_INDEX = 1  # item 1 is used for frequency penalty in ndarray
@@ -256,6 +257,45 @@ def make_dummy_input_metadata_dmi_decoder(source_input_metadata, num_npu_blocks,
     return metadata
 
 
+def build_simulate_block_table(
+        seq_group_metadata,
+        block_id_for_simulate_req: int,
+        is_sp_enable: bool,
+        is_cp_enable: bool,
+        config
+) -> tuple:
+    """
+    为虚推请求构建 block table。
+    
+    虚推请求需要特殊处理，使用固定 block id 作为占位符。在 SP/CP 场景下，
+    需要根据 sp_rank_block_num 构造正确长度的 simulate block table，
+    以确保与其他请求组 batch 时 numpy 维度能够对齐。    
+    """
+    simulate_block_table = [block_id_for_simulate_req]
+    sp_rank_block_num = None
+    sp_rank_token_num = None
+    
+    if is_sp_enable or is_cp_enable:
+        sp_rank_block_num = list(seq_group_metadata.sp_rank_block_num)
+        sp_rank_token_num = list(seq_group_metadata.sp_rank_token_num)
+        # 如果 sp_rank_block_num 或 sp_rank_token_num 为空，需要根据 config 填充默认值以确保维度正确
+        if config is not None:
+            scp_size = config.sp_size * config.cp_size
+            if not sp_rank_block_num:
+                sp_rank_block_num = [1] + [0] * (scp_size - 1)
+            if not sp_rank_token_num:
+                sp_rank_token_num = [1] + [0] * (scp_size - 1)
+        total_blocks = sum(sp_rank_block_num)
+        if total_blocks > 0:
+            seq_blocks = [block_id_for_simulate_req] + [-1] * (total_blocks - 1)
+        else:
+            seq_blocks = simulate_block_table
+    else:
+        seq_blocks = simulate_block_table
+    
+    return seq_blocks, sp_rank_block_num, sp_rank_token_num
+
+
 def convert_execute_model_request_to_input_metadata_composite(
         request: ExecuteModelRequest,
         num_npu_blocks,
@@ -316,6 +356,8 @@ def convert_execute_model_request_to_input_metadata_composite(
 
     block_copy = [[item.num1, item.num2] for item in request.blocks_to_copy] if request.blocks_to_copy else None
     block_op = parse_swap_blocks(request.blocks_to_swap_in, request.blocks_to_swap_out)
+    # 虚推请求使用最后一个 block (num_npu_blocks - 1) 作为占位符
+    block_id_for_simulate_req = num_npu_blocks - 1
 
     for seq_group_metadata in request.seq_group_metadata_list:
         batch_req_ids.append(seq_group_metadata.request_id)
@@ -333,14 +375,27 @@ def convert_execute_model_request_to_input_metadata_composite(
             is_sp_enable = config.sp_size > 1
             is_cp_enable = config.cp_size > 1
             is_mtp_enable = config.enable_mtp
-        seq_blocks = convert_bytes_to_list(seq_group_metadata.block_tables)
+
+        # 根据请求类型构建 block table
+        if seq_ids[0] == SIMULATE_SEQUENCE_ID:
+            seq_blocks, sp_rank_block_num, sp_rank_token_num = build_simulate_block_table(
+                seq_group_metadata, block_id_for_simulate_req, is_sp_enable, is_cp_enable, config
+            )
+        else:
+            seq_blocks = convert_bytes_to_list(seq_group_metadata.block_tables)
+            sp_rank_block_num = None
+            sp_rank_token_num = None
 
         if is_sp_enable or is_cp_enable:
             block_max_len = max(block_max_len, len(seq_blocks))
-            ibis_batch_sp_tokens.append(list(seq_group_metadata.sp_rank_token_num))
+            # 虚推请求使用函数返回的 sp_rank_token_num，正常请求从 protobuf 获取
+            if seq_ids[0] == SIMULATE_SEQUENCE_ID:
+                ibis_batch_sp_tokens.append(sp_rank_token_num)
+            else:
+                ibis_batch_sp_tokens.append(list(seq_group_metadata.sp_rank_token_num))
+                sp_rank_block_num = list(seq_group_metadata.sp_rank_block_num)
             ibis_batch_sp_rank_id.append(seq_group_metadata.sp_rank_id)
             ibis_batch_block_rank_id.append(seq_group_metadata.append_block_rank_id)
-            sp_rank_block_num = list(seq_group_metadata.sp_rank_block_num)
             if is_mtp_enable:
                 ibis_batch_is_append_block.append(seq_group_metadata.is_append_block)
                 if is_prefill:

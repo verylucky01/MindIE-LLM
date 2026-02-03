@@ -17,6 +17,7 @@
 #include "live_infer_context.h"
 #include "id_utils.h"
 #include "log.h"
+#include "request_response/request_id.h"
 #include "msServiceProfiler/msServiceProfiler.h"
 #include "thread_group_cc.h"
 #include "process_group.h"
@@ -509,6 +510,14 @@ void LlmEngine::SchedulerThreadEntry(size_t localDPRank)
             enginePerDP->modelExecOutputHandler->Entry4Executor(output);
         };
         if (!scheduleOut.IsEmpty() || (isCentralizedThreadCCReady_ && seqGroupMetadata.maxBatchSize > 0)) {
+            for (const auto& scheduledSeqGroup : scheduleOut.scheduledSeqGroups_) {
+                if (scheduledSeqGroup->seqGroup_->IsSimulateRequest()) {
+                    MINDIE_LLM_LOG_DEBUG("[SimulateInference] Building ExecuteRequest, forwardMode="
+                                        << static_cast<int>(scheduleOut.forwardMode_)
+                                        << ", batchSize=" << scheduleOut.scheduledSeqGroups_.size()
+                                        << ", requestId=" << scheduledSeqGroup->seqGroup_->requestId);
+                }
+            }
             ExecuteModelRequestPtr request =
                 BuildExecuteModelRequest(allDpMetas, allDpOuts, schedulerConfig_->distributedEnable, dpRankId_);
             RecordEngineMetrics(scheduleOut, enginePerDP);

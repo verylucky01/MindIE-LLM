@@ -138,6 +138,9 @@ private:
 
     [[nodiscard]] SequenceGroupMetaDatas GenerateSequenceGroupMetadata(const SchedulerOutputs &schedulerOut);
 
+    void CollectOrAggregateComputedBlocks(std::vector<SequenceGroupMetaData> &metaList, size_t metaIndex,
+ 	    const std::vector<SequenceSPtr> &runningSeqSPtrs, bool isSimulateSeq);
+
     void CollectComputedBlocksInfo(std::vector<SequenceGroupMetaData> &metaList, size_t metaIndex,
     const std::vector<SequenceSPtr> &runningSeqSPtrs);
     
@@ -148,6 +151,9 @@ private:
 
     void SetBasicMetadata(SequenceGroupMetaData &metaData, const SequenceGroupSPtr seqGroup,
                           ScheduledSequenceGroupSPtr scheduledGrp) const;
+
+    // 虚推请求入队处理：根据节点角色决定入队位置
+    void EnqueueSimulateInferenceRequest(SequenceGroupSPtr &seqGroup);
 
     std::vector<BlockId> SetSpCpParamAndReturnAllBlocks(SequenceGroupMetaData &meta, SequenceGroupSPtr seqGrpSPtr,
                                                         SequenceId seqId, ForwardMode forwardMode) const;

@@ -18,6 +18,7 @@
 
 #include "policy/policy_factory.h"
 #include "log.h"
+#include "request_response/request_id.h"
 #include "msServiceProfiler/msServiceProfiler.h"
 #include "pre_scheduler.h"
 #include "policy/stage_policy/edge_cloud_policy.h"
@@ -94,8 +95,13 @@ void Scheduler::SetRole(Role role)
 
 void Scheduler::AddSeqGroup(SequenceGroupSPtr &seqGroup)
 {
-    // 1. check request id
-    if (LiveInferContext::GetInstance(localDPRank_)->GetSeqGroup(seqGroup->requestId)) {
+    // 1. check request id (虚推请求跳过重复检查，因为大EP场景下多个rank会同时添加同一个虚推请求)
+    bool isSimulateInference = seqGroup->IsSimulateRequest();
+    if (isSimulateInference) {
+        MINDIE_LLM_LOG_DEBUG("[SimulateInference] Simulate inference request entering AddSeqGroup, requestId="
+                            << seqGroup->requestId << ", seqId=" << seqGroup->firstSeq->seqId_);
+    }
+    if (!isSimulateInference && LiveInferContext::GetInstance(localDPRank_)->GetSeqGroup(seqGroup->requestId)) {
         throw std::runtime_error("the requestId exist, requestId=" + seqGroup->requestId);
     }
 
@@ -109,14 +115,39 @@ void Scheduler::AddSeqGroup(SequenceGroupSPtr &seqGroup)
     layerwiseMixin_.LwdComputeArrTimeGap(schedulerConfig_->layerwiseDisaggregated, seqGroup, waiting_.Back());
 
     // 3. add sequence group to waiting queue, it will do prefill or pull kv
-    auto prof = PROF(INFO, Domain("Schedule").Resource(seqGroup->requestId));
-    waiting_.PushBack(seqGroup);
-    PROF(prof.Metric("QueueSize", waiting_.Size()).Attr("status", "waiting").Event("Enqueue"));
+    if (isSimulateInference) {
+        EnqueueSimulateInferenceRequest(seqGroup);
+    } else {
+        waiting_.PushBack(seqGroup);
+        auto prof = PROF(INFO, Domain("Schedule").Resource(seqGroup->requestId));
+        PROF(prof.Metric("QueueSize", waiting_.Size()).Attr("status", "waiting").Event("Enqueue"));
+    }
 
     // 4. record for qps
     qpsTracker.Record();
 
     serving_ = true;
+}
+
+void Scheduler::EnqueueSimulateInferenceRequest(SequenceGroupSPtr &seqGroup)
+{
+    // 虚推请求根据节点角色选择入队位置：
+    // - D节点/FlexD节点/PnD节点/FlexPnD节点：直接进入running队列
+    // - P节点/FlexP节点：进入waiting队列，走正常prefill流程，maxOutputLen会使虚推直接返回不进入D节点
+    auto prof = PROF(INFO, Domain("Schedule").Resource(seqGroup->requestId));
+    if (role_ == Role::D || role_ == Role::FlexD || role_ == Role::PnD || role_ == Role::FlexPnD) {
+        seqGroup->firstSeq->status_ = SequenceStatus::RUNNING;
+        seqGroup->firstSeq->data_.stage_ = SequenceStage::DECODE;
+        running_.PushBack(seqGroup);
+        PROF(prof.Metric("QueueSize", running_.Size()).Attr("status", "running").Event("Enqueue"));
+        MINDIE_LLM_LOG_DEBUG("[SimulateInference] D/PnD node: special seqId enter running queue directly, seqId="
+                            << seqGroup->firstSeq->seqId_ << ", role=" << static_cast<int>(role_));
+    } else {
+        waiting_.PushBack(seqGroup);
+        PROF(prof.Metric("QueueSize", waiting_.Size()).Attr("status", "waiting").Event("Enqueue"));
+        MINDIE_LLM_LOG_DEBUG("[SimulateInference] P node: special seqId enter waiting queue, seqId="
+                            << seqGroup->firstSeq->seqId_ << ", role=" << static_cast<int>(role_));
+    }
 }
 
 void Scheduler::RecordMetricsStatics(SchedulerOutputs &schedulerOut, SequenceGroupMetaDatas &seqGroupMetadata)
@@ -930,14 +961,21 @@ SequenceGroupMetaDatas Scheduler::GenerateSequenceGroupMetadata(const SchedulerO
 
         for (auto seq : runningSeqSPtrs) {
             std::vector<BlockId> blockIds;
-            if (schedulerConfig_->spSize * schedulerConfig_->cpSize <= 1) {
+            bool isSimulateSeq = (seq->seqId_ == SIMULATE_SEQUENCE_ID);
+            if (isSimulateSeq) {
+                MINDIE_LLM_LOG_INFO("GetBlockIds called for special seqId: " << seq->seqId_);
+                blockIds.push_back(static_cast<BlockId>(schedulerConfig_->npuBlockNum - 1));
+            } else if (schedulerConfig_->spSize * schedulerConfig_->cpSize <= 1) {
                 blockIds = GetAllBlocks(seqGroup, seq->seqId_);
             } else {
                 blockIds =
                     SetSpCpParamAndReturnAllBlocks(metaList[i], seqGroup, seq->seqId_, schedulerOut.forwardMode_);
             }
 
-            blockManager_->AccessAllblocksInSeq(seq, now);
+            // 虚推请求跳过 PrefixCache 的 LRU 访问时间更新
+            if (!isSimulateSeq) {
+                blockManager_->AccessAllblocksInSeq(seq, now);
+            }
             metaList[i].seqIds_.push_back(seq->seqId_);
             metaList[i].blockIds_.insert(metaList[i].blockIds_.end(), blockIds.begin(), blockIds.end());
 
@@ -963,14 +1001,12 @@ SequenceGroupMetaDatas Scheduler::GenerateSequenceGroupMetadata(const SchedulerO
             }
         }
 
-        if (schedulerOut.forwardMode_ == ForwardMode::PREFILL ||
-            (schedulerOut.forwardMode_ == ForwardMode::MIXED && !metaList[i].isReqPrefill_.empty())) {
-            uint32_t cspSize = schedulerConfig_->spSize * schedulerConfig_->cpSize;
-            if (cspSize == 1) {
-                CollectComputedBlocksInfo(metaList, i, runningSeqSPtrs);
-            } else {
-                AggregateComputedBlocksInfo(metaList, i, runningSeqSPtrs);
-            }
+        // 对于 PREFILL/MIXED 模式，计算 computed blocks 信息
+        bool isSimulateSeq = seqGroup->IsSimulateRequest();
+        bool needComputeBlocks = (schedulerOut.forwardMode_ == ForwardMode::PREFILL) ||
+            (schedulerOut.forwardMode_ == ForwardMode::MIXED && !metaList[i].isReqPrefill_.empty());
+        if (needComputeBlocks) {
+            CollectOrAggregateComputedBlocks(metaList, i, runningSeqSPtrs, isSimulateSeq);
         }
 
         metadatas.maxSeqLen = std::max(metadatas.maxSeqLen, static_cast<int64_t>(metaList[i].tokenIds_.size()));
@@ -983,6 +1019,24 @@ SequenceGroupMetaDatas Scheduler::GenerateSequenceGroupMetadata(const SchedulerO
     }
 
     return metadatas;
+}
+
+void Scheduler::CollectOrAggregateComputedBlocks(std::vector<SequenceGroupMetaData> &metaList, size_t metaIndex,
+    const std::vector<SequenceSPtr> &runningSeqSPtrs, bool isSimulateSeq)
+{
+    // 虚推请求不参与 PrefixCache，直接填充默认值0
+    if (isSimulateSeq) {
+        metaList[metaIndex].computedLens_.push_back(0);
+        metaList[metaIndex].remoteComputedLens_.push_back(0);
+        return;
+    }
+
+    uint32_t cspSize = schedulerConfig_->spSize * schedulerConfig_->cpSize;
+    if (cspSize == 1) {
+        CollectComputedBlocksInfo(metaList, metaIndex, runningSeqSPtrs);
+    } else {
+        AggregateComputedBlocksInfo(metaList, metaIndex, runningSeqSPtrs);
+    }
 }
 
 void Scheduler::CollectComputedBlocksInfo(std::vector<SequenceGroupMetaData> &metaList, size_t metaIndex,
@@ -1235,6 +1289,25 @@ SequenceStatus Scheduler::FinalizeSeqGrpStatus(SequenceGroupSPtr seqGroup)
         if (seqGroup->seqId2ParallelSeqGroup_.Size() == 0) {
             return SequenceStatus::FINISH_STOPPED;
         }
+        return SequenceStatus::RUNNING;
+    }
+
+    // 虚推请求使用固定seqId，需要跳过finishedSeqIds_和exceptionSeqIds_检查
+    // 避免上一轮虚推的seqId残留导致当前虚推被误判为已完成或异常
+    // 只在P节点（P/FlexP）应用此逻辑，D节点不需要
+    bool isSimulateInference = seqGroup->IsSimulateRequest();
+    bool isPNode = (role_ == Role::P || role_ == Role::FlexP);
+    if (isSimulateInference && isPNode) {
+        bool inFinished = finishedSeqIds_.count(seqGroup->seqs_[0]->seqId_) > 0;
+        bool inException = exceptionSeqIds_.count(seqGroup->seqs_[0]->seqId_) > 0;
+        if (inFinished || inException) {
+            MINDIE_LLM_LOG_INFO("[SimulateInference] P node skip status check. "
+                                << "seqId=" << seqGroup->seqs_[0]->seqId_
+                                << ", inFinishedSeqIds=" << inFinished
+                                << ", inExceptionSeqIds=" << inException
+                                << ", requestId=" << seqGroup->requestId);
+        }
+        // P节点跳过检查，直接返回RUNNING
         return SequenceStatus::RUNNING;
     }
 

@@ -5,6 +5,7 @@ import numpy as np
 import numpy.typing as npt
 
 from mindie_llm.utils.log.logging import logger
+from .input_metadata import SIMULATE_SEQUENCE_ID
 from .kvcache_settings import KVCacheSettings
 from .batch_context import BatchContext
 from .input_metadata import InputMetadata
@@ -86,9 +87,12 @@ class TGInferContextStore:
         if metadata.is_dummy_batch:
             return context_handles
         for i, sequence_id in enumerate(metadata.all_sequence_ids):
+            if sequence_id == SIMULATE_SEQUENCE_ID:
+                context_handles[i] = 0
             # metadata.is_prefill is used to determine if the batch has prefill sequence
             # might hide bugs for mixed prefill/decode batch
-            context_handles[i] = self._batch_context.get_context_slot(sequence_id, metadata.is_prefill)
+            else:
+                context_handles[i] = self._batch_context.get_context_slot(sequence_id, metadata.is_prefill)
         return context_handles
 
     def compose_model_inputs(
@@ -204,6 +208,8 @@ class TGInferContextStore:
     def clear_context_by_seq_ids(self, sequence_ids: npt.NDArray[np.int64]):
         """Clear context by sequence IDs, used when sending aborted requests or exceptions occur."""
         context_handles = self._batch_context.pop_context_handles(sequence_ids)
+        # 跳过清理虚拟推理的context_handle 0
+        context_handles = [h for h in context_handles if h != 0]
         if self.context_params.async_infer:
             # 异步推理时，将缓存句柄加入 aborted_context_handles 列表，等到后处理完成时调用 clear_aborted_context 来清理
             self.aborted_context_handles.extend(context_handles)
@@ -221,8 +227,9 @@ class TGInferContextStore:
 
     def clear_finished_context(self, sequence_ids: npt.NDArray[np.int64], context_handles: npt.NDArray[np.int32]):
         """Clear context when inference is finished."""
-        context_handles_to_clear = context_handles
-        sequence_ids_to_clear = sequence_ids
+        non_virtual_mask = context_handles != 0
+        context_handles_to_clear = context_handles[non_virtual_mask]
+        sequence_ids_to_clear = sequence_ids[non_virtual_mask]
         if self.context_params.async_infer:
             if self.context_params.layerwise_disaggregated:
                 last_end_mask = self._batch_context.all_ndarray_context.pending_cleanup_flags[context_handles_to_clear]
@@ -552,6 +559,13 @@ class TGInferContextStore:
             pad_token_count=pad_token_count,
             is_pd_separate=kwargs.get("is_pd_separate", False)
         )
+        # 虚推请求不写入 KV cache，设置 slots = -1 跳过 ReshapeAndCache
+        cumulative_idx = 0
+        for i in range(metadata.batch_size):
+            seq_len = metadata.batch_seq_len[i]
+            if metadata.all_sequence_ids[i] == SIMULATE_SEQUENCE_ID:
+                all_tokens_kv_slots[cumulative_idx:cumulative_idx + seq_len] = -1
+            cumulative_idx += seq_len
         return input_ids, position_ids, all_tokens_kv_slots, seq_lengths, prefill_head_indices
 
     def _prepare_seq_kv_slots(

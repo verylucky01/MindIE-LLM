@@ -506,13 +506,13 @@ class TestMTP(unittest.TestCase):
                 batch_skip_special_tokens=np.array([]),
                 batch_include_stop=np.array([]),
                 trace_ids=None,
-                batch_sequence_ids=[np.array([9223372036854775], dtype=np.int64)],
+                batch_sequence_ids=[np.array([9223372036854775], dtype=np.int64), np.array([9223372036854773], dtype=np.int64)],
                 batch_best_of=np.array([1, 1]),
                 batch_logprobs=np.array([]),
                 batch_seeds=np.array([]),
                 batch_n=np.array([1, 1]),
                 batch_use_beam_search=np.array([False]),
-                reserved_sequence_ids=[np.array([])],
+                reserved_sequence_ids=[np.array([]), np.array([])],
                 is_dummy_batch=False
             )
             model_inputs = ModelInput(
@@ -567,13 +567,13 @@ class TestMTP(unittest.TestCase):
                 batch_skip_special_tokens=np.array([]),
                 batch_include_stop=np.array([]),
                 trace_ids=None,
-                batch_sequence_ids=[np.array([9223372036854775], dtype=np.int64)],
+                batch_sequence_ids=[np.array([9223372036854775], dtype=np.int64), np.array([9223372036854773], dtype=np.int64)],
                 batch_best_of=np.array([1, 1]),
                 batch_logprobs=np.array([]),
                 batch_seeds=np.array([]),
                 batch_n=np.array([1, 1]),
                 batch_use_beam_search=np.array([False]),
-                reserved_sequence_ids=[np.array([])],
+                reserved_sequence_ids=[np.array([]), np.array([])],
                 is_dummy_batch=False
             )
             model_inputs = ModelInput(

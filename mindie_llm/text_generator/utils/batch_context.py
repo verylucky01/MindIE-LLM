@@ -10,7 +10,7 @@ import numpy.typing as npt
 
 from .kvcache_settings import KVCacheSettings
 from .config import CacheConfig, ContextParams, SpCpParallelInfo, DEFAULT_SAMPLING_PARAMS
-from .input_metadata import InputMetadata, SAMPLING_DTYPE
+from .input_metadata import InputMetadata, SAMPLING_DTYPE, SIMULATE_SEQUENCE_ID
 from .sampling_metadata import SamplingMetadata
 from .sampling_output import SamplingOutput
 
@@ -159,8 +159,7 @@ class NdarrayContext:
     ):
         self.context_params = context_params
         self.cache_config = cache_config
-        start_slot_idx = 0 if not context_params.distributed and not context_params.layerwise_disaggregated \
-            else 1  # reserve slot 0 for dummy batch
+        start_slot_idx = 1 # reserve slot 0 for dummy batch and simulate inference
         self.pool = array.array("i", range(start_slot_idx, capacity))  # free slot index pool
         self.spcp_parallel_info = spcp_parallel_info
         self.capacity = capacity
@@ -665,7 +664,7 @@ class BatchContext:
                 )
         else:
             sampling_metadata, sampling_output = sampling_args
-            valid_indices = np.where(context_handles != -1)[0]
+            valid_indices = np.where((context_handles != -1) & (context_handles != 0))[0]
             valid_context_handles = context_handles[valid_indices]
             next_token_ids = sampling_output.token_ids[valid_indices]
             num_new_tokens = sampling_output.num_new_tokens[valid_indices]
@@ -818,7 +817,11 @@ class BatchContext:
                 rank_ids = metadata.sp_rank_id
                 mask = (rank_ids % self.spcp_parallel_info.scp_size != self.spcp_parallel_info.scp_rank)
                 slots[mask] = -1
-
+            # 虚推请求不写入 KV cache，设置 slots = -1 跳过 ReshapeAndCache
+            simulate_infer_mask = (metadata.all_sequence_ids == SIMULATE_SEQUENCE_ID)
+            if simulate_infer_mask.any():
+                slots[simulate_infer_mask] = -1
+        
         input_lengths = self.all_ndarray_context.seq_lens[context_handles]
         adapter_ids = [self.all_dict_context.lora_adapter_id.get(idx) for idx in context_handles]
         # delete unused ret: cu_seqlen_prefill and prefill_head_indices

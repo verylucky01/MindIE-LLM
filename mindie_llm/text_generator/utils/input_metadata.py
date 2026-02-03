@@ -29,6 +29,10 @@ SAMPLING_DTYPE = np.dtype([
     ('top_logprobs', np.float64)
 ])
 
+# Reserved sequence ID for simulate inference requests
+# Should match SIMULATE_SEQUENCE_ID in C++ code (src/include/request_response/request_id.h)
+SIMULATE_SEQUENCE_ID = 9223372036854774
+
 
 def get_batch_size(is_prefill_pre_batch, requests):
     first_batch_is_prefill = is_prefill_pre_batch[0]
