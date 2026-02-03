@@ -41,6 +41,12 @@ uint32_t LlmManagerV2::GetMaxPositionEmbeddings() const
     return impl_->GetMaxPositionEmbeddings();
 }
 
+std::map<std::string, std::string> LlmManagerV2::GetModelParams() const
+{
+    return LlmManagerImpl::GetModelParams();
+}
+
+
 bool LlmManagerV2::UpdateEngineInfo(RequestSPtr &runtimeRequest, bool isForceRelease)
 {
     if (impl_ == nullptr) {

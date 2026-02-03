@@ -51,6 +51,8 @@ public:
 
     bool UpdateEngineInfo(RequestSPtr &runtimeRequest, bool isForceRelease);
 
+    static std::map<std::string, std::string> GetModelParams();
+
     void Step();
 
     void Stop();

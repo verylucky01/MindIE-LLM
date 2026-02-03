@@ -1588,7 +1588,7 @@ Status LlmManagerImpl::FinalizeLlmEngine() const
 
 uint32_t LlmManagerImpl::GetMaxPositionEmbeddings() const { return maxPositionEmbeddings_; }
 
-std::map<std::string, std::string> LlmManagerV2::GetModelParams() const { return g_modelParams; }
+std::map<std::string, std::string> LlmManagerImpl::GetModelParams() { return g_modelParams; }
 
 Status LlmManagerImpl::RelaunchLlmEngine(int64_t roleIndex)
 {
