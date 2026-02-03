@@ -868,6 +868,7 @@ static void LLMSetModelConfig(std::map<std::string, std::string> &modelConfig, c
     modelConfig["async_inference"] = engineConfig.activateAsyncInference ? "true" : "false";
     modelConfig["distributed_enable"] = engineConfig.distributedEnable ? "true" : "false";
     modelConfig["max_batch_size"] = std::to_string(engineConfig.maxBatchSize);
+    modelConfig["max_prefill_batch_size"] = std::to_string(engineConfig.maxPrefillBatchSize);
     modelConfig["kv_pool_backend"] = engineConfig.kvPoolConfig.backend;
     modelConfig["kv_pool_config_path"] = engineConfig.kvPoolConfig.configPath;
 

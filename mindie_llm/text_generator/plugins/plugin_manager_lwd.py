@@ -37,8 +37,9 @@ class RoleType(IntEnum):
 class PluginManagerLwd(PluginManager):
     def __init__(self, generator_backend, kvcache_settings, infer_context, output_filter, is_mix_model,
                  plugin_list, model_role, **kwargs):
+        watcher = kwargs.get('watcher', "")
         super().__init__(generator_backend, kvcache_settings, infer_context, output_filter, is_mix_model,
-                         plugin_list, model_role, **kwargs)
+                         plugin_list, model_role, watcher, **kwargs)
 
         role_type_str = kwargs.get('layerwise_disaggregated_role_type', "")
         self.role_type = RoleType.CLOUD if role_type_str == "slave" else RoleType.EDGE

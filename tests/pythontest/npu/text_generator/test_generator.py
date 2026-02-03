@@ -63,8 +63,8 @@ class TestGenerator(unittest.TestCase):
             'multiNodesInferEnabled': '0', 'multiNodesInferPort': '1120', 'npu_device_id': '0',
             'npu_device_ids': '0,1,2,3,4,5,6,7', 'npu_mem': '-1', 'rank': '0', 'slaveIPs': '',
             'speculation_gamma': '0', 'tp': '1', 'trust_remote_code': '0', 'world_size': '8',
-            'num_speculative_tokens': '1', 'max_batch_size': '200', 'distributed_enable': 'false', 'vocab_size': 100000,
-            'enable_warmup_with_sampling': 'false'
+            'num_speculative_tokens': '1', 'max_batch_size': '200', 'max_prefill_batch_size': '200', 
+            'distributed_enable': 'false', 'vocab_size': 100000,'enable_warmup_with_sampling': 'false'
         }
 
     @patch('mindie_llm.text_generator.generator.calc_npu_mem')
@@ -266,8 +266,8 @@ class TestGenerator(unittest.TestCase):
     @patch('mindie_llm.utils.decorators.time_decorator')
     @patch('mindie_llm.utils.env.ENV.benchmark_enable_async')
     @patch('mindie_llm.utils.env.ENV.benchmark_enable')
-    @patch('mindie_llm.text_generator.utils.kvcache_settings.calc_npu_mem')
-    @patch('mindie_llm.text_generator.utils.kvcache_settings.calc_block_mem')
+    @patch('mindie_llm.text_generator.utils.npu_mem_tool.calc_npu_mem')
+    @patch('mindie_llm.text_generator.utils.npu_mem_tool.calc_block_mem')
     @patch("mindie_llm.text_generator.adapter.generator_backend.Sampler",
            return_value=MagicMock(spec=Sampler))
     @patch("mindie_llm.text_generator.generator.KVCacheSettings",

@@ -24,6 +24,7 @@ from ..utils.input_metadata import InputMetadata
 from ..utils.model_input import ModelInputWrapper
 from ..utils.model_output import ModelOutputWrapper
 from ..utils.sampling_output import SamplingOutput
+from ..utils.npu_mem_tool import NpuMemoryWatcher
 from ...modeling.backend_type import BackendType
 from ...utils.decorators.time_decorator import timer
 from ...utils.env import ENV
@@ -45,6 +46,7 @@ class PluginManager:
         is_mix_model,
         plugin_list,
         model_role,
+        watcher,
         **kwargs
     ):
         self.generator_backend = generator_backend
@@ -54,6 +56,8 @@ class PluginManager:
         self.infer_context = infer_context
         self.output_filter = output_filter
         self.is_mix_model = is_mix_model
+        self.rank = self.generator_backend.rank
+        self.watcher = watcher
         if is_mix_model:
             self.mix_preprocess = None
         self.plugin_data_param = PluginDataParam()
@@ -149,8 +153,9 @@ class PluginManager:
             setattr(self, plugin, plugin_tmp)
 
     @timer.track_time_async('generate_token')
-    def generate_token(self, input_metadata: InputMetadata):
+    def generate_token(self, input_metadata: InputMetadata, warmup=False):
         try:
+            self.watcher.watch_npu_mem(self.rank, f'Before preprocess', warmup=warmup)
             prof = span_start("preprocess")
             cache_ids, model_inputs, sampling_metadata, trace_ids = self.preprocess(input_metadata)
             if not self.is_mix_model:
@@ -161,6 +166,7 @@ class PluginManager:
             self.plugin_data_param.q_len = qlen if qlen is not None else self.plugin_data_param.q_len
             self.plugin_data_param.mask = mask if mask is not None else self.plugin_data_param.mask
             span_end(prof)
+            self.watcher.watch_npu_mem(self.rank, f'After preprocess', warmup=warmup)
 
             prof = span_start("forward", True)
             span_req(prof, trace_ids)
@@ -186,6 +192,7 @@ class PluginManager:
             else:
                 logits = result
             span_end(prof, True)
+            self.watcher.watch_npu_mem(self.rank, f'After forward', warmup=warmup)
 
             prof = span_start("sample")
             draft_filtered_logits = self.sample_preprocess_manager(logits, result, sampling_metadata, input_metadata)
@@ -193,6 +200,7 @@ class PluginManager:
             if ENV.framework_backend == BackendType.ATB:
                 self.model_wrapper.model_runner.clear_internal_tensors()
             span_end(prof)
+            self.watcher.watch_npu_mem(self.rank, f'After sample', warmup=warmup)
             logger.info("sample end", extra={"handler_ids": HandlerType.TOKEN})
             prof = span_start("postprocess")
             self.put_prefix_kvcache_to_mempool(input_metadata, cache_ids)
@@ -201,6 +209,7 @@ class PluginManager:
             generation_output.trace_ids = trace_ids
             generation_output.simulator_ids = input_metadata.simulator_ids
             span_end(prof)
+            self.watcher.watch_npu_mem(self.rank, f'After postprocess', warmup=warmup)
             return generation_output
 
         except Exception as e:
@@ -213,8 +222,9 @@ class PluginManager:
             )
             raise e
 
-    def generate_token_async(self, input_metadata: InputMetadata) -> GenerationOutput:
+    def generate_token_async(self, input_metadata: InputMetadata, warmup=False) -> GenerationOutput:
         with self.generator_backend.get_new_stream():
+            self.watcher.watch_npu_mem(self.rank, f'In asyn inference mode, before preprocess', warmup=warmup)
             prof = span_start("preprocess")
             hit_mask = np.isin(input_metadata.all_sequence_ids, self.last_sequence_ids)
             cache_ids, model_input, sampling_metadata, trace_ids = self.preprocess(input_metadata, hit_mask=hit_mask)
@@ -222,6 +232,7 @@ class PluginManager:
             model_input, _, _ = self.model_inputs_update_manager(
                 model_input, input_metadata, sampling_metadata, cache_ids, hit_mask=hit_mask)
             span_end(prof)
+            self.watcher.watch_npu_mem(self.rank, f'In asyn inference mode, after preprocess', warmup=warmup)
 
             prof = span_start("prepare_model_inputs")
             if not ENV.framework_backend == BackendType.ATB:
@@ -321,6 +332,7 @@ class PluginManager:
             generation_output.fill_dummy(input_metadata, self.max_generated_tokens)
             self.last_sequence_ids = input_metadata.all_sequence_ids
             span_end(prof)
+            self.watcher.watch_npu_mem(self.rank, f'In asyn inference mode, after postprocess', warmup=warmup)
         return generation_output
 
     @timer.track_time('preprocess')
@@ -484,6 +496,7 @@ class PluginManager:
                     launch_done.set()
                 span_end(prof)
 
+                self.watcher.watch_npu_mem(self.rank, f'In asyn inference mode, after forward', warmup=False)
                 prof = span_start("sample")
                 draft_filtered_logits = self.sample_preprocess_manager(
                     model_output.logits,
@@ -496,6 +509,7 @@ class PluginManager:
                 if ENV.framework_backend == BackendType.ATB:
                     self.model_wrapper.model_runner.clear_internal_tensors()
                 span_end(prof)
+                self.watcher.watch_npu_mem(self.rank, f'In asyn inference mode, after sample', warmup=False)
                 logger.info("sample end", extra={"handler_ids": HandlerType.TOKEN})
                 if not self.is_inference_pause:
                     model_input_wrapper.postprocess_done.wait()

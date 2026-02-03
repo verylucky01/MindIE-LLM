@@ -20,12 +20,12 @@ import torch
 
 import acl
 from mindie_llm.connector.common.model_execute_data_pb2 import LoraOperationStatus
-from mindie_llm.text_generator.utils.kvcache_settings import (
-    KVCacheSettings,
+from mindie_llm.text_generator.utils.kvcache_settings import KVCacheSettings
+from mindie_llm.text_generator.utils.npu_mem_tool import (
     calc_npu_mem,
     calc_block_mem,
-    watch_npu_mem,
-    gb
+    gb,
+    NpuMemoryWatcher
 )
 from mindie_llm.text_generator.utils.tg_infer_context_store import TGInferContextStore
 from mindie_llm.modeling.backend_type import BackendType
@@ -171,6 +171,8 @@ class Generator(PDInterface):
         max_iter_times = parse_config(model_config, 'max_iter_times', required=True, parse_type=ParseType.TO_INT)
         max_input_len = parse_config(model_config, 'max_input_len', required=True, parse_type=ParseType.TO_INT)
         self.max_batch_size = parse_config(model_config, 'max_batch_size', required=True, parse_type=ParseType.TO_INT)
+        self.max_prefill_batch_size = parse_config(model_config, 'max_prefill_batch_size',
+                                                   required=True, parse_type=ParseType.TO_INT)
         max_prefill_tokens = parse_config(model_config, 'max_prefill_tokens', required=True,
                                           parse_type=ParseType.TO_INT)
         self.soc_version = parse_config(model_config, 'soc_version', required=False,
@@ -194,6 +196,7 @@ class Generator(PDInterface):
         self.device_inited = False
         self.separate_deployment_worker = None
 
+        self.watcher = NpuMemoryWatcher()
         self.input_metadata_queue = queue.Queue()
 
         plugin_params = parse_config(model_config, 'plugin_params')
@@ -369,7 +372,11 @@ class Generator(PDInterface):
         plugin_config["layerwise_disaggregated"] = self.layerwise_disaggregated
         plugin_config["layerwise_disaggregated_role_type"] = self.layerwise_disaggregated_role_type
 
-        self.plugin = get_plugin(plugin_list, plugin_config, plugin_utils, self.is_mix_model)
+        total_mem, warmup_mem = self.watcher.watch_npu_mem(self.rank, f'After warmup', 
+                                                           self.is_multimodal, max_input_len)
+        self.watcher._set_warmup_mem_(warmup_mem)
+
+        self.plugin = get_plugin(plugin_list, plugin_config, plugin_utils, self.is_mix_model, self.watcher)
         self.plugin.initialize()
         self.is_inference_pause = False
 
@@ -403,7 +410,22 @@ class Generator(PDInterface):
                 self.backend_type, self.generator_backend.cache_pool.npu_cache, self.to_tensor)
         self.copy_blocks_ops.copy_blocks(src_dst_map)
 
-    def generate_token(self, input_metadata: InputMetadata) -> GenerationOutput:
+    def check_batch_size_limit(self, is_prefill: bool, batch_size: int) -> None:
+        if is_prefill:
+            max_allowed = self.max_prefill_batch_size
+            stage_name = "prefill"
+        else:
+            max_allowed = self.max_batch_size
+            stage_name = "Decode"
+
+        if batch_size > max_allowed:
+            message = (
+                f"The `batch_size` is {batch_size} but 'max_{stage_name}_batch_size' is {max_allowed}. "
+                f"The `batch_size` should be less than 'max_{stage_name}_batch_size'."
+            )
+            logger.warning(message)
+
+    def generate_token(self, input_metadata: InputMetadata, warmup=False) -> GenerationOutput:
         """The core method for generating token ids.
 
         The key method called by the `BatchScheduler`, used for one iteration of generating token ids for a batch. Each
@@ -414,10 +436,26 @@ class Generator(PDInterface):
             input_metadata: The input metadata constructed by the `BatchScheduler` includes request data such as input
                 ids, post-processing parameters, etc.
         """
+        if not warmup and input_metadata.batch_seq_len.any():
+            dp_rank_ids = input_metadata.batch_dp_rank_ids
+            cur_dp_rank_id_mask = dp_rank_ids == self.model_wrapper.mapping.attn_dp.rank
+            input_ids_length = sum(input_metadata.batch_seq_len * cur_dp_rank_id_mask)
+            if self.scp_size == 1 and input_metadata.computed_blocks is not None:
+                computed_ids_block = sum(input_metadata.computed_blocks * cur_dp_rank_id_mask)
+                computed_ids_length = computed_ids_block * self.generator_backend.block_size
+                input_ids_length = input_ids_length - computed_ids_length
+            batch_size = np.asarray(cur_dp_rank_id_mask).sum()
+            if input_ids_length > self.max_prefill_tokens:
+                message = (
+                        f"`input_id` is {input_ids_length} but 'max_prefill_token' is {self.max_prefill_tokens}. "
+                        f"`input_id` should be less than 'max_prefill_tokens'." 
+                )
+                logger.warning(message)
+            self.check_batch_size_limit(input_metadata.is_prefill, batch_size)
+
         from ..utils.prof.profiler import span_start, span_end, span_attr, Level
         prof = span_start(name="generate_token", level=Level.DETAILED)
         prof = span_attr(prof, "input_metadata", lambda: str(input_metadata))
-
         try:
             if (self.pd_config.model_role in [DmiModeNodeRole.DECODER, DmiModeNodeRole.FLEX] and
                     not input_metadata.is_prefill and not self.input_metadata_queue.empty()):
@@ -437,9 +475,9 @@ class Generator(PDInterface):
                         {self.pd_config.model_role} is not compatible with split inference settings. \
                         Please check pd config.')
 
-                    generation_output = self.plugin.generate_token_async(input_metadata)
+                    generation_output = self.plugin.generate_token_async(input_metadata, warmup)
                 else:
-                    generation_output = self.plugin.generate_token(input_metadata)
+                    generation_output = self.plugin.generate_token(input_metadata, warmup)
             else:
                 raise NotImplementedError('plugin not implemented')
             if generation_output is None:
@@ -898,7 +936,7 @@ class Generator(PDInterface):
             input_metadata = InputMetadata.from_requests(prefill_reqs, block_tables, True, self.block_size)
             self.__execute_warm_up(kvcache_settings, input_metadata, self.inference_mode)
             self.generator_backend.enable_dap = True
-        _, _ = watch_npu_mem(self.rank, self.is_multimodal, self.max_input_len, 'warmup specified success')
+        _, _ = self.watcher.watch_npu_mem(self.rank, 'warmup specified success', self.is_multimodal, self.max_input_len)
         return kvcache_settings
 
     def __update_kvcache_settings(self, npu_mem):
@@ -973,8 +1011,8 @@ class Generator(PDInterface):
         return kvcache_settings
 
     def __auto_warmup(self, max_prefill_tokens, max_seq_len, max_input_len, max_iter_times, is_prefill=True):
-        total_mem, peak_mem = watch_npu_mem(self.rank, self.is_multimodal, self.max_input_len,
-                                            f'Before {"prefill" if is_prefill else "Decode"} warmup')
+        total_mem, peak_mem = self.watcher.watch_npu_mem(self.rank, 
+            f'Before {"prefill" if is_prefill else "Decode"} warmup', self.is_multimodal, self.max_input_len)
         block_mem_size = calc_block_mem(self.model_info, self.block_size, self.num_speculative_tokens)
         total_blocks = int((total_mem * ENV.memory_fraction - peak_mem) // block_mem_size)
 
@@ -1009,8 +1047,8 @@ class Generator(PDInterface):
         kvcache_settings = self.__update_kvcache_settings(prefill_npu_mem_gb)
 
         self.__execute_warm_up(kvcache_settings, input_metadata, dummy=True)
-        total_mem, peak_mem = watch_npu_mem(self.rank, self.is_multimodal, self.max_input_len,
-                                            f'After {"prefill" if is_prefill else "Decode"} warmup')
+        total_mem, peak_mem = self.watcher.watch_npu_mem(self.rank, 
+            f'After {"prefill" if is_prefill else "Decode"} warmup', self.is_multimodal, self.max_input_len)
         total_blocks = int(total_mem * ENV.memory_fraction - peak_mem) // block_mem_size + num_prefill_blocks
 
         try:
@@ -1021,7 +1059,7 @@ class Generator(PDInterface):
             print_log(self.rank, logger.error, f'Error: {e}')
             raise e
         _ = InputMetadata.from_requests(prefill_reqs, block_tables, True, self.block_size)
-        _, _ = watch_npu_mem(self.rank, self.is_multimodal, self.max_input_len, 'After check warmup')
+        _, _ = self.watcher.watch_npu_mem(self.rank, 'After check warmup', self.is_multimodal, self.max_input_len)
 
         npu_mem = calc_npu_mem(total_blocks, self.model_info, self.block_size) / 1024 / 1024 / 1024
         if self.soc_version is not None and self.soc_version == 240:
