@@ -327,14 +327,10 @@ void FcfsPolicy::ScheduleRunningSeqGroup(const SequenceGroupSPtr &seqGroup, size
     auto scheduledSeqGroup =
         std::make_shared<ScheduledSequenceGroup>(seqGroup, numUncachedNewTokens, enableChunking);
     if (seqGroup->IsPrefill()) {
-        MINDIE_LLM_LOG_INFO("Scheduled prefill seqGroup in running queue, seqId="
-                            << seqGroup->firstSeq->seqId_);
         scheduledSeqGroup->tokenChunkSize_ = numUncachedNewTokens;
         runningOutput.chunkedPrefillSeqGroups_.emplace_back(scheduledSeqGroup);
         runningOutput.prefillSeqGroupsList_.emplace_back(seqGroup);
     } else {
-        MINDIE_LLM_LOG_INFO("Scheduled decode seqGroup in running queue, seqId="
-                            << seqGroup->firstSeq->seqId_);
         scheduledSeqGroup->tokenChunkSize_ = 1;
         runningOutput.decodeSeqGroups_.emplace_back(scheduledSeqGroup);
         runningOutput.decodeSeqGroupsList_.emplace_back(seqGroup);

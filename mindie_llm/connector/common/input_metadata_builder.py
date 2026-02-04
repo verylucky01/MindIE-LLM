@@ -722,6 +722,7 @@ def parse_para_is_prefill(seq_group_metadata_list: List[SequenceGroupMetadata], 
     cp_size = 1
     if config is not None:
         cp_size = config.cp_size
+        scp_size = config.sp_size * config.cp_size
     for seq_group_metadata in seq_group_metadata_list:
         sampling_params = parse_sampling_parameters(seq_group_metadata)
         batch_sampling.append(sampling_params[0])
@@ -772,12 +773,20 @@ def parse_para_is_prefill(seq_group_metadata_list: List[SequenceGroupMetadata], 
         )
 
         # 解析每条request已计算的block数量，解析成一维list，如不存在将值置为None
-        scp_size = len(seq_group_metadata.sp_rank_block_num)
+        # 虚推请求不使用 prefix cache，填充 0 值以确保维度对齐
+        if seq_ids[0] == SIMULATE_SEQUENCE_ID:
+            if scp_size > 1:
+                computed.extend([0] * scp_size)
+                remote_computed.extend([0] * scp_size)
+                computed_block_order.append([])
+            continue
+        
+        seq_scp_size = len(seq_group_metadata.sp_rank_block_num)
         computed_block_order_ = convert_bytes_to_list(seq_group_metadata.computed_block_order)
         computed_ = convert_bytes_to_list(seq_group_metadata.computed_block_lens)
         remote_computed_ = convert_bytes_to_list(seq_group_metadata.remote_computed_block_lens)
         
-        if scp_size > 1:
+        if seq_scp_size > 1:
             sp_rank_id = seq_group_metadata.sp_rank_id
             if len(input_ids) == sum(computed_) * block_size:
                 computed_[sp_rank_id] -= 1

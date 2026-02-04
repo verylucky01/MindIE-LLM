@@ -747,7 +747,9 @@ class BatchContext:
             self.all_ndarray_context.output_len_count[updating_valid_context_handles] += updating_num_tokens
             self.all_ndarray_context.seq_lens[updating_valid_context_handles] += updating_num_tokens
             if self.spcp_parallel_info.scp_size > 1:
-                self.all_ndarray_context.cpu_cached_seq_idx[updating_valid_context_handles, input_metadata.sp_rank_id] \
+                # Filter sp_rank_id using updating_valid_indices to match the shape of updating_valid_context_handles
+                updating_sp_rank_id = input_metadata.sp_rank_id[updating_valid_indices]
+                self.all_ndarray_context.cpu_cached_seq_idx[updating_valid_context_handles, updating_sp_rank_id] \
                     += updating_num_tokens - 1
             else:
                 self.all_ndarray_context.cpu_cached_seq_idx[
