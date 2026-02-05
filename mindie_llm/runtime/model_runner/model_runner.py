@@ -182,7 +182,7 @@ class ModelRunner:
             self.position_ids = torch.zeros(max_num_token, dtype=torch.int64, device=self.device)
             self.seq_lens = torch.zeros(max_num_token, dtype=torch.int32, device=self.device)
 
-            max_block_num = (self.max_seq_len + self.block_size - 1) // self.block_size
+            max_block_num = (self.max_seq_len + self.block_size - 1) // self.block_size + self.num_speculative_tokens
             self.block_tables = torch.zeros((max_num_token, max_block_num), dtype=torch.int32, device=self.device)
             self.slot_mapping = -torch.ones(max_num_token, dtype=torch.int32, device=self.device)
             self.lmhead_indices = torch.zeros(max_num_token, dtype=torch.int64, device=self.device)
