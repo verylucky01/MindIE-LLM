@@ -129,6 +129,8 @@ class ModelRunner:
         self.distributed_enable = kwargs.get("distributed_enable", False)
         self.max_batch_size = kwargs.get("max_batch_size", -1)
         self.model_role = kwargs.get("model_role", "standard")
+
+        self.process_group, self.device = initialize_distributed(self.rank, self.npu_id, world_size)
         
         self.layerwise_disaggregated = kwargs.get("layerwise_disaggregated", False)
 
@@ -247,7 +249,6 @@ class ModelRunner:
         if self.prealloc_weight_mem_on_npu:
             from mindie_llm.runtime.utils.distributed import set_parallel_info_manager
             set_parallel_info_manager(self.mapping)
-        self.process_group, self.device = initialize_distributed(self.rank, self.npu_id, world_size)
         
         if not NPUSocInfo().support_bf16 and self.dtype == torch.bfloat16:
             error_msg = "This device does not support bfloat16." \
