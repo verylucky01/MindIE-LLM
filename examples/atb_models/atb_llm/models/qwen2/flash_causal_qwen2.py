@@ -598,8 +598,6 @@ class FlashQwen2ForCausalLM(FlashForCausalLM):
 
     # Static condition check for FlashComm enablement, called during model initialization
     def flash_comm_gate(self, weights) -> bool:
-        if self.lora_modifier.active:
-            return False
         if self.enable_dap:
             return False
         if self.tp_world_size == 1:
