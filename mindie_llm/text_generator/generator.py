@@ -228,11 +228,11 @@ class Generator(PDInterface):
         model_config['splitfuse_enabled'] = self.is_mix_model
 
         self.layerwise_disaggregated = parse_config(model_config, 'layerwiseDisaggregated', required=False,
-                                                parse_type=ParseType.TO_BOOL, default_value=False)
-        self.layerwise_disaggregated_role_type = parse_config(
-            model_config,
-            'layerwiseDisaggregatedRoleType',
+            parse_type=ParseType.TO_BOOL, default_value=False)
+        self.layerwise_disaggregated_role_type = parse_config(model_config, 'layerwiseDisaggregatedRoleType',
             default_value="")
+        self.lwd_multi_nodes_enable = parse_config(model_config, 'lwd_multi_nodes_enable', required=False,
+            parse_type=ParseType.TO_BOOL, default_value=False)
 
         model_config["layerwise_disaggregated"] = self.layerwise_disaggregated
         model_config["layerwise_disaggregated_role_type"] = self.layerwise_disaggregated_role_type
@@ -816,11 +816,10 @@ class Generator(PDInterface):
     def __get_warm_up_reqs(
         self,
         num_blocks,
-        max_prefill_tokens=4096,
-        max_seq_len=2560,
-        max_input_len=1,
-        max_iter_times=2560
+        warm_up_params=(4096, 2560, 1, 2560),
+        is_prefill=True
     ) -> Tuple[List[Request], np.ndarray, List]:
+        max_prefill_tokens, max_seq_len, max_input_len, max_iter_times = warm_up_params
         try:
             max_prefill_tokens, _, max_len = \
                 self.__get_warm_up_params(max_prefill_tokens, max_seq_len, max_input_len, max_iter_times)
@@ -832,8 +831,11 @@ class Generator(PDInterface):
         prefill_blocks = []
 
         prefill_blocks_per_dp_group = [0 for _ in range(self.dp_size if not self.distributed_enable else 1)]
-        max_prefill_tokens_per_dp_group = \
-                    [max_prefill_tokens for _ in range(self.dp_size if not self.distributed_enable else 1)]
+        if self.lwd_multi_nodes_enable and self.dp_size > 1 and is_prefill: # 多机多dp时显存优化
+            max_prefill_tokens_per_dp_group = [max_prefill_tokens, 1]
+        else:
+            max_prefill_tokens_per_dp_group = \
+                        [max_prefill_tokens for _ in range(self.dp_size if not self.distributed_enable else 1)]
         while max(max_prefill_tokens_per_dp_group) > 0:
             dp_idx = np.argmin(prefill_blocks_per_dp_group)
             input_len = min(max_prefill_tokens_per_dp_group[dp_idx], max_len)
@@ -913,9 +915,8 @@ class Generator(PDInterface):
         if self.enable_dap:
             prefill_token_length = math.ceil(max_prefill_tokens / 2)
         try:
-            prefill_reqs, block_tables, _ = self.__get_warm_up_reqs(kvcache_settings.num_npu_blocks,
-                                                                    max_prefill_tokens, prefill_token_length,
-                                                                    max_input_len, max_iter_times)
+            warm_up_params = (max_prefill_tokens, prefill_token_length, max_input_len, max_iter_times)
+            prefill_reqs, block_tables, _ = self.__get_warm_up_reqs(kvcache_settings.num_npu_blocks, warm_up_params)
         except Exception as e:
             print_log(self.rank, logger.error, f'Error: {e}')
             raise e
@@ -928,8 +929,8 @@ class Generator(PDInterface):
         if self.enable_dap and self.pd_config.model_role != DmiModeNodeRole.DECODER:
             self.generator_backend.enable_dap = False
             try:
-                prefill_reqs, block_tables, _ = self.__get_warm_up_reqs(
-                    kvcache_settings.num_npu_blocks, max_prefill_tokens, max_seq_len, max_input_len, max_iter_times)
+                warm_up_params = (max_prefill_tokens, max_seq_len, max_input_len, max_iter_times)
+                prefill_reqs, block_tables, _ = self.__get_warm_up_reqs(kvcache_settings.num_npu_blocks, warm_up_params)
             except Exception as e:
                 print_log(self.rank, logger.error, f'Error: {e}')
                 raise e
@@ -1017,9 +1018,8 @@ class Generator(PDInterface):
         total_blocks = int((total_mem * ENV.memory_fraction - peak_mem) // block_mem_size)
 
         try:
-            prefill_reqs, block_tables, _ = self.__get_warm_up_reqs(total_blocks, max_prefill_tokens,
-                                                                    max_seq_len, max_input_len,
-                                                                    max_iter_times)
+            warm_up_params = (max_prefill_tokens, max_seq_len, max_input_len, max_iter_times)
+            prefill_reqs, block_tables, _ = self.__get_warm_up_reqs(total_blocks, warm_up_params, is_prefill)
         except Exception as e:
             print_log(self.rank, logger.error, f'Error: {e}')
             raise e
@@ -1052,9 +1052,8 @@ class Generator(PDInterface):
         total_blocks = int(total_mem * ENV.memory_fraction - peak_mem) // block_mem_size + num_prefill_blocks
 
         try:
-            prefill_reqs, block_tables, _ = self.__get_warm_up_reqs(total_blocks, max_prefill_tokens,
-                                                                                 max_seq_len, max_input_len,
-                                                                                 max_iter_times)
+            warm_up_params = (max_prefill_tokens, max_seq_len, max_input_len, max_iter_times)
+            prefill_reqs, block_tables, _ = self.__get_warm_up_reqs(total_blocks, warm_up_params, is_prefill)
         except Exception as e:
             print_log(self.rank, logger.error, f'Error: {e}')
             raise e

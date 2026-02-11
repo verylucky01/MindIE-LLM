@@ -290,6 +290,7 @@ class NdarrayContext:
         return self.pool.pop()
 
     def _free_slot(self, slot_idx: int) -> None:
+        # In layerwise_disaggregated, slot 0 is reserved for dummy batches and recomputation and cannot be freed.
         if self.context_params.layerwise_disaggregated and slot_idx == 0:
             return
         self.pool.append(slot_idx)

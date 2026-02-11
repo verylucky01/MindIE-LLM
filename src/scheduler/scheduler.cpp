@@ -217,7 +217,8 @@ std::pair<SequenceGroupMetaDatas, SchedulerOutputs> Scheduler::Schedule(bool nee
     }
 
     LwdPDelayType pDelayType = LwdPDelayType::INVALID;
-    if (schedulerConfig_->layerwiseDisaggregated && pdPriorityType == PDPriorityType::PREFILL_FIRST) {
+    if (schedulerConfig_->layerwiseDisaggregated &&
+            schedulerConfig_->dpSize == 1 && pdPriorityType == PDPriorityType::PREFILL_FIRST) {
         pDelayType = LayerwiseDecidePDelay();
         if (pDelayType == LwdPDelayType::PREFILL_TO_DECODE) {
             pdPriorityType = PDPriorityType::DECODE_FIRST;

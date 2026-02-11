@@ -165,9 +165,11 @@ class TestGenerator(unittest.TestCase):
         generator.scp_size = 1
         generator.distributed_enable = False
         generator.separate_deployment_worker = None
+        generator.lwd_multi_nodes_enable = False
 
+        warm_up_params = (256, 256, 128, 128)
         prefill_reqs, block_tables, prefill_blocks = \
-            generator._Generator__get_warm_up_reqs(1024, 256, 256, 128, 128)
+            generator._Generator__get_warm_up_reqs(1024, warm_up_params)
         self.assertEqual(len(prefill_reqs), 8)
         self.assertEqual(prefill_reqs[0].input_ids.shape[0], 256)
         self.assertEqual(prefill_reqs[0].max_new_tokens, 0)
@@ -190,9 +192,11 @@ class TestGenerator(unittest.TestCase):
         generator.scp_size = 1
         generator.distributed_enable = False
         generator.separate_deployment_worker = None
+        generator.lwd_multi_nodes_enable = False
 
         with self.assertRaises(RuntimeError) as context:
-            _, _, _ = generator._Generator__get_warm_up_reqs(1, 256, 256, 128, 128)
+            warm_up_params = (256, 256, 128, 128)
+            _, _, _ = generator._Generator__get_warm_up_reqs(1, warm_up_params)
         self.assertIn("Warmup failed.", str(context.exception))
 
     @patch("mindie_llm.text_generator.generator.Generator.__init__", return_value=None)

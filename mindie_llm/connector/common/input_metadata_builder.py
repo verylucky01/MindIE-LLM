@@ -150,7 +150,7 @@ def get_batch_size(request, is_prefill, is_mix):
     return total_bs, prefill_bs, decode_bs
 
 
-def make_dummy_input_metadata(execute_request, num_npu_blocks, model_config):
+def make_dummy_input_metadata(execute_request, num_npu_blocks, model_config, lwd_exe_stage=None):
     block_padding = model_config.max_seq_len // model_config.cache_block_size
     block_id_for_empty_req = num_npu_blocks - 1
     sp_batch_tokens = None
@@ -206,7 +206,8 @@ def make_dummy_input_metadata(execute_request, num_npu_blocks, model_config):
         batch_use_beam_search=np.array([False]),
         reserved_sequence_ids=[np.array([], dtype=np.int64)],
         is_dummy_batch=True,
-        sp_tokens=sp_batch_tokens
+        sp_tokens=sp_batch_tokens,
+        layerwise_disaggregated_exe_stage=lwd_exe_stage
     )
     metadata.seq_lens = []
     for dp_batch_seq_lens in execute_request.execute_model_request.all_dp_batches_seq_lens:

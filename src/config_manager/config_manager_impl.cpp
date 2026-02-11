@@ -245,7 +245,7 @@ static bool LwdCheckMultiNodesParam(const ServerConfig &serverConfigParam, const
     uint32_t dpNum)
 {
     bool multiNodes = backendConfigParam.lwdMultiNodesEnable;
-    bool slaveIpNum = serverConfigParam.layerwiseDisaggregatedSlaveIpAddress.size();
+    uint32_t slaveIpNum = serverConfigParam.layerwiseDisaggregatedSlaveIpAddress.size();
     if (multiNodes && slaveIpNum != 2) { // 多机目前仅支持2机
         MINDIE_LLM_LOG_ERROR("layerwiseDisaggregated multi nodes only support slaveIpAddress size is 2 ." << std::endl);
         return false;
