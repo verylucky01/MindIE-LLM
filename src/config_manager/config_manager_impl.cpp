@@ -352,7 +352,7 @@ bool ConfigManager::Impl::CheckAllParam()
             std::cout << "The value of modelParam.cpuMemSize can not be 0 when maxPreemptCount is not 0." << std::endl;
             result = false;
         }
-        if (maxPrefillTokens < modelPam.maxInputTokenLen) {
+        if (maxPrefillTokens < modelPam.maxInputTokenLen && scheduleConfig_->GetParam().templateType != "Mix") {
             std::cout << "The value of maxPrefillTokens should not be less than maxInputTokenLen." << std::endl;
             result = false;
         }

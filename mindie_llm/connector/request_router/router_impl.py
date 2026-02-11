@@ -430,14 +430,9 @@ class RouterImpl:
         is_req_prefill = []
         for seq_group_metadata in execute_request.execute_model_request.seq_group_metadata_list:
             is_req_prefill.extend(seq_group_metadata.is_req_prefill)
-        first_batch_is_prefill = is_req_prefill[0]
-        last_batch_is_prefill = is_req_prefill[-1]
-        if first_batch_is_prefill != last_batch_is_prefill:
-            self._generate(execute_request, is_prefill=True, is_mix=True)
-        elif first_batch_is_prefill:
-            self._generate(execute_request, is_prefill=True, is_mix=False)
-        else:
-            self._generate(execute_request, is_prefill=False, is_mix=False)
+        is_prefill = True in is_req_prefill
+        is_mix = (True in is_req_prefill) and (False in is_req_prefill)
+        self._generate(execute_request, is_prefill=is_prefill, is_mix=is_mix)
 
     def _generate(self, execute_request: ExecuteRequest, is_prefill, is_mix):
         convert_prof = span_start("GetInputMetadata", domain="ModelExecute")

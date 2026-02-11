@@ -728,9 +728,15 @@ def parse_para_is_prefill(seq_group_metadata_list: List[SequenceGroupMetadata], 
         batch_sampling.append(sampling_params[0])
 
         input_ids = convert_bytes_to_list(seq_group_metadata.prompt_token_ids)
+
         if cp_size > 1 and len(input_ids) % (cp_size * 2) != 0:
             pad_input_ids(input_ids, cp_size)
-        batch_input_ids.extend(input_ids)
+
+        # splitfuse时decode请求需要向input_ids中加入占位符，在插件中从cache里获取真正token
+        if not input_ids:
+            batch_input_ids.extend([0])
+        else:
+            batch_input_ids.extend(input_ids)
 
         stop_ids = list(seq_group_metadata.stop_token_ids)
         batch_stop_token_ids.append(stop_ids if stop_ids and len(stop_ids) > 0 else None)
@@ -870,9 +876,10 @@ def update_mix_metadata(input_metadata_composite, mix_params):
     metadata = input_metadata_composite.input_metadata
     metadata.total_seq_num = total_seq_len
     metadata.batch_seq_len = batch_seq_len
-    metadata.input_ids = np.concatenate(
-        (np.array([0] * (len(is_req_prefill) - sum(is_req_prefill))), metadata.input_ids)
-    )
+
+    # 纯decode请求的batch input_ids加入占位符
+    if not metadata.is_prefill:
+        metadata.input_ids = np.array([0] * (len(is_req_prefill) - sum(is_req_prefill)))
 
     # 相比PD竞争需要新增的参数
     metadata.is_mix = is_mix

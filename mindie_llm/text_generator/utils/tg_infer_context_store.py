@@ -445,39 +445,39 @@ class TGInferContextStore:
         q_lens = np.ones(bs, dtype=np.int32)  # mix input
         max_seq_len_decode = 0
 
-        # prefill requests are ranged in the tail of requests list
-        decode_len = metadata.batch_is_prefill.shape[0] - np.sum(metadata.batch_is_prefill)
-        if decode_len > 0:
-            decode_idx = np.where(~metadata.batch_is_prefill)[0].tolist()
+        cumsum_seq_len = np.cumsum(metadata.batch_seq_len)
+
+        decode_seq_idx = np.where(~metadata.batch_is_prefill)[0]
+        if len(decode_seq_idx) > 0:
+            decode_token_ids = cumsum_seq_len[decode_seq_idx] - 1
             (input_ids_decode, max_seq_len_decode, position_ids_decode, input_lengths_decode, slots_decode) = (
                 self._batch_context.get_mix_decode_cache_for_splitfuse(
-                    context_handles[decode_idx], decode_idx, metadata, hit_mask
+                    context_handles[decode_seq_idx], decode_seq_idx, metadata, hit_mask
                 )
             )
-            input_ids[:decode_len] = input_ids_decode
-            position_ids[:decode_len] = position_ids_decode
-            last_position_ids[:decode_len] = position_ids_decode
-            input_lengths[:decode_len] = input_lengths_decode
-            slots[:decode_len] = slots_decode
+            slots[decode_token_ids] = slots_decode
+            input_ids[decode_token_ids] = input_ids_decode
+            position_ids[decode_token_ids] = position_ids_decode
+            last_position_ids[decode_seq_idx] = position_ids_decode
+            input_lengths[decode_seq_idx] = input_lengths_decode
         max_seq_len = max(metadata.max_seq_len, max_seq_len_decode)
 
-        prefill_seq_idx = np.where(metadata.batch_is_prefill)[0].tolist()
-        cur_idx = decode_len
-        for i in prefill_seq_idx:
-            seq_len = metadata.batch_seq_len[i]
-            start_idx = cur_idx
-            end_idx = cur_idx + seq_len
-            cur_idx += seq_len
-            prefill_head_indices[i] = cur_idx - 1
-            position_ids[start_idx:end_idx] = range(metadata.split_start_position[i], metadata.split_end_position[i])
-            seq_len_total = metadata.split_end_position[i]
-            last_position_ids[i] = seq_len_total - 1
-            input_lengths[i] = seq_len_total
-            slots[start_idx:end_idx] = \
-                self.block_table_to_slots(metadata.batch_block_tables[i]).reshape(-1)[
-                metadata.split_start_position[i]:metadata.split_end_position[i]
-                ]
-            q_lens[i] = seq_len
+        prefill_seq_idx = np.where(metadata.batch_is_prefill)[0]
+        if len(prefill_seq_idx) > 0:
+            prefill_seq_lens = metadata.batch_seq_len[prefill_seq_idx]
+            start_positions = (cumsum_seq_len - metadata.batch_seq_len)[prefill_seq_idx]
+            end_positions = cumsum_seq_len[prefill_seq_idx]
+            prefill_head_indices = cumsum_seq_len - 1
+            last_position_ids[prefill_seq_idx] = metadata.split_end_position[prefill_seq_idx] - 1
+            input_lengths[prefill_seq_idx] = metadata.split_end_position[prefill_seq_idx]
+            q_lens[prefill_seq_idx] = prefill_seq_lens
+            for _, (i, start_idx, end_idx) in enumerate(zip(prefill_seq_idx, start_positions, end_positions)):
+                position_ids[start_idx:end_idx] = \
+                    range(metadata.split_start_position[i], metadata.split_end_position[i])
+                slots[start_idx:end_idx] = \
+                    self.block_table_to_slots(metadata.batch_block_tables[i]).reshape(-1)[
+                        metadata.split_start_position[i]:metadata.split_end_position[i]
+                    ]
 
         self._batch_context.update_context_for_splitfuse(metadata, context_handles, input_lengths, last_position_ids)
         trace_ids = None
@@ -501,7 +501,8 @@ class TGInferContextStore:
                                   cached_context_length=input_lengths,
                                   max_seq_len=max_seq_len,
                                   prefill_head_indices=prefill_head_indices,
-                                  is_prefill=True)
+                                  is_prefill=True,
+                                  dp_rank_ids=metadata.batch_dp_rank_ids)
         res = (model_inputs, sampling_metadata, q_lens, trace_ids)
         return res
 

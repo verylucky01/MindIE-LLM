@@ -35,17 +35,8 @@ SIMULATE_SEQUENCE_ID = 9223372036854774
 
 
 def get_batch_size(is_prefill_pre_batch, requests):
-    first_batch_is_prefill = is_prefill_pre_batch[0]
-    last_batch_is_prefill = is_prefill_pre_batch[-1]
-    if first_batch_is_prefill != last_batch_is_prefill:
-        is_mix = True
-        is_prefill = True
-    elif first_batch_is_prefill:
-        is_mix = False
-        is_prefill = True
-    else:
-        is_mix = False
-        is_prefill = False
+    is_prefill = True in is_prefill_pre_batch
+    is_mix = (True in is_prefill_pre_batch) and (False in is_prefill_pre_batch)
 
     if is_mix:
         total_bs = len(requests)
