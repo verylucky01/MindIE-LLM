@@ -233,6 +233,7 @@ void LlmEngine::InitProcessGroup(const std::vector<NodeInfo> &nodeInfos, std::st
         ProcessGroup::GetInstance(processGroupMasterIP, processGroupMasterPort, hostIp, dpRankId_,
                                   schedulerConfig_->dpSize, isMaster);
         isProcessGroupInit = true;
+        MINDIE_LLM_LOG_INFO("Process Group initialized successfully.");
         PROF(INFO, AddMetaInfo("isMaster", isMaster));
         PROF(INFO, AddMetaInfo("rankHostIp", hostIp));
     }
