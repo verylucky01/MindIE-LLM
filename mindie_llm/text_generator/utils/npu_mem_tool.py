@@ -63,9 +63,10 @@ class NpuMemoryWatcher:
     def __init__(self):
         self.warmup_mem = 0
         self.threshold = 0
+        self.warmup = True
 
-    def watch_npu_mem(self, rank_id, tag, is_multimodal=False, max_input_len=2048, warmup=True):
-        if warmup:
+    def watch_npu_mem(self, rank_id, tag, is_multimodal=False, max_input_len=2048, trigger_count=-1):
+        if self.warmup:
             npu.synchronize()
             free_mem, total_mem, _ = acl.rt.get_mem_info(1)
             peak_mem = total_mem - free_mem
@@ -89,25 +90,29 @@ class NpuMemoryWatcher:
             return total_mem, peak_mem
 
         else:
-            free_mem, total_mem, _ = acl.rt.get_mem_info(1)
-            peak_mem = total_mem - free_mem
-            remaining_mem_warmup = total_mem - self.warmup_mem
+            if trigger_count == 0:
+                free_mem, total_mem, _ = acl.rt.get_mem_info(1)
+                peak_mem = total_mem - free_mem
+                remaining_mem_warmup = total_mem - self.warmup_mem
 
-            if remaining_mem_warmup == 0:
-                raise RuntimeError("NPU out of memory.")
+                if remaining_mem_warmup == 0:
+                    raise RuntimeError("NPU out of memory.")
 
-            remaining_mem_reduction = (peak_mem - self.warmup_mem) / remaining_mem_warmup
+                remaining_mem_reduction = (peak_mem - self.warmup_mem) / remaining_mem_warmup
 
             # 检查是否超过阈值
-            if remaining_mem_reduction > self.threshold:
-                logger.warning(
-                    f"After warmup, mem is {gb(self.warmup_mem):.2f}G, left mem is {gb(remaining_mem_warmup):.2f}G."
-                    f"{tag}, peak mem is: {gb(peak_mem):.2f}G, available mem is: {gb(free_mem):.2f}G. "
-                    f"Remaining memory decreased {100 * remaining_mem_reduction:.2f}% compared to the warmup phase."
-                )
-                self.threshold = math.ceil(remaining_mem_reduction / THRESHOLD_GRAD) * THRESHOLD_GRAD
-
+                if remaining_mem_reduction > self.threshold:
+                    logger.warning(
+                        f"After warmup, mem is {gb(self.warmup_mem):.2f}G, left mem is {gb(remaining_mem_warmup):.2f}G."
+                        f"{tag}, peak mem is: {gb(peak_mem):.2f}G, available mem is: {gb(free_mem):.2f}G. "
+                        f"Remaining memory decreased {100 * remaining_mem_reduction:.2f}% compared to the warmup phase."
+                    )
+                    self.threshold = math.ceil(remaining_mem_reduction / THRESHOLD_GRAD) * THRESHOLD_GRAD
+            else:
+                total_mem = 0
+                peak_mem = 0
             return total_mem, peak_mem
 
     def _set_warmup_mem_(self, warmup_mem):
         self.warmup_mem = warmup_mem
+        self.warmup = False

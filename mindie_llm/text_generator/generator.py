@@ -436,15 +436,21 @@ class Generator(PDInterface):
             input_metadata: The input metadata constructed by the `BatchScheduler` includes request data such as input
                 ids, post-processing parameters, etc.
         """
-        if not warmup and input_metadata.batch_seq_len.any():
-            dp_rank_ids = input_metadata.batch_dp_rank_ids
-            cur_dp_rank_id_mask = dp_rank_ids == self.model_wrapper.mapping.attn_dp.rank
-            input_ids_length = sum(input_metadata.batch_seq_len * cur_dp_rank_id_mask)
-            if self.scp_size == 1 and input_metadata.computed_blocks is not None:
-                computed_ids_block = sum(input_metadata.computed_blocks * cur_dp_rank_id_mask)
-                computed_ids_length = computed_ids_block * self.generator_backend.block_size
-                input_ids_length = input_ids_length - computed_ids_length
-            batch_size = np.asarray(cur_dp_rank_id_mask).sum()
+        if self.backend_type == 'atb' and not warmup and input_metadata.batch_seq_len.any():
+            cur_dp_rank_id_mask = self.model_wrapper.mapping.attn_dp.rank
+            mask = input_metadata.batch_dp_rank_ids == cur_dp_rank_id_mask
+            if len(input_metadata.batch_seq_len) != len(input_metadata.batch_dp_rank_ids): 
+                seq_tensor = input_metadata.batch_seq_len
+                comp_tensor = input_metadata.computed_blocks
+            else:
+                seq_tensor = input_metadata.batch_seq_len[mask]
+                comp_tensor = (input_metadata.computed_blocks[mask]
+                               if input_metadata.computed_blocks is not None
+                               else None)
+            input_ids_length = seq_tensor.sum().item()
+            if self.scp_size == 1 and comp_tensor is not None: 
+                input_ids_length -= comp_tensor.sum().item() * self.generator_backend.block_size
+            batch_size = np.asarray(mask).sum()
             if input_ids_length > self.max_prefill_tokens:
                 message = (
                         f"`input_id` is {input_ids_length} but 'max_prefill_token' is {self.max_prefill_tokens}. "

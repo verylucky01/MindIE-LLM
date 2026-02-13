@@ -334,6 +334,7 @@ class TestGenerator(unittest.TestCase):
             mock_timer.log_time_async = MagicMock(return_value=None)
             input_metadata = MagicMock()
             input_metadata.is_prefill = False
+            input_metadata.batch_seq_len = np.array([128,128])
             generation_output = generator.generate_token(input_metadata)
             self.assertEqual(generation_output, mock_generation_output)
 
