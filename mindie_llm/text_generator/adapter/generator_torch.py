@@ -246,7 +246,7 @@ class GeneratorTorch(GeneratorBackend):
 
     def swap_cache(self, swap_decision):
         swap_decision_tensor = torch.tensor(swap_decision, dtype=torch.int64, device=self.device)
-        self.cache_pool.swap_cache(swap_decision_tensor)
+        self.cache_pool.swap_kvcache_method(swap_decision_tensor)
 
     def update_cache_after_switch_pd_role(self):
         self.cache_pool.allocate_npu_cache()
