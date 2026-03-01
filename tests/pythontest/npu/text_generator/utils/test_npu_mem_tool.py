@@ -3,7 +3,6 @@ import unittest
 from unittest.mock import patch
 from dataclasses import dataclass
 import torch
-import mindspore
 
 from mindie_llm.text_generator.utils.npu_mem_tool import (
     calc_block_mem,
@@ -86,7 +85,7 @@ class TestMemoryCalculation(unittest.TestCase):
 
 class Test_watch_npu_mem(unittest.TestCase):
     @patch("acl.rt.get_mem_info")
-    @patch("mindie_llm.text_generator.utils.kvcache_settings.npu.synchronize")
+    @patch("torch.npu.synchronize")
     def test_watch_npu_mem(self, mock_sync, mock_get_mem):
         watch = NpuMemoryWatcher()
         mock_get_mem.return_value = (512 * 1024 ** 2, 1024 ** 3, 0)
