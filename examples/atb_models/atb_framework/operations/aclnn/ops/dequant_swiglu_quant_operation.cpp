@@ -9,11 +9,11 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
+#include "dequant_swiglu_quant_operation.h"
 #include "acl/acl.h"
-#include "atb_speed/log.h"
+#include "system_log.h"
 #include "operations/aclnn/utils/utils.h"
 #include "aclnnop/aclnn_dequant_swiglu_quant.h"
-#include "dequant_swiglu_quant_operation.h"
 
 namespace atb_speed {
 namespace common {
@@ -24,7 +24,7 @@ DequantSwigluQuantOperation::DequantSwigluQuantOperation(
 
 DequantSwigluQuantOperation::~DequantSwigluQuantOperation()
 {
-    ATB_SPEED_LOG_DEBUG("DequantSwigluQuantOperation deconstructor");
+    LOG_DEBUG_MODEL << "DequantSwigluQuantOperation deconstructor";
     this->DestroyOperation();
 }
 
@@ -32,7 +32,7 @@ atb::Status DequantSwigluQuantOperation::InferShape(
     const atb::SVector<atb::TensorDesc> &inTensorDescs,
     atb::SVector<atb::TensorDesc> &outTensorDescs) const
 {
-    ATB_SPEED_LOG_DEBUG(opName_ << " infer shape start");
+    LOG_DEBUG_MODEL << opName_ << " infer shape start";
     outTensorDescs.at(DIM0).format = inTensorDescs.at(DIM0).format;
     outTensorDescs.at(DIM0).dtype = aclDataType::ACL_INT8;
     outTensorDescs.at(DIM0).shape.dimNum = inTensorDescs.at(DIM0).shape.dimNum;
@@ -52,17 +52,16 @@ atb::Status DequantSwigluQuantOperation::InferShape(
         outTensorDescs.at(DIM1).shape.dims[DIM0] = inTensorDescs.at(DIM0).shape.dims[DIM0];
         outTensorDescs.at(DIM1).shape.dims[DIM1] = NUM1;
     } else {
-        ATB_SPEED_LOG_ERROR(opName_ << " invalid dim num:" << inTensorDescs.at(DIM0).shape.dimNum);
+        LOG_ERROR_MODEL << opName_ << " invalid dim num:" << inTensorDescs.at(DIM0).shape.dimNum;
     }
-    ATB_SPEED_LOG_DEBUG(opName_ << " infer shape end");
+    LOG_DEBUG_MODEL << opName_ << " infer shape end";
     return 0;
 }
-
 
 uint32_t DequantSwigluQuantOperation::GetInputNum() const
 {
     if (param_.inTensorsNum < NUM1 || param_.inTensorsNum > NUM5) {
-        ATB_SPEED_LOG_DEBUG("DequantSwigluQuantOperation param inTensorsNum is wrong! reset to 5.");
+        LOG_DEBUG_MODEL << "DequantSwigluQuantOperation param inTensorsNum is wrong! reset to 5.";
         return NUM5;
     }
     return param_.inTensorsNum;
@@ -93,7 +92,7 @@ atb::Status DequantSwigluQuantOperation::CreateAclNNInTensorVariantPack(const at
             atbTensor.desc.shape.dimNum, atbTensor.deviceData);
 
         if (aclnnTensor->tensor == nullptr) {
-            ATB_SPEED_LOG_ERROR(this->opName_ << " InTensor aclCreateTensor index " << i << " fail");
+            LOG_ERROR_MODEL << this->opName_ << " InTensor aclCreateTensor index " << i << " fail";
             return atb::ERROR_INTERNAL_ERROR;
         }
         aclnnVariantPack.aclInTensors[i] = aclnnTensor;
@@ -117,7 +116,7 @@ atb::Status DequantSwigluQuantOperation::CreateAclNNOutTensorVariantPack(const a
             aclnnTensor->strides.data(), 0, atbTensor.desc.format, atbTensor.desc.shape.dims,
             atbTensor.desc.shape.dimNum, atbTensor.deviceData);
         if (aclnnTensor->tensor == nullptr) {
-            ATB_SPEED_LOG_ERROR(this->opName_ << " OutTensor aclCreateTensor index " << i << " fail");
+            LOG_ERROR_MODEL << this->opName_ << " OutTensor aclCreateTensor index " << i << " fail";
             return atb::ERROR_INTERNAL_ERROR;
         }
         aclnnVariantPack.aclOutTensors[i] = aclnnTensor;
@@ -127,7 +126,7 @@ atb::Status DequantSwigluQuantOperation::CreateAclNNOutTensorVariantPack(const a
 
 int DequantSwigluQuantOperation::SetAclNNWorkspaceExecutor()
 {
-    ATB_SPEED_LOG_DEBUG(opName_ << " start");
+    LOG_DEBUG_MODEL << opName_ << " start";
     AclNNVariantPack &aclnnVariantPack = this->aclnnOpCache_->aclnnVariantPack;
     uint32_t inputIdx = 0;
     aclTensor* xTensor = aclnnVariantPack.aclInTensors.at(inputIdx++)->tensor;
@@ -154,21 +153,21 @@ int DequantSwigluQuantOperation::SetAclNNWorkspaceExecutor()
         aclnnVariantPack.aclOutTensors.at(DIM1)->tensor,  // scaleOptional
         &this->aclnnOpCache_->workspaceSize,
         &this->aclnnOpCache_->aclExecutor);
-    ATB_SPEED_LOG_DEBUG(opName_ << " end, ret:"
+    LOG_DEBUG_MODEL << opName_ << " end, ret:"
                   << ret << ", workspaceSize:" << this->aclnnOpCache_->workspaceSize
-                  << ", aclExecutor:" << this->aclnnOpCache_->aclExecutor);
+                  << ", aclExecutor:" << this->aclnnOpCache_->aclExecutor;
     return ret;
 }
 
 int DequantSwigluQuantOperation::ExecuteAclNNOp(uint8_t *workspace, aclrtStream &stream)
 {
-    ATB_SPEED_LOG_DEBUG(opName_ << " DequantSwigluQuantOperation start");
+    LOG_DEBUG_MODEL << opName_ << " DequantSwigluQuantOperation start";
     int ret = aclnnDequantSwigluQuant(
         workspace,
         this->aclnnOpCache_->workspaceSize,
         this->aclnnOpCache_->aclExecutor,
         stream);
-    ATB_SPEED_LOG_DEBUG(opName_ << " DequantSwigluQuantOperation end, ret: " << ret);
+    LOG_DEBUG_MODEL << opName_ << " DequantSwigluQuantOperation end, ret: " << ret;
     return ret;
 }
 } // namespace common

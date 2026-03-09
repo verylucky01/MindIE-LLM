@@ -9,13 +9,12 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
+#include "gelu_operation.h"
 #include "operations/aclnn/utils/utils.h"
 #include "acl/acl.h"
-#include "atb_speed/log.h"
+#include "system_log.h"
 #include "aclnnop/aclnn_gelu.h"
 #include "aclnnop/aclnn_gelu_v2.h"
-#include "gelu_operation.h"
-
 
 namespace atb_speed::common {
 
@@ -30,7 +29,7 @@ namespace atb_speed::common {
 
     GeluOperation::~GeluOperation()
     {
-        ATB_SPEED_LOG_DEBUG("GeluOperation deconstruct");
+        LOG_DEBUG_MODEL << "GeluOperation deconstruct";
         this->DestroyOperation();
     }
 
@@ -45,18 +44,18 @@ namespace atb_speed::common {
         atb::SVector<atb::TensorDesc> &outTensorDesc
     ) const
     {
-        ATB_SPEED_LOG_DEBUG(opName_ << " InferShape start");
+        LOG_DEBUG_MODEL << opName_ << " InferShape start";
         outTensorDesc.at(0).format = inTensorDesc.at(0).format;
         outTensorDesc.at(0).dtype = inTensorDesc.at(0).dtype;
         outTensorDesc.at(0).shape.dimNum = inTensorDesc.at(0).shape.dimNum;
 
-        ATB_SPEED_LOG_DEBUG("Check " << opName_ << " input dimNum=" << inTensorDesc.at(0).shape.dimNum);
+        LOG_DEBUG_MODEL << "Check " << opName_ << " input dimNum=" << inTensorDesc.at(0).shape.dimNum;
         for (uint64_t dim = 0; dim < inTensorDesc.at(0).shape.dimNum; ++dim) {
-            ATB_SPEED_LOG_DEBUG("input dim" << dim << " shape=" << inTensorDesc.at(0).shape.dims[dim]);
+            LOG_DEBUG_MODEL << "input dim" << dim << " shape=" << inTensorDesc.at(0).shape.dims[dim];
             outTensorDesc.at(0).shape.dims[dim] = inTensorDesc.at(0).shape.dims[dim];
         }
 
-        ATB_SPEED_LOG_DEBUG(opName_ << " InferShape end");
+        LOG_DEBUG_MODEL << opName_ << " InferShape end";
         return atb::NO_ERROR;
     }
 
@@ -75,14 +74,14 @@ namespace atb_speed::common {
         AclNNVariantPack &aclnnVariantPack = this->aclnnOpCache_->aclnnVariantPack;
         aclnnVariantPack.aclInTensors.resize(GetInputNum());
         for (size_t i = 0; i < aclnnVariantPack.aclInTensors.size(); ++i) {
-            ATB_SPEED_LOG_DEBUG(opName_ << " CreateTensor start");
+            LOG_DEBUG_MODEL << opName_ << " CreateTensor start";
             atb::Tensor (*ReshapeTensorDecsFuncPtr)(atb::Tensor) = &SqueezeBatchSeq;
             if (CreateTensor(variantPack.inTensors.at(i), i, aclnnVariantPack.aclInTensors[i],
                              ReshapeTensorDecsFuncPtr) != atb::NO_ERROR) {
-                ATB_SPEED_LOG_ERROR(this->opName_ << " InTensor aclCreateTensor index " << i << " fail");
+                LOG_ERROR_MODEL << this->opName_ << " InTensor aclCreateTensor index " << i << " fail";
                 return atb::ERROR_INTERNAL_ERROR;
             }
-            ATB_SPEED_LOG_DEBUG(opName_ << " CreateTensor end");
+            LOG_DEBUG_MODEL << opName_ << " CreateTensor end";
         }
         return atb::NO_ERROR;
     }
@@ -92,23 +91,21 @@ namespace atb_speed::common {
         AclNNVariantPack &aclnnVariantPack = this->aclnnOpCache_->aclnnVariantPack;
         aclnnVariantPack.aclOutTensors.resize(GetOutputNum());
         for (size_t i = 0; i < aclnnVariantPack.aclOutTensors.size(); ++i) {
-            ATB_SPEED_LOG_DEBUG(opName_ << " CreateTensor start");
+            LOG_DEBUG_MODEL << opName_ << " CreateTensor start";
             atb::Tensor (*ReshapeTensorDecsFuncPtr)(atb::Tensor) = &SqueezeBatchSeq;
             if (CreateTensor(variantPack.outTensors.at(i), i, aclnnVariantPack.aclOutTensors[i],
                              ReshapeTensorDecsFuncPtr) != atb::NO_ERROR) {
-                ATB_SPEED_LOG_ERROR(this->opName_ << " OutTensor aclCreateTensor index " << i << " fail");
+                LOG_ERROR_MODEL << this->opName_ << " OutTensor aclCreateTensor index " << i << " fail";
                 return atb::ERROR_INTERNAL_ERROR;
             }
-            ATB_SPEED_LOG_DEBUG(opName_ << " CreateTensor end");
+            LOG_DEBUG_MODEL << opName_ << " CreateTensor end";
         }
         return atb::NO_ERROR;
     }
 
     int GeluOperation::SetAclNNWorkspaceExecutor()
     {
-        ATB_SPEED_LOG_DEBUG(
-            opName_ << " SetAclNNWorkspaceExecutor start, geluApproximate: " << param_.geluApproximate
-        );
+        LOG_DEBUG_MODEL << opName_ << " SetAclNNWorkspaceExecutor start, geluApproximate: " << param_.geluApproximate;
         AclNNVariantPack &aclnnVariantPack = this->aclnnOpCache_->aclnnVariantPack;
         if (param_.geluApproximate == -1) {
             int ret = aclnnGeluGetWorkspaceSize(
@@ -116,12 +113,10 @@ namespace atb_speed::common {
                 aclnnVariantPack.aclOutTensors.at(0)->tensor,  // out
                 &this->aclnnOpCache_->workspaceSize,
                 &this->aclnnOpCache_->aclExecutor);
-            ATB_SPEED_LOG_DEBUG(
-                opName_ << " SetAclNNWorkspaceExecutor end"
+            LOG_DEBUG_MODEL << opName_ << " SetAclNNWorkspaceExecutor end"
                         << ", ret: " << ret
                         << ", workspaceSize: " << this->aclnnOpCache_->workspaceSize
-                        << ", aclExecutor: " << this->aclnnOpCache_->aclExecutor
-            );
+                        << ", aclExecutor: " << this->aclnnOpCache_->aclExecutor;
             return ret;
         } else {
             int ret = aclnnGeluV2GetWorkspaceSize(
@@ -130,26 +125,24 @@ namespace atb_speed::common {
                 aclnnVariantPack.aclOutTensors.at(0)->tensor,  // y
                 &this->aclnnOpCache_->workspaceSize,
                 &this->aclnnOpCache_->aclExecutor);
-            ATB_SPEED_LOG_DEBUG(
-                opName_ << " SetAclNNWorkspaceExecutor end"
+            LOG_DEBUG_MODEL << opName_ << " SetAclNNWorkspaceExecutor end"
                         << ", ret: " << ret
                         << ", workspaceSize: " << this->aclnnOpCache_->workspaceSize
-                        << ", aclExecutor: " << this->aclnnOpCache_->aclExecutor
-            );
+                        << ", aclExecutor: " << this->aclnnOpCache_->aclExecutor;
             return ret;
         }
     }
 
     int GeluOperation::ExecuteAclNNOp(uint8_t *workspace, aclrtStream &stream)
     {
-        ATB_SPEED_LOG_DEBUG(opName_ << " ExecuteAclNNOp start");
+        LOG_DEBUG_MODEL << opName_ << " ExecuteAclNNOp start";
         if (param_.geluApproximate == -1) {
             int ret = aclnnGelu(
                 workspace,
                 this->aclnnOpCache_->workspaceSize,
                 this->aclnnOpCache_->aclExecutor,
                 stream);
-            ATB_SPEED_LOG_DEBUG(opName_ << " ExecuteAclNNOp end, ret: " << ret);
+            LOG_DEBUG_MODEL << opName_ << " ExecuteAclNNOp end, ret: " << ret;
             return ret;
         } else {
             int ret = aclnnGeluV2(
@@ -157,7 +150,7 @@ namespace atb_speed::common {
                 this->aclnnOpCache_->workspaceSize,
                 this->aclnnOpCache_->aclExecutor,
                 stream);
-            ATB_SPEED_LOG_DEBUG(opName_ << " ExecuteAclNNOp end, ret: " << ret);
+            LOG_DEBUG_MODEL << opName_ << " ExecuteAclNNOp end, ret: " << ret;
             return ret;
         }
     }

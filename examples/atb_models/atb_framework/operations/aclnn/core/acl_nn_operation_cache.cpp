@@ -9,17 +9,18 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include "atb_speed/log.h"
+#include "acl_nn_operation_cache.h"
+#include "system_log.h"
 #include "atb_speed/utils/singleton.h"
 #include "executor_manager.h"
-#include "acl_nn_operation_cache.h"
+
 
 namespace atb_speed {
 namespace common {
 
 void AclNNOpCache::Destroy()
 {
-    ATB_SPEED_LOG_DEBUG("Plugin Op Cache: AclNNOpCache addr [" << (this) << "]destroy");
+    LOG_DEBUG_MODEL << "Plugin Op Cache: AclNNOpCache addr [" << (this) << "]destroy";
     if (this->aclExecutor == nullptr) { return; }
 
     // ExecutorManager中的引用减1
@@ -28,12 +29,12 @@ void AclNNOpCache::Destroy()
 
     // 如果aclExecutor存在且引用为0，则destroy
     int ret = -1;
-    ATB_SPEED_LOG_DEBUG("Plugin Op Cache: destroy Executor addr[" << this->aclExecutor << "]");
+    LOG_DEBUG_MODEL << "Plugin Op Cache: destroy Executor addr[" << this->aclExecutor << "]";
     if (this->executorRepeatable) {
         // 如果executor可复用，进行destroy；否则不destroy，避免对aclExecutor的重复释放
         ret = aclDestroyAclOpExecutor(this->aclExecutor);
         if (ret != 0) {
-            ATB_SPEED_LOG_ERROR("Plugin Op Cache: destroy Executor failed.");
+            LOG_ERROR_MODEL << "Plugin Op Cache: destroy Executor failed.";
         }
     }
     this->aclExecutor = nullptr;
@@ -42,11 +43,13 @@ void AclNNOpCache::Destroy()
     for (size_t i = 0; i < this->aclnnVariantPack.aclInTensors.size(); ++i) {
         if (this->aclnnVariantPack.aclInTensors[i]->tensorListidx == AclNNTensor::notInTensorList) {
             ret = aclDestroyTensor(this->aclnnVariantPack.aclInTensors[i]->tensor);
-            if (ret != 0) { ATB_SPEED_LOG_ERROR("Plugin Op Cache: destroy aclInTensors " << i << " failed."); }
+            if (ret != 0) {
+                LOG_ERROR_MODEL << "Plugin Op Cache: destroy aclInTensors " << i << " failed.";
+            }
         }
         ret = aclDestroyIntArray(this->aclnnVariantPack.aclInTensors[i]->intArrayHostData.intArray);
         if (ret != 0) {
-            ATB_SPEED_LOG_ERROR("Plugin Op Cache: destroy aclInTensors " << i << " intArrayHostData failed.");
+            LOG_ERROR_MODEL << "Plugin Op Cache: destroy aclInTensors " << i << " intArrayHostData failed.";
         }
     }
     this->aclnnVariantPack.aclInTensors.clear();
@@ -54,27 +57,33 @@ void AclNNOpCache::Destroy()
     for (size_t i = 0; i < this->aclnnVariantPack.aclOutTensors.size(); ++i) {
         if (this->aclnnVariantPack.aclOutTensors[i]->tensorListidx == AclNNTensor::notInTensorList) {
             ret = aclDestroyTensor(this->aclnnVariantPack.aclOutTensors[i]->tensor);
-            if (ret != 0) { ATB_SPEED_LOG_ERROR("Plugin Op Cache: destroy aclOutTensors " << i << " failed."); }
+            if (ret != 0) {
+                LOG_ERROR_MODEL << "Plugin Op Cache: destroy aclOutTensors " << i << " failed.";
+            }
         }
     }
     this->aclnnVariantPack.aclOutTensors.clear();
 
     for (size_t i = 0; i < this->aclnnVariantPack.aclInTensorList.size(); ++i) {
         ret = aclDestroyTensorList(this->aclnnVariantPack.aclInTensorList[i]);
-        if (ret != 0) { ATB_SPEED_LOG_ERROR("Plugin Op Cache: destroy aclInTensorList " << i << " failed."); }
+        if (ret != 0) {
+            LOG_ERROR_MODEL << "Plugin Op Cache: destroy aclInTensorList " << i << " failed.";
+        }
     }
     this->aclnnVariantPack.aclInTensorList.clear();
 
     for (size_t i = 0; i < this->aclnnVariantPack.aclOutTensorList.size(); ++i) {
         ret = aclDestroyTensorList(this->aclnnVariantPack.aclOutTensorList[i]);
-        if (ret != 0) { ATB_SPEED_LOG_ERROR("Plugin Op Cache: destroy aclOutTensorList " << i << " failed."); }
+        if (ret != 0) {
+            LOG_ERROR_MODEL << "Plugin Op Cache: destroy aclOutTensorList " << i << " failed.";
+        }
     }
     this->aclnnVariantPack.aclOutTensorList.clear();
 }
 
 atb::Status AclNNOpCache::UpdateAclNNVariantPack(const atb::VariantPack &variantPack)
 {
-    ATB_SPEED_LOG_DEBUG("call UpdateAclNNVariantPack ");
+    LOG_DEBUG_MODEL << "call UpdateAclNNVariantPack ";
     for (size_t i = 0; i < this->aclnnVariantPack.aclInTensors.size(); ++i) {
         int ret = -1;
         if (!this->aclnnVariantPack.aclInTensors[i]->needUpdateTensorDataPtr) {
@@ -94,7 +103,7 @@ atb::Status AclNNOpCache::UpdateAclNNVariantPack(const atb::VariantPack &variant
                 this->aclnnVariantPack.aclInTensors[i]->atbTensor.deviceData);
         }
         if (ret != 0) {
-            ATB_SPEED_LOG_ERROR("inTensor " << i << " call UpdateAclTensorDataPtr fail, error: " << ret);
+            LOG_ERROR_MODEL << "inTensor " << i << " call UpdateAclTensorDataPtr fail, error: " << ret;
             return atb::ERROR_CANN_ERROR;
         }
     }
@@ -118,7 +127,7 @@ atb::Status AclNNOpCache::UpdateAclNNVariantPack(const atb::VariantPack &variant
                 this->aclnnVariantPack.aclOutTensors[i]->atbTensor.deviceData);
         }
         if (ret != 0) {
-            ATB_SPEED_LOG_ERROR("outTensor " << i << " call UpdateAclTensorDataPtr fail, error: " << ret);
+            LOG_ERROR_MODEL << "outTensor " << i << " call UpdateAclTensorDataPtr fail, error: " << ret;
             return atb::ERROR_CANN_ERROR;
         }
     }

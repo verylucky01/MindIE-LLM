@@ -9,11 +9,11 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
+#include "quant_batch_matmul_operation.h"
 #include "acl/acl.h"
-#include "atb_speed/log.h"
+#include "system_log.h"
 #include "operations/aclnn/utils/utils.h"
 #include "aclnnop/aclnn_weight_quant_batch_matmul_v2.h"
-#include "quant_batch_matmul_operation.h"
 
 namespace atb_speed {
 namespace common {
@@ -24,7 +24,7 @@ QuantBatchMatmulOperation::QuantBatchMatmulOperation(
 
 QuantBatchMatmulOperation::~QuantBatchMatmulOperation()
 {
-    ATB_SPEED_LOG_DEBUG("QuantBatchMatmulOperation deconstructor");
+    LOG_DEBUG_MODEL << "QuantBatchMatmulOperation deconstructor";
     this->DestroyOperation();
 }
 
@@ -32,32 +32,32 @@ atb::Status QuantBatchMatmulOperation::InferShape(
     const atb::SVector<atb::TensorDesc> &inTensorDescs,
     atb::SVector<atb::TensorDesc> &outTensorDescs) const
 {
-    ATB_SPEED_LOG_DEBUG(opName_ << " infer shape start");
+    LOG_DEBUG_MODEL << opName_ << " infer shape start";
     outTensorDescs.at(0).format = inTensorDescs.at(0).format;
     outTensorDescs.at(0).dtype = inTensorDescs.at(0).dtype;
     outTensorDescs.at(0).shape.dimNum = inTensorDescs.at(0).shape.dimNum;
 
     int nDim = param_.transposeB ? DIM0 : DIM1;
     if (inTensorDescs.at(0).shape.dimNum == DIM3) {
-        ATB_SPEED_LOG_DEBUG("[input0 dimNum = 3] CHECK " << opName_ << " inputs shape: [input0]"
+        LOG_DEBUG_MODEL << "[input0 dimNum = 3] CHECK " << opName_ << " inputs shape: [input0]"
                        << inTensorDescs.at(DIM0).shape.dims[DIM0] << ", "
-                       << inTensorDescs.at(DIM0).shape.dims[DIM1] << ", " << inTensorDescs.at(DIM0).shape.dims[DIM2]);
-        ATB_SPEED_LOG_DEBUG("[input0 dimNum = 3] CHECK " << opName_ << " inputs shape: [input1]"
-                       << inTensorDescs.at(DIM1).shape.dims[DIM0] << ", " << inTensorDescs.at(DIM1).shape.dims[DIM1]);
+                       << inTensorDescs.at(DIM0).shape.dims[DIM1] << ", " << inTensorDescs.at(DIM0).shape.dims[DIM2];
+        LOG_DEBUG_MODEL << "[input0 dimNum = 3] CHECK " << opName_ << " inputs shape: [input1]"
+                       << inTensorDescs.at(DIM1).shape.dims[DIM0] << ", " << inTensorDescs.at(DIM1).shape.dims[DIM1];
         outTensorDescs.at(DIM0).shape.dims[DIM0] = inTensorDescs.at(DIM0).shape.dims[DIM0];
         outTensorDescs.at(DIM0).shape.dims[DIM1] = inTensorDescs.at(DIM0).shape.dims[DIM1];
         outTensorDescs.at(DIM0).shape.dims[DIM2] = inTensorDescs.at(DIM3).shape.dims[nDim];
     } else if (inTensorDescs.at(0).shape.dimNum == DIM2) {
-        ATB_SPEED_LOG_DEBUG("[input0 dimNum = 2] CHECK " << opName_ << " inputs shape: [input0]"
-                       << inTensorDescs.at(DIM0).shape.dims[DIM0] << ", " << inTensorDescs.at(DIM0).shape.dims[DIM1]);
-        ATB_SPEED_LOG_DEBUG("[input0 dimNum = 2] CHECK " << opName_ << " inputs shape: [input1]"
-                       << inTensorDescs.at(DIM1).shape.dims[DIM0] << ", " << inTensorDescs.at(DIM1).shape.dims[DIM1]);
+        LOG_DEBUG_MODEL << "[input0 dimNum = 2] CHECK " << opName_ << " inputs shape: [input0]"
+                       << inTensorDescs.at(DIM0).shape.dims[DIM0] << ", " << inTensorDescs.at(DIM0).shape.dims[DIM1];
+        LOG_DEBUG_MODEL << "[input0 dimNum = 2] CHECK " << opName_ << " inputs shape: [input1]"
+                       << inTensorDescs.at(DIM1).shape.dims[DIM0] << ", " << inTensorDescs.at(DIM1).shape.dims[DIM1];
         outTensorDescs.at(0).shape.dims[DIM0] = inTensorDescs.at(DIM0).shape.dims[DIM0];
         outTensorDescs.at(0).shape.dims[DIM1] = inTensorDescs.at(DIM3).shape.dims[nDim];
     } else {
-        ATB_SPEED_LOG_ERROR(opName_ << " invalid dim num:" << inTensorDescs.at(DIM0).shape.dimNum);
+        LOG_ERROR_MODEL << opName_ << " invalid dim num:" << inTensorDescs.at(DIM0).shape.dimNum;
     }
-    ATB_SPEED_LOG_DEBUG(opName_ << " infer shape end");
+    LOG_DEBUG_MODEL << opName_ << " infer shape end";
     return 0;
 }
 
@@ -106,8 +106,8 @@ atb::Status QuantBatchMatmulOperation::CreateAclNNInTensorVariantPack(const atb:
         atb::Tensor preprocessedATBTensor = this->PreprocessATBInTensor(variantPack.inTensors.at(i), i);
         if ((i == 1) || (i == 2) || (i == 3)) {  // 1, 2, 3: weight, weight_scale, weight_offset
             if (preprocessedATBTensor.desc.shape.dimNum != NUM2) {
-                ATB_SPEED_LOG_ERROR(this->opName_ << " weight tensor dimNum after combine batch size "
-                               << "and seq len axis should be 2, but got " << preprocessedATBTensor.desc.shape.dimNum);
+                LOG_ERROR_MODEL << this->opName_ << " weight tensor dimNum after combine batch size "
+                               << "and seq len axis should be 2, but got " << preprocessedATBTensor.desc.shape.dimNum;
                 return atb::ERROR_INTERNAL_ERROR;
             }
             // StorageShape
@@ -156,7 +156,7 @@ atb::Status QuantBatchMatmulOperation::CreateAclNNOutTensorVariantPack(const atb
 
 int QuantBatchMatmulOperation::SetAclNNWorkspaceExecutor()
 {
-    ATB_SPEED_LOG_DEBUG(opName_ << " start");
+    LOG_DEBUG_MODEL << opName_ << " start";
     AclNNVariantPack &aclnnVariantPack = this->aclnnOpCache_->aclnnVariantPack;
     int ret = aclnnWeightQuantBatchMatmulV2GetWorkspaceSize(
         aclnnVariantPack.aclInTensors.at(0)->tensor,  // 0: x
@@ -166,9 +166,9 @@ int QuantBatchMatmulOperation::SetAclNNWorkspaceExecutor()
         param_.hasBias ? aclnnVariantPack.aclInTensors.at(4)->tensor : nullptr,  // 4: bias
         param_.quantGroupSize, aclnnVariantPack.aclOutTensors.at(0)->tensor,
         &this->aclnnOpCache_->workspaceSize, &this->aclnnOpCache_->aclExecutor);
-    ATB_SPEED_LOG_DEBUG(opName_ << " end, ret:"
+    LOG_DEBUG_MODEL << opName_ << " end, ret:"
                   << ret << ", workspaceSize:" << this->aclnnOpCache_->workspaceSize
-                  << ", aclExecutor:" << this->aclnnOpCache_->aclExecutor);
+                  << ", aclExecutor:" << this->aclnnOpCache_->aclExecutor;
     return ret;
 }
 

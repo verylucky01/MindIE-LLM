@@ -16,7 +16,7 @@
 #include <sstream>
 #include <unistd.h>
 #include "acl/acl.h"
-#include "atb_speed/log.h"
+#include "system_log.h"
 #include "aclnnop/aclnn_argsort.h"
 #include "operations/aclnn/utils/utils.h"
 namespace atb_speed {
@@ -32,14 +32,14 @@ ArgSortOperation::~ArgSortOperation() {
 atb::Status ArgSortOperation::InferShape(
     const atb::SVector<atb::TensorDesc> &inTensorDescs, atb::SVector<atb::TensorDesc> &outTensorDescs) const
 {
-    ATB_SPEED_LOG_DEBUG(opName_ << "ArgSortOperation infer shape start");
+    LOG_DEBUG_MODEL << opName_ << "ArgSortOperation infer shape start";
     outTensorDescs.at(0).format = inTensorDescs.at(0).format;
     outTensorDescs.at(0).dtype = ACL_INT64;
     outTensorDescs.at(0).shape.dimNum = inTensorDescs.at(0).shape.dimNum;
     outTensorDescs.at(0).shape.dims[0] = inTensorDescs.at(0).shape.dims[0];
-    ATB_SPEED_LOG_DEBUG(opName_ << "ArgSortOperation infer shape end"
+    LOG_DEBUG_MODEL << opName_ << "ArgSortOperation infer shape end"
                   << " format: " << inTensorDescs.at(0).format << " dimNum: " << inTensorDescs.at(0).shape.dimNum
-                  << " dims: " << inTensorDescs.at(0).shape.dims[0]);
+                  << " dims: " << inTensorDescs.at(0).shape.dims[0];
     return 0;
 }
 
@@ -92,7 +92,7 @@ atb::Status ArgSortOperation::CreateAclNNOutTensorVariantPack(const atb::Variant
 
 int ArgSortOperation::SetAclNNWorkspaceExecutor()
 {
-    ATB_SPEED_LOG_DEBUG(opName_ << " SetAclNNWorkspaceExecutor start");
+    LOG_DEBUG_MODEL << opName_ << " SetAclNNWorkspaceExecutor start";
     AclNNVariantPack &aclnnVariantPack = this->aclnnOpCache_->aclnnVariantPack;
     int ret = aclnnArgsortGetWorkspaceSize(aclnnVariantPack.aclInTensors.at(0)->tensor,
         0,
@@ -100,17 +100,17 @@ int ArgSortOperation::SetAclNNWorkspaceExecutor()
         aclnnVariantPack.aclOutTensors.at(0)->tensor,
         &this->aclnnOpCache_->workspaceSize,
         &this->aclnnOpCache_->aclExecutor);
-    ATB_SPEED_LOG_DEBUG(opName_ << " SetAclNNWorkspaceExecutor end, ret:" << ret
+    LOG_DEBUG_MODEL << opName_ << " SetAclNNWorkspaceExecutor end, ret:" << ret
                   << ", workspaceSize:" << this->aclnnOpCache_->workspaceSize
-                  << ", aclExecutor:" << this->aclnnOpCache_->aclExecutor);
+                  << ", aclExecutor:" << this->aclnnOpCache_->aclExecutor;
     return ret;
 }
 
 int ArgSortOperation::ExecuteAclNNOp(uint8_t *workspace, aclrtStream &stream)
 {
-    ATB_SPEED_LOG_DEBUG(opName_ << " ExecuteAclNNOp start");
+    LOG_DEBUG_MODEL << opName_ << " ExecuteAclNNOp start";
     int ret = aclnnArgsort(workspace, this->aclnnOpCache_->workspaceSize, this->aclnnOpCache_->aclExecutor, stream);
-    ATB_SPEED_LOG_DEBUG(opName_ << " ExecuteAclNNOp end, ret:" << ret);
+    LOG_DEBUG_MODEL << opName_ << " ExecuteAclNNOp end, ret:" << ret;
     return ret;
 }
 }  // namespace common

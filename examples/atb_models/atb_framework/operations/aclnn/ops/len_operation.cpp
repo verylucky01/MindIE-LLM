@@ -13,7 +13,7 @@
 #include "operations/aclnn/utils/utils.h"
 #include "acl/acl.h"
 #include "aclnnop/aclnn_range.h"
-#include "atb_speed/log.h"
+#include "system_log.h"
 
 namespace atb_speed {
 namespace common {
@@ -22,7 +22,7 @@ LenOperation::LenOperation(const std::string &name) : AclNNOperation(name) {}
 
 LenOperation::~LenOperation()
 {
-    ATB_SPEED_LOG_DEBUG("LenOperation deconstruct");
+    LOG_DEBUG_MODEL << "LenOperation deconstruct";
     this->DestroyOperation();
     if (this->start_ != nullptr) {
         aclDestroyScalar(this->start_);
@@ -46,12 +46,12 @@ atb::Status LenOperation::InferShape(
     const atb::SVector<atb::TensorDesc> &inTensorDesc,
     atb::SVector<atb::TensorDesc> &outTensorDesc) const
 {
-    ATB_SPEED_LOG_DEBUG(opName_ << " LenOperation infer shape start");
+    LOG_DEBUG_MODEL << opName_ << " LenOperation infer shape start";
     outTensorDesc.at(0).format = inTensorDesc.at(0).format;
     outTensorDesc.at(0).dtype = aclDataType::ACL_INT32;
     outTensorDesc.at(0).shape.dimNum = 1;
     outTensorDesc.at(0).shape.dims[0] = 1;
-    ATB_SPEED_LOG_DEBUG(opName_ << "LenOperation InferShape end");
+    LOG_DEBUG_MODEL << opName_ << "LenOperation InferShape end";
 
     return atb::NO_ERROR;
 }
@@ -62,7 +62,7 @@ atb::Status LenOperation::CreateAclNNInTensorVariantPack(const atb::VariantPack 
     aclnnVariantPack.aclInTensors.resize(GetInputNum());
     for (size_t i = 0; i < aclnnVariantPack.aclInTensors.size(); ++i) {
         if (CreateTensor(variantPack.inTensors.at(i), i, aclnnVariantPack.aclInTensors[i]) != atb::NO_ERROR) {
-            ATB_SPEED_LOG_ERROR(this->opName_ << " InTensor aclCreateTensor index " << i << " fail");
+            LOG_ERROR_MODEL << this->opName_ << " InTensor aclCreateTensor index " << i << " fail";
             return atb::ERROR_INTERNAL_ERROR;
         }
     }
@@ -76,7 +76,7 @@ atb::Status LenOperation::CreateAclNNOutTensorVariantPack(const atb::VariantPack
     aclnnVariantPack.aclOutTensors.resize(GetOutputNum());
     for (size_t i = 0; i < aclnnVariantPack.aclOutTensors.size(); ++i) {
         if (CreateTensor(variantPack.outTensors.at(i), i, aclnnVariantPack.aclOutTensors[i]) != atb::NO_ERROR) {
-            ATB_SPEED_LOG_ERROR(this->opName_ << " outTensor aclCreateTensor index " << i << " fail");
+            LOG_ERROR_MODEL << this->opName_ << " outTensor aclCreateTensor index " << i << " fail";
             return atb::ERROR_INTERNAL_ERROR;
         }
     }
@@ -85,7 +85,7 @@ atb::Status LenOperation::CreateAclNNOutTensorVariantPack(const atb::VariantPack
 
 int LenOperation::SetAclNNWorkspaceExecutor()
 {
-    ATB_SPEED_LOG_DEBUG(opName_ << " SetAclNNWorkspaceExecutor start");
+    LOG_DEBUG_MODEL << opName_ << " SetAclNNWorkspaceExecutor start";
     
     AclNNVariantPack &aclnnVariantPack = this->aclnnOpCache_->aclnnVariantPack;
     auto start = aclnnVariantPack.aclInTensors.at(DIM0)->atbTensor.desc.shape.dims[DIM0];
@@ -113,20 +113,18 @@ int LenOperation::SetAclNNWorkspaceExecutor()
         aclnnVariantPack.aclOutTensors.at(DIM0)->tensor,
         &this->aclnnOpCache_->workspaceSize,
         &this->aclnnOpCache_->aclExecutor);
-    ATB_SPEED_LOG_DEBUG(
-        opName_ << " SetAclNNWorkspaceExecutor end"
+    LOG_DEBUG_MODEL << opName_ << " SetAclNNWorkspaceExecutor end"
                 << ", ret: " << ret
                 << ", workspaceSize: " << this->aclnnOpCache_->workspaceSize
-                << ", aclExecutor: " << this->aclnnOpCache_->aclExecutor
-    );
+                << ", aclExecutor: " << this->aclnnOpCache_->aclExecutor;
     return ret;
 }
 
 int LenOperation::ExecuteAclNNOp(uint8_t *workspace, aclrtStream &stream)
 {
-    ATB_SPEED_LOG_DEBUG(opName_ << " ExecuteAclNNOp start");
+    LOG_DEBUG_MODEL << opName_ << " ExecuteAclNNOp start";
     int ret = aclnnRange(workspace, this->aclnnOpCache_->workspaceSize, this->aclnnOpCache_->aclExecutor, stream);
-    ATB_SPEED_LOG_DEBUG(opName_ << " ExecuteAclNNOp end, ret:" << ret);
+    LOG_DEBUG_MODEL << opName_ << " ExecuteAclNNOp end, ret:" << ret;
     return ret;
 }
 } // namespace common

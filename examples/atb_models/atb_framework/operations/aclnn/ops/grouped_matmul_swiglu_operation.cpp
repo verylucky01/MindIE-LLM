@@ -17,7 +17,7 @@
 #include <vector>
 #include <unistd.h>
 #include "acl/acl.h"
-#include "atb_speed/log.h"
+#include "system_log.h"
 #include "atb_speed/utils/timer.h"
 #include "aclnnop/aclnn_grouped_matmul_swiglu_quant.h"
 #include "operations/aclnn/utils/utils.h"
@@ -36,8 +36,8 @@ GroupedMatmulSwigluOperation::~GroupedMatmulSwigluOperation() {
 atb::Status GroupedMatmulSwigluOperation::InferShape(
     const atb::SVector<atb::TensorDesc> &inTensorDescs, atb::SVector<atb::TensorDesc> &outTensorDescs) const
 {
-    ATB_SPEED_LOG_DEBUG(opName_ << "GroupedMatmulSwigluOperation infer shape start");
-    ATB_SPEED_LOG_DEBUG(opName_ << "exports" << inTensorDescs.at(DIM2).shape.dims[DIM0]);
+    LOG_DEBUG_MODEL << opName_ << "GroupedMatmulSwigluOperation infer shape start";
+    LOG_DEBUG_MODEL << opName_ << "exports" << inTensorDescs.at(DIM2).shape.dims[DIM0];
     outTensorDescs.at(DIM0).format = inTensorDescs.at(DIM0).format;
     outTensorDescs.at(DIM0).dtype = inTensorDescs.at(DIM0).dtype;
     outTensorDescs.at(DIM0).shape.dimNum = inTensorDescs.at(DIM0).shape.dimNum;
@@ -52,7 +52,7 @@ atb::Status GroupedMatmulSwigluOperation::InferShape(
     outTensorDescs.at(DIM1).shape.dimNum = 1;
     outTensorDescs.at(DIM1).shape.dims[DIM0] = inTensorDescs.at(DIM0).shape.dims[DIM0];
 
-    ATB_SPEED_LOG_DEBUG(opName_ << "GroupedMatmulSwigluOperation infer shape end");
+    LOG_DEBUG_MODEL << opName_ << "GroupedMatmulSwigluOperation infer shape end";
     return 0;
 }
 
@@ -135,7 +135,7 @@ atb::Status GroupedMatmulSwigluOperation::CreateAclNNOutTensorVariantPack(const 
 
 int GroupedMatmulSwigluOperation::SetAclNNWorkspaceExecutor()
 {
-    ATB_SPEED_LOG_DEBUG(opName_ << " SetAclNNWorkspaceExecutor start");
+    LOG_DEBUG_MODEL << opName_ << " SetAclNNWorkspaceExecutor start";
     AclNNVariantPack &aclnnVariantPack = this->aclnnOpCache_->aclnnVariantPack;
     int ret = aclnnGroupedMatmulSwigluQuantGetWorkspaceSize(aclnnVariantPack.aclInTensors.at(DIM0)->tensor,  // 0: x
         aclnnVariantPack.aclInTensors.at(DIM1)->tensor,  // 1: weight
@@ -150,18 +150,18 @@ int GroupedMatmulSwigluOperation::SetAclNNWorkspaceExecutor()
         &this->aclnnOpCache_->workspaceSize,
         &this->aclnnOpCache_->aclExecutor);
 
-    ATB_SPEED_LOG_DEBUG(opName_ << " SetAclNNWorkspaceExecutor end, ret:" << ret
+    LOG_DEBUG_MODEL << opName_ << " SetAclNNWorkspaceExecutor end, ret:" << ret
                   << ", workspaceSize:" << this->aclnnOpCache_->workspaceSize
-                  << ", aclExecutor:" << this->aclnnOpCache_->aclExecutor);
+                  << ", aclExecutor:" << this->aclnnOpCache_->aclExecutor;
     return ret;
 }
 
 int GroupedMatmulSwigluOperation::ExecuteAclNNOp(uint8_t *workspace, aclrtStream &stream)
 {
-    ATB_SPEED_LOG_DEBUG(opName_ << " aclnnGroupedMatmul start");
+    LOG_DEBUG_MODEL << opName_ << " aclnnGroupedMatmul start";
     int ret = aclnnGroupedMatmulSwigluQuant(
         workspace, this->aclnnOpCache_->workspaceSize, this->aclnnOpCache_->aclExecutor, stream);
-    ATB_SPEED_LOG_DEBUG(opName_ << " aclnnGroupedMatmul end, ret:" << ret);
+    LOG_DEBUG_MODEL << opName_ << " aclnnGroupedMatmul end, ret:" << ret;
     return ret;
 }
 

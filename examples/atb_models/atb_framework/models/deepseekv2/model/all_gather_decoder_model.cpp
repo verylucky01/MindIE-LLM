@@ -13,7 +13,7 @@
 #include <vector>
 #include "nlohmann/json.hpp"
 #include "atb/atb_infer.h"
-#include "atb_speed/log.h"
+#include "system_log.h"
 #include "operations/fusion/embedding/positional_embedding.h"
 #include "operations/fusion/embedding/word_embedding.h"
 #include "operations/fusion/lmhead/lmhead.h"
@@ -31,7 +31,7 @@ atb::Status AllGatherDecoderModel::InferShape(
     std::vector<atb::TensorDesc> &outTensorDescs
 )
 {
-    ATB_SPEED_LOG_DEBUG("Enter AllGatherDecoderModel InferShape");
+    LOG_DEBUG_MODEL << "Enter AllGatherDecoderModel InferShape";
     if (outTensorDescs.size() != GetOutputNum()) {
         return atb::ERROR_INVALID_GRAPH;
     }
@@ -57,13 +57,13 @@ int64_t AllGatherDecoderModel::BuildGraph()
     this->inTensorMap_["expert_router_map"] = startInTensorIdx;
     startInTensorIdx++;
     this->graph_.inTensors.resize(startInTensorIdx);
-    ATB_SPEED_LOG_DEBUG("graph_.inTensorCount_ " << startInTensorIdx);
+    LOG_DEBUG_MODEL << "graph_.inTensorCount_ " << startInTensorIdx;
     this->graph_.outTensors.resize(1);
 
-    ATB_SPEED_LOG_DEBUG("AllGatherDecoderModel build graph begin");
+    LOG_DEBUG_MODEL << "AllGatherDecoderModel build graph begin";
 
     CHECK_OPERATION_STATUS_RETURN(AddExpertRouterAllGather());
-    ATB_SPEED_LOG_DEBUG("AllGatherDecoderModel build graph success");
+    LOG_DEBUG_MODEL << "AllGatherDecoderModel build graph success";
     return atb::NO_ERROR;
 }
 
@@ -88,7 +88,7 @@ atb::Status AllGatherDecoderModel::AddExpertRouterAllGather()
         &graph_.outTensors.at(0),
     };
 
-    ATB_SPEED_LOG_DEBUG("AllGatherDecoderModel build graph : expertRouterAllGatherNode end");
+    LOG_DEBUG_MODEL << "AllGatherDecoderModel build graph : expertRouterAllGatherNode end";
     graph_.nodes.push_back(*expertRouterAllGatherNode);
     return atb::NO_ERROR;
 }

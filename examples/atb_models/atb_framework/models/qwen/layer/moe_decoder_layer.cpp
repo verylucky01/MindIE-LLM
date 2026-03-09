@@ -9,6 +9,7 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
+#include "models/qwen/layer/moe_decoder_layer.h"
 #include "operations/fusion/linear/linear.h"
 #include "operations/fusion/linear/linear_parallel.h"
 #include "operations/fusion/norm/norm_linear.h"
@@ -17,7 +18,7 @@
 #include "operations/fusion/moe/sparse_moe.h"
 #include "operations/aclnn/ops/add_rms_norm_operation.h"
 #include "models/qwen/operation/qwen_mlp_shared_expert.h"
-#include "models/qwen/layer/moe_decoder_layer.h"
+#include "system_log.h"
 
 namespace atb_speed {
 namespace qwen {
@@ -199,7 +200,7 @@ std::map<std::string, uint32_t> QwenMoeConstructTensorMap(
     inTensorNum = inTensorList.size();
     internalTensorNum = intermediateTensorList.size();
     outTensorNum = outTensorList.size();
-    ATB_SPEED_LOG_DEBUG("ConstructTensorMap done");
+    LOG_DEBUG_MODEL << "ConstructTensorMap done";
     return atb_speed::common::GetTensorMap(inTensorList, outTensorList, intermediateTensorList);
 }
 
@@ -342,7 +343,7 @@ atb::Status SetAttnOutPadding(atb::GraphParam &opGraph, std::map<std::string, ui
     gatherNode.outTensorIds = atb_speed::common::GetTensorIdxList(tensorMap, {"intermediate_attention_out_padding"});
 
     opGraph.nodes.push_back(gatherNode);
-    ATB_SPEED_LOG_DEBUG("create SetPadding");
+    LOG_DEBUG_MODEL << "create SetPadding";
     return atb::NO_ERROR;
 }
 
@@ -396,7 +397,7 @@ atb::Status SetGatherPreNorm(atb::GraphParam &opGraph, const MoeDecoderLayerPara
     gatherNormNode.inTensorIds = atb_speed::common::GetTensorIdxList(tensorMap, inTensorNames);
     gatherNormNode.outTensorIds = atb_speed::common::GetTensorIdxList(tensorMap, outTensorNames);
     opGraph.nodes.push_back(gatherNormNode);
-    ATB_SPEED_LOG_DEBUG("SetGatherPreNorm calculation success");
+    LOG_DEBUG_MODEL << "SetGatherPreNorm calculation success";
 
     return atb::NO_ERROR;
 }
@@ -414,7 +415,7 @@ atb::Status SetCast(atb::GraphParam &opGraph, const MoeDecoderLayerParam &param,
         atb_speed::common::GetTensorIdx(tensorMap, "intermediate_selfattention_norm_out_padding")};
 
     opGraph.nodes.push_back(castNode);
-    ATB_SPEED_LOG_DEBUG("Cast calculation success");
+    LOG_DEBUG_MODEL << "Cast calculation success";
     return atb::NO_ERROR;
 }
 
@@ -437,7 +438,7 @@ atb::Status SetFFNAllGather(atb::GraphParam &opGraph, const MoeDecoderLayerParam
         tensorMap, {"intermediate_selfattention_norm_all_gather_out"});
     opGraph.nodes.push_back(allGatherNode);
 
-    ATB_SPEED_LOG_DEBUG("AllGather calculation success");
+    LOG_DEBUG_MODEL << "AllGather calculation success";
     return atb::NO_ERROR;
 }
 
@@ -465,7 +466,7 @@ int64_t SetFFNInUnpadding(const MoeDecoderLayerParam &param, atb::GraphParam &op
     };
     opGraph.nodes.push_back(unpadNode);
 
-    ATB_SPEED_LOG_DEBUG("SetFFNInUnpadding calculation success");
+    LOG_DEBUG_MODEL << "SetFFNInUnpadding calculation success";
     return atb::NO_ERROR;
 }
 
@@ -494,14 +495,14 @@ atb::Status SetSelfNormNode(const MoeDecoderLayerParam &param, atb::GraphParam &
     selfNormParam.normParam.epsilon = param.normEps;
     CreateOperation(selfNormParam, &selfNormNode.operation);
     if (selfNormNode.operation == nullptr) {
-        ATB_SPEED_LOG_ERROR("selfNormNode op is nullptr: ");
+        LOG_ERROR_MODEL << "selfNormNode op is nullptr: ";
     }
     selfNormNode.inTensorIds = \
         atb_speed::common::GetTensorIdxList(tensorMap, {"intermediate_attention_out_add",
                                                         "in_selfattention_out_norm_weight"});
     selfNormNode.outTensorIds = atb_speed::common::GetTensorIdxList(tensorMap, {"intermediate_selfattention_norm_out"});
     opGraph.nodes.push_back(selfNormNode);
-    ATB_SPEED_LOG_DEBUG("create post normEps");
+    LOG_DEBUG_MODEL << "create post normEps";
     return atb::NO_ERROR;
 }
 
@@ -520,7 +521,7 @@ atb::Status SetAttentionResidualAddNormNode(atb::GraphParam &opGraph, std::map<s
         "intermediate_attention_out_add"});
 
     opGraph.nodes.push_back(selfAddNormNode);
-    ATB_SPEED_LOG_DEBUG("create SetAttentionResidualAddNormNode");
+    LOG_DEBUG_MODEL << "create SetAttentionResidualAddNormNode";
     return atb::NO_ERROR;
 }
 
@@ -593,7 +594,7 @@ atb::Status SetMoeNode(const MoeDecoderLayerParam &param, atb::GraphParam &opGra
     SetMoeParam(param, sparseMoeParam);
     atb_speed::common::CreateSparseMoeOperation(sparseMoeParam, &moeNode.operation);
     if (moeNode.operation == nullptr) {
-        ATB_SPEED_LOG_ERROR("SparseMoe op is nullptr: ");
+        LOG_ERROR_MODEL << "SparseMoe op is nullptr: ";
     }
     std::vector<std::string> moeInTensorNames = {
         "intermediate_selfattention_norm_out", "in_block_sparse_moe_gate_weight",
@@ -627,7 +628,7 @@ atb::Status SetMoeNode(const MoeDecoderLayerParam &param, atb::GraphParam &opGra
     if (param.enableExpertCumSumOutput) {
         moeNode.outTensorIds.push_back(atb_speed::common::GetTensorIdx(tensorMap, {"out_gmm_cumsum_list"}));
     }
-    ATB_SPEED_LOG_DEBUG("Moe sparse calculation success");
+    LOG_DEBUG_MODEL << "Moe sparse calculation success";
     opGraph.nodes.push_back(moeNode);
     return atb::NO_ERROR;
 }
@@ -639,7 +640,7 @@ atb::Status SetShareExpertNode(const MoeDecoderLayerParam &param, atb::GraphPara
     atb_speed::qwen::QwenMlpSharedExpertParam sharedMlpExpertParam;
     sharedMlpExpertParam.transpose = param.transpose;
     sharedMlpExpertParam.hasSharedExpertGate = param.hasSharedExpertGate;
-    ATB_SPEED_LOG_DEBUG("sharedMlpExpertParam success");
+    LOG_DEBUG_MODEL << "sharedMlpExpertParam success";
     qwen::CreateQwenMlpSharedExpertOperation(
         sharedMlpExpertParam, &shareExpertNode.operation);
     shareExpertNode.inTensorIds = \
@@ -648,7 +649,7 @@ atb::Status SetShareExpertNode(const MoeDecoderLayerParam &param, atb::GraphPara
                                                         "in_mlp_shared_down_weight", "in_mlp_shared_expert_gate"});
     shareExpertNode.outTensorIds = atb_speed::common::GetTensorIdxList(tensorMap, {"intermediate_shared_experts_out"});
     opGraph.nodes.push_back(shareExpertNode);
-    ATB_SPEED_LOG_DEBUG("shared expert calculation success");
+    LOG_DEBUG_MODEL << "shared expert calculation success";
     return atb::NO_ERROR;
 }
 
@@ -661,7 +662,7 @@ atb::Status SetShareAddSelectNode(atb::GraphParam &opGraph, std::map<std::string
     shareAddSelectNode.inTensorIds = \
         atb_speed::common::GetTensorIdxList(tensorMap, {"intermediate_shared_experts_out", "intermediate_moe_out"});
     shareAddSelectNode.outTensorIds = atb_speed::common::GetTensorIdxList(tensorMap, {"intermediate_moe_out"});
-    ATB_SPEED_LOG_DEBUG("shared expert add success");
+    LOG_DEBUG_MODEL << "shared expert add success";
     opGraph.nodes.push_back(shareAddSelectNode);
     return atb::NO_ERROR;
 }
@@ -680,14 +681,14 @@ atb::Status SetAllReduceNode(const MoeDecoderLayerParam &param, atb::GraphParam 
     }
     CreateOperation(allReduceParam, &moeAllReduceNode.operation);
     if (moeAllReduceNode.operation == nullptr) {
-        ATB_SPEED_LOG_ERROR("moeAllReduceNode op is nullptr: ");
+        LOG_ERROR_MODEL << "moeAllReduceNode op is nullptr: ";
     }
     moeAllReduceNode.inTensorIds = \
         atb_speed::common::GetTensorIdxList(tensorMap,
             {param.hasMoe ? "intermediate_moe_out" : "intermediate_shared_experts_out"});
     moeAllReduceNode.outTensorIds = atb_speed::common::GetTensorIdxList(tensorMap, {"intermediate_mlp_out"});
     opGraph.nodes.push_back(moeAllReduceNode);
-    ATB_SPEED_LOG_DEBUG("create all reduce");
+    LOG_DEBUG_MODEL << "create all reduce";
     return atb::NO_ERROR;
 }
 
@@ -709,7 +710,7 @@ atb::Status SetFFNOutpadding(const MoeDecoderLayerParam &param, atb::GraphParam 
     unpadNode.inTensorReshapeFuncs.resize(unpadNode.inTensorIds.size());
     opGraph.nodes.push_back(unpadNode);
 
-    ATB_SPEED_LOG_DEBUG("SetFFNOutpadding calculation success");
+    LOG_DEBUG_MODEL << "SetFFNOutpadding calculation success";
     return atb::NO_ERROR;
 }
 
@@ -754,7 +755,7 @@ atb::Status SetMlpResidualAddNode(atb::GraphParam &opGraph, const MoeDecoderLaye
             {param.hasFfnComm ? "intermediate_mlp_out" : "out_decoder_layer"});
 
     opGraph.nodes.push_back(mlpResidualAddNode);
-    ATB_SPEED_LOG_DEBUG("decoder layer: residule create opgraph");
+    LOG_DEBUG_MODEL << "decoder layer: residule create opgraph";
 
     return atb::NO_ERROR;
 }
@@ -814,7 +815,7 @@ int64_t SetAttnInUnpadding(const MoeDecoderLayerParam &param, atb::GraphParam &o
     };
     opGraph.nodes.push_back(unpadNode);
 
-    ATB_SPEED_LOG_DEBUG("SetAttnInUnpadding calculation success");
+    LOG_DEBUG_MODEL << "SetAttnInUnpadding calculation success";
     return atb::NO_ERROR;
 }
 
@@ -849,7 +850,7 @@ atb::Status SetPostAttnProcess(const MoeDecoderLayerParam &param, atb::GraphPara
             CHECK_OPERATION_STATUS_RETURN(SetSelfNormNode(param, opGraph, tensorMap));
         }
     }
-    ATB_SPEED_LOG_DEBUG("decoder layer: SetPostAttnProcess create opgraph");
+    LOG_DEBUG_MODEL << "decoder layer: SetPostAttnProcess create opgraph";
 
     return atb::NO_ERROR;
 }
@@ -898,24 +899,24 @@ atb::Status CalculateDataPartition(MoeDecoderLayerParam &param)
         param.mapping.Get(base::MOE_TP).rankIds.size();
     }
     // Lmhead
-    ATB_SPEED_LOG_DEBUG("CalculateDataPartition done"
+    LOG_DEBUG_MODEL << "CalculateDataPartition done"
         << ". Attention Stream Num is " << param.attnDeviceNum
-        << " . FFN Stream Num is " << param.ffnDeviceNum);
+        << " . FFN Stream Num is " << param.ffnDeviceNum;
     return atb::NO_ERROR;
 }
 
 atb::Status CalculateCommType(MoeDecoderLayerParam &param)
 {
     if (param.worldSize == 1) {
-        ATB_SPEED_LOG_WARN("Current layerparam.WorldSize is "
-            << param.worldSize << ". Please confirm your runtime configuration.");
+        LOG_WARN_MODEL << "Current layerparam.WorldSize is "
+            << param.worldSize << ". Please confirm your runtime configuration.";
         return atb::NO_ERROR;
     }
     
     // 2: dynamic ep
     if (!param.mapping.Get(base::ATTN_DP).IsEnabled() && param.expertParallelDegree == 2) {
         // attn纯tp+ep2场景，暂不支持，上层没生成对应kwargs
-        ATB_SPEED_LOG_ERROR("Do not support eplevel=2 without attn_dp.");
+        LOG_ERROR_MODEL << "Do not support eplevel=2 without attn_dp.";
         return atb::NO_ERROR;
     }
 
@@ -951,13 +952,13 @@ atb::Status CalculateCommType(MoeDecoderLayerParam &param)
     param.hasAttnComm = param.attnReduceScatter || param.ffnAllGather; // 该flag只涉及模块后的reduce_scatter+allgather
     param.hasFfnComm = param.ffnReduceScatter || param.attnAllGather; // 该flag只涉及模块后的reduce_scatter+allgather
 
-    ATB_SPEED_LOG_DEBUG("CalculateCommType done"
+    LOG_DEBUG_MODEL << "CalculateCommType done"
         << ". attnDeviceNum is " << param.attnDeviceNum
         << ". ffnDeviceNum is " << param.ffnDeviceNum
         << ". attnAllreduce is " << param.attnAllreduce << " . attnReduceScatter is " << param.attnReduceScatter
         << " . attnAllGather is " << param.attnAllGather
         << " . ffnAllreduce is " << param.ffnAllreduce << " . ffnReduceScatter is " << param.ffnReduceScatter
-        << " . ffnAllGather is " << param.ffnAllGather);
+        << " . ffnAllGather is " << param.ffnAllGather;
     return atb::NO_ERROR;
 }
 
@@ -975,7 +976,7 @@ atb::Status MoeDecoderLayer(MoeDecoderLayerParam &param, atb::Operation **operat
     for (auto tensor = tensorMap.cbegin(); tensor != tensorMap.cend(); ++tensor) {
         ss << "tensor name: " << tensor->first << ", tensor id: " << tensor->second << std::endl;
     }
-    ATB_SPEED_LOG_DEBUG("layer map tensor:\n" << ss.str());
+    LOG_DEBUG_MODEL << "layer map tensor: " << ss.str();
 
     // attention
     CHECK_OPERATION_STATUS_RETURN(SetFusionAttentionNode(param, opGraph, tensorMap));

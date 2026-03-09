@@ -15,7 +15,7 @@
 #include "hccl/hccl.h"
 #include "nlohmann/json.hpp"
 #include "atb/atb_infer.h"
-#include "atb_speed/log.h"
+#include "system_log.h"
 #include "atb_speed/utils/singleton.h"
 #include "models/base/param/model_param.h"
 #include "operations/aclnn/utils/utils.h"
@@ -56,7 +56,7 @@ void DeepseekV2ModelParam::SetHcclComm() const
     if (!isPrefill && enableAllToAllMC2 && expertParallelDegree == 2) { // 2: dynamic ep level
         // Assign commDomain by rankIds and rank
         if (dispatchAndCombineHcclComm != nullptr) {
-            ATB_SPEED_LOG_DEBUG("Reuse the hccl communication group for dispatch and combine.");
+            LOG_DEBUG_MODEL << "Reuse the hccl communication group for dispatch and combine.";
         } else {
             atb_speed::common::ParallelInfo moeEpParallelInfo = mapping.Get(base::MOE_EP);
             dispatchAndCombinecommDomain = GetSingleton<ExternalCommManager>().GetCommDomain(
@@ -65,7 +65,7 @@ void DeepseekV2ModelParam::SetHcclComm() const
 
             dispatchAndCombineHcclComm = \
                 GetSingleton<ExternalCommManager>().GetCommPtr(dispatchAndCombinecommDomain);
-            ATB_SPEED_LOG_DEBUG("Create the hccl communication group for dispatch and combine.");
+            LOG_DEBUG_MODEL << "Create the hccl communication group for dispatch and combine.";
         }
     }
 }
@@ -237,7 +237,7 @@ void DeepseekV2ModelParam::CheckParam()
 
 void DeepseekV2ModelParam::AddLogInfo()
 {
-    ATB_SPEED_LOG_DEBUG("DecoderModel param" << ", isFA:" << isFA << ", isPrefill:" << isPrefill
+    LOG_DEBUG_MODEL << "DecoderModel param" << ", isFA:" << isFA << ", isPrefill:" << isPrefill
         << ", isBF16:" << isBF16 << ", isEmbeddingParallel: " << isEmbeddingParallel << ", isLmHeadParallel: "
         << isLmHeadParallel << ", enableSwiGLU: " << enableSwiGLU << ", enableLcoc:" << enableLcoc
         << ", lmHeadTransposeType: " << lmHeadTransposeType << ", normEps:" << normEps
@@ -254,8 +254,7 @@ void DeepseekV2ModelParam::AddLogInfo()
         << "enableExtraOprojTp: " << enableExtraOprojTp << "enableQkvdownDp: " << enableQkvdownDp
         << "finalStateOut" << finalStateOut << "enableSharedExpertDp: " << enableSharedExpertDp
         << "enableGatingDp: " << enableGatingDp << "enableSharedExpertOverlap: " << enableSharedExpertOverlap
-        << "enableLcocTp: " << enableLcocTp << ", enablePrefixCache: " << enablePrefixCache
-    );
+        << "enableLcocTp: " << enableLcocTp << ", enablePrefixCache: " << enablePrefixCache;
 }
 
 void DeepseekV2ModelParam::FromString(const std::string &param)
@@ -265,7 +264,7 @@ void DeepseekV2ModelParam::FromString(const std::string &param)
     if (rank > worldSize) {
         std::stringstream ss;
         ss << "worldSize must be greater or equal to 0, please check." << std::endl;
-        ATB_SPEED_LOG_ERROR(ss.str());
+        LOG_ERROR_MODEL << ss.str();
         throw std::runtime_error(ss.str());
     }
     AddParamJsonMLA(param);
@@ -344,21 +343,21 @@ void DeepseekV2ModelParam::CheckMixParallelValid() const
         ss << "The attention extra O proj TP should work with the attention DP, "
            << "and the attention extra O proj TP is enabled but the attention DP is disabled. "
            << "Please enable DP when using the attention extra O proj TP." << std::endl;
-        ATB_SPEED_LOG_ERROR(ss.str());
+        LOG_ERROR_MODEL << ss.str();
         throw std::runtime_error(ss.str());
     }
     if (mapping.Get(base::ATTN_O_PROJ_TP).IsEnabled() && mapping.Get(base::ATTN_TP).IsEnabled()) {
         std::stringstream ss;
         ss << "The attention extra O proj TP conflicts with the attention TP. "
            << "Make sure to disable one of them." << std::endl;
-        ATB_SPEED_LOG_ERROR(ss.str());
+        LOG_ERROR_MODEL << ss.str();
         throw std::runtime_error(ss.str());
     }
     if (mapping.Get(base::ATTN_O_PROJ_TP).IsEnabled() && expertParallelDegree != 2) {  // 2: dynamic ep
         std::stringstream ss;
         ss << "The attention extra O proj TP should work with expertParallelDegree 2. "
            << "Make sure to disable one of them." << std::endl;
-        ATB_SPEED_LOG_ERROR(ss.str());
+        LOG_ERROR_MODEL << ss.str();
         throw std::runtime_error(ss.str());
     }
     // check MoE
@@ -367,13 +366,13 @@ void DeepseekV2ModelParam::CheckMixParallelValid() const
         ss << "The expertParallelDegree is not 2. "
            << "The MoE distribute dispatch/combine operation should work with expertParallelDegree 2."
            << "Please set expertParallelDegree or ep_level as 2 when using dispatch/combine operation." << std::endl;
-        ATB_SPEED_LOG_ERROR(ss.str());
+        LOG_ERROR_MODEL << ss.str();
         throw std::runtime_error(ss.str());
     }
     if (enableAllToAllMC2 && mapping.Get(base::MOE_TP).IsEnabled() && atb_speed::common::IsA2()) {
         std::stringstream ss;
         ss << "The MoE distribute dispatch/combine operation does not support MOE TP on this device." << std::endl;
-        ATB_SPEED_LOG_ERROR(ss.str());
+        LOG_ERROR_MODEL << ss.str();
         throw std::runtime_error(ss.str());
     }
     // check LM head
@@ -381,7 +380,7 @@ void DeepseekV2ModelParam::CheckMixParallelValid() const
         std::stringstream ss;
         ss << "The lmHeadLocalTp should work with enableDpOut. "
            << "Please set enableDpOut = true when using lmHeadLocalTp." << std::endl;
-        ATB_SPEED_LOG_ERROR(ss.str());
+        LOG_ERROR_MODEL << ss.str();
         throw std::runtime_error(ss.str());
     }
 }
@@ -683,7 +682,7 @@ atb::Status DecoderModel::InferShape(
     std::vector<atb::TensorDesc> &outTensorDescs
 )
 {
-    ATB_SPEED_LOG_DEBUG("Enter DecoderModel InferShape");
+    LOG_DEBUG_MODEL << "Enter DecoderModel InferShape";
     if (outTensorDescs.size() != GetOutputNum()) {
         return atb::ERROR_INVALID_GRAPH;
     }
@@ -1094,14 +1093,14 @@ atb::Status DecoderModel::AddSingleLayer(uint32_t layerId)
     } else {
         SetLayerParam(layerParam, layerId + this->param.startLayerId);
     }
-    ATB_SPEED_LOG_DEBUG("start create Decoderlayer");
+    LOG_DEBUG_MODEL << "start create Decoderlayer";
     CHECK_OPERATION_STATUS_RETURN(DecoderLayer(layerParam, &op));
     if (this->param.layerwiseDisaggregated) {   // DecoderLayer 中可能修改了 enableQkvdownDp
         param.enableQkvdownDp = layerParam.enableQkvdownDp;
     }
-    ATB_SPEED_LOG_DEBUG("Decoderlayer create success");
+    LOG_DEBUG_MODEL << "Decoderlayer create success";
     layerNode.operation.reset(op);
-    ATB_SPEED_LOG_DEBUG("Decoderlayer inTensor number: " << layerNode.operation->GetInputNum());
+    LOG_DEBUG_MODEL << "Decoderlayer inTensor number: " << layerNode.operation->GetInputNum();
     layerNode.inTensors.resize(layerNode.operation->GetInputNum());
     size_t inTensorId = 0;
     weightCountPerLayer = WEIGHT_COUNT_PER_LAYER;
@@ -1131,9 +1130,9 @@ atb::Status DecoderModel::AddSingleLayer(uint32_t layerId)
                 + weightTensorId + weightCountWordEmbedding);
         }
     }
-    ATB_SPEED_LOG_DEBUG("start add layerhostweight");
+    LOG_DEBUG_MODEL << "start add layerhostweight";
     AddLayerHostWeight(layerNode, inTensorId, layerId);
-    ATB_SPEED_LOG_DEBUG("Add layerhostweight seccess");
+    LOG_DEBUG_MODEL << "Add layerhostweight seccess";
     if (layerParam.enableMlaPrefetch) {
         // next_layer_in_q_proj_a_weight
         constexpr uint32_t nextLayerInQProjAWeightId = 4;
@@ -1155,7 +1154,7 @@ atb::Status DecoderModel::AddSingleLayer(uint32_t layerId)
         bool isLayerWiseOutputLayer = this->param.layerwiseDisaggregated && this->param.isInternalLayer && \
                 layerId == this->param.numHiddenLayers - 1;
         if (isLayerWiseOutputLayer) {
-            ATB_SPEED_LOG_DEBUG("layerwise output layer");
+            LOG_DEBUG_MODEL << "layerwise output layer";
             layerNode.outTensors = {&graph_.outTensors.at(0)};
         } else {
             std::string layerOutName = GetLayerOutName(layerId);
@@ -1181,8 +1180,7 @@ atb::Status DecoderModel::AddSingleLayer(uint32_t layerId)
         layerNode.outTensors.push_back(&graph_.outTensors.at(ExpertCumSumStartIdx + moeLayerId)); // topk
     }
     graph_.nodes.push_back(layerNode);
-    ATB_SPEED_LOG_DEBUG("[+] add base layerNode num" << layerId);
-
+    LOG_DEBUG_MODEL << "[+] add base layerNode num" << layerId;
     return atb::NO_ERROR;
 }
 
@@ -1406,7 +1404,7 @@ atb::Status DecoderModel::AddFinalNorm()
         &graph_.internalTensors.at(layerOutTensorId),
     };
 
-    ATB_SPEED_LOG_DEBUG("DecoderModel build graph:finalNormNode end");
+    LOG_DEBUG_MODEL << "DecoderModel build graph:finalNormNode end";
     graph_.nodes.push_back(*finalNormNode);
     return atb::NO_ERROR;
 }
@@ -1442,7 +1440,7 @@ atb::Status DecoderModel::AddLmhead()
         }
     }
     CHECK_OPERATION_STATUS_RETURN(LmHead(lmHeadParam, &op));
-    ATB_SPEED_LOG_DEBUG("DecoderModel build graph:create LMHead end");
+    LOG_DEBUG_MODEL << "DecoderModel build graph:create LMHead end";
 
     lmHeadNode->operation.reset(op);
     const size_t finalLinearWeightTensorId = this -> graph_.weightTensors.size() - WEIGHT_COUNT_LM_HEAD;
@@ -1473,7 +1471,7 @@ atb::Status DecoderModel::AddLmhead()
         &graph_.internalTensors.at(atb_speed::common::GetTensorIdx(this->internalTensorMap,"internal_lmhead_out")) : \
         &graph_.outTensors.at(atb_speed::common::GetTensorIdx(this->outTensorMap, "logits"))};
 
-    ATB_SPEED_LOG_DEBUG("DecoderModel build graph success");
+    LOG_DEBUG_MODEL << "DecoderModel build graph success";
     graph_.nodes.push_back(*lmHeadNode);
     return atb::NO_ERROR;
 }
@@ -1502,7 +1500,7 @@ atb::Status DecoderModel::AddSliceFinalStateOut()
     sliceNode->operation.reset(op);
     graph_.nodes.push_back(*sliceNode);
 
-    ATB_SPEED_LOG_DEBUG("AddSliceFinalStateOut calculation success");
+    LOG_DEBUG_MODEL << "AddSliceFinalStateOut calculation success";
     return atb::NO_ERROR;
 }
 
@@ -1519,7 +1517,7 @@ atb::Status DecoderModel::AddGatherFinalStateOut()
     unpadNode->outTensors = {&graph_.outTensors.at(1)};
     unpadNode->operation.reset(op);
     graph_.nodes.push_back(*unpadNode);
-    ATB_SPEED_LOG_DEBUG("AddGatherFinalStateOut calculation success");
+    LOG_DEBUG_MODEL << "AddGatherFinalStateOut calculation success";
     return atb::NO_ERROR;
 }
 
@@ -1536,7 +1534,7 @@ atb::Status DecoderModel::AddGatherAfterLmhead()
     unpadNode->outTensors = {&graph_.outTensors.at(atb_speed::common::GetTensorIdx(this->outTensorMap, "logits"))};
     unpadNode->operation.reset(op);
     graph_.nodes.push_back(*unpadNode);
-    ATB_SPEED_LOG_DEBUG("AllGather calculation success");
+    LOG_DEBUG_MODEL << "AllGather calculation success";
     return atb::NO_ERROR;
 }
 
@@ -1565,7 +1563,7 @@ atb::Status DecoderModel::AddCmoSync()
 
 atb::Status DecoderModel::BindParamHostTensor(uint32_t nodeId)
 {
-    ATB_SPEED_LOG_DEBUG("BindParamHostTensor nodeId = " << nodeId);
+    LOG_DEBUG_MODEL << "BindParamHostTensor nodeId = " << nodeId;
 
     if (nodeId != 0) {
         // 仅需在graph的intensor中bind一次
@@ -1620,10 +1618,8 @@ atb::Status DecoderModel::BindParamHostTensor(uint32_t nodeId)
             }
         }
     }
-    ATB_SPEED_LOG_DEBUG("BindParamHostTensor end");
-
+    LOG_DEBUG_MODEL << "BindParamHostTensor end";
     return atb::NO_ERROR;
 }
 } // namespace deepseekV2
 } // namespace atb_speed
-

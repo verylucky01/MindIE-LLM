@@ -13,7 +13,7 @@
 #include "operations/aclnn/utils/utils.h"
 #include "acl/acl.h"
 #include "aclnnop/aclnn_max_v2.h"
-#include "atb_speed/log.h"
+#include "system_log.h"
 
 namespace atb_speed {
 namespace common {
@@ -27,14 +27,14 @@ MaxV2Operation::MaxV2Operation(const std::string &name, atb_speed::common::AclNN
 
 MaxV2Operation::~MaxV2Operation()
 {
-    ATB_SPEED_LOG_DEBUG("MaxV2Operation deconstruct");
+    LOG_DEBUG_MODEL << "MaxV2Operation deconstruct";
     if (this->dims != nullptr) {
-        ATB_SPEED_LOG_DEBUG("Destroying dims array, current dims pointer: %p", this->dims);
+        LOG_DEBUG_MODEL << "Destroying dims array, current dims pointer: " << this->dims;
         aclDestroyIntArray(this->dims);
         this->dims = nullptr;
-        ATB_SPEED_LOG_DEBUG("dims array destroyed and set to nullptr");
+        LOG_DEBUG_MODEL << "dims array destroyed and set to nullptr";
     } else {
-        ATB_SPEED_LOG_DEBUG("dims was already nullptr, no destruction needed");
+        LOG_DEBUG_MODEL << "dims was already nullptr, no destruction needed";
     }
     this->DestroyOperation();
 }
@@ -46,7 +46,7 @@ uint32_t MaxV2Operation::GetOutputNum() const { return NUM1; }
 atb::Status MaxV2Operation::InferShape(const atb::SVector<atb::TensorDesc> &inTensorDesc,
                                        atb::SVector<atb::TensorDesc> &outTensorDesc) const
 {
-    ATB_SPEED_LOG_DEBUG(opName_ << " MaxV2Operation infer shape start");
+    LOG_DEBUG_MODEL << opName_ << " MaxV2Operation infer shape start";
     outTensorDesc.at(0).format = inTensorDesc.at(0).format;
     outTensorDesc.at(0).dtype = inTensorDesc.at(0).dtype;
     uint32_t inputDimNum = inTensorDesc.at(0).shape.dimNum;
@@ -67,9 +67,7 @@ atb::Status MaxV2Operation::InferShape(const atb::SVector<atb::TensorDesc> &inTe
             outTensorDesc.at(0).shape.dims[j++] = inTensorDesc.at(0).shape.dims[i];
         }
     }
-
-    ATB_SPEED_LOG_DEBUG(opName_ << "MaxV2Operation InferShape end");
-
+    LOG_DEBUG_MODEL << opName_ << "MaxV2Operation InferShape end";
     return atb::NO_ERROR;
 }
 
@@ -79,7 +77,7 @@ atb::Status MaxV2Operation::CreateAclNNInTensorVariantPack(const atb::VariantPac
     aclnnVariantPack.aclInTensors.resize(GetInputNum());
     for (size_t i = 0; i < aclnnVariantPack.aclInTensors.size(); ++i) {
         if (CreateTensor(variantPack.inTensors.at(i), i, aclnnVariantPack.aclInTensors[i]) != atb::NO_ERROR) {
-            ATB_SPEED_LOG_ERROR(this->opName_ << " InTensor aclCreateTensor index " << i << " fail");
+            LOG_ERROR_MODEL << this->opName_ << " InTensor aclCreateTensor index " << i << " fail";
             return atb::ERROR_INTERNAL_ERROR;
         }
     }
@@ -93,7 +91,7 @@ atb::Status MaxV2Operation::CreateAclNNOutTensorVariantPack(const atb::VariantPa
     aclnnVariantPack.aclOutTensors.resize(GetOutputNum());
     for (size_t i = 0; i < aclnnVariantPack.aclOutTensors.size(); ++i) {
         if (CreateTensor(variantPack.outTensors.at(i), i, aclnnVariantPack.aclOutTensors[i]) != atb::NO_ERROR) {
-            ATB_SPEED_LOG_ERROR(this->opName_ << " outTensor aclCreateTensor index " << i << " fail");
+            LOG_ERROR_MODEL << this->opName_ << " outTensor aclCreateTensor index " << i << " fail";
             return atb::ERROR_INTERNAL_ERROR;
         }
     }
@@ -102,29 +100,29 @@ atb::Status MaxV2Operation::CreateAclNNOutTensorVariantPack(const atb::VariantPa
 
 int MaxV2Operation::SetAclNNWorkspaceExecutor()
 {
-    ATB_SPEED_LOG_DEBUG(opName_ << " SetAclNNWorkspaceExecutor start");
+    LOG_DEBUG_MODEL << opName_ << " SetAclNNWorkspaceExecutor start";
     AclNNVariantPack &aclnnVariantPack = this->aclnnOpCache_->aclnnVariantPack;
-    ATB_SPEED_LOG_DEBUG("Before processing - dimsArray: " << this->dims);
+    LOG_DEBUG_MODEL << "Before processing - dimsArray: " << this->dims;
     if (this->dims != nullptr) {
         aclDestroyIntArray(this->dims);
         this->dims = nullptr;
-        ATB_SPEED_LOG_DEBUG(opName_<<"dims Released and set to nullptr");
+        LOG_DEBUG_MODEL << opName_<<"dims Released and set to nullptr";
     }
     this->dims = aclCreateIntArray(this->param_.dims.data(), this->param_.dims.size());
     int ret = aclnnMaxV2GetWorkspaceSize(aclnnVariantPack.aclInTensors.at(0)->tensor, dims,
                                          this->param_.keepdim, false, aclnnVariantPack.aclOutTensors.at(0)->tensor,
                                          &this->aclnnOpCache_->workspaceSize, &this->aclnnOpCache_->aclExecutor);
-    ATB_SPEED_LOG_DEBUG(opName_ << " SetAclNNWorkspaceExecutor end, ret:" << ret
+    LOG_DEBUG_MODEL << opName_ << " SetAclNNWorkspaceExecutor end, ret:" << ret
                     << ", workspaceSize:" << this->aclnnOpCache_->workspaceSize
-                    << ", aclExecutor:" << this->aclnnOpCache_->aclExecutor);
+                    << ", aclExecutor:" << this->aclnnOpCache_->aclExecutor;
     return ret;
 }
 
 int MaxV2Operation::ExecuteAclNNOp(uint8_t *workspace, aclrtStream &stream)
 {
-    ATB_SPEED_LOG_DEBUG(opName_ << " ExecuteAclNNOp start");
+    LOG_DEBUG_MODEL << opName_ << " ExecuteAclNNOp start";
     int ret = aclnnMaxV2(workspace, this->aclnnOpCache_->workspaceSize, this->aclnnOpCache_->aclExecutor, stream);
-    ATB_SPEED_LOG_DEBUG(opName_ << " ExecuteAclNNOp end, ret:" << ret);
+    LOG_DEBUG_MODEL << opName_ << " ExecuteAclNNOp end, ret:" << ret;
     return ret;
 }
 } // namespace common

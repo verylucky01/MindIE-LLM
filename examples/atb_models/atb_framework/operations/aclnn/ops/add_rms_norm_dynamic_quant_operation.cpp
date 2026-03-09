@@ -9,6 +9,8 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
+#include "add_rms_norm_dynamic_quant_operation.h"
+
 #include <cstring>
 #include <iostream>
 #include <securec.h>
@@ -17,9 +19,8 @@
 
 #include "acl/acl.h"
 #include "aclnnop/aclnn_add_rms_norm_dynamic_quant_v2.h"
-#include "atb_speed/log.h"
+#include "system_log.h"
 #include "operations/aclnn/utils/utils.h"
-#include "add_rms_norm_dynamic_quant_operation.h"
 
 namespace atb_speed {
 namespace common {
@@ -37,7 +38,7 @@ AddRmsNormDynamicQuantOperation::AddRmsNormDynamicQuantOperation(
 
 AddRmsNormDynamicQuantOperation::~AddRmsNormDynamicQuantOperation()
 {
-    ATB_SPEED_LOG_DEBUG(opName_ << "AddRmsNormDynamicQuantOperation deconstructor");
+    LOG_DEBUG_MODEL << opName_ << "AddRmsNormDynamicQuantOperation deconstructor";
     this->DestroyOperation();
 }
 
@@ -45,7 +46,7 @@ atb::Status AddRmsNormDynamicQuantOperation::InferShape(
     const atb::SVector<atb::TensorDesc> &inTensorDescs,
     atb::SVector<atb::TensorDesc> &outTensorDescs) const
 {
-    ATB_SPEED_LOG_DEBUG(opName_ << "AddRmsNormDynamicQuantOperation infer shape start");
+    LOG_DEBUG_MODEL << opName_ << "AddRmsNormDynamicQuantOperation infer shape start";
     for (size_t i = 0; i < outTensorDescs.size(); i++) {
         outTensorDescs.at(i).format = inTensorDescs.at(0).format;
         if (i == 0 || i == NUM1) {  // y1Out、y2Out输出dtype固定为INT8
@@ -74,17 +75,16 @@ atb::Status AddRmsNormDynamicQuantOperation::InferShape(
             }
         }
     }
-
-    ATB_SPEED_LOG_DEBUG(opName_ << "AddRmsNormDynamicQuantOperation infer shape end");
+    LOG_DEBUG_MODEL << opName_ << "AddRmsNormDynamicQuantOperation infer shape end";
     return 0;
 }
 
 uint32_t AddRmsNormDynamicQuantOperation::GetInputNum() const
 {
     uint32_t inputNum = 3;
-    ATB_SPEED_LOG_DEBUG("initial inputNum: " << inputNum);
+    LOG_DEBUG_MODEL << "initial inputNum: " << inputNum;
     if (param_.hasBias) {
-        ATB_SPEED_LOG_DEBUG("AddRmsNormQuant & hasbias");
+        LOG_DEBUG_MODEL << "AddRmsNormQuant & hasbias";
         ++inputNum;
     }
     return inputNum;
@@ -94,7 +94,7 @@ uint32_t AddRmsNormDynamicQuantOperation::GetOutputNum() const { return NUM5; }
 
 int AddRmsNormDynamicQuantOperation::SetAclNNWorkspaceExecutor()
 {
-    ATB_SPEED_LOG_DEBUG(opName_ << " aclnnAddRmsNormQuantV2GetWorkspaceSize start");
+    LOG_DEBUG_MODEL << opName_ << " aclnnAddRmsNormQuantV2GetWorkspaceSize start";
     uint32_t inputIdx = 3;
     AclNNVariantPack &aclnnVariantPack = this->aclnnOpCache_->aclnnVariantPack;
     aclTensor* biasTensor = param_.hasBias ? aclnnVariantPack.aclInTensors.at(inputIdx++)->tensor : nullptr;
@@ -115,22 +115,21 @@ int AddRmsNormDynamicQuantOperation::SetAclNNWorkspaceExecutor()
         aclnnVariantPack.aclOutTensors.at(4)->tensor,  // scale2Out, shape为1, 占位, 内容无所谓
         &this->aclnnOpCache_->workspaceSize,  // workspaceSize
         &this->aclnnOpCache_->aclExecutor);   // executor
-    ATB_SPEED_LOG_DEBUG(opName_ << " aclnnAddRmsNormQuantV2GetWorkspaceSize end, ret:" << ret
+    LOG_DEBUG_MODEL << opName_ << " aclnnAddRmsNormQuantV2GetWorkspaceSize end, ret:" << ret
         << ", workspaceSize:" << this->aclnnOpCache_->workspaceSize << ", aclExecutor:"
-        << this->aclnnOpCache_->aclExecutor);
-
+        << this->aclnnOpCache_->aclExecutor;
     return ret;
 }
 
 int AddRmsNormDynamicQuantOperation::ExecuteAclNNOp(uint8_t *workspace, aclrtStream &stream)
 {
-    ATB_SPEED_LOG_DEBUG(opName_ << " aclnnAddRmsNormDynamicQuantV2 start");
+    LOG_DEBUG_MODEL << opName_ << " aclnnAddRmsNormDynamicQuantV2 start";
     int ret = aclnnAddRmsNormDynamicQuantV2(
         workspace,
         this->aclnnOpCache_->workspaceSize,
         this->aclnnOpCache_->aclExecutor,
         stream);
-    ATB_SPEED_LOG_DEBUG(opName_ << " aclnnAddRmsNormDynamicQuantV2 end, ret:" << ret);
+    LOG_DEBUG_MODEL << opName_ << " aclnnAddRmsNormDynamicQuantV2 end, ret:" << ret;
     return ret;
 }
 } // namespace common

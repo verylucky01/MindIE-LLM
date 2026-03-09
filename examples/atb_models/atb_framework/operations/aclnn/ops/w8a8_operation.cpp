@@ -9,12 +9,12 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
+#include "w8a8_operation.h"
 #include "acl/acl.h"
-#include "atb_speed/log.h"
+#include "system_log.h"
 #include "operations/aclnn/utils/utils.h"
 #include "operations/aclnn/core/acl_nn_operation.h"
 #include "aclnnop/aclnn_quant_matmul_v4.h"
-#include "w8a8_operation.h"
 
 namespace atb_speed {
 namespace common {
@@ -25,14 +25,14 @@ W8A8Operation::W8A8Operation(
 
 W8A8Operation::~W8A8Operation()
 {
-    ATB_SPEED_LOG_DEBUG("W8A8Operation deconstructor");
+    LOG_DEBUG_MODEL << "W8A8Operation deconstructor";
     this->DestroyOperation();
 }
 
 atb::Status W8A8Operation::InferShape(const atb::SVector<atb::TensorDesc> &inTensorDescs,
                                       atb::SVector<atb::TensorDesc> &outTensorDescs) const
 {
-    ATB_SPEED_LOG_DEBUG(opName_ << " infer shape start");
+    LOG_DEBUG_MODEL << opName_ << " infer shape start";
     outTensorDescs.at(0).format = inTensorDescs.at(0).format;
     outTensorDescs.at(0).shape.dimNum = inTensorDescs.at(0).shape.dimNum;
     // 外抛Dequant场景, MM输出为INT_32
@@ -40,41 +40,41 @@ atb::Status W8A8Operation::InferShape(const atb::SVector<atb::TensorDesc> &inTen
 
     int nDim = param_.transposeB ? DIM0 : DIM1;
     if (inTensorDescs.at(0).shape.dimNum == DIM3) {
-        ATB_SPEED_LOG_DEBUG("[input0 dimNum = 3] CHECK " << opName_ << " inputs shape: [input0]"
+        LOG_DEBUG_MODEL << "[input0 dimNum = 3] CHECK " << opName_ << " inputs shape: [input0]"
                        << inTensorDescs.at(DIM0).shape.dims[DIM0] << ", "
-                       << inTensorDescs.at(DIM0).shape.dims[DIM1] << ", " << inTensorDescs.at(DIM0).shape.dims[DIM2]);
-        ATB_SPEED_LOG_DEBUG("[input0 dimNum = 3] CHECK " << opName_ << " inputs shape: [input1]"
-                       << inTensorDescs.at(DIM1).shape.dims[DIM0] << ", " << inTensorDescs.at(DIM1).shape.dims[DIM1]);
+                       << inTensorDescs.at(DIM0).shape.dims[DIM1] << ", " << inTensorDescs.at(DIM0).shape.dims[DIM2];
+        LOG_DEBUG_MODEL << "[input0 dimNum = 3] CHECK " << opName_ << " inputs shape: [input1]"
+                       << inTensorDescs.at(DIM1).shape.dims[DIM0] << ", " << inTensorDescs.at(DIM1).shape.dims[DIM1];
         outTensorDescs.at(DIM0).shape.dims[DIM0] = inTensorDescs.at(DIM0).shape.dims[DIM0];
         outTensorDescs.at(DIM0).shape.dims[DIM1] = inTensorDescs.at(DIM0).shape.dims[DIM1];
         outTensorDescs.at(DIM0).shape.dims[DIM2] = inTensorDescs.at(DIM1).shape.dims[nDim];
     } else if (inTensorDescs.at(0).shape.dimNum == DIM2) {
-        ATB_SPEED_LOG_DEBUG("[input0 dimNum = 2] CHECK " << opName_ << " inputs shape: [input0]"
-                       << inTensorDescs.at(DIM0).shape.dims[DIM0] << ", " << inTensorDescs.at(DIM0).shape.dims[DIM1]);
-        ATB_SPEED_LOG_DEBUG("[input0 dimNum = 2] CHECK " << opName_ << " inputs shape: [input1]"
-                       << inTensorDescs.at(DIM1).shape.dims[DIM0] << ", " << inTensorDescs.at(DIM1).shape.dims[DIM1]);
+        LOG_DEBUG_MODEL << "[input0 dimNum = 2] CHECK " << opName_ << " inputs shape: [input0]"
+                       << inTensorDescs.at(DIM0).shape.dims[DIM0] << ", " << inTensorDescs.at(DIM0).shape.dims[DIM1];
+        LOG_DEBUG_MODEL << "[input0 dimNum = 2] CHECK " << opName_ << " inputs shape: [input1]"
+                       << inTensorDescs.at(DIM1).shape.dims[DIM0] << ", " << inTensorDescs.at(DIM1).shape.dims[DIM1];
         outTensorDescs.at(DIM0).shape.dims[DIM0] = inTensorDescs.at(DIM0).shape.dims[DIM0];
         outTensorDescs.at(DIM0).shape.dims[DIM1] = inTensorDescs.at(DIM1).shape.dims[nDim];
     } else {
-        ATB_SPEED_LOG_ERROR(opName_ << " invalid dim num:" << inTensorDescs.at(DIM0).shape.dimNum);
+        LOG_ERROR_MODEL << opName_ << " invalid dim num:" << inTensorDescs.at(DIM0).shape.dimNum;
     }
-    ATB_SPEED_LOG_DEBUG(opName_ << " infer shape end");
+    LOG_DEBUG_MODEL << opName_ << " infer shape end";
     return 0;
 }
 
 uint32_t W8A8Operation::GetInputNum() const
 {
     uint32_t inputNum = 3;
-    ATB_SPEED_LOG_DEBUG("initial inputNum: " << inputNum);
+    LOG_DEBUG_MODEL << "initial inputNum: " << inputNum;
     if (param_.hasPerTokenScale) {
-        ATB_SPEED_LOG_DEBUG("QuantBatchMatmul & hasPerTokenScale");
+        LOG_DEBUG_MODEL << "QuantBatchMatmul & hasPerTokenScale";
         ++inputNum;
     }
     if (param_.hasBias) {
-        ATB_SPEED_LOG_DEBUG("QuantBatchMatmul & hasBias");
+        LOG_DEBUG_MODEL << "QuantBatchMatmul & hasBias";
         ++inputNum;
     }
-    ATB_SPEED_LOG_DEBUG("final inputNum: " << inputNum);
+    LOG_DEBUG_MODEL << "final inputNum: " << inputNum;
     return inputNum;
 }
 
@@ -128,7 +128,7 @@ atb::Status W8A8Operation::CreateAclNNInTensorVariantPack(const atb::VariantPack
             storageTensorDims.dims, storageTensorDims.dimNum, atbTensor.deviceData);
 
         if (aclnnTensor->tensor == nullptr) {
-            ATB_SPEED_LOG_ERROR(this->opName_ << " InTensor aclCreateTensor index " << i << " fail");
+            LOG_ERROR_MODEL << this->opName_ << " InTensor aclCreateTensor index " << i << " fail";
             return atb::ERROR_INTERNAL_ERROR;
         }
         aclnnVariantPack.aclInTensors[i] = aclnnTensor;
@@ -153,7 +153,7 @@ atb::Status W8A8Operation::CreateAclNNOutTensorVariantPack(const atb::VariantPac
             atbTensor.desc.shape.dimNum, atbTensor.deviceData);
 
         if (aclnnTensor->tensor == nullptr) {
-            ATB_SPEED_LOG_ERROR(this->opName_ << " OutTensor aclCreateTensor index " << i << " fail");
+            LOG_ERROR_MODEL << this->opName_ << " OutTensor aclCreateTensor index " << i << " fail";
             return atb::ERROR_INTERNAL_ERROR;
         }
         aclnnVariantPack.aclOutTensors[i] = aclnnTensor;
@@ -163,7 +163,7 @@ atb::Status W8A8Operation::CreateAclNNOutTensorVariantPack(const atb::VariantPac
 
 int W8A8Operation::SetAclNNWorkspaceExecutor()
 {
-    ATB_SPEED_LOG_DEBUG(opName_ << " start");
+    LOG_DEBUG_MODEL << opName_ << " start";
     AclNNVariantPack &aclnnVariantPack = this->aclnnOpCache_->aclnnVariantPack;
     uint32_t inputIdx = 3;
     aclTensor* perTokenScaleTensor = param_.hasPerTokenScale ? \
@@ -182,9 +182,9 @@ int W8A8Operation::SetAclNNWorkspaceExecutor()
         aclnnVariantPack.aclOutTensors.at(0)->tensor,
         &this->aclnnOpCache_->workspaceSize,
         &this->aclnnOpCache_->aclExecutor);
-    ATB_SPEED_LOG_DEBUG(opName_ << " end, ret:"
+    LOG_DEBUG_MODEL << opName_ << " end, ret:"
                   << ret << ", workspaceSize:" << this->aclnnOpCache_->workspaceSize
-                  << ", aclExecutor:" << this->aclnnOpCache_->aclExecutor);
+                  << ", aclExecutor:" << this->aclnnOpCache_->aclExecutor;
     return ret;
 }
 
@@ -196,7 +196,7 @@ int W8A8Operation::ExecuteAclNNOp(uint8_t *workspace, aclrtStream &stream)
         this->aclnnOpCache_->aclExecutor,
         stream);
     if (ret != 0) {
-        ATB_SPEED_LOG_ERROR("ExecuteAclNNOp failed, ret: " << ret);
+        LOG_ERROR_MODEL << "ExecuteAclNNOp failed, ret: " << ret;
     }
     return ret;
 }

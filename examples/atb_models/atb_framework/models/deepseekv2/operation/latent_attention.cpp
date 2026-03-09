@@ -9,6 +9,7 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
+#include "models/deepseekv2/operation/latent_attention.h"
 #include "atb_speed/base/model.h"
 #include "operations/fusion/utils.h"
 #include "operations/aclrt/ops/aclrt_cmo_async.h"
@@ -17,7 +18,7 @@
 #include "operations/fusion/utils.h"
 #include "models/deepseekv2/operation/fa_update.h"
 #include "models/deepseekv2/operation/ring_attention.h"
-#include "models/deepseekv2/operation/latent_attention.h"
+#include "system_log.h"
 
 namespace atb_speed {
 namespace common {
@@ -338,7 +339,7 @@ atb::Status AddMlaPreprocessNode(const LatentAttentionParam<NormParamType> &para
         GetTensorIdx(tensorMap, "in_k_rope_cache")
     };
     opGraph.nodes.push_back(mlaPreprocessNode);
-    ATB_SPEED_LOG_DEBUG("MlaPreprocessNode calculation success");
+    LOG_DEBUG_MODEL << "MlaPreprocessNode calculation success";
     return atb::NO_ERROR;
 }
 
@@ -361,7 +362,7 @@ atb::Status AddLAttnPreNormNode(const LatentAttentionParam<NormParamType> &param
     }
     normNode.outTensorIds = {GetTensorIdx(tensorMap, "in_input_norm")};
     opGraph.nodes.push_back(normNode);
-    ATB_SPEED_LOG_DEBUG("Attention PreNorm calculation success");
+    LOG_DEBUG_MODEL << "Attention PreNorm calculation success";
     return atb::NO_ERROR;
 }
 
@@ -393,7 +394,7 @@ atb::Status AddLAttnQKVProjNode(const LatentAttentionParam<NormParamType> &param
     qkvAProjNode.outTensorIds = {GetTensorIdx(tensorMap, "latent_qkv")};
     CHECK_OPERATION_STATUS_RETURN(FusionLinear(kvAProjNodeParam, &qkvAProjNode.operation));
     opGraph.nodes.push_back(qkvAProjNode);
-    ATB_SPEED_LOG_DEBUG("MLA proj_qkv_a calculation success");
+    LOG_DEBUG_MODEL << "MLA proj_qkv_a calculation success";
     return atb::NO_ERROR;
 }
 
@@ -409,7 +410,7 @@ atb::Status AddSplitQKNode(const LatentAttentionParam<NormParamType> &param, atb
         "intermediate_qkv_unpadding_all" : "latent_qkv")};
     splitKNode.outTensorIds = {GetTensorIdxList(tensorMap, {"intermediate_kv", "rope_k", "latent_q"})};
     opGraph.nodes.push_back(splitKNode);
-    ATB_SPEED_LOG_DEBUG("MLA spilt_qk calculation success");
+    LOG_DEBUG_MODEL << "MLA spilt_qk calculation success";
     return atb::NO_ERROR;
 }
 
@@ -439,7 +440,7 @@ atb::Status AddLAttnQProjANode(const LatentAttentionParam<NormParamType> &param,
     qAProjNode.outTensorIds = {GetTensorIdx(tensorMap, "latent_q")};
     CHECK_OPERATION_STATUS_RETURN(FusionLinear(qAProjNodeParam, &qAProjNode.operation));
     opGraph.nodes.push_back(qAProjNode);
-    ATB_SPEED_LOG_DEBUG("MLA proj_q_a calculation success");
+    LOG_DEBUG_MODEL << "MLA proj_q_a calculation success";
     return atb::NO_ERROR;
 }
 
@@ -489,7 +490,7 @@ atb::Status AddLAttnQProjBNode(const LatentAttentionParam<NormParamType> &param,
     };
     qBProjNode.outTensorIds = {GetTensorIdx(tensorMap, "q_lora_out")};
     opGraph.nodes.push_back(qBProjNode);
-    ATB_SPEED_LOG_DEBUG("MLA proj_q_b calculation success");
+    LOG_DEBUG_MODEL << "MLA proj_q_b calculation success";
     return atb::NO_ERROR;
 }
 
@@ -526,7 +527,7 @@ atb::Status AddSplitQNode(const LatentAttentionParam<NormParamType> &param, atb:
         };
     }
     opGraph.nodes.push_back(splitQNode);
-    ATB_SPEED_LOG_DEBUG("MLA split q calculation success");
+    LOG_DEBUG_MODEL << "MLA split q calculation success";
     return atb::NO_ERROR;
 }
 
@@ -557,7 +558,7 @@ atb::Status AddReprojQNode(const LatentAttentionParam<NormParamType> &param, atb
     };
     qReprojNode.outTensorIds = {GetTensorIdx(tensorMap, "reproj_nope_q")};
     opGraph.nodes.push_back(qReprojNode);
-    ATB_SPEED_LOG_DEBUG("MLA reproj q calculation success");
+    LOG_DEBUG_MODEL << "MLA reproj q calculation success";
     return atb::NO_ERROR;
 }
 
@@ -588,7 +589,7 @@ atb::Status AddLAttnKVAProjNode(const LatentAttentionParam<NormParamType> &param
     kvAProjNode.outTensorIds = {GetTensorIdx(tensorMap, "latent_kv")};
     CHECK_OPERATION_STATUS_RETURN(FusionLinear(kvAProjNodeParam, &kvAProjNode.operation));
     opGraph.nodes.push_back(kvAProjNode);
-    ATB_SPEED_LOG_DEBUG("MLA proj_kv_a calculation success");
+    LOG_DEBUG_MODEL << "MLA proj_kv_a calculation success";
     return atb::NO_ERROR;
 }
 
@@ -604,7 +605,7 @@ atb::Status AddSplitKNode(const LatentAttentionParam<NormParamType> &param, atb:
         "intermediate_kv_unpadding_all" : "latent_kv")};
     splitKNode.outTensorIds = {GetTensorIdxList(tensorMap, {"intermediate_kv", "rope_k"})};
     opGraph.nodes.push_back(splitKNode);
-    ATB_SPEED_LOG_DEBUG("MLA spilt_k calculation success");
+    LOG_DEBUG_MODEL << "MLA spilt_k calculation success";
     return atb::NO_ERROR;
 }
 
@@ -628,7 +629,7 @@ atb::Status AddLAttnKVNormNode(const LatentAttentionParam<NormParamType> &param,
     }
     CHECK_OPERATION_STATUS_RETURN(atb::CreateOperation(param.normParamType, &kvNormNode.operation));
     opGraph.nodes.push_back(kvNormNode);
-    ATB_SPEED_LOG_DEBUG("MLA kv norm calculation success");
+    LOG_DEBUG_MODEL << "MLA kv norm calculation success";
     return atb::NO_ERROR;
 }
 
@@ -654,7 +655,7 @@ atb::Status AddLAttnRopeNode(const LatentAttentionParam<NormParamType> &param,
         SqueezeHeadNumHeadDim(oldShape, newShape);
     };
     opGraph.nodes.push_back(ropeNode);
-    ATB_SPEED_LOG_DEBUG("MLA rope calculation success");
+    LOG_DEBUG_MODEL << "MLA rope calculation success";
     return atb::NO_ERROR;
 }
 
@@ -769,7 +770,7 @@ atb::Status AddKAllGatherCpNode(const LatentAttentionParam<NormParamType> &param
     }
 
     opGraph.nodes.push_back(splitNode);
-    ATB_SPEED_LOG_DEBUG("MLA all_gather_kv cp node calculation success");
+    LOG_DEBUG_MODEL << "MLA all_gather_kv cp node calculation success";
 
     return atb::NO_ERROR;
 }
@@ -825,7 +826,7 @@ atb::Status AddLAttnQCatNode(const LatentAttentionParam<NormParamType> &param,
     }
     CHECK_OPERATION_STATUS_RETURN(atb::CreateOperation(qCatParam, &qCatNode.operation));
     opGraph.nodes.push_back(qCatNode);
-    ATB_SPEED_LOG_DEBUG("MLA qCatNode calculation success");
+    LOG_DEBUG_MODEL << "MLA qCatNode calculation success";
     return atb::NO_ERROR;
 }
 
@@ -868,7 +869,7 @@ atb::Status AddLAttnKCatPrefillNode(const LatentAttentionParam<NormParamType> &p
     };
     CHECK_OPERATION_STATUS_RETURN(atb::CreateOperation(kCatParam, &kCatNode.operation));
     opGraph.nodes.push_back(kCatNode);
-    ATB_SPEED_LOG_DEBUG("MLA kCatNode prefill calculation success");
+    LOG_DEBUG_MODEL << "MLA kCatNode prefill calculation success";
     return atb::NO_ERROR;
 }
 
@@ -896,7 +897,7 @@ atb::Status AddLAttnKCatPrefixNode(const LatentAttentionParam<NormParamType> &pa
     };
     CHECK_OPERATION_STATUS_RETURN(atb::CreateOperation(kCatParam, &kCatNode.operation));
     opGraph.nodes.push_back(kCatNode);
-    ATB_SPEED_LOG_DEBUG("MLA kCatNode prefill calculation success");
+    LOG_DEBUG_MODEL << "MLA kCatNode prefill calculation success";
     return atb::NO_ERROR;
 }
 
@@ -923,7 +924,7 @@ atb::Status AddLAttnKRopeRepeatNode(const LatentAttentionParam<NormParamType> &p
     keyRepeatNode.operation = new atb_speed::common::RepeatOperation("RepeatNode", kvRepeatParam);
     opGraph.nodes.push_back(keyRepeatNode);
 
-    ATB_SPEED_LOG_DEBUG("MLA k prefix node repeat calculation success");
+    LOG_DEBUG_MODEL << "MLA k prefix node repeat calculation success";
     return atb::NO_ERROR;
 }
 
@@ -949,7 +950,7 @@ atb::Status AddLAttnKRopeRepeatHistoryNode(const LatentAttentionParam<NormParamT
     keyRepeatNode.operation = new atb_speed::common::RepeatOperation("RepeatNode", kvRepeatParam);
     opGraph.nodes.push_back(keyRepeatNode);
 
-    ATB_SPEED_LOG_DEBUG("MLA AddLAttnKRopeRepeatHistoryNode calculation success");
+    LOG_DEBUG_MODEL << "MLA AddLAttnKRopeRepeatHistoryNode calculation success";
     return atb::NO_ERROR;
 }
 
@@ -1030,7 +1031,7 @@ atb::Status AddReprojVNode(const LatentAttentionParam<NormParamType> &param, atb
     };
     vReprojNode.outTensorIds = {GetTensorIdx(tensorMap, "intermediate_self_attention")};
     opGraph.nodes.push_back(vReprojNode);
-    ATB_SPEED_LOG_DEBUG("MLA reproj v calculation success");
+    LOG_DEBUG_MODEL << "MLA reproj v calculation success";
     return atb::NO_ERROR;
 }
 
@@ -1079,7 +1080,7 @@ atb::Status AddLAttnKProjBNode(const LatentAttentionParam<NormParamType> &param,
     }
 
     opGraph.nodes.push_back(kProjBNode);
-    ATB_SPEED_LOG_DEBUG("MLA proj_k_b calculation success");
+    LOG_DEBUG_MODEL << "MLA proj_k_b calculation success";
     return atb::NO_ERROR;
 }
 
@@ -1122,7 +1123,7 @@ atb::Status AddLAttnKProjBHistoryNode(const LatentAttentionParam<NormParamType> 
     }
 
     opGraph.nodes.push_back(kProjBNode);
-    ATB_SPEED_LOG_DEBUG("MLA proj_k_b AddLAttnKProjBHistoryNode calculation success");
+    LOG_DEBUG_MODEL << "MLA proj_k_b AddLAttnKProjBHistoryNode calculation success";
     return atb::NO_ERROR;
 }
 
@@ -1143,7 +1144,7 @@ atb::Status AddLAttnVProjBNodeTransposeWeightNode(const LatentAttentionParam<Nor
     CHECK_OPERATION_STATUS_RETURN(atb::CreateOperation(transposeVProjBWeightParam,
         &transposeVProjBWeightNode.operation));
     opGraph.nodes.push_back(transposeVProjBWeightNode);
-    ATB_SPEED_LOG_DEBUG("MLA proj_k_b weight transpose calculation success");
+    LOG_DEBUG_MODEL << "MLA proj_k_b weight transpose calculation success";
     return atb::NO_ERROR;
 }
 
@@ -1187,7 +1188,7 @@ atb::Status AddLAttnVProjBNode(const LatentAttentionParam<NormParamType> &param,
         vProjBNode.inTensorIds[0] = GetTensorIdx(tensorMap, "intermediate_kv_cp");
     }
     opGraph.nodes.push_back(vProjBNode);
-    ATB_SPEED_LOG_DEBUG("MLA proj_v_b calculation success");
+    LOG_DEBUG_MODEL << "MLA proj_v_b calculation success";
     return atb::NO_ERROR;
 }
 
@@ -1229,7 +1230,7 @@ atb::Status AddLAttnVProjBHistoryNode(const LatentAttentionParam<NormParamType> 
     }
 
     opGraph.nodes.push_back(vProjBNode);
-    ATB_SPEED_LOG_DEBUG("MLA proj_v_b AddLAttnVProjBHistoryNode calculation success");
+    LOG_DEBUG_MODEL << "MLA proj_v_b AddLAttnVProjBHistoryNode calculation success";
     return atb::NO_ERROR;
 }
 
@@ -1295,7 +1296,7 @@ atb::Status AddSelfOutLinearParallelNode(const LatentAttentionParam<NormParamTyp
     }
     selfOutLinearParallelNode.outTensorIds = {GetTensorIdx(tensorMap, "out")};
     opGraph.nodes.push_back(selfOutLinearParallelNode);
-    ATB_SPEED_LOG_DEBUG("MLA o_proj calculation success");
+    LOG_DEBUG_MODEL << "MLA o_proj calculation success";
     return atb::NO_ERROR;
 }
 
@@ -1310,7 +1311,7 @@ atb::Status AddQuantOprojNode(atb::GraphParam &opGraph, std::map<std::string, ui
         "in_attn_out_scale", "in_attn_out_offset"});
     inputQuantNode.outTensorIds = {GetTensorIdx(tensorMap, "intermediate_self_attention_padding_quant")};
     opGraph.nodes.push_back(inputQuantNode);
-    ATB_SPEED_LOG_DEBUG("MLA Quant O calculation success");
+    LOG_DEBUG_MODEL << "MLA Quant O calculation success";
     return atb::NO_ERROR;
 }
 
@@ -1324,7 +1325,7 @@ atb::Status AddOprojAllToAllPaddingNode(atb::GraphParam &opGraph, std::map<std::
                                                                              "in_attn_padding_idx"});
     gatherNode.outTensorIds = atb_speed::common::GetTensorIdxList(tensorMap, {"intermediate_self_attention_padding"});
     opGraph.nodes.push_back(gatherNode);
-    ATB_SPEED_LOG_DEBUG("MLA Wo AllToAll Padding calculation success");
+    LOG_DEBUG_MODEL << "MLA Wo AllToAll Padding calculation success";
     return atb::NO_ERROR;
 }
 
@@ -1433,7 +1434,7 @@ atb::Status AddLAttnQNormNode(const LatentAttentionParam<NormParamType> &param,
     }
     qNormNode.outTensorIds = {GetTensorIdx(tensorMap, "fused_latent_q_norm")};
     opGraph.nodes.push_back(qNormNode);
-    ATB_SPEED_LOG_DEBUG("Latent Attention QNorm calculation success");
+    LOG_DEBUG_MODEL << "Latent Attention QNorm calculation success";
     return atb::NO_ERROR;
 }
 
@@ -1464,7 +1465,7 @@ atb::Status AddFusedQBNode(const LatentAttentionParam<NormParamType> &param,
     };
     qBProjNode.outTensorIds = {GetTensorIdx(tensorMap, "intermediate_q_b")};
     opGraph.nodes.push_back(qBProjNode);
-    ATB_SPEED_LOG_DEBUG("Fused QBNode calculation success");
+    LOG_DEBUG_MODEL << "Fused QBNode calculation success";
     return atb::NO_ERROR;
 }
 
@@ -1480,7 +1481,7 @@ atb::Status SetFFNQUnPadding(const LatentAttentionParam<NormParamType> &param, a
         {param.ffnAllGather ? "intermediate_q_b" : "fused_latent_q_norm", "in_ffn_unpadding_idx"});
     gatherNode.outTensorIds = atb_speed::common::GetTensorIdxList(tensorMap, {"fused_q_lora_out"});
     opGraph.nodes.push_back(gatherNode);
-    ATB_SPEED_LOG_DEBUG("FFN Q unpadding calculation success");
+    LOG_DEBUG_MODEL << "FFN Q unpadding calculation success";
     return atb::NO_ERROR;
 }
 
@@ -1518,7 +1519,7 @@ atb::Status AddSelfFusedOutLinearParallelNode(const LatentAttentionParam<NormPar
         };
     }
     opGraph.nodes.push_back(selfFusedOutLinearParallelNode);
-    ATB_SPEED_LOG_DEBUG("Fused QBNode calculation success");
+    LOG_DEBUG_MODEL << "Fused QBNode calculation success";
     return atb::NO_ERROR;
 }
 
@@ -1530,9 +1531,9 @@ atb::Status Attention(const LatentAttentionParam<NormParamType> &param, atb::Ope
     opGraph.name = "Attention";
     std::map<std::string, uint32_t> tensorMap = ConstructTensorMap(param,
         opGraph.inTensorNum, opGraph.outTensorNum, opGraph.internalTensorNum);
-    ATB_SPEED_LOG_DEBUG("opGraph.inTensorNum " << opGraph.inTensorNum);
-    ATB_SPEED_LOG_DEBUG("opGraph.outTensorNum " << opGraph.outTensorNum);
-    ATB_SPEED_LOG_DEBUG("opGraph.internalTensorNum " << opGraph.internalTensorNum);
+    LOG_DEBUG_MODEL << "opGraph.inTensorNum " << opGraph.inTensorNum;
+    LOG_DEBUG_MODEL << "opGraph.outTensorNum " << opGraph.outTensorNum;
+    LOG_DEBUG_MODEL << "opGraph.internalTensorNum " << opGraph.internalTensorNum;
     // Preprocess
     CHECK_OPERATION_STATUS_RETURN(Preprocess(param, opGraph, tensorMap));
     // PA or MLA
@@ -1745,7 +1746,7 @@ atb::Status AddPaEncoderNode(
     };
     selfAttentionNode.outTensorIds = {GetTensorIdx(tensorMap, "intermediate_self_attention")};
     opGraph.nodes.push_back(selfAttentionNode);
-    ATB_SPEED_LOG_DEBUG("PA encoder calculation success");
+    LOG_DEBUG_MODEL << "PA encoder calculation success";
     return atb::NO_ERROR;
 }
 
@@ -1795,7 +1796,7 @@ atb::Status AddRingMLAEncoderNode(
     ringAttentionNode.outTensorIds = {GetTensorIdx(tensorMap, "intermediate_self_attention"), \
         GetTensorIdx(tensorMap, "cur_lse")};
     opGraph.nodes.push_back(ringAttentionNode);
-    ATB_SPEED_LOG_DEBUG("PA encoder ringAttentionNode calculation success");
+    LOG_DEBUG_MODEL << "PA encoder ringAttentionNode calculation success";
     return atb::NO_ERROR;
 }
 
@@ -1847,7 +1848,7 @@ atb::Status AddRingMLAEncoderHistoryNode(
     ringAttentionNode.outTensorIds = {GetTensorIdx(tensorMap, "intermediate_self_attention"), \
         GetTensorIdx(tensorMap, "cache_lse")};
     opGraph.nodes.push_back(ringAttentionNode);
-    ATB_SPEED_LOG_DEBUG("PA encoder AddRingMLAEncoderHistoryNode calculation success");
+    LOG_DEBUG_MODEL << "PA encoder AddRingMLAEncoderHistoryNode calculation success";
     return atb::NO_ERROR;
 }
 
@@ -1894,7 +1895,7 @@ atb::Status AddEncoderMLANode(
         };
     }
     opGraph.nodes.push_back(selfAttentionNode);
-    ATB_SPEED_LOG_DEBUG("MLA encoder calculation success");
+    LOG_DEBUG_MODEL << "MLA encoder calculation success";
     return atb::NO_ERROR;
 }
 
@@ -2039,7 +2040,7 @@ atb::Status AddMlaDecoderNode(
     } else {
         opGraph.nodes.push_back(selfAttentionNode);
     }
-    ATB_SPEED_LOG_DEBUG("MLA decoder calculation success");
+    LOG_DEBUG_MODEL << "MLA decoder calculation success";
     return atb::NO_ERROR;
 }
 
@@ -2062,7 +2063,7 @@ atb::Status AddGetHistoryNode(
     };
     getHistoryNode.outTensorIds = {GetTensorIdxList(tensorMap, {EnableFA3Quant(param) ? "in_history_compressed_kv_int" : "in_history_compressed_kv", "in_history_k_rope"})};
     opGraph.nodes.push_back(getHistoryNode);
-    ATB_SPEED_LOG_DEBUG("Get history kv calculation success");
+    LOG_DEBUG_MODEL << "Get history kv calculation success";
     return atb::NO_ERROR;
 }
 

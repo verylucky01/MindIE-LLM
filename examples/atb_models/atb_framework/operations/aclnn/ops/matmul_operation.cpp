@@ -9,6 +9,7 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
+#include "matmul_operation.h"
 #include <cstring>
 #include <iostream>
 #include <securec.h>
@@ -16,12 +17,11 @@
 #include <vector>
 #include <unistd.h>
 #include "acl/acl.h"
-#include "atb_speed/log.h"
+#include "system_log.h"
 #include "atb_speed/utils/timer.h"
 #include "operations/aclnn/utils/utils.h"
 #include "operations/aclnn/core/acl_nn_operation.h"
 #include "aclnnop/aclnn_addmm.h"
-#include "matmul_operation.h"
 
 namespace atb_speed {
 namespace common {
@@ -38,22 +38,22 @@ MatmulOperation::MatmulOperation(
 
 MatmulOperation::~MatmulOperation()
 {
-    ATB_SPEED_LOG_DEBUG("MatmulOperation deconstructor");
+    LOG_DEBUG_MODEL << "MatmulOperation deconstructor";
     this->DestroyOperation();
     int ret = aclDestroyScalar(betaZero);
     if (ret > 0) {
-        ATB_SPEED_LOG_ERROR(opName_ << " call aclDestroyScalar to destroy betaZero failed.");
+        LOG_ERROR_MODEL << opName_ << " call aclDestroyScalar to destroy betaZero failed.";
     }
     ret = aclDestroyScalar(betaOne);
     if (ret > 0) {
-        ATB_SPEED_LOG_ERROR(opName_ << " call aclDestroyScalar to destroy betaOne failed.");
+        LOG_ERROR_MODEL << opName_ << " call aclDestroyScalar to destroy betaOne failed.";
     }
 }
 
 atb::Status MatmulOperation::InferShape(const atb::SVector<atb::TensorDesc> &inTensorDescs,
                                         atb::SVector<atb::TensorDesc> &outTensorDescs) const
 {
-    ATB_SPEED_LOG_DEBUG(opName_ << "infer shape start");
+    LOG_DEBUG_MODEL << opName_ << "infer shape start";
 
     outTensorDescs.at(DIM0).format = inTensorDescs.at(DIM0).format;
     if (param_.outDataType == ACL_BF16 || inTensorDescs.at(DIM0).dtype == ACL_BF16) {
@@ -65,26 +65,26 @@ atb::Status MatmulOperation::InferShape(const atb::SVector<atb::TensorDesc> &inT
 
     int nDim = param_.transposeB ? DIM0 : DIM1; // inTensorDescs.at(DIM1).shape.dimNum 为 2
     if (inTensorDescs.at(0).shape.dimNum == DIM3) {
-        ATB_SPEED_LOG_DEBUG("[input0 dimNum = 3] CHECK " << opName_ << " inputs shape: [input0]"
+        LOG_DEBUG_MODEL << "[input0 dimNum = 3] CHECK " << opName_ << " inputs shape: [input0]"
                        << inTensorDescs.at(DIM0).shape.dims[DIM0] << ", "
-                       << inTensorDescs.at(DIM0).shape.dims[DIM1] << ", " << inTensorDescs.at(DIM0).shape.dims[DIM2]);
-        ATB_SPEED_LOG_DEBUG("[input0 dimNum = 3] CHECK " << opName_ << " inputs shape: [input1]"
-                       << inTensorDescs.at(DIM1).shape.dims[DIM0] << ", " << inTensorDescs.at(DIM1).shape.dims[DIM1]);
+                       << inTensorDescs.at(DIM0).shape.dims[DIM1] << ", " << inTensorDescs.at(DIM0).shape.dims[DIM2];
+        LOG_DEBUG_MODEL << "[input0 dimNum = 3] CHECK " << opName_ << " inputs shape: [input1]"
+                       << inTensorDescs.at(DIM1).shape.dims[DIM0] << ", " << inTensorDescs.at(DIM1).shape.dims[DIM1];
         outTensorDescs.at(DIM0).shape.dims[DIM0] = inTensorDescs.at(DIM0).shape.dims[DIM0];
         outTensorDescs.at(DIM0).shape.dims[DIM1] = inTensorDescs.at(DIM0).shape.dims[DIM1];
         outTensorDescs.at(DIM0).shape.dims[DIM2] = inTensorDescs.at(DIM1).shape.dims[nDim];
     } else if (inTensorDescs.at(0).shape.dimNum == DIM2) {
-        ATB_SPEED_LOG_DEBUG("[input0 dimNum = 2] CHECK " << opName_ << " inputs shape: [input0]"
-                       << inTensorDescs.at(DIM0).shape.dims[DIM0] << ", " << inTensorDescs.at(DIM0).shape.dims[DIM1]);
-        ATB_SPEED_LOG_DEBUG("[input0 dimNum = 2] CHECK " << opName_ << " inputs shape: [input1]"
-                       << inTensorDescs.at(DIM1).shape.dims[DIM0] << ", " << inTensorDescs.at(DIM1).shape.dims[DIM1]);
+        LOG_DEBUG_MODEL << "[input0 dimNum = 2] CHECK " << opName_ << " inputs shape: [input0]"
+                       << inTensorDescs.at(DIM0).shape.dims[DIM0] << ", " << inTensorDescs.at(DIM0).shape.dims[DIM1];
+        LOG_DEBUG_MODEL << "[input0 dimNum = 2] CHECK " << opName_ << " inputs shape: [input1]"
+                       << inTensorDescs.at(DIM1).shape.dims[DIM0] << ", " << inTensorDescs.at(DIM1).shape.dims[DIM1];
         outTensorDescs.at(DIM0).shape.dims[DIM0] = inTensorDescs.at(DIM0).shape.dims[DIM0];
         outTensorDescs.at(DIM0).shape.dims[DIM1] = inTensorDescs.at(DIM1).shape.dims[nDim];
     } else {
-        ATB_SPEED_LOG_ERROR(opName_ << " invalid dim num:" << inTensorDescs.at(DIM0).shape.dimNum);
+        LOG_ERROR_MODEL << opName_ << " invalid dim num:" << inTensorDescs.at(DIM0).shape.dimNum;
     }
 
-    ATB_SPEED_LOG_DEBUG(opName_ << " infer shape end");
+    LOG_DEBUG_MODEL << opName_ << " infer shape end";
     return 0;
 }
 
@@ -148,7 +148,7 @@ atb::Status MatmulOperation::CreateAclNNInTensorVariantPack(const atb::VariantPa
             aclnnTensor->strides.data(), 0, squeezedAtbTensor.desc.format,
             storageTensorDims.dims, storageTensorDims.dimNum, squeezedAtbTensor.deviceData);
         if (aclnnTensor->tensor == nullptr) {
-            ATB_SPEED_LOG_ERROR(this->opName_ << " InTensor aclCreateTensor index " << i << " fail");
+            LOG_ERROR_MODEL << this->opName_ << " InTensor aclCreateTensor index " << i << " fail";
             return atb::ERROR_INTERNAL_ERROR;
         }
         aclnnVariantPack.aclInTensors[i] = aclnnTensor;
@@ -173,7 +173,7 @@ atb::Status MatmulOperation::CreateAclNNOutTensorVariantPack(const atb::VariantP
             squeezedAtbTensor.desc.format, squeezedAtbTensor.desc.shape.dims,
             squeezedAtbTensor.desc.shape.dimNum, squeezedAtbTensor.deviceData);
         if (aclnnTensor->tensor == nullptr) {
-            ATB_SPEED_LOG_ERROR(this->opName_ << " OutTensor aclCreateTensor index " << i << " fail");
+            LOG_ERROR_MODEL << this->opName_ << " OutTensor aclCreateTensor index " << i << " fail";
             return atb::ERROR_INTERNAL_ERROR;
         }
         aclnnVariantPack.aclOutTensors[i] = aclnnTensor;
@@ -183,7 +183,7 @@ atb::Status MatmulOperation::CreateAclNNOutTensorVariantPack(const atb::VariantP
 
 int MatmulOperation::SetAclNNWorkspaceExecutor()
 {
-    ATB_SPEED_LOG_DEBUG(opName_ << " SetAclNNWorkspaceExecutor start");
+    LOG_DEBUG_MODEL << opName_ << " SetAclNNWorkspaceExecutor start";
     AclNNVariantPack &aclnnVariantPack = this->aclnnOpCache_->aclnnVariantPack;
 
     int ret = aclnnAddmmGetWorkspaceSize(
@@ -195,18 +195,18 @@ int MatmulOperation::SetAclNNWorkspaceExecutor()
         aclnnVariantPack.aclOutTensors.at(DIM0)->tensor, 0,
         &this->aclnnOpCache_->workspaceSize, &this->aclnnOpCache_->aclExecutor);
 
-    ATB_SPEED_LOG_DEBUG(opName_ << " SetAclNNWorkspaceExecutor end, ret:" << ret
+    LOG_DEBUG_MODEL << opName_ << " SetAclNNWorkspaceExecutor end, ret:" << ret
                   << ", workspaceSize:" << this->aclnnOpCache_->workspaceSize
-                  << ", aclExecutor:" << this->aclnnOpCache_->aclExecutor);
+                  << ", aclExecutor:" << this->aclnnOpCache_->aclExecutor;
     return ret;
 }
 
 int MatmulOperation::ExecuteAclNNOp(uint8_t *workspace, aclrtStream &stream)
 {
-    ATB_SPEED_LOG_DEBUG(opName_ << " aclnnAddmm start");
+    LOG_DEBUG_MODEL << opName_ << " aclnnAddmm start";
     int ret = aclnnAddmm(
         workspace, this->aclnnOpCache_->workspaceSize, this->aclnnOpCache_->aclExecutor, stream);
-    ATB_SPEED_LOG_DEBUG(opName_ << " aclnnAddmm end, ret:" << ret);
+    LOG_DEBUG_MODEL << opName_ << " aclnnAddmm end, ret:" << ret;
     return ret;
 }
 

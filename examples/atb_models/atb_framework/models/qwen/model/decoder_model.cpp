@@ -12,6 +12,7 @@
 #include "models/qwen/model/decoder_model.h"
 #include "models/qwen/layer/decoder_layer.h"
 #include "operations/fusion/infer_shape_functions.h"
+#include "system_log.h"
 
 namespace atb_speed {
 namespace qwen {
@@ -47,11 +48,11 @@ void QwenModelParam::ParseParam(const nlohmann::json &paramJson)
 void QwenModelParam::PrintParam()
 {
     atb_speed::base::ModelParam::PrintParam();
-    ATB_SPEED_LOG_DEBUG("QwenModelParam: withEmbedding: " << this->withEmbedding << ", enableLogN: " << this->enableLogN
+    LOG_DEBUG_MODEL << "QwenModelParam: withEmbedding: " << this->withEmbedding << ", enableLogN: " << this->enableLogN
                                                           << ", isLongSeq: " << this->isLongSeq
                                                           << ", isYarn:" << this->isYarn << ", mscale:" << this->mscale
                                                           << ", enableQScale: " << this->enableQScale
-                                                          << ", enableFlashComm:" << this->enableFlashComm);
+                                                          << ", enableFlashComm:" << this->enableFlashComm;
 }
 
 QwenDecoderModel::QwenDecoderModel(const std::string &param) : DecoderModel(param)
@@ -175,7 +176,7 @@ atb::Status QwenDecoderModel::AddDynamicNTK()
     atb::Operation *op = nullptr;
     if (param.isLongSeq) {
         if (this->ReuseEmbedTable()) {
-            ATB_SPEED_LOG_DEBUG("reuse embed table, skip add dynamicNKNode");
+            LOG_DEBUG_MODEL << "reuse embed table, skip add dynamicNKNode";
             return atb::NO_ERROR;
         }
         atb_speed::Model::Node dynamicNTKNode;
@@ -190,7 +191,7 @@ atb::Status QwenDecoderModel::AddDynamicNTK()
             &graph_.inTensors.at(atb_speed::common::GetTensorIdx(this->inTensorMap, "inv_freq")),
             &graph_.inTensors.at(atb_speed::common::GetTensorIdx(this->inTensorMap, "pos_lens"))};
         dynamicNTKNode.outTensors = { this->GetSineEmbedTable(), this->GetCosineEmbedTable() };
-        ATB_SPEED_LOG_DEBUG("[+] dynamicNTKNode");
+        LOG_DEBUG_MODEL << "[+] dynamicNTKNode";
         graph_.nodes.push_back(dynamicNTKNode);
     }
     return atb::NO_ERROR;
@@ -202,7 +203,7 @@ atb::Status QwenDecoderModel::AddMuls()
 
     if (param.isLongSeq && param.isYarn) {
         if (this->ReuseEmbedTable()) {
-            ATB_SPEED_LOG_DEBUG("reuse embed table, skip add muls");
+            LOG_DEBUG_MODEL << "reuse embed table, skip add muls";
             return atb::NO_ERROR;
         }
         atb_speed::Model::Node mulsCosNode;
@@ -248,7 +249,7 @@ atb::Status QwenDecoderModel::AddPositionalEmbedding()
     positionalEmbeddingGatherNode.outTensors = {
         &graph_.internalTensors.at(atb_speed::common::GetTensorIdx(this->internalTensorMap, "cosine_embedding")),
         &graph_.internalTensors.at(atb_speed::common::GetTensorIdx(this->internalTensorMap, "sine_embedding"))};
-    ATB_SPEED_LOG_DEBUG("[+] positionalEmbeddingGatherNode");
+    LOG_DEBUG_MODEL << "[+] positionalEmbeddingGatherNode";
     graph_.nodes.push_back(positionalEmbeddingGatherNode);
 
     return atb::NO_ERROR;
@@ -313,7 +314,7 @@ void QwenDecoderModel::SetLmHeadParam(atb_speed::common::LmHeadParam &lmHeadPara
 
 atb::Status QwenDecoderModel::BindParamHostTensor(uint32_t nodeId)
 {
-    ATB_SPEED_LOG_DEBUG("BindParamHostTensor nodeId = " << nodeId);
+    LOG_DEBUG_MODEL << "BindParamHostTensor nodeId = " << nodeId;
     if (param.enableFlashComm) {
         BindDapHostTensor(this->sendCounts, "send_counts");
         BindDapHostTensor(this->sdispls, "sdispls");
@@ -354,7 +355,7 @@ atb::Status QwenDecoderModel::BindParamHostTensor(uint32_t nodeId)
     tensorIdx = atb_speed::common::GetTensorIdx(this->inTensorMap, "q_len");
     if (tensorIdx != UINT32_MAX) { graph_.inTensors.at(tensorIdx).hostData = qLen.data(); }
 
-    ATB_SPEED_LOG_DEBUG("BindParamHostTensor end");
+    LOG_DEBUG_MODEL << "BindParamHostTensor end";
     return atb::NO_ERROR;
 }
 

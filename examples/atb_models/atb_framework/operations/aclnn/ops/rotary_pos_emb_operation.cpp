@@ -9,6 +9,7 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
+#include "rotary_pos_emb_operation.h"
 #include <cstring>
 #include <iostream>
 #include <securec.h>
@@ -17,10 +18,9 @@
 
 #include "acl/acl.h"
 #include "aclnnop/aclnn_apply_rotary_pos_emb.h"
-#include "atb_speed/log.h"
+#include "system_log.h"
 #include "operations/aclnn/utils/utils.h"
 #include "acl/acl.h"
-#include "rotary_pos_emb_operation.h"
 
 namespace atb_speed {
 namespace common {
@@ -48,7 +48,7 @@ uint32_t RotaryPosEmbOperation::GetOutputNum() const
 atb::Status RotaryPosEmbOperation::InferShape(const atb::SVector<atb::TensorDesc> &inTensorDescs,
     atb::SVector<atb::TensorDesc> &outTensorDescs) const
 {
-    ATB_SPEED_LOG_DEBUG(opName_ << "RotaryPosEmbOperation infer shape start");
+    LOG_DEBUG_MODEL << opName_ << "RotaryPosEmbOperation infer shape start";
     for (uint64_t i = 0; i < outTensorDescs.size(); ++i) {
         outTensorDescs.at(i).format = inTensorDescs.at(0).format;
         outTensorDescs.at(i).dtype = inTensorDescs.at(0).dtype;
@@ -61,9 +61,9 @@ atb::Status RotaryPosEmbOperation::InferShape(const atb::SVector<atb::TensorDesc
             outTensorDescs.at(i).shape = inTensorDescs.at(0).shape;
         }
     }
-    ATB_SPEED_LOG_DEBUG(opName_ << "RotaryPosEmbOperation infer shape end"
+    LOG_DEBUG_MODEL << opName_ << "RotaryPosEmbOperation infer shape end"
                   << " format: " << inTensorDescs.at(0).format << " dimNum: " << inTensorDescs.at(0).shape.dimNum
-                  << " dims: " << inTensorDescs.at(0).shape.dims[0]);
+                  << " dims: " << inTensorDescs.at(0).shape.dims[0];
     return 0;
 }
 
@@ -128,7 +128,7 @@ atb::Status RotaryPosEmbOperation::CreateAclNNOutTensorVariantPack(const atb::Va
 
 int RotaryPosEmbOperation::SetAclNNWorkspaceExecutor()
 {
-    ATB_SPEED_LOG_DEBUG(opName_ << " SetAclNNWorkspaceExecutor start");
+    LOG_DEBUG_MODEL << opName_ << " SetAclNNWorkspaceExecutor start";
     AclNNVariantPack &aclnnVariantPack = this->aclnnOpCache_->aclnnVariantPack;
     int ret = aclnnApplyRotaryPosEmbGetWorkspaceSize(aclnnVariantPack.aclInTensors.at(0)->tensor, // 0: query
         aclnnVariantPack.aclInTensors.at(1)->tensor, // 1: key
@@ -137,19 +137,18 @@ int RotaryPosEmbOperation::SetAclNNWorkspaceExecutor()
         1, // 1: 目前只支持1，代表格式为BSND的4维Tensor
         &this->aclnnOpCache_->workspaceSize,
         &this->aclnnOpCache_->aclExecutor);
-    ATB_SPEED_LOG_DEBUG(opName_ << " SetAclNNWorkspaceExecutor end, ret:" << ret
+    LOG_DEBUG_MODEL << opName_ << " SetAclNNWorkspaceExecutor end, ret:" << ret
                   << ", workspaceSize:" << this->aclnnOpCache_->workspaceSize
-                  << ", aclExecutor:" << this->aclnnOpCache_->aclExecutor);
+                  << ", aclExecutor:" << this->aclnnOpCache_->aclExecutor;
     return ret;
 }
 
-
 int RotaryPosEmbOperation::ExecuteAclNNOp(uint8_t *workspace, aclrtStream &stream)
 {
-    ATB_SPEED_LOG_DEBUG(opName_ << " RotaryPosEmbOperation start");
+    LOG_DEBUG_MODEL << opName_ << " RotaryPosEmbOperation start";
     int ret = aclnnApplyRotaryPosEmb(workspace, this->aclnnOpCache_->workspaceSize,
         this->aclnnOpCache_->aclExecutor, stream);
-    ATB_SPEED_LOG_DEBUG(opName_ << " RotaryPosEmbOperation end, ret:" << ret);
+    LOG_DEBUG_MODEL << opName_ << " RotaryPosEmbOperation end, ret:" << ret;
     return ret;
 }
 

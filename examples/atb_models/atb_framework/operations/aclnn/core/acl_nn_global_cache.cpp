@@ -9,11 +9,11 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
+#include "acl_nn_global_cache.h"
 #include <sstream>
-#include "atb_speed/log.h"
+#include "system_log.h"
 #include "atb_speed/utils/operation_util.h"
 #include "operations/aclnn/utils/utils.h"
-#include "acl_nn_global_cache.h"
 
 namespace atb_speed {
 namespace common {
@@ -39,7 +39,7 @@ std::shared_ptr<AclNNOpCache> AclNNGlobalCache::GetGlobalCache(std::string opNam
     std::map<std::string, std::vector<std::shared_ptr<AclNNOpCache>>>::iterator it = \
         this->aclnnGlobalCache_.find(opName);
     if (it == this->aclnnGlobalCache_.end()) {
-        ATB_SPEED_LOG_DEBUG("Plugin Op Cache: Op name[" << opName << "] not found in AclNNGlobalCache");
+        LOG_DEBUG_MODEL << "Plugin Op Cache: Op name[" << opName << "] not found in AclNNGlobalCache";
         return nullptr;
     }
     std::vector<std::shared_ptr<AclNNOpCache>> &opGlobalCacheList = it->second;
@@ -47,10 +47,10 @@ std::shared_ptr<AclNNOpCache> AclNNGlobalCache::GetGlobalCache(std::string opNam
     // 在Global Cache列表中基于variantPack找到匹配的Cache
     for (size_t i = 0; i < opGlobalCacheList.size(); i++) {
         if (opGlobalCacheList[i] == nullptr) {
-            ATB_SPEED_LOG_DEBUG("Plugin Op Cache: Global Cache index " << i << " is nullptr");
+            LOG_DEBUG_MODEL << "Plugin Op Cache: Global Cache index " << i << " is nullptr";
             continue;
         }
-        ATB_SPEED_LOG_DEBUG("Plugin Op Cache: Global Cache index " << i << " call IsVariankPackEqual");
+        LOG_DEBUG_MODEL << "Plugin Op Cache: Global Cache index " << i << " call IsVariankPackEqual";
         if (opGlobalCacheList[i]->executorRepeatable && \
             IsVariankPackEqual(opGlobalCacheList[i]->aclnnVariantPack, variantPack)) {
             // Global Cache命中
@@ -65,7 +65,7 @@ atb::Status AclNNGlobalCache::UpdateGlobalCache(std::string opName, std::shared_
 {
     // 若Local Cache中Executor不可复用，不更新Global Cache
     if (!cache->executorRepeatable) {
-        ATB_SPEED_LOG_DEBUG("Plugin Op Cache: Op name[" << opName << "] not repeatable, do not update global cache");
+        LOG_DEBUG_MODEL << "Plugin Op Cache: Op name[" << opName << "] not repeatable, do not update global cache";
         return atb::NO_ERROR;
     }
 
@@ -79,7 +79,7 @@ atb::Status AclNNGlobalCache::UpdateGlobalCache(std::string opName, std::shared_
         this->aclnnGlobalCache_.find(opName);
     if (it == this->aclnnGlobalCache_.end()) {
         // 不存在opName对应的Cache列表
-        ATB_SPEED_LOG_DEBUG("Plugin Op Cache: Op name[" << opName << "] not found in AclNNGlobalCache, add one");
+        LOG_DEBUG_MODEL << "Plugin Op Cache: Op name[" << opName << "] not found in AclNNGlobalCache, add one";
         this->aclnnGlobalCache_[opName] = {cache};
         return atb::NO_ERROR;
     }
@@ -87,14 +87,14 @@ atb::Status AclNNGlobalCache::UpdateGlobalCache(std::string opName, std::shared_
 
     // Cache未已满
     if (opGlobalCacheList.size() < this->globalCacheCountMax_) {
-        ATB_SPEED_LOG_DEBUG("Plugin Op Cache: Op name[" << opName << "] global cache is not full, add one");
+        LOG_DEBUG_MODEL << "Plugin Op Cache: Op name[" << opName << "] global cache is not full, add one";
         opGlobalCacheList.push_back(cache);
         return atb::NO_ERROR;
     }
 
     // Cache已满
-    ATB_SPEED_LOG_DEBUG("Plugin Op Cache: Op name["
-                  << opName << "] global cache is full, update index " << nextUpdateIndex_);
+    LOG_DEBUG_MODEL << "Plugin Op Cache: Op name["
+        << opName << "] global cache is full, update index " << nextUpdateIndex_;
     opGlobalCacheList[nextUpdateIndex_] = cache;
     CHECK_PARAM_NE(globalCacheCountMax_, 0);
     nextUpdateIndex_ = (nextUpdateIndex_ + 1) % globalCacheCountMax_;

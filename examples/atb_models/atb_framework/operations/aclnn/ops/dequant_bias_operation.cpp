@@ -9,12 +9,11 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
+#include "dequant_bias_operation.h"
 #include "operations/aclnn/utils/utils.h"
 #include "acl/acl.h"
-#include "atb_speed/log.h"
+#include "system_log.h"
 #include "aclnnop/aclnn_dequant_bias.h"
-#include "dequant_bias_operation.h"
-
 
 namespace atb_speed::common {
 
@@ -29,7 +28,7 @@ namespace atb_speed::common {
 
     DequantBiasOperation::~DequantBiasOperation()
     {
-        ATB_SPEED_LOG_DEBUG("DequantBiasOperation deconstruct");
+        LOG_DEBUG_MODEL << "DequantBiasOperation deconstruct";
         this->DestroyOperation();
     }
 
@@ -44,7 +43,7 @@ namespace atb_speed::common {
         atb::SVector<atb::TensorDesc> &outTensorDesc
     ) const
     {
-        ATB_SPEED_LOG_DEBUG(opName_ << " InferShape start");
+        LOG_DEBUG_MODEL << opName_ << " InferShape start";
         // check input tensors
         for (int i = 0; i < NUM2; ++i) {
             std::string inputShape;
@@ -52,11 +51,9 @@ namespace atb_speed::common {
                 inputShape.append(std::to_string(inTensorDesc.at(i).shape.dims[dim]));
                 inputShape.append(", ");
             }
-            ATB_SPEED_LOG_DEBUG(
-                opName_ << " input" << i << " dimNum = " << inTensorDesc.at(i).shape.dimNum <<
+            LOG_DEBUG_MODEL << opName_ << " input" << i << " dimNum = " << inTensorDesc.at(i).shape.dimNum <<
                 ", inputShape = [" << inputShape << "]" <<
-                ", dtype = " << inTensorDesc.at(i).dtype
-            );
+                ", dtype = " << inTensorDesc.at(i).dtype;
         }
         // check output tensors
         outTensorDesc.at(DIM0).format = inTensorDesc.at(DIM0).format;
@@ -65,8 +62,7 @@ namespace atb_speed::common {
         for (uint64_t dim = 0; dim < inTensorDesc.at(DIM0).shape.dimNum; ++dim) {
             outTensorDesc.at(DIM0).shape.dims[dim] = inTensorDesc.at(DIM0).shape.dims[dim];
         }
-        ATB_SPEED_LOG_DEBUG(opName_ << " InferShape end");
-
+        LOG_DEBUG_MODEL << opName_ << " InferShape end";
         return atb::NO_ERROR;
     }
 
@@ -82,7 +78,7 @@ namespace atb_speed::common {
             inputNum++;  // IN_BIAS
             inputTensors.append(", IN_BIAS");
         }
-        ATB_SPEED_LOG_DEBUG(opName_ << " inputNum: " << inputNum << ", inputTensors: " << inputTensors);
+        LOG_DEBUG_MODEL << opName_ << " inputNum: " << inputNum << ", inputTensors: " << inputTensors;
         return inputNum;
     }
 
@@ -108,13 +104,13 @@ namespace atb_speed::common {
             }
             aclnnVariantPack.aclInTensors[i] = aclnnTensor;
         }
-        ATB_SPEED_LOG_DEBUG(opName_ << " " << GetInputNum() << " AclNNInTensor created");
+        LOG_DEBUG_MODEL << opName_ << " " << GetInputNum() << " AclNNInTensor created";
         return atb::NO_ERROR;
     }
 
     int DequantBiasOperation::SetAclNNWorkspaceExecutor()
     {
-        ATB_SPEED_LOG_DEBUG(opName_ << " SetAclNNWorkspaceExecutor start");
+        LOG_DEBUG_MODEL << opName_ << " SetAclNNWorkspaceExecutor start";
         AclNNVariantPack &aclnnVariantPack = this->aclnnOpCache_->aclnnVariantPack;
         int inputIdx = DIM2;
         aclTensor* activateScaleTensor = param_.hasActivateScale
@@ -135,27 +131,25 @@ namespace atb_speed::common {
         if (const char *errMsg = aclGetRecentErrMsg(); errMsg != nullptr) {
             std::stringstream ss;
             ss << this->opName_ << " SetAclNNWorkspaceExecutor error: " << errMsg;
-            ATB_SPEED_LOG_ERROR(ss.str());
+            LOG_ERROR_MODEL << ss.str();
             throw std::runtime_error(ss.str());
         }
-        ATB_SPEED_LOG_DEBUG(
-            opName_ << " SetAclNNWorkspaceExecutor end"
+        LOG_DEBUG_MODEL << opName_ << " SetAclNNWorkspaceExecutor end"
             << ", ret: " << ret
             << ", workspaceSize: " << this->aclnnOpCache_->workspaceSize
-            << ", aclExecutor: " << this->aclnnOpCache_->aclExecutor
-        );
+            << ", aclExecutor: " << this->aclnnOpCache_->aclExecutor;
         return ret;
     }
 
     int DequantBiasOperation::ExecuteAclNNOp(uint8_t *workspace, aclrtStream &stream)
     {
-        ATB_SPEED_LOG_DEBUG(opName_ << " ExecuteAclNNOp start");
+        LOG_DEBUG_MODEL << opName_ << " ExecuteAclNNOp start";
         int ret = aclnnDequantBias(
             workspace,
             this->aclnnOpCache_->workspaceSize,
             this->aclnnOpCache_->aclExecutor,
             stream);
-        ATB_SPEED_LOG_DEBUG(opName_ << " ExecuteAclNNOp end");
+        LOG_DEBUG_MODEL << opName_ << " ExecuteAclNNOp end";
         return ret;
     }
 

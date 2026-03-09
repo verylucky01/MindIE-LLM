@@ -9,16 +9,16 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
+#include "moe_init_routing_operation.h"
 #include <cstring>
 #include <iostream>
 #include <securec.h>
 #include <sstream>
 #include "acl/acl.h"
 #include "aclnnop/aclnn_moe_init_routing_v2.h"
-#include "atb_speed/log.h"
+#include "system_log.h"
 #include "atb_speed/utils/timer.h"
 #include "operations/aclnn/utils/utils.h"
-#include "moe_init_routing_operation.h"
 
 namespace atb_speed {
 namespace common {
@@ -30,7 +30,7 @@ MoeInitRoutingOperation::~MoeInitRoutingOperation() {}
 atb::Status MoeInitRoutingOperation::InferShape(
     const atb::SVector<atb::TensorDesc> &inTensorDescs, atb::SVector<atb::TensorDesc> &outTensorDescs) const
 {
-    ATB_SPEED_LOG_DEBUG(opName_ << "MoeInitRoutingOperation infer shape start");
+    LOG_DEBUG_MODEL << opName_ << "MoeInitRoutingOperation infer shape start";
 
     outTensorDescs.at(DIM0).format = inTensorDescs.at(DIM0).format;
     outTensorDescs.at(DIM0).dtype = inTensorDescs.at(DIM0).dtype;
@@ -44,8 +44,8 @@ atb::Status MoeInitRoutingOperation::InferShape(
     outTensorDescs.at(DIM2).dtype = aclDataType::ACL_INT32;
     outTensorDescs.at(DIM2).shape.dimNum = DIM1;
 
-    ATB_SPEED_LOG_DEBUG(opName_ << "MoeInitRoutingOperation infer shape origin inTensorDescs.at(DIM0).shape.dims[DIM0]"
-                  << inTensorDescs.at(DIM0).shape.dims[DIM0]);
+    LOG_DEBUG_MODEL << opName_ << "MoeInitRoutingOperation infer shape origin inTensorDescs.at(DIM0).shape.dims[DIM0]"
+                  << inTensorDescs.at(DIM0).shape.dims[DIM0];
     int inputSize = inTensorDescs.at(DIM0).shape.dims[DIM0]; // 输入 token 数
     int outputSize = GetMoeInitRoutingOpOutputSize(inputSize, param_);
     outTensorDescs.at(DIM0).shape.dims[DIM0] = outputSize;
@@ -53,7 +53,7 @@ atb::Status MoeInitRoutingOperation::InferShape(
     outTensorDescs.at(DIM1).shape.dims[DIM0] = inTensorDescs.at(DIM0).shape.dims[DIM0] * param_.topkNum;
     outTensorDescs.at(DIM2).shape.dims[DIM0] = param_.expertNum;
 
-    ATB_SPEED_LOG_DEBUG(opName_ << "MoeInitRoutingOperation infer shape end");
+    LOG_DEBUG_MODEL << opName_ << "MoeInitRoutingOperation infer shape end";
     return 0;
 }
 uint32_t MoeInitRoutingOperation::GetInputNum() const
@@ -68,7 +68,7 @@ uint32_t MoeInitRoutingOperation::GetOutputNum() const
 
 int MoeInitRoutingOperation::SetAclNNWorkspaceExecutor()
 {
-    ATB_SPEED_LOG_DEBUG(opName_ << " MoeInitRoutingOperation start");
+    LOG_DEBUG_MODEL << opName_ << " MoeInitRoutingOperation start";
     AclNNVariantPack &aclnnVariantPack = this->aclnnOpCache_->aclnnVariantPack;
     int inputSize =  aclnnVariantPack.aclInTensors.at(DIM0)->atbTensor.desc.shape.dims[DIM0]; // 输入 token 数
     int outputSize = GetMoeInitRoutingOpOutputSize(inputSize, param_);
@@ -83,19 +83,19 @@ int MoeInitRoutingOperation::SetAclNNWorkspaceExecutor()
         nullptr,
         &this->aclnnOpCache_->workspaceSize,
         &this->aclnnOpCache_->aclExecutor);
-    ATB_SPEED_LOG_DEBUG(opName_ << " SetAclNNWorkspaceExecutor end, ret:" << ret
+    LOG_DEBUG_MODEL << opName_ << " SetAclNNWorkspaceExecutor end, ret:" << ret
                   << ", workspaceSize:" << this->aclnnOpCache_->workspaceSize
-                  << ", aclExecutor:" << this->aclnnOpCache_->aclExecutor);
+                  << ", aclExecutor:" << this->aclnnOpCache_->aclExecutor;
     return ret;
 }
 
 int MoeInitRoutingOperation::ExecuteAclNNOp(uint8_t *workspace, aclrtStream &stream)
 {
-    ATB_SPEED_LOG_DEBUG(opName_ << " MoeInitRoutingOperation start");
+    LOG_DEBUG_MODEL << opName_ << " MoeInitRoutingOperation start";
 
     int ret = aclnnMoeInitRoutingV2(
         workspace, this->aclnnOpCache_->workspaceSize, this->aclnnOpCache_->aclExecutor, stream);
-    ATB_SPEED_LOG_DEBUG(opName_ << " MoeInitRoutingOperation end, ret:" << ret);
+    LOG_DEBUG_MODEL << opName_ << " MoeInitRoutingOperation end, ret:" << ret;
     return ret;
 }
 

@@ -9,6 +9,8 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
+
+#include "atb_speed/base/model.h"
 #include <atomic>
 #include <nlohmann/json.hpp>
 #include <acl/acl.h>
@@ -17,12 +19,11 @@
 #include <map>
 #include <deque>
 
-#include "atb_speed/log.h"
+#include "system_log.h"
 #include "atb_speed/utils/config.h"
 #include "atb_speed/utils/singleton.h"
 #include "atb_speed/utils/tensor_util.h"
 #include "atb_speed/utils/speed_probe.h"
-#include "atb_speed/base/model.h"
 
 namespace atb_speed {
 static std::atomic<atb::Status> g_executeStatus(atb::NO_ERROR);
@@ -156,7 +157,7 @@ void Model::Graph::InitTensorMaxNodeMap()
         }
         tensorMaxNodeIdMap[&internalTensor] = maxNodeId;
         if (dependNodeCount == 0) {
-            ATB_SPEED_LOG_WARN("Runner graph internal tensor[" << i << "] dependNodeCount is 0");
+            LOG_WARN_MODEL << "Runner graph internal tensor[" << i << "] dependNodeCount is 0";
         }
         maxNodeIdTensorMap[maxNodeId].insert(&internalTensor);
     }
@@ -167,7 +168,7 @@ Model::Model(const std::string &modelName, const std::string &param) : modelName
     currentDevId_ = 0;
     int ret = aclrtGetDevice(&currentDevId_);
     if (ret != 0) {
-        ATB_SPEED_LOG_ERROR("aclrtGetDevice failed, error: " << ret);
+        LOG_ERROR_MODEL << "aclrtGetDevice failed, error: " << ret;
     }
 
     CHECK_THROW(param_.empty(), "Model init failed, param is empty, please check.");
@@ -189,8 +190,8 @@ int64_t Model::Init(GetWorkspaceFunc getWorkSpaceFunc, CreateTensorFromTensorDes
         taskProcessThread_ = std::move(thread);
     }
 
-    ATB_SPEED_LOG_DEBUG(modelName_ << " new, isTaskQueueEnable:" << (runTaskFunc != nullptr)
-                   << ", isUsePlanExecuteAsync:" << isUsePlanExecuteAsync_ << ", currentDevId:" << currentDevId_);
+    LOG_DEBUG_MODEL << modelName_ << " new, isTaskQueueEnable:" << (runTaskFunc != nullptr)
+                   << ", isUsePlanExecuteAsync:" << isUsePlanExecuteAsync_ << ", currentDevId:" << currentDevId_;
 
     getWorkSpaceFunc_ = getWorkSpaceFunc;
     createTensorFromTensorDescFunc_ = createTensorFromTensorDescFunc;
@@ -207,7 +208,7 @@ int64_t Model::Init(GetWorkspaceFunc getWorkSpaceFunc, CreateTensorFromTensorDes
     }
     g_eventOperationsOfModel.clear();
     graph_.Init();
-    ATB_SPEED_LOG_DEBUG(modelName_ << " init graph:\n" << graph_.ToString());
+    LOG_DEBUG_MODEL << modelName_ << " init graph: " << graph_.ToString();
     return atbStatus;
 }
 
@@ -225,10 +226,9 @@ atb::Status Model::SkipEvent(bool isSkipEvent)
                 rt = atb::UpdateOperationParam(eventOp.first, eventOpParam);
             }
             if (rt != atb::NO_ERROR) {
-                ATB_SPEED_LOG_ERROR(modelName_
-                                    << "skip event failed. Enable log: export ASCEND_SLOG_PRINT_TO_STDOUT=1, "
-                                       "export ASCEND_GLOBAL_LOG_LEVEL=3 to find the first error. "
-                                       "For more details, see the MindIE official document.");
+                LOG_ERROR_MODEL << modelName_ << "skip event failed. Enable log: export ASCEND_SLOG_PRINT_TO_STDOUT=1, "
+                    << "export ASCEND_GLOBAL_LOG_LEVEL=3 to find the first error. "
+                    << "For more details, see the MindIE official document.";
                 return rt;
             }
         }
@@ -247,8 +247,8 @@ atb::Status Model::SetNodeStreamId(Node& node, uint32_t streamId) const
 int64_t Model::SetWeight(const std::vector<atb::Tensor> &weightTensors)
 {
     if (graph_.weightTensors.size() != weightTensors.size()) {
-        ATB_SPEED_LOG_ERROR(modelName_ << " weightTensors.size:" << weightTensors.size() << " != "
-                       << " graph.weightTensors.size:" << graph_.weightTensors.size());
+        LOG_ERROR_MODEL << modelName_ << " weightTensors.size:" << weightTensors.size() << " != "
+                       << " graph.weightTensors.size:" << graph_.weightTensors.size();
         return atb::ERROR_INVALID_IN_TENSOR_NUM;
     }
 
@@ -259,14 +259,14 @@ int64_t Model::SetWeight(const std::vector<atb::Tensor> &weightTensors)
 int64_t Model::SetKVCache(const std::vector<atb::Tensor> &kCacheTensors, const std::vector<atb::Tensor> &vCacheTensors)
 {
     if (graph_.kCacheTensors.size() != kCacheTensors.size()) {
-        ATB_SPEED_LOG_ERROR(modelName_ << " kCacheTensors.size:" << kCacheTensors.size() << " != "
-                       << " graph.kCacheTensors.size:" << graph_.kCacheTensors.size());
+        LOG_ERROR_MODEL << modelName_ << " kCacheTensors.size:" << kCacheTensors.size() << " != "
+                       << " graph.kCacheTensors.size:" << graph_.kCacheTensors.size();
         return atb::ERROR_INVALID_IN_TENSOR_NUM;
     }
 
     if (graph_.vCacheTensors.size() != vCacheTensors.size()) {
-        ATB_SPEED_LOG_ERROR(modelName_ << " vCacheTensors.size:" << vCacheTensors.size() << " != "
-                       << " graph.vCacheTensors.size:" << graph_.vCacheTensors.size());
+        LOG_ERROR_MODEL << modelName_ << " vCacheTensors.size:" << vCacheTensors.size() << " != "
+                       << " graph.vCacheTensors.size:" << graph_.vCacheTensors.size();
         return atb::ERROR_INVALID_IN_TENSOR_NUM;
     }
 
@@ -279,10 +279,10 @@ atb::Status Model::Execute(atb::Context *context, std::vector<atb::Tensor> &inTe
     std::vector<atb::Tensor> &outTensors, const std::string &param)
 {
     if (graph_.inTensors.size() != inTensors.size() || graph_.outTensors.size() != outTensors.size()) {
-        ATB_SPEED_LOG_ERROR(modelName_ << " graph.inTensors.size:" << graph_.inTensors.size()
+        LOG_ERROR_MODEL << modelName_ << " graph.inTensors.size:" << graph_.inTensors.size()
                        << ", inTensors.size:" << inTensors.size()
                        << ", graph.outTensors.size:" << graph_.outTensors.size()
-                       << ", outTensors.size:" << outTensors.size());
+                       << ", outTensors.size:" << outTensors.size();
         return atb::ERROR_INVALID_GRAPH;
     }
 
@@ -296,8 +296,8 @@ atb::Status Model::Execute(atb::Context *context, std::vector<atb::Tensor> &inTe
     context_ = context;
     graph_.inTensors = inTensors;
     graph_.outTensors = outTensors;
-    ATB_SPEED_LOG_DEBUG(modelName_ << " execute start, executeCount:" << executeCount_ << ", graph:\n"
-                  << graph_.ToString());
+    LOG_DEBUG_MODEL << modelName_ << " execute start, executeCount:" << executeCount_ << ", graph: "
+        << graph_.ToString();
 
     for (size_t nodeId = 0; nodeId < graph_.nodes.size(); ++nodeId) {
         BuildNodeVariantPack(nodeId);
@@ -322,8 +322,8 @@ atb::Status Model::Execute(atb::Context *context, std::vector<atb::Tensor> &inTe
 int64_t Model::UpdateWeightsPtr(void *newWeightsPtr, int64_t oldWeightIds)
 {
     if (static_cast<uint64_t>(oldWeightIds) >= graph_.weightTensors.size()) {
-        ATB_SPEED_LOG_ERROR(modelName_ << ", replace target weight idx is exceeds the graph weights size, idx: "
-                                       << oldWeightIds << ", graph weights size: " << graph_.weightTensors.size());
+        LOG_ERROR_MODEL << modelName_ << ", replace target weight idx is exceeds the graph weights size, idx: "
+            << oldWeightIds << ", graph weights size: " << graph_.weightTensors.size();
         return atb::ERROR_INVALID_PARAM;
     }
     graph_.weightTensors.at(oldWeightIds).deviceData = newWeightsPtr;
@@ -333,9 +333,8 @@ int64_t Model::UpdateWeightsPtr(void *newWeightsPtr, int64_t oldWeightIds)
 int64_t Model::SetWeightFormat(const uint64_t weightId)
 {
     if (weightId >= graph_.weightTensors.size()) {
-        ATB_SPEED_LOG_ERROR(modelName_ << ", replace source weight idx is exceeds the weights size, idx: "
-                                       << weightId << ", weights size: "
-                                       << graph_.weightTensors.size());
+        LOG_ERROR_MODEL << modelName_ << ", replace source weight idx is exceeds the weights size, idx: "
+            << weightId << ", weights size: " << graph_.weightTensors.size();
         return atb::ERROR_INVALID_PARAM;
     }
     graph_.weightTensors.at(weightId).desc.format = ACL_FORMAT_FRACTAL_NZ;
@@ -350,12 +349,11 @@ void Model::BuildNodeOutTensorImpl(
     outTensorDescs.resize(node.operation->GetOutputNum());
     atb::Status st = node.operation->InferShape(inTensorDescs, outTensorDescs);
     if (st != 0) {
-        ATB_SPEED_LOG_ERROR(modelName_ << " nodes[" << nodeId << "] "
-            << " infer shape fail, error code: " << st);
+        LOG_ERROR_MODEL << modelName_ << " nodes[" << nodeId << "] " << " infer shape fail, error code: " << st;
     }
     for (size_t i = 0; i < outTensorDescs.size(); ++i) {
-        ATB_SPEED_LOG_DEBUG(modelName_ << " nodes[" << nodeId << "] outTensorDescs[" << i
-                      << "]:" << TensorUtil::TensorDescToString(outTensorDescs.at(i)));
+        LOG_DEBUG_MODEL << modelName_ << " nodes[" << nodeId << "] outTensorDescs[" << i
+            << "]:" << TensorUtil::TensorDescToString(outTensorDescs.at(i));
     }
 
     for (size_t i = 0; i < node.outTensors.size(); ++i) {
@@ -369,10 +367,10 @@ void Model::BuildNodeOutTensorImpl(
             *node.outTensors.at(i) = node.variantPack.outTensors.at(i);
         }
         if (!TensorUtil::TensorDescEqual(node.variantPack.outTensors.at(i).desc, outTensorDescs.at(i))) {
-            ATB_SPEED_LOG_DEBUG(modelName_ << "  nodes[" << nodeId << "] new outTensorDescs[" << i
+            LOG_DEBUG_MODEL << modelName_ << "  nodes[" << nodeId << "] new outTensorDescs[" << i
                            << "]:" << TensorUtil::TensorDescToString(outTensorDescs.at(i))
                            << ", node.variantPack.outTensors.at[" << i
-                           << "].desc:" << TensorUtil::TensorDescToString(node.variantPack.outTensors.at(i).desc));
+                           << "].desc:" << TensorUtil::TensorDescToString(node.variantPack.outTensors.at(i).desc);
         }
     }
 }
@@ -390,8 +388,8 @@ void Model::BuildNodeVariantPack(int nodeId)
                        << "inTensor " << i << "is NULL");
         node.variantPack.inTensors.at(i) = *node.inTensors.at(i);
         inTensorDescs.at(i) = node.inTensors.at(i)->desc;
-        ATB_SPEED_LOG_DEBUG(modelName_ << " nodes[" << nodeId << "] inTensors[" << i
-                      << "]:" << TensorUtil::TensorToString(node.variantPack.inTensors.at(i)));
+        LOG_DEBUG_MODEL << modelName_ << " nodes[" << nodeId << "] inTensors[" << i
+            << "]:" << TensorUtil::TensorToString(node.variantPack.inTensors.at(i));
     }
 
     BuildNodeOutTensorImpl(nodeId, node, inTensorDescs);
@@ -416,7 +414,7 @@ atb::Status Model::ExecuteNode(int nodeId)
         ss << "Execute fail, enable log: export ASCEND_GLOBAL_LOG_LEVEL=3, export ASCEND_SLOG_PRINT_TO_STDOUT=1 to find "
               "the first error. For more details, see the MindIE official document."
            << std::endl;
-        ATB_SPEED_LOG_ERROR(ss.str(), ATB_MODELS_EXECUTION_FAILURE);
+        LOG_ERROR_MODEL << ss.str(); // ATB_MODELS_EXECUTION_FAILURE
         throw std::runtime_error(ss.str());
     }
     atb::Status st = node.operation->Setup(node.variantPack, node.workspaceSize, context_);
@@ -431,11 +429,11 @@ atb::Status Model::ExecuteNode(int nodeId)
         throw std::runtime_error(ss.str());
     }
     if (st != 0) {
-        ATB_SPEED_LOG_ERROR(modelName_ << " setup node[" << nodeId << "] fail, not call execute");
+        LOG_ERROR_MODEL << modelName_ << " setup node[" << nodeId << "] fail, not call execute";
         return st;
     }
 
-    ATB_SPEED_LOG_DEBUG(modelName_ << " get node[" << nodeId << "] workspace size:" << node.workspaceSize);
+    LOG_DEBUG_MODEL << modelName_ << " get node[" << nodeId << "] workspace size:" << node.workspaceSize;
 
     if (node.workspaceSize > 0) {
         node.workspace = getWorkSpaceFunc_(node.workspaceSize, node.streamId);
@@ -451,17 +449,17 @@ atb::Status Model::ExecuteNode(int nodeId)
 
 void Model::ThreadProcessTask()
 {
-    ATB_SPEED_LOG_DEBUG(modelName_ << " thread process operations start");
+    LOG_DEBUG_MODEL << modelName_ << " thread process operations start";
     int ret = aclrtSetDevice(currentDevId_);
     if (ret != 0) {
-        ATB_SPEED_LOG_ERROR("AsdRtDeviceSetCurrent fail, error:" << ret);
+        LOG_ERROR_MODEL << "AsdRtDeviceSetCurrent fail, error:" << ret;
     }
 
     size_t processTaskCount = 0;
     while (true) {
         int nodeId = PopTask();
         if (nodeId == -1) {
-            ATB_SPEED_LOG_DEBUG(modelName_ << "placeholder task for sync communicate operation");
+            LOG_DEBUG_MODEL << modelName_ << "placeholder task for sync communicate operation";
         } else {
             atb::Status st = ExecutePlanSync(nodeId, !isUsePlanPreExecuteAsync_);
             if (st != 0) {
@@ -473,7 +471,7 @@ void Model::ThreadProcessTask()
 
         processTaskCount++;
         if (processTaskCount == graph_.nodes.size()) {
-            ATB_SPEED_LOG_DEBUG(modelName_ << " thread process all operations");
+            LOG_DEBUG_MODEL << modelName_ << " thread process all operations";
             processTaskCount = 0;
             allTaskFinish_ = true;
         }
@@ -531,24 +529,24 @@ atb::Status Model::ExecutePlanSync(int nodeId, bool doExecuteNormal)
     if (!doExecuteNormal) {
         atb::VariantPack &variantPack = node.variantPack;
 
-        ATB_SPEED_LOG_DEBUG(modelName_ << "execute node[" << nodeId << "] start");
+        LOG_DEBUG_MODEL << modelName_ << "execute node[" << nodeId << "] start";
         context_->SetExecuteType(atb::EXECUTE_LAUNCH);
         atb::Status st = node.operation->Execute(variantPack, (uint8_t*)(node.workspace), node.workspaceSize, context_);
         context_->SetExecuteType(oldType);
         if (st != 0) {
-            ATB_SPEED_LOG_ERROR("Execute node[" << nodeId << "] fail, error code: " << st);
+            LOG_ERROR_MODEL << "Execute node[" << nodeId << "] fail, error code: " << st;
             g_executeStatus = st;
         }
         return st;
     }
     atb::VariantPack &variantPack = node.variantPack;
 
-    ATB_SPEED_LOG_DEBUG(modelName_ << "execute node[" << nodeId << "] start");
+    LOG_DEBUG_MODEL << modelName_ << "execute node[" << nodeId << "] start";
     context_->SetExecuteType(atb::EXECUTE_NORMAL);
     atb::Status st = node.operation->Execute(variantPack, (uint8_t*)(node.workspace), node.workspaceSize, context_);
     context_->SetExecuteType(oldType);
     if (st != 0) {
-        ATB_SPEED_LOG_ERROR("Execute node[" << nodeId << "] fail, error code: " << st);
+        LOG_ERROR_MODEL << "Execute node[" << nodeId << "] fail, error code: " << st;
         g_executeStatus = st;
     }
     return st;
@@ -560,11 +558,11 @@ atb::Status Model::PreExecutePlanSync(int nodeId)
     auto oldType = context_->GetExecuteType();
     atb::VariantPack &variantPack = node.variantPack;
     context_->SetExecuteType(atb::EXECUTE_PRELAUNCH);
-    ATB_SPEED_LOG_DEBUG(modelName_ << "pre execute node[" << nodeId << "] start");
+    LOG_DEBUG_MODEL << modelName_ << "pre execute node[" << nodeId << "] start";
     atb::Status st = node.operation->Execute(variantPack, (uint8_t*)(node.workspace), node.workspaceSize, context_);
     context_->SetExecuteType(oldType);
     if (st != 0) {
-        ATB_SPEED_LOG_ERROR("pre execute node[" << nodeId << "] fail, error code: " << st);
+        LOG_ERROR_MODEL << "pre execute node[" << nodeId << "] fail, error code: " << st;
         g_preExecuteStatus = st;
     }
     return st;
@@ -649,8 +647,8 @@ atb::Tensor Model::MallocInternalTensor(atb::Tensor* outTensor, size_t nodeId, s
         std::vector<atb::Tensor*>::iterator iter =
             std::find(nodeOutTensors_[key].begin(), nodeOutTensors_[key].end(), outTensor);
         if (iter != nodeOutTensors_[key].end()) {
-            ATB_SPEED_LOG_DEBUG(modelName_ << " nodeId: " << nodeId << ", out tensor id: "
-                << outTensorId << " write inplace");
+            LOG_DEBUG_MODEL << modelName_ << " nodeId: " << nodeId << ", out tensor id: "
+                << outTensorId << " write inplace";
             return **iter;
         }
         for (auto &it : internalTensors_[key]) {
@@ -660,14 +658,14 @@ atb::Tensor Model::MallocInternalTensor(atb::Tensor* outTensor, size_t nodeId, s
 
             if (IsTensorDescEqual(tensorDesc, it.first)) {
                 it.second = true;
-                ATB_SPEED_LOG_DEBUG(modelName_ << " use old internal tensor");
+                LOG_DEBUG_MODEL << modelName_ << " use old internal tensor";
                 return it.first;
             }
         }
     }
 
-    ATB_SPEED_LOG_DEBUG(modelName_ << " create internal tensor, node["
-                                   << nodeId << "], outTensor[" << outTensorId << "]");
+    LOG_DEBUG_MODEL << modelName_ << " create internal tensor, node["
+                                   << nodeId << "], outTensor[" << outTensorId << "]";
     atb::Tensor newTensor = createTensorFromTensorDescFunc_(tensorDesc);
     internalTensors_[key].push_back(std::make_pair(newTensor, true));
     nodeOutTensors_[key].push_back(outTensor);
@@ -681,7 +679,7 @@ void Model::FreeInternalTensor(const atb::Tensor *tensorDeviceData, int nodeId)
         for (auto &it : internalTensors_[key]) {
             if (it.first.deviceData == tensorDeviceData->deviceData) {
                 it.second = false; // Tensor被释放，可以被后来者使用
-                ATB_SPEED_LOG_DEBUG(modelName_ << " free internal tensor");
+                LOG_DEBUG_MODEL << modelName_ << " free internal tensor";
                 break;
             }
         }

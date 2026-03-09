@@ -9,11 +9,11 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
+#include "repeat_operation.h"
 #include "operations/aclnn/utils/utils.h"
 #include "acl/acl.h"
-#include "atb_speed/log.h"
+#include "system_log.h"
 #include "aclnnop/aclnn_repeat.h"
-#include "repeat_operation.h"
 
 namespace atb_speed::common {
 
@@ -28,7 +28,7 @@ RepeatOperation::RepeatOperation(
 
 RepeatOperation::~RepeatOperation()
 {
-    ATB_SPEED_LOG_DEBUG("RepeatOperation deconstruct");
+    LOG_DEBUG_MODEL << "RepeatOperation deconstruct";
     this->DestroyOperation();
     if (this->repeats_ != nullptr) {
         aclDestroyIntArray(this->repeats_);
@@ -45,10 +45,10 @@ RepeatOperation::~RepeatOperation()
 atb::Status RepeatOperation::InferShape(const atb::SVector<atb::TensorDesc> &inTensorDescs,
     atb::SVector<atb::TensorDesc> &outTensorDescs) const
 {
-    ATB_SPEED_LOG_DEBUG(opName_ << "RepeatOperation infer shape start");
+    LOG_DEBUG_MODEL << opName_ << "RepeatOperation infer shape start";
     if (param_.repeatsArray.size() < inTensorDescs.at(0).shape.dimNum) {
-        ATB_SPEED_LOG_ERROR(opName_ << "RepeatOperation infer shape failed: \
-            repeatsArray size should be equal or greater than intensor[0] size.");
+        LOG_ERROR_MODEL << opName_ << "RepeatOperation infer shape failed: \
+            repeatsArray size should be equal or greater than intensor[0] size.";
         return -1;
     }
     outTensorDescs.at(0).format = inTensorDescs.at(0).format;
@@ -58,9 +58,9 @@ atb::Status RepeatOperation::InferShape(const atb::SVector<atb::TensorDesc> &inT
         outTensorDescs.at(0).shape.dims[i] = inTensorDescs.at(0).shape.dims[i] * param_.repeatsArray[i];
     }
 
-    ATB_SPEED_LOG_DEBUG(opName_ << "RepeatOperation infer shape end"
+    LOG_DEBUG_MODEL << opName_ << "RepeatOperation infer shape end"
                 << " format: " << inTensorDescs.at(0).format << " dimNum: " << inTensorDescs.at(0).shape.dimNum
-                << " dims: " << inTensorDescs.at(0).shape.dims[0]);
+                << " dims: " << inTensorDescs.at(0).shape.dims[0];
     return 0;
 }
 
@@ -77,7 +77,7 @@ uint32_t RepeatOperation::GetOutputNum() const
 
 int RepeatOperation::SetAclNNWorkspaceExecutor()
 {
-    ATB_SPEED_LOG_DEBUG(opName_ << " SetAclNNWorkspaceExecutor start");
+    LOG_DEBUG_MODEL << opName_ << " SetAclNNWorkspaceExecutor start";
     AclNNVariantPack &aclnnVariantPack = this->aclnnOpCache_->aclnnVariantPack;
     if (repeats_ != nullptr) {
         aclDestroyIntArray(this->repeats_);
@@ -90,23 +90,22 @@ int RepeatOperation::SetAclNNWorkspaceExecutor()
         aclnnVariantPack.aclOutTensors.at(0)->tensor,    // out
         &this->aclnnOpCache_->workspaceSize,
         &this->aclnnOpCache_->aclExecutor);
-    ATB_SPEED_LOG_DEBUG(opName_ << " SetAclNNWorkspaceExecutor end"
+    LOG_DEBUG_MODEL << opName_ << " SetAclNNWorkspaceExecutor end"
                     << ", ret: " << ret
                     << ", workspaceSize: " << this->aclnnOpCache_->workspaceSize
-                    << ", aclExecutor: " << this->aclnnOpCache_->aclExecutor);
+                    << ", aclExecutor: " << this->aclnnOpCache_->aclExecutor;
     return ret;
 }
 
 int RepeatOperation::ExecuteAclNNOp(uint8_t *workspace, aclrtStream &stream)
 {
-    ATB_SPEED_LOG_DEBUG(opName_ << " ExecuteAclNNOp start");
+    LOG_DEBUG_MODEL << opName_ << " ExecuteAclNNOp start";
     int ret = aclnnRepeat(
         workspace,
         this->aclnnOpCache_->workspaceSize,
         this->aclnnOpCache_->aclExecutor,
         stream);
-    ATB_SPEED_LOG_DEBUG(opName_ << " ExecuteAclNNOp end"
-                    << ", ret: " << ret);
+    LOG_DEBUG_MODEL << opName_ << " ExecuteAclNNOp end" << ", ret: " << ret;
     return ret;
 }
 }  // namespace atb_speed::common

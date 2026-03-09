@@ -21,6 +21,7 @@ include_directories(
     ${PROJECT_SOURCE_DIR}/../../third_party/nlohmann/include
     ${PROJECT_SOURCE_DIR}/../../third_party/spdlog/include
     ${PROJECT_SOURCE_DIR}/../../src/include
+    ${PROJECT_SOURCE_DIR}/../../src/include/utils
     ${PROJECT_SOURCE_DIR}/../../src/utils/log
     $ENV{ATB_HOME_PATH}/include
     $ENV{ASCEND_HOME_PATH}/include)
@@ -29,7 +30,9 @@ link_directories(
     $ENV{ASCEND_HOME_PATH}/lib64
     $ENV{ATB_HOME_PATH}/lib
     $ENV{ASCEND_TOOLKIT_HOME}/lib64
-    ${PROJECT_SOURCE_DIR}/../../src/utils/log/lib)
+    ${PROJECT_SOURCE_DIR}/../../src/utils/log/lib
+    ${PROJECT_SOURCE_DIR}/output/atb_models/lib
+)
 
 #options, these can be pass in by cmake argument
 option(USE_CXX11_ABI "USE_CXX11_ABI" ON)
@@ -99,6 +102,7 @@ if(USE_UNIT_TEST OR USE_PYTHON_TEST OR USE_FUZZ_TEST)
     add_subdirectory(tests)
 endif()
 
+add_subdirectory(${PROJECT_SOURCE_DIR}/../../src/utils/system_log ${CMAKE_BINARY_DIR}/system_log)
 add_subdirectory(atb_framework/core)
 add_subdirectory(atb_framework/models)
 add_subdirectory(atb_framework/pytorch)

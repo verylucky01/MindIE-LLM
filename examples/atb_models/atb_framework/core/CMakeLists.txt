@@ -3,5 +3,5 @@ add_library(atb_speed_core SHARED ${SOURCE_FILES})
 link_directories(
     ${CMAKE_CURRENT_LIST_DIR}/../../../../src/utils/log/lib
 )
-target_link_libraries(atb_speed_core PRIVATE atb_log atb stdc++fs)
+target_link_libraries(atb_speed_core PRIVATE system_log atb stdc++fs)
 install(TARGETS atb_speed_core DESTINATION lib)

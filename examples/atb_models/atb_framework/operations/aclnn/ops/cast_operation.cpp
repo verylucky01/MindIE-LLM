@@ -9,12 +9,12 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
+#include "cast_operation.h"
 #include "acl/acl.h"
-#include "atb_speed/log.h"
+#include "system_log.h"
 #include "operations/aclnn/utils/utils.h"
 #include "operations/aclnn/core/acl_nn_operation.h"
 #include "aclnnop/aclnn_cast.h"
-#include "cast_operation.h"
 
 namespace atb_speed {
 namespace common {
@@ -24,7 +24,7 @@ CastOperation::CastOperation(const std::string &name, AclNNCastParam param)
 
 CastOperation::~CastOperation()
 {
-    ATB_SPEED_LOG_DEBUG("CastOperation deconstructor");
+    LOG_DEBUG_MODEL << "CastOperation deconstructor";
     this->DestroyOperation();
 }
 
@@ -33,10 +33,10 @@ constexpr int MAX_DIMENSION = 8;
 atb::Status CastOperation::InferShape(const atb::SVector<atb::TensorDesc> &inTensorDescs,
                                       atb::SVector<atb::TensorDesc> &outTensorDescs) const
 {
-    ATB_SPEED_LOG_DEBUG(opName_ << " infer shape start");
+    LOG_DEBUG_MODEL << opName_ << " infer shape start";
 
     if (inTensorDescs.at(0).shape.dimNum > MAX_DIMENSION) {
-        ATB_SPEED_LOG_ERROR(opName_ << " tensor dimension exceeds limit");
+        LOG_ERROR_MODEL << opName_ << " tensor dimension exceeds limit";
         return atb::ERROR_INVALID_PARAM;
     }
 
@@ -44,7 +44,7 @@ atb::Status CastOperation::InferShape(const atb::SVector<atb::TensorDesc> &inTen
     outTensorDescs.at(0).dtype = param_.dtype;
     outTensorDescs.at(0).format = inTensorDescs.at(0).format;
 
-    ATB_SPEED_LOG_DEBUG(opName_ << " infer shape end");
+    LOG_DEBUG_MODEL << opName_ << " infer shape end";
     return atb::NO_ERROR;
 }
 
@@ -70,7 +70,7 @@ atb::Status CastOperation::CreateAclNNInTensorVariantPack(const atb::VariantPack
         aclnnTensor->atbTensor.desc.shape.dimNum, aclnnTensor->atbTensor.deviceData);
 
     if (aclnnTensor->tensor == nullptr) {
-        ATB_SPEED_LOG_ERROR(opName_ << " Create input tensor failed");
+        LOG_ERROR_MODEL << opName_ << " Create input tensor failed";
         return atb::ERROR_INTERNAL_ERROR;
     }
 
@@ -96,7 +96,7 @@ atb::Status CastOperation::CreateAclNNOutTensorVariantPack(const atb::VariantPac
         aclnnTensor->atbTensor.desc.shape.dimNum, aclnnTensor->atbTensor.deviceData);
 
     if (aclnnTensor->tensor == nullptr) {
-        ATB_SPEED_LOG_ERROR(opName_ << " Create output tensor failed");
+        LOG_ERROR_MODEL << opName_ << " Create output tensor failed";
         return atb::ERROR_INTERNAL_ERROR;
     }
 
@@ -106,7 +106,7 @@ atb::Status CastOperation::CreateAclNNOutTensorVariantPack(const atb::VariantPac
 
 int CastOperation::SetAclNNWorkspaceExecutor()
 {
-    ATB_SPEED_LOG_DEBUG(opName_ << " SetAclNNWorkspaceExecutor start");
+    LOG_DEBUG_MODEL << opName_ << " SetAclNNWorkspaceExecutor start";
     AclNNVariantPack &aclnnVariantPack = this->aclnnOpCache_->aclnnVariantPack;
 
     int ret = aclnnCastGetWorkspaceSize(
@@ -116,11 +116,11 @@ int CastOperation::SetAclNNWorkspaceExecutor()
         &this->aclnnOpCache_->workspaceSize,
         &this->aclnnOpCache_->aclExecutor);
     if (ret != atb::NO_ERROR) {
-        ATB_SPEED_LOG_ERROR(opName_ << " GetWorkspaceSize failed with error code: " << ret);
+        LOG_ERROR_MODEL << opName_ << " GetWorkspaceSize failed with error code: " << ret;
         return ret;
     }
 
-    ATB_SPEED_LOG_DEBUG(opName_ << " SetAclNNWorkspaceExecutor end");
+    LOG_DEBUG_MODEL << opName_ << " SetAclNNWorkspaceExecutor end";
     return atb::NO_ERROR;
 }
 
@@ -132,7 +132,7 @@ int CastOperation::ExecuteAclNNOp(uint8_t *workspace, aclrtStream &stream)
         this->aclnnOpCache_->aclExecutor,
         stream);
     if (ret != atb::NO_ERROR) {
-        ATB_SPEED_LOG_ERROR(opName_ << " ExecuteAclNNOp failed");
+        LOG_ERROR_MODEL << opName_ << " ExecuteAclNNOp failed";
     }
     return ret;
 }

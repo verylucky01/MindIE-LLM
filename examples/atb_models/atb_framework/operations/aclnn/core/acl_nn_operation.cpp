@@ -9,14 +9,14 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include "atb_speed/log.h"
+#include "acl_nn_operation.h"
+#include "system_log.h"
 #include "atb_speed/utils/timer.h"
 #include "atb_speed/utils/statistic.h"
 #include "operations/aclnn/utils/utils.h"
 #include "atb_speed/utils/singleton.h"
 #include "executor_manager.h"
 #include "acl_nn_global_cache.h"
-#include "acl_nn_operation.h"
 
 namespace atb_speed {
 namespace common {
@@ -28,7 +28,7 @@ AclNNOperation::AclNNOperation(const std::string &opName) : opName_(opName)
 
 AclNNOperation::~AclNNOperation()
 {
-    ATB_SPEED_LOG_DEBUG("AclNNOperation deconstructor");
+    LOG_DEBUG_MODEL << "AclNNOperation deconstructor";
     this->DestroyOperation();
 }
 
@@ -43,18 +43,18 @@ void AclNNOperation::DestroyOperation() const
 
 atb::Status AclNNOperation::Setup(const atb::VariantPack &variantPack, uint64_t &workspaceSize, atb::Context *context)
 {
-    ATB_SPEED_LOG_DEBUG(this->opName_ << " setup start");
+    LOG_DEBUG_MODEL << this->opName_ << " setup start";
 
     // 1. 检查Context是否为空
     if (context == nullptr) {
-        ATB_SPEED_LOG_ERROR(this->opName_ << " setup context is null");
+        LOG_ERROR_MODEL << this->opName_ << " setup context is null";
         return atb::ERROR_INVALID_PARAM;
     }
 
     // 2. 获取Executor和Workspace
     int ret = UpdateAclNNOpCache(variantPack);
     if (ret != 0) {
-        ATB_SPEED_LOG_ERROR(this->opName_ << " call UpdateAclNNOpCache, error:" << ret);
+        LOG_ERROR_MODEL << this->opName_ << " call UpdateAclNNOpCache, error:" << ret;
         this->aclnnOpCache_->Destroy();
         return ret;
     }
@@ -62,8 +62,8 @@ atb::Status AclNNOperation::Setup(const atb::VariantPack &variantPack, uint64_t 
     // 3. 更新传入的workspaceSize
     workspaceSize = this->aclnnOpCache_->workspaceSize;
 
-    ATB_SPEED_LOG_DEBUG(GetSingleton<AclNNGlobalCache>().PrintGlobalCache());
-    ATB_SPEED_LOG_DEBUG(GetSingleton<ExecutorManager>().PrintExecutorCount());
+    LOG_DEBUG_MODEL << GetSingleton<AclNNGlobalCache>().PrintGlobalCache();
+    LOG_DEBUG_MODEL << GetSingleton<ExecutorManager>().PrintExecutorCount();
     return atb::NO_ERROR;
 }
 
@@ -73,13 +73,13 @@ atb::Status AclNNOperation::UpdateAclNNOpCache(const atb::VariantPack &variantPa
     // 前提条件：GlobalCache中的executor要保证LocalCache里面一定也要有引用；仅对LocalCache进行释放
 
     // 1. 查看Local Cache中Executor是否可以复用
-    ATB_SPEED_LOG_DEBUG("Plugin Op Cache: Local Cache call IsVariankPackEqual");
+    LOG_DEBUG_MODEL << "Plugin Op Cache: Local Cache call IsVariankPackEqual";
     if (this->aclnnOpCache_->executorRepeatable && \
         IsVariankPackEqual(this->aclnnOpCache_->aclnnVariantPack, variantPack)) {
         // Local Cache命中
-        ATB_SPEED_LOG_DEBUG("Plugin Op Cache: Op name[" << this->opName_ << "] Op addr[" <<
+        LOG_DEBUG_MODEL << "Plugin Op Cache: Op name[" << this->opName_ << "] Op addr[" <<
             (this) << "] Cache addr[" << this->aclnnOpCache_.get() << "] Executor addr[" <<
-            this->aclnnOpCache_->aclExecutor << "] Local Cache Hit");
+            this->aclnnOpCache_->aclExecutor << "] Local Cache Hit";
         return atb::NO_ERROR;
     }
 
@@ -88,38 +88,38 @@ atb::Status AclNNOperation::UpdateAclNNOpCache(const atb::VariantPack &variantPa
         GetSingleton<AclNNGlobalCache>().GetGlobalCache(this->opName_, variantPack);
     if (globalCache != nullptr) {
         // Global Cache命中
-        ATB_SPEED_LOG_DEBUG("Plugin Op Cache: Op name[" << this->opName_ << "] Op addr[" << (this) << "] Cache addr["
-            << globalCache.get() << "] Executor addr[" << globalCache->aclExecutor << "] Global Cache Hit");
+        LOG_DEBUG_MODEL << "Plugin Op Cache: Op name[" << this->opName_ << "] Op addr[" << (this) << "] Cache addr["
+            << globalCache.get() << "] Executor addr[" << globalCache->aclExecutor << "] Global Cache Hit";
         // 2.1 释放旧的Local Cache
-        ATB_SPEED_LOG_DEBUG("Plugin Op Cache: destroy local cache before switching to global cache");
+        LOG_DEBUG_MODEL << "Plugin Op Cache: destroy local cache before switching to global cache";
         this->aclnnOpCache_->Destroy();
         // 2.2 更新Local Cache
         this->aclnnOpCache_ = globalCache;
         // 2.3 更新ExecutorManager
         int count = GetSingleton<ExecutorManager>().IncreaseReference(this->aclnnOpCache_->aclExecutor);
-        ATB_SPEED_LOG_DEBUG("Plugin Op Cache: Op name[" << this->opName_ << "] Executor addr[" <<
-            this->aclnnOpCache_->aclExecutor << "] count update to " << count);
+        LOG_DEBUG_MODEL << "Plugin Op Cache: Op name[" << this->opName_ << "] Executor addr[" <<
+            this->aclnnOpCache_->aclExecutor << "] count update to " << count;
         return atb::NO_ERROR;
     }
 
     // 3. Local Cache和Global Cache都未命中
     // 3.1 释放Local Cache
-    ATB_SPEED_LOG_DEBUG("Plugin Op Cache: destroy local cache before create a new one");
+    LOG_DEBUG_MODEL << "Plugin Op Cache: destroy local cache before create a new one";
     this->aclnnOpCache_->Destroy();
     // 3.2 根据variantPack，更新aclnnOpCache_，获取WorkSpace和Executor
     this->aclnnOpCache_ = std::make_shared<AclNNOpCache>();
     int ret = CreateAclNNOpCache(variantPack);
     if (ret != 0) {
-        ATB_SPEED_LOG_ERROR(this->opName_ << " call CreateAclNNOpCache fail, error:" << ret);
+        LOG_ERROR_MODEL << this->opName_ << " call CreateAclNNOpCache fail, error:" << ret;
         return ret;
     }
-    ATB_SPEED_LOG_DEBUG("Plugin Op Cache: Op name[" << this->opName_ << "] Op addr[" <<
+    LOG_DEBUG_MODEL << "Plugin Op Cache: Op name[" << this->opName_ << "] Op addr[" <<
         (this) << "] Cache addr[" << this->aclnnOpCache_.get() << "] Executor addr[" <<
-        this->aclnnOpCache_->aclExecutor << "] create Local Cache");
+        this->aclnnOpCache_->aclExecutor << "] create Local Cache";
     // 3.3 更新ExecutorManager，新增Executor，count为1
     int count = GetSingleton<ExecutorManager>().IncreaseReference(this->aclnnOpCache_->aclExecutor);
-    ATB_SPEED_LOG_DEBUG("Plugin Op Cache: Op name[" << this->opName_ << "] increase Executor addr[" <<
-        this->aclnnOpCache_->aclExecutor << "] count update to " << count);
+    LOG_DEBUG_MODEL << "Plugin Op Cache: Op name[" << this->opName_ << "] increase Executor addr[" <<
+        this->aclnnOpCache_->aclExecutor << "] count update to " << count;
 
     // 3.4 更新Global Cache（旧的Global Cache直接替换指针就行）
     GetSingleton<AclNNGlobalCache>().UpdateGlobalCache(this->opName_, this->aclnnOpCache_);
@@ -131,30 +131,30 @@ atb::Status AclNNOperation::CreateAclNNOpCache(const atb::VariantPack &variantPa
 {
     atb::Status ret = CreateAclNNVariantPack(variantPack);
     if (ret != 0) {
-        ATB_SPEED_LOG_ERROR(this->opName_ << " call CreateAclNNVariantPack fail, error:" << ret);
+        LOG_ERROR_MODEL << this->opName_ << " call CreateAclNNVariantPack fail, error:" << ret;
         return atb::ERROR_CANN_ERROR;
     }
 
     ret = SetAclNNWorkspaceExecutor();
     if (ret != 0) {
-        ATB_SPEED_LOG_ERROR(this->opName_ << " call SetAclNNWorkspaceExecutor fail, error:" << ret);
+        LOG_ERROR_MODEL << this->opName_ << " call SetAclNNWorkspaceExecutor fail, error:" << ret;
         return atb::ERROR_CANN_ERROR;
     }
 
     // 若此时Local Cache为空
     if (this->aclnnOpCache_ == nullptr) {
-        ATB_SPEED_LOG_ERROR("Plugin Op Cache: Op name[" << this->opName_ << "] cache is nullptr after " <<
-            "initialization, please check.");
+        LOG_ERROR_MODEL << "Plugin Op Cache: Op name[" << this->opName_ << "] cache is nullptr after " <<
+            "initialization, please check.";
         return atb::ERROR_INTERNAL_ERROR;
     }
 
-    ATB_SPEED_LOG_DEBUG("Plugin Op Cache: create Executor addr[" << this->aclnnOpCache_->aclExecutor << "]");
+    LOG_DEBUG_MODEL << "Plugin Op Cache: create Executor addr[" << this->aclnnOpCache_->aclExecutor << "]";
 
     // 设置Local Cache中的aclExecutor为可复用，设置成功返回0，否则返回其他值
     ret = aclSetAclOpExecutorRepeatable(this->aclnnOpCache_->aclExecutor);
     if (ret != 0) {
         // 设置算子可复用失败，标记Local Cache中executor不可复用
-        ATB_SPEED_LOG_WARN(this->opName_ << " call aclSetAclOpExecutorRepeatable fail: " << ret);
+        LOG_WARN_MODEL << this->opName_ << " call aclSetAclOpExecutorRepeatable fail: " << ret;
         this->aclnnOpCache_->executorRepeatable = false;
     } else {
         // 设置算子可复用成功，标记Local Cache中executor可复用
@@ -167,59 +167,59 @@ atb::Status AclNNOperation::CreateAclNNOpCache(const atb::VariantPack &variantPa
 atb::Status AclNNOperation::Execute(const atb::VariantPack &variantPack, uint8_t *workspace, uint64_t workspaceSize,
                                     atb::Context *context)
 {
-    ATB_SPEED_LOG_DEBUG(this->opName_ << " execute start");
+    LOG_DEBUG_MODEL << this->opName_ << " execute start";
     if (!context) {
-        ATB_SPEED_LOG_ERROR(this->opName_ << " execute fail, context param is null. Enable log: "
+        LOG_ERROR_MODEL << this->opName_ << " execute fail, context param is null. Enable log: "
             << "export ASCEND_GLOBAL_LOG_LEVEL=3, export ASCEND_SLOG_PRINT_TO_STDOUT=1 to find the first error. "
-            << "For more details, see the MindIE official document." << std::endl, ATB_MODELS_EXECUTION_FAILURE);
+            << "For more details, see the MindIE official document."; // ATB_MODELS_EXECUTION_FAILURE
         return atb::ERROR_INVALID_PARAM;
     }
 
     aclrtStream stream = GetExecuteStream(context);
     if (!stream) {
-        ATB_SPEED_LOG_ERROR(this->opName_ << " execute fail, execute stream in context is null. "
+        LOG_ERROR_MODEL << this->opName_ << " execute fail, execute stream in context is null. "
             << "Enable log: export ASCEND_GLOBAL_LOG_LEVEL=3, export ASCEND_SLOG_PRINT_TO_STDOUT=1 to find the first error. "
-            << "For more details, see the MindIE official document." << std::endl, ATB_MODELS_EXECUTION_FAILURE);
+            << "For more details, see the MindIE official document."; // ATB_MODELS_EXECUTION_FAILURE
         return atb::ERROR_INVALID_PARAM;
     }
 
     // 更新数据传入的地址
     int ret = this->aclnnOpCache_->UpdateAclNNVariantPack(variantPack);
     if (ret != 0) {
-        ATB_SPEED_LOG_ERROR(this->opName_ << " call UpdateAclNNVariantPack fail, error:" << ret);
+        LOG_ERROR_MODEL << this->opName_ << " call UpdateAclNNVariantPack fail, error:" << ret;
         return atb::ERROR_CANN_ERROR;
     }
 
-    ATB_SPEED_LOG_DEBUG("Input workspaceSize " << workspaceSize << " localCache workspaceSize " <<
-        this->aclnnOpCache_->workspaceSize);
+    LOG_DEBUG_MODEL << "Input workspaceSize " << workspaceSize << " localCache workspaceSize " <<
+        this->aclnnOpCache_->workspaceSize;
     ret = ExecuteAclNNOp(workspace, stream);
     if (ret != 0) {
-        ATB_SPEED_LOG_ERROR(this->opName_ << " call ExecuteAclNNOp fail, error:" << ret);
+        LOG_ERROR_MODEL << this->opName_ << " call ExecuteAclNNOp fail, error:" << ret;
         return atb::ERROR_CANN_ERROR;
     }
 
-    ATB_SPEED_LOG_DEBUG(this->opName_ << " execute end");
+    LOG_DEBUG_MODEL << this->opName_ << " execute end";
 
     return atb::NO_ERROR;
 }
 
 atb::Status AclNNOperation::CreateAclNNVariantPack(const atb::VariantPack &variantPack)
 {
-    ATB_SPEED_LOG_DEBUG(this->opName_ << " CreateAclNNVariantPack start");
+    LOG_DEBUG_MODEL << this->opName_ << " CreateAclNNVariantPack start";
     atb::Status ret = 0;
     ret = CreateAclNNInTensorVariantPack(variantPack);
     if (ret != 0) {
-        ATB_SPEED_LOG_ERROR(this->opName_ << " AclNNTensor CreateAclNNInTensorVariantPack fail");
+        LOG_ERROR_MODEL << this->opName_ << " AclNNTensor CreateAclNNInTensorVariantPack fail";
         return ret;
     }
 
     ret = CreateAclNNOutTensorVariantPack(variantPack);
     if (ret != 0) {
-        ATB_SPEED_LOG_ERROR(this->opName_ << " AclNNTensor CreateAclNNOutTensorVariantPack fail");
+        LOG_ERROR_MODEL << this->opName_ << " AclNNTensor CreateAclNNOutTensorVariantPack fail";
         return ret;
     }
     
-    ATB_SPEED_LOG_DEBUG(opName_ << " CreateAclNNVariantPack end");
+    LOG_DEBUG_MODEL << opName_ << " CreateAclNNVariantPack end";
     return atb::NO_ERROR;
 }
 

@@ -10,6 +10,7 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "models/qwen/layer/decoder_layer.h"
+#include "system_log.h"
 
 namespace atb_speed {
 namespace qwen {
@@ -20,7 +21,7 @@ void QwenLayerParam::PrintParam()
     std::stringstream ss;
     ss << " Layer Param: " << "enableLogN: " << this->enableLogN << ", isEmbedding: " << this->isEmbedding
        << ", enableQScale: " << this->enableQScale;
-    ATB_SPEED_LOG_DEBUG(ss.str());
+    LOG_DEBUG_MODEL << ss.str();
 }
 
 QwenDecoderLayer::QwenDecoderLayer(const QwenLayerParam &param) : base::DecoderLayer<atb::infer::RmsNormParam>(param)

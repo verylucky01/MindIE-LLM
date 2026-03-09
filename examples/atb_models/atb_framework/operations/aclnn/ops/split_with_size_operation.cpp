@@ -9,6 +9,7 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
+#include "split_with_size_operation.h"
 #include <cstring>
 #include <iostream>
 #include <securec.h>
@@ -16,10 +17,9 @@
 #include <vector>
 #include <unistd.h>
 #include "acl/acl.h"
-#include "atb_speed/log.h"
+#include "system_log.h"
 #include "atb_speed/utils/timer.h"
 #include "operations/aclnn/utils/utils.h"
-#include "split_with_size_operation.h"
 
 namespace atb_speed {
 namespace common {
@@ -35,21 +35,21 @@ SplitWithSizeOperation::~SplitWithSizeOperation()
 {
     int ret = aclDestroyIntArray(splitSizeIntArray);
     if (ret > 0) {
-        ATB_SPEED_LOG_ERROR(opName_ << " call aclDestroyIntArray failed.");
+        LOG_ERROR_MODEL << opName_ << " call aclDestroyIntArray failed.";
     }
 }
 
 atb::Status SplitWithSizeOperation::InferShape(
     const atb::SVector<atb::TensorDesc> &inTensorDescs, atb::SVector<atb::TensorDesc> &outTensorDescs) const
 {
-    ATB_SPEED_LOG_DEBUG(opName_ << "SplitWithSizeOperation infer shape start");
+    LOG_DEBUG_MODEL << opName_ << "SplitWithSizeOperation infer shape start";
     if (param_.num <= 0) {
-        ATB_SPEED_LOG_ERROR(opName_ << "SplitWithSizeOperation infer shape failed, param.num must be greater than 0");
+        LOG_ERROR_MODEL << opName_ << "SplitWithSizeOperation infer shape failed, param.num must be greater than 0";
         return atb::ERROR_INVALID_PARAM;
     }
     if (param_.dim < 0 || param_.dim >= static_cast<int64_t>(inTensorDescs.at(DIM0).shape.dimNum)) {
-        ATB_SPEED_LOG_ERROR(opName_ << "SplitWithSizeOperation infer shape failed, " <<
-            "param.dim must be greater than or equal to 0 and less than " << inTensorDescs.at(DIM0).shape.dimNum);
+        LOG_ERROR_MODEL << opName_ << "SplitWithSizeOperation infer shape failed, " <<
+            "param.dim must be greater than or equal to 0 and less than " << inTensorDescs.at(DIM0).shape.dimNum;
         return atb::ERROR_INVALID_PARAM;
     }
     int splitSize = inTensorDescs.at(DIM0).shape.dims[param_.dim] / param_.num;
@@ -62,7 +62,7 @@ atb::Status SplitWithSizeOperation::InferShape(
             outTensorDescs.at(i).shape.dims[param_.dim] = splitSize;
         }
     }
-    ATB_SPEED_LOG_DEBUG(opName_ << "SplitWithSizeOperation infer shape end");
+    LOG_DEBUG_MODEL << opName_ << "SplitWithSizeOperation infer shape end";
     return 0;
 }
 
@@ -94,7 +94,7 @@ atb::Status SplitWithSizeOperation::CreateAclNNInTensorVariantPack(const atb::Va
             squeezedAtbTensor.desc.format, squeezedAtbTensor.desc.shape.dims,
             squeezedAtbTensor.desc.shape.dimNum, squeezedAtbTensor.deviceData);
         if (aclnnTensor->tensor == nullptr) {
-            ATB_SPEED_LOG_ERROR(this->opName_ << " InTensor aclCreateTensor index " << i << " fail");
+            LOG_ERROR_MODEL << this->opName_ << " InTensor aclCreateTensor index " << i << " fail";
             return atb::ERROR_INTERNAL_ERROR;
         }
         aclnnVariantPack.aclInTensors[i] = aclnnTensor;
@@ -119,7 +119,7 @@ atb::Status SplitWithSizeOperation::CreateAclNNOutTensorVariantPack(const atb::V
             squeezedAtbTensor.desc.format, squeezedAtbTensor.desc.shape.dims,
             squeezedAtbTensor.desc.shape.dimNum, squeezedAtbTensor.deviceData);
         if (aclnnTensor->tensor == nullptr) {
-            ATB_SPEED_LOG_ERROR(this->opName_ << " OutTensor aclCreateTensor index " << i << " fail");
+            LOG_ERROR_MODEL << this->opName_ << " OutTensor aclCreateTensor index " << i << " fail";
             return atb::ERROR_INTERNAL_ERROR;
         }
         aclnnVariantPack.aclOutTensors[i] = aclnnTensor;
@@ -132,7 +132,7 @@ atb::Status SplitWithSizeOperation::CreateAclNNOutTensorVariantPack(const atb::V
 
 int SplitWithSizeOperation::SetAclNNWorkspaceExecutor()
 {
-    ATB_SPEED_LOG_DEBUG(opName_ << " SetAclNNWorkspaceExecutor start");
+    LOG_DEBUG_MODEL << opName_ << " SetAclNNWorkspaceExecutor start";
     AclNNVariantPack &aclnnVariantPack = this->aclnnOpCache_->aclnnVariantPack;
     aclTensorList *out = aclCreateTensorList(outputTensorVector.data(), outputTensorVector.size());
 
@@ -149,7 +149,7 @@ int SplitWithSizeOperation::SetAclNNWorkspaceExecutor()
     if (splitSizeIntArray) {
         int destroyRet = aclDestroyIntArray(splitSizeIntArray);
         if (destroyRet > 0) {
-            ATB_SPEED_LOG_ERROR(opName_ << " call aclDestroyIntArray failed.");
+            LOG_ERROR_MODEL << opName_ << " call aclDestroyIntArray failed.";
             return destroyRet;
         }
     }
@@ -158,18 +158,18 @@ int SplitWithSizeOperation::SetAclNNWorkspaceExecutor()
         aclnnVariantPack.aclInTensors.at(DIM0)->tensor, splitSizeIntArray, param_.dim, out,
         &this->aclnnOpCache_->workspaceSize, &this->aclnnOpCache_->aclExecutor);
 
-    ATB_SPEED_LOG_DEBUG(opName_ << " SetAclNNWorkspaceExecutor end, ret:" << ret
+    LOG_DEBUG_MODEL << opName_ << " SetAclNNWorkspaceExecutor end, ret:" << ret
                   << ", workspaceSize:" << this->aclnnOpCache_->workspaceSize
-                  << ", aclExecutor:" << this->aclnnOpCache_->aclExecutor);
+                  << ", aclExecutor:" << this->aclnnOpCache_->aclExecutor;
     return ret;
 }
 
 int SplitWithSizeOperation::ExecuteAclNNOp(uint8_t *workspace, aclrtStream &stream)
 {
-    ATB_SPEED_LOG_DEBUG(opName_ << " aclnnSplitWithSize start");
+    LOG_DEBUG_MODEL << opName_ << " aclnnSplitWithSize start";
     int ret = aclnnSplitWithSize(
         workspace, this->aclnnOpCache_->workspaceSize, this->aclnnOpCache_->aclExecutor, stream);
-    ATB_SPEED_LOG_DEBUG(opName_ << " aclnnSplitWithSize end, ret:" << ret);
+    LOG_DEBUG_MODEL << opName_ << " aclnnSplitWithSize end, ret:" << ret;
     return ret;
 }
 

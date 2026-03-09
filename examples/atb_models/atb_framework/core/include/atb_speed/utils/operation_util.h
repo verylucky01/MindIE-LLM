@@ -13,7 +13,7 @@
 #ifndef ATB_SPEED_UTILS_OPERATION_H
 #define ATB_SPEED_UTILS_OPERATION_H
 #include <atb/atb_infer.h>
-#include "atb_speed/log.h"
+#include "system_log.h"
 
 namespace atb_speed {
 #define CREATE_OPERATION(param, operation) \
@@ -35,7 +35,7 @@ namespace atb_speed {
 #define CHECK_PARAM_LT(param, threshold) \
     do { \
         if ((param) >= (threshold)) { \
-            ATB_SPEED_LOG_ERROR("param should be less than " << (threshold) << ", please check"); \
+            LOG_ERROR_MODEL << "param should be less than " << (threshold) << ", please check"; \
             return atb::ERROR_INVALID_PARAM; \
         } \
     } while (0)
@@ -43,7 +43,7 @@ namespace atb_speed {
 #define CHECK_PARAM_GT(param, threshold) \
     do { \
         if ((param) <= (threshold)) { \
-            ATB_SPEED_LOG_ERROR("param should be greater than " << (threshold) << ", please check"); \
+            LOG_ERROR_MODEL << "param should be greater than " << (threshold) << ", please check"; \
             return atb::ERROR_INVALID_PARAM; \
         } \
     } while (0)
@@ -51,7 +51,7 @@ namespace atb_speed {
 #define CHECK_PARAM_NE(param, value) \
     do { \
         if ((param) == (value)) { \
-            ATB_SPEED_LOG_ERROR("param should not be equal to " << (value) << ", please check"); \
+            LOG_ERROR_MODEL << "param should not be equal to " << (value) << ", please check"; \
             return atb::ERROR_INVALID_PARAM; \
         } \
     } while (0)
@@ -59,7 +59,7 @@ namespace atb_speed {
 #define CHECK_TENSORDESC_DIMNUM_VALID(dimNum) \
     do { \
         if ((dimNum) > (8) || (dimNum) == (0) ) { \
-            ATB_SPEED_LOG_ERROR("dimNum should be less or equal to 8 and cannot be 0, please check"); \
+            LOG_ERROR_MODEL << "dimNum should be less or equal to 8 and cannot be 0, please check"; \
             return atb::ERROR_INVALID_PARAM; \
         } \
     } while (0)

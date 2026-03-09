@@ -11,7 +11,7 @@
  */
 #include "atb_speed/base/context_factory.h"
 #include <thread>
-#include "atb_speed/log.h"
+#include "system_log.h"
 #include "atb_speed/utils/singleton.h"
 #include "atb_speed/utils/config.h"
 
@@ -30,7 +30,7 @@ std::vector<aclrtStream> ContextFactory::GetSubStreams()
     if (!initialized) {
         aclError ret = aclInit(nullptr);
         if (ret != ACL_SUCCESS && ret != ACL_ERROR_REPEAT_INITIALIZE) {
-            ATB_SPEED_LOG_WARN("Failed to aclInit: " << ret);
+            LOG_WARN_MODEL << "Failed to aclInit: " << ret;
         }
 
         for (int i = 0; i < MAX_STREAM_NUM; ++i) {
@@ -38,11 +38,11 @@ std::vector<aclrtStream> ContextFactory::GetSubStreams()
             
             ret = aclrtCreateStream(&subStream);
             if (ret != ACL_SUCCESS) {
-                ATB_SPEED_LOG_ERROR("Failed to create aclrtStream: " << ret);
+                LOG_ERROR_MODEL << "Failed to create aclrtStream: " << ret;
             }
             ret = aclrtSetStreamFailureMode(subStream, ACL_STOP_ON_FAILURE);
             if (ret != 0) {
-                ATB_SPEED_LOG_ERROR("Failed to aclrtSetStreamFailureMode: " << ret);
+                LOG_ERROR_MODEL << "Failed to aclrtSetStreamFailureMode: " << ret;
             }
             streams.push_back(subStream);
         }
@@ -55,23 +55,23 @@ std::vector<aclrtStream> ContextFactory::GetSubStreams()
 std::shared_ptr<atb::Context> ContextFactory::GetAtbContext(void *stream)
 {
     if (g_localContext) {
-        ATB_SPEED_LOG_DEBUG("ContextFactory return localContext");
+        LOG_DEBUG_MODEL << "ContextFactory return localContext";
         return g_localContext;
     }
-    ATB_SPEED_LOG_DEBUG("ContextFactory create atb::Context start");
+    LOG_DEBUG_MODEL << "ContextFactory create atb::Context start";
     atb::Context *context = nullptr;
     atb::Status st = atb::CreateContext(&context);
     if (st != 0) {
-        ATB_SPEED_LOG_ERROR("ContextFactory create atb::Context fail");
+        LOG_ERROR_MODEL << "ContextFactory create atb::Context fail";
     }
 
     if (context) {
         context->SetExecuteStream(stream);
         if (atb_speed::GetSingleton<atb_speed::Config>().IsUseTilingCopyStream()) {
-            ATB_SPEED_LOG_DEBUG("ContextFactory use tiling copy stream");
+            LOG_DEBUG_MODEL << "ContextFactory use tiling copy stream";
             context->SetAsyncTilingCopyStatus(true);
         } else {
-            ATB_SPEED_LOG_DEBUG("ContextFactory not use tiling copy stream");
+            LOG_DEBUG_MODEL << "ContextFactory not use tiling copy stream";
         }
     }
 
@@ -83,16 +83,15 @@ std::shared_ptr<atb::Context> ContextFactory::GetAtbContext(void *stream)
 
 void ContextFactory::FreeAtbContext()
 {
-    ATB_SPEED_LOG_DEBUG("ContextFactory FreeAtbContext start.");
+    LOG_DEBUG_MODEL << "ContextFactory FreeAtbContext start.";
     if (!g_localContext) {
         return;
     }
-    
-    ATB_SPEED_LOG_DEBUG("ContextFactory localContext use_count: " << g_localContext.use_count());
+    LOG_DEBUG_MODEL << "ContextFactory localContext use_count: " << g_localContext.use_count();
     if (g_localContext.use_count() != 1) {
         return;
     }
-    ATB_SPEED_LOG_DEBUG("ContextFactory localContext reset.");
+    LOG_DEBUG_MODEL << "ContextFactory localContext reset.";
     g_localContext.reset();
 }
 }

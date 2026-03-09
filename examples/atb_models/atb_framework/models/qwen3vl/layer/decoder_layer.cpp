@@ -11,6 +11,7 @@
  */
 
 #include "models/qwen3vl/layer/decoder_layer.h"
+#include "system_log.h"
 
 namespace atb_speed {
 namespace qwen3vl {
@@ -55,11 +56,11 @@ atb::Status DecoderLayer::BuildGraph(atb::Operation **operation)
     this->ConstructInTensorMap();
     this->ConstructInternalTensorMap();
     this->graph.inTensorNum = this->inTensorList.size();
-    ATB_SPEED_LOG_DEBUG("this->graph.inTensorNum " << this->graph.inTensorNum);
+    LOG_DEBUG_MODEL << "this->graph.inTensorNum " << this->graph.inTensorNum;
     this->graph.internalTensorNum = this->intermediateTensorList.size();
-    ATB_SPEED_LOG_DEBUG("this->graph.internalTensorNum " << this->graph.internalTensorNum);
+    LOG_DEBUG_MODEL << "this->graph.internalTensorNum " << this->graph.internalTensorNum;
     this->graph.outTensorNum = this->outTensorList.size();
-    ATB_SPEED_LOG_DEBUG("this->graph.outTensorNum " << this->graph.outTensorNum);
+    LOG_DEBUG_MODEL << "this->graph.outTensorNum " << this->graph.outTensorNum;
     this->tensorMap = atb_speed::common::GetTensorMap(
         this->inTensorList, this->outTensorList, this->intermediateTensorList);
     std::stringstream ss;
@@ -67,7 +68,7 @@ atb::Status DecoderLayer::BuildGraph(atb::Operation **operation)
     for (auto tensor = this->tensorMap.cbegin(); tensor != this->tensorMap.cend(); ++tensor) {
         ss << "tensor name: " << tensor->first << ", tensor id: " << tensor->second << std::endl;
     }
-    ATB_SPEED_LOG_DEBUG("layer map tensor:\n" << ss.str());
+    LOG_DEBUG_MODEL << "layer map tensor: " << ss.str();
 
     CHECK_OPERATION_STATUS_RETURN(this->AddOperationToGraph());
 

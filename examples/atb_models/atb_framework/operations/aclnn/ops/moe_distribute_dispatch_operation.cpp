@@ -20,7 +20,7 @@
 #include <atb/comm.h>
 #include "acl/acl.h"
 #include "aclnnop/aclnn_moe_distribute_dispatch.h"
-#include "atb_speed/log.h"
+#include "system_log.h"
 #include "atb_speed/utils/timer.h"
 #include "operations/aclnn/utils/utils.h"
 
@@ -34,8 +34,7 @@ MoeDistributeDispatchOperation::~MoeDistributeDispatchOperation() {}
 atb::Status MoeDistributeDispatchOperation::InferShape(
     const atb::SVector<atb::TensorDesc> &inTensorDescs, atb::SVector<atb::TensorDesc> &outTensorDescs) const
 {
-    ATB_SPEED_LOG_DEBUG(opName_ << "MoeDistributeDispatchOperation infer shape start");
-
+    LOG_DEBUG_MODEL << opName_ << "MoeDistributeDispatchOperation infer shape start";
     outTensorDescs.at(DIM0).format = inTensorDescs.at(DIM0).format;
     outTensorDescs.at(DIM0).dtype = param_.isQuant ? aclDataType::ACL_INT8 : inTensorDescs.at(DIM0).dtype;
     outTensorDescs.at(DIM0).shape.dimNum = inTensorDescs.at(DIM0).shape.dimNum;
@@ -64,9 +63,9 @@ atb::Status MoeDistributeDispatchOperation::InferShape(
     outTensorDescs.at(NUM6).dtype = aclDataType::ACL_FLOAT;
     outTensorDescs.at(NUM6).shape.dimNum = DIM1;
 
-    ATB_SPEED_LOG_DEBUG(opName_
+    LOG_DEBUG_MODEL << opName_
                   << "MoeDistributeDispatchOperation infer shape origin inTensorDescs.at(DIM0).shape.dims[DIM0]"
-                  << inTensorDescs.at(DIM0).shape.dims[DIM0]);
+                  << inTensorDescs.at(DIM0).shape.dims[DIM0];
 
     int32_t globalBS = GetGlobalBS(inTensorDescs.at(NUM3));
     int32_t globalTokenNum = globalBS * std::min(param_.localMoeExpertNum, param_.topk);
@@ -90,7 +89,7 @@ atb::Status MoeDistributeDispatchOperation::InferShape(
     outTensorDescs.at(NUM5).shape.dims[DIM0] = 1;
     outTensorDescs.at(NUM6).shape.dims[DIM0] = perRankTokenNum;
 
-    ATB_SPEED_LOG_DEBUG(opName_ << "MoeDistributeDispatchOperation infer shape end");
+    LOG_DEBUG_MODEL << opName_ << "MoeDistributeDispatchOperation infer shape end";
     return 0;
 }
 
@@ -124,9 +123,9 @@ int32_t MoeDistributeDispatchOperation::GetGlobalBS(const atb::TensorDesc &inTen
 
 int MoeDistributeDispatchOperation::SetAclNNWorkspaceExecutor()
 {
-    ATB_SPEED_LOG_DEBUG(opName_ << " MoeDistributeDispatchOperation start");
-    ATB_SPEED_LOG_DEBUG(opName_ << " MoeDistributeDispatchOperation create hcclComm");
-    ATB_SPEED_LOG_DEBUG("param_.epCommName " << param_.epCommName <<  "param_.tpCommName "  << param_.tpCommName
+    LOG_DEBUG_MODEL << opName_ << " MoeDistributeDispatchOperation start";
+    LOG_DEBUG_MODEL << opName_ << " MoeDistributeDispatchOperation create hcclComm";
+    LOG_DEBUG_MODEL << "param_.epCommName " << param_.epCommName <<  "param_.tpCommName "  << param_.tpCommName
         << "param_.epRankSize " << param_.epRankSize
         << " param_.tpRankSize " << param_.tpRankSize
         << " param_.epRankId " << param_.epRankId
@@ -134,7 +133,7 @@ int MoeDistributeDispatchOperation::SetAclNNWorkspaceExecutor()
         << " param_.expertSharedType " << param_.expertSharedType
         << " param_.sharedExpertRankNum " << param_.sharedExpertRankNum << " param_.moeExpertNum "
         << param_.moeExpertNum << "param_.quantMode " << param_.quantMode
-        << " param_.globalBS " << param_.globalBS);
+        << " param_.globalBS " << param_.globalBS;
 
     AclNNVariantPack &aclnnVariantPack = this->aclnnOpCache_->aclnnVariantPack;
 
@@ -169,19 +168,19 @@ int MoeDistributeDispatchOperation::SetAclNNWorkspaceExecutor()
         aclnnVariantPack.aclOutTensors.at(NUM6)->tensor,
         &this->aclnnOpCache_->workspaceSize,
         &this->aclnnOpCache_->aclExecutor);
-    ATB_SPEED_LOG_DEBUG(opName_ << " SetAclNNWorkspaceExecutor end, ret:" << ret
+    LOG_DEBUG_MODEL << opName_ << " SetAclNNWorkspaceExecutor end, ret:" << ret
                   << ", workspaceSize:" << this->aclnnOpCache_->workspaceSize
-                  << ", aclExecutor:" << this->aclnnOpCache_->aclExecutor);
+                  << ", aclExecutor:" << this->aclnnOpCache_->aclExecutor;
     return ret;
 }
 
 int MoeDistributeDispatchOperation::ExecuteAclNNOp(uint8_t *workspace, aclrtStream &stream)
 {
-    ATB_SPEED_LOG_DEBUG(opName_ << " MoeDistributeDispatchOperation start");
+    LOG_DEBUG_MODEL << opName_ << " MoeDistributeDispatchOperation start";
 
     int ret = aclnnMoeDistributeDispatch(
         workspace, this->aclnnOpCache_->workspaceSize, this->aclnnOpCache_->aclExecutor, stream);
-    ATB_SPEED_LOG_DEBUG(opName_ << " MoeDistributeDispatchOperation end, ret:" << ret);
+    LOG_DEBUG_MODEL << opName_ << " MoeDistributeDispatchOperation end, ret:" << ret;
     return ret;
 }
 

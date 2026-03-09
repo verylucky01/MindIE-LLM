@@ -16,7 +16,7 @@
 #include <sstream>
 #include "acl/acl.h"
 #include "aclnnop/aclnn_moe_gating_top_k_softmax.h"
-#include "atb_speed/log.h"
+#include "system_log.h"
 #include "atb_speed/utils/timer.h"
 #include "operations/aclnn/utils/utils.h"
 
@@ -30,7 +30,7 @@ MoeTopkSoftmaxOperation::~MoeTopkSoftmaxOperation() {}
 atb::Status MoeTopkSoftmaxOperation::InferShape(
     const atb::SVector<atb::TensorDesc> &inTensorDescs, atb::SVector<atb::TensorDesc> &outTensorDescs) const
 {
-    ATB_SPEED_LOG_DEBUG(opName_ << "MoeTopkSoftmaxOperation infer shape start");
+    LOG_DEBUG_MODEL << opName_ << "MoeTopkSoftmaxOperation infer shape start";
 
     outTensorDescs.at(DIM0).format = inTensorDescs.at(DIM0).format;
     outTensorDescs.at(DIM0).dtype = inTensorDescs.at(DIM0).dtype;
@@ -44,8 +44,8 @@ atb::Status MoeTopkSoftmaxOperation::InferShape(
     outTensorDescs.at(DIM2).dtype = aclDataType::ACL_INT32;
     outTensorDescs.at(DIM2).shape.dimNum = inTensorDescs.at(DIM0).shape.dimNum;
 
-    ATB_SPEED_LOG_DEBUG(opName_ << "MoeTopkSoftmaxOperation infer shape origin inTensorDescs.at(DIM0).shape.dims[DIM0]"
-                  << inTensorDescs.at(DIM0).shape.dims[DIM0]);
+    LOG_DEBUG_MODEL << opName_ << "MoeTopkSoftmaxOperation infer shape origin inTensorDescs.at(DIM0).shape.dims[DIM0]"
+                  << inTensorDescs.at(DIM0).shape.dims[DIM0];
     outTensorDescs.at(DIM0).shape.dims[DIM0] = inTensorDescs.at(DIM0).shape.dims[DIM0];
     outTensorDescs.at(DIM0).shape.dims[DIM1] = param_.topkNum;
     outTensorDescs.at(DIM1).shape.dims[DIM0] = inTensorDescs.at(DIM0).shape.dims[DIM0];
@@ -53,7 +53,7 @@ atb::Status MoeTopkSoftmaxOperation::InferShape(
     outTensorDescs.at(DIM2).shape.dims[DIM0] = inTensorDescs.at(DIM0).shape.dims[DIM0];
     outTensorDescs.at(DIM2).shape.dims[DIM1] = param_.topkNum;
 
-    ATB_SPEED_LOG_DEBUG(opName_ << "MoeTopkSoftmaxOperation infer shape end");
+    LOG_DEBUG_MODEL << opName_ << "MoeTopkSoftmaxOperation infer shape end";
     return 0;
 }
 uint32_t MoeTopkSoftmaxOperation::GetInputNum() const
@@ -68,7 +68,7 @@ uint32_t MoeTopkSoftmaxOperation::GetOutputNum() const
 
 int MoeTopkSoftmaxOperation::SetAclNNWorkspaceExecutor()
 {
-    ATB_SPEED_LOG_DEBUG(opName_ << " MoeTopkSoftmaxOperation start");
+    LOG_DEBUG_MODEL << opName_ << " MoeTopkSoftmaxOperation start";
     AclNNVariantPack &aclnnVariantPack = this->aclnnOpCache_->aclnnVariantPack;
     int ret = aclnnMoeGatingTopKSoftmaxGetWorkspaceSize(
         aclnnVariantPack.aclInTensors.at(DIM0)->tensor,
@@ -79,19 +79,19 @@ int MoeTopkSoftmaxOperation::SetAclNNWorkspaceExecutor()
         aclnnVariantPack.aclOutTensors.at(DIM2)->tensor,
         &this->aclnnOpCache_->workspaceSize,
         &this->aclnnOpCache_->aclExecutor);
-    ATB_SPEED_LOG_DEBUG(opName_ << " SetAclNNWorkspaceExecutor end, ret:" << ret
+    LOG_DEBUG_MODEL << opName_ << " SetAclNNWorkspaceExecutor end, ret:" << ret
                   << ", workspaceSize:" << this->aclnnOpCache_->workspaceSize
-                  << ", aclExecutor:" << this->aclnnOpCache_->aclExecutor);
+                  << ", aclExecutor:" << this->aclnnOpCache_->aclExecutor;
     return ret;
 }
 
 int MoeTopkSoftmaxOperation::ExecuteAclNNOp(uint8_t *workspace, aclrtStream &stream)
 {
-    ATB_SPEED_LOG_DEBUG(opName_ << " MoeTopkSoftmaxOperation start");
+    LOG_DEBUG_MODEL << opName_ << " MoeTopkSoftmaxOperation start";
 
     int ret = aclnnMoeGatingTopKSoftmax(
         workspace, this->aclnnOpCache_->workspaceSize, this->aclnnOpCache_->aclExecutor, stream);
-    ATB_SPEED_LOG_DEBUG(opName_ << " MoeTopkSoftmaxOperation end, ret:" << ret);
+    LOG_DEBUG_MODEL << opName_ << " MoeTopkSoftmaxOperation end, ret:" << ret;
     return ret;
 }
 

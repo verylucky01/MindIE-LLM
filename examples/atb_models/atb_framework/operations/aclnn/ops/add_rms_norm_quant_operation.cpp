@@ -9,6 +9,9 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
+
+#include "add_rms_norm_quant_operation.h"
+
 #include <cstring>
 #include <iostream>
 #include <securec.h>
@@ -17,9 +20,8 @@
 
 #include "acl/acl.h"
 #include "aclnnop/aclnn_add_rms_norm_quant_v2.h"
-#include "atb_speed/log.h"
+#include "system_log.h"
 #include "operations/aclnn/utils/utils.h"
-#include "add_rms_norm_quant_operation.h"
 
 namespace atb_speed {
 namespace common {
@@ -38,7 +40,7 @@ AddRmsNormQuantOperation::AddRmsNormQuantOperation(
 
 AddRmsNormQuantOperation::~AddRmsNormQuantOperation()
 {
-    ATB_SPEED_LOG_DEBUG(opName_ << "AddRmsNormQuantOperation deconstructor");
+    LOG_DEBUG_MODEL << opName_ << "AddRmsNormQuantOperation deconstructor";
     this->DestroyOperation();
 }
 
@@ -46,7 +48,7 @@ atb::Status AddRmsNormQuantOperation::InferShape(
     const atb::SVector<atb::TensorDesc> &inTensorDescs,
     atb::SVector<atb::TensorDesc> &outTensorDescs) const
 {
-    ATB_SPEED_LOG_DEBUG(opName_ << "AddRmsNormQuantOperation infer shape start");
+    LOG_DEBUG_MODEL << opName_ << "AddRmsNormQuantOperation infer shape start";
     for (size_t i = 0; i < outTensorDescs.size(); i++) {
         outTensorDescs.at(i).format = inTensorDescs.at(0).format;
         if (i == 0 || i == NUM1) {  // y1Out、y2Out输出dtype固定为INT8
@@ -61,17 +63,16 @@ atb::Status AddRmsNormQuantOperation::InferShape(
             outTensorDescs.at(i).shape.dims[j] = inTensorDescs.at(1).shape.dims[j];
         }
     }
-
-    ATB_SPEED_LOG_DEBUG(opName_ << "AddRmsNormQuantOperation infer shape end");
+    LOG_DEBUG_MODEL << opName_ << "AddRmsNormQuantOperation infer shape end";
     return 0;
 }
 
 uint32_t AddRmsNormQuantOperation::GetInputNum() const
 {
     uint32_t inputNum = 5;
-    ATB_SPEED_LOG_DEBUG("initial inputNum: " << inputNum);
+    LOG_DEBUG_MODEL << "initial inputNum: " << inputNum;
     if (param_.hasBias) {
-        ATB_SPEED_LOG_DEBUG("AddRmsNormQuant & hasbias");
+        LOG_DEBUG_MODEL << "AddRmsNormQuant & hasbias";
         ++inputNum;
     }
     return inputNum;
@@ -81,7 +82,7 @@ uint32_t AddRmsNormQuantOperation::GetOutputNum() const { return NUM3; }
 
 atb::Status AddRmsNormQuantOperation::CreateAclNNInTensorVariantPack(const atb::VariantPack &variantPack)
 {
-    ATB_SPEED_LOG_DEBUG(opName_ << " CreateAclTensor start");
+    LOG_DEBUG_MODEL << opName_ << " CreateAclTensor start";
     AclNNVariantPack &aclnnVariantPack = this->aclnnOpCache_->aclnnVariantPack;
     // Create aclInTensor
     aclnnVariantPack.aclInTensors.resize(variantPack.inTensors.size());
@@ -105,19 +106,18 @@ atb::Status AddRmsNormQuantOperation::CreateAclNNInTensorVariantPack(const atb::
             aclnnTensor->strides.data(), 0, atbTensor.desc.format, viewDims.dims,
             atbTensor.desc.shape.dimNum, atbTensor.deviceData);
         if (aclnnTensor->tensor == nullptr) {
-                ATB_SPEED_LOG_ERROR(this->opName_ << " InTensor aclCreateTensor index " << i << " fail");
+                LOG_ERROR_MODEL << this->opName_ << " InTensor aclCreateTensor index " << i << " fail";
                 return atb::ERROR_INTERNAL_ERROR;
             }
         aclnnVariantPack.aclInTensors[i] = aclnnTensor;
     }
-    ATB_SPEED_LOG_DEBUG(opName_ << " Create aclInTensor end");
-
+    LOG_DEBUG_MODEL << opName_ << " Create aclInTensor end";
     return atb::NO_ERROR;
 }
 
 int AddRmsNormQuantOperation::SetAclNNWorkspaceExecutor()
 {
-    ATB_SPEED_LOG_DEBUG(opName_ << " aclnnAddRmsNormQuantGetWorkspaceSize start");
+    LOG_DEBUG_MODEL << opName_ << " aclnnAddRmsNormQuantGetWorkspaceSize start";
     uint32_t inputIdx = 5;
     AclNNVariantPack &aclnnVariantPack = this->aclnnOpCache_->aclnnVariantPack;
     aclTensor* biasTensor = param_.hasBias ? aclnnVariantPack.aclInTensors.at(inputIdx++)->tensor : nullptr;
@@ -138,22 +138,22 @@ int AddRmsNormQuantOperation::SetAclNNWorkspaceExecutor()
         nullptr,
         &this->aclnnOpCache_->workspaceSize,  // workspaceSize
         &this->aclnnOpCache_->aclExecutor);   // executor
-    ATB_SPEED_LOG_DEBUG(opName_ << " aclnnAddRmsNormQuantV2GetWorkspaceSize end, ret:" << ret
+    LOG_DEBUG_MODEL << opName_ << " aclnnAddRmsNormQuantV2GetWorkspaceSize end, ret:" << ret
         << ", workspaceSize:" << this->aclnnOpCache_->workspaceSize << ", aclExecutor:"
-        << this->aclnnOpCache_->aclExecutor);
+        << this->aclnnOpCache_->aclExecutor;
 
     return ret;
 }
 
 int AddRmsNormQuantOperation::ExecuteAclNNOp(uint8_t *workspace, aclrtStream &stream)
 {
-    ATB_SPEED_LOG_DEBUG(opName_ << " aclnnAddRmsNormQuantV2 start");
+    LOG_DEBUG_MODEL << opName_ << " aclnnAddRmsNormQuantV2 start";
     int ret = aclnnAddRmsNormQuantV2(
         workspace,
         this->aclnnOpCache_->workspaceSize,
         this->aclnnOpCache_->aclExecutor,
         stream);
-    ATB_SPEED_LOG_DEBUG(opName_ << " aclnnAddRmsNormQuantV2 end, ret:" << ret);
+    LOG_DEBUG_MODEL << opName_ << " aclnnAddRmsNormQuantV2 end, ret:" << ret;
     return ret;
 }
 } // namespace common

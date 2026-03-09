@@ -12,7 +12,7 @@
 #include "inplacemasked_filltensor_operation.h"
 #include "operations/aclnn/utils/utils.h"
 #include "acl/acl.h"
-#include "atb_speed/log.h"
+#include "system_log.h"
 #include "aclnnop/aclnn_masked_fill_scalar.h"
 
 namespace atb_speed::common {
@@ -28,7 +28,7 @@ InplaceMaskedFillTensorOperation::InplaceMaskedFillTensorOperation(
 
 InplaceMaskedFillTensorOperation::~InplaceMaskedFillTensorOperation()
 {
-    ATB_SPEED_LOG_DEBUG("InplaceMaskedFillTensorOperation deconstruct");
+    LOG_DEBUG_MODEL << "InplaceMaskedFillTensorOperation deconstruct";
     this->DestroyOperation();
     if (this->value_ != nullptr) {
         aclDestroyScalar(this->value_);
@@ -39,7 +39,7 @@ InplaceMaskedFillTensorOperation::~InplaceMaskedFillTensorOperation()
 atb::Status InplaceMaskedFillTensorOperation::InferShape(const atb::SVector<atb::TensorDesc> &inTensorDescs,
     atb::SVector<atb::TensorDesc> &outTensorDescs) const
 {
-    ATB_SPEED_LOG_DEBUG(opName_ << "InplaceMaskedFillTensorOperation infer shape start");
+    LOG_DEBUG_MODEL << opName_ << "InplaceMaskedFillTensorOperation infer shape start";
     outTensorDescs.at(0).format = inTensorDescs.at(0).format;
     outTensorDescs.at(0).dtype = inTensorDescs.at(0).dtype;
     outTensorDescs.at(0).shape.dimNum = inTensorDescs.at(0).shape.dimNum;
@@ -47,9 +47,9 @@ atb::Status InplaceMaskedFillTensorOperation::InferShape(const atb::SVector<atb:
         outTensorDescs.at(0).shape.dims[i] = inTensorDescs.at(0).shape.dims[i];
     }
 
-    ATB_SPEED_LOG_DEBUG(opName_ << "InplaceMaskedFillTensorOperation infer shape end"
+    LOG_DEBUG_MODEL << opName_ << "InplaceMaskedFillTensorOperation infer shape end"
                 << " format: " << inTensorDescs.at(0).format << " dimNum: " << inTensorDescs.at(0).shape.dimNum
-                << " dims: " << inTensorDescs.at(0).shape.dims[0]);
+                << " dims: " << inTensorDescs.at(0).shape.dims[0];
     return atb::NO_ERROR;
 }
 
@@ -82,7 +82,7 @@ atb::Status InplaceMaskedFillTensorOperation::CreateAclNNInTensorVariantPack(con
         CallAclCreateTensor(squeezedAtbTensor.desc.shape, squeezedAtbTensor.desc.shape,
             squeezedAtbTensor, aclnnTensor);
         if (aclnnTensor->tensor == nullptr) {
-            ATB_SPEED_LOG_ERROR(this->opName_ << " OutTensor aclCreateTensor index " << i << " fail");
+            LOG_ERROR_MODEL << this->opName_ << " OutTensor aclCreateTensor index " << i << " fail";
             return atb::ERROR_INTERNAL_ERROR;
         }
         aclnnVariantPack.aclInTensors[i] = aclnnTensor;
@@ -92,7 +92,7 @@ atb::Status InplaceMaskedFillTensorOperation::CreateAclNNInTensorVariantPack(con
 
 int InplaceMaskedFillTensorOperation::SetAclNNWorkspaceExecutor()
 {
-    ATB_SPEED_LOG_DEBUG(opName_ << " SetAclNNWorkspaceExecutor start");
+    LOG_DEBUG_MODEL << opName_ << " SetAclNNWorkspaceExecutor start";
     AclNNVariantPack &aclnnVariantPack = this->aclnnOpCache_->aclnnVariantPack;
     if (this->value_ != nullptr) {
         aclDestroyScalar(this->value_);
@@ -105,23 +105,22 @@ int InplaceMaskedFillTensorOperation::SetAclNNWorkspaceExecutor()
         this->value_,
         &this->aclnnOpCache_->workspaceSize,
         &this->aclnnOpCache_->aclExecutor);
-    ATB_SPEED_LOG_DEBUG(opName_ << " SetAclNNWorkspaceExecutor end"
+    LOG_DEBUG_MODEL << opName_ << " SetAclNNWorkspaceExecutor end"
                     << ", ret: " << ret
                     << ", workspaceSize: " << this->aclnnOpCache_->workspaceSize
-                    << ", aclExecutor: " << this->aclnnOpCache_->aclExecutor);
+                    << ", aclExecutor: " << this->aclnnOpCache_->aclExecutor;
     return ret;
 }
 
 int InplaceMaskedFillTensorOperation::ExecuteAclNNOp(uint8_t *workspace, aclrtStream &stream)
 {
-    ATB_SPEED_LOG_DEBUG(opName_ << " ExecuteAclNNOp start");
+    LOG_DEBUG_MODEL << opName_ << " ExecuteAclNNOp start";
     int ret = aclnnInplaceMaskedFillScalar(
         workspace,
         this->aclnnOpCache_->workspaceSize,
         this->aclnnOpCache_->aclExecutor,
         stream);
-    ATB_SPEED_LOG_DEBUG(opName_ << " ExecuteAclNNOp end"
-                    << ", ret: " << ret);
+    LOG_DEBUG_MODEL << opName_ << " ExecuteAclNNOp end" << ", ret: " << ret;
     return ret;
 }
 }  // namespace atb_speed::common

@@ -18,7 +18,6 @@
 
 #include "atb/atb_infer.h"
 #include "atb_speed/base/hosttensor_binder.h"
-#include "atb_speed/log.h"
 
 namespace atb_speed {
 namespace qwen {
