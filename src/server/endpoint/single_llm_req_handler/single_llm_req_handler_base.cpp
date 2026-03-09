@@ -147,7 +147,7 @@ bool SingleLLMReqHandlerBase::ParseOutLogprobFromResponse(const ResponseSPtr &re
                                                           std::vector<BestNTokens> &postToken) const
 {
     for (size_t i = 0; i < response->responseContents.size(); i++) {
-        postToken.at(i).logprob = response->responseContents[i].outLogProbs;
+        postToken.at(i).logprob = response->responseContents[i].outLogProbs.at(0);
     }
     return true;
 }
@@ -160,18 +160,18 @@ bool SingleLLMReqHandlerBase::ParseTopLogProbsFromResponse(const ResponseSPtr &r
         const ResponseContent &content = response->responseContents[i];
 
         // Sanity check for consistent vector sizes
-        if (content.topLogProbTokenIds.size() != topLogprobs * content.speculativeTokenNum) {
+        if (content.topLogProbTokenIds.size() != topLogprobs) {
             std::stringstream ss;
             ss << "content.topLogProbTokenIds.size()=" << content.topLogProbTokenIds.size()
-               << " does not match topLogprobs * content.speculativeTokenNum ="
-               << topLogprobs * content.speculativeTokenNum;
+               << " does not match topLogprobs = "
+               << topLogprobs;
             throw std::logic_error(ss.str());
         }
-        if (content.topLogProbs.size() != topLogprobs * content.speculativeTokenNum) {
+        if (content.topLogProbs.size() != topLogprobs) {
             std::stringstream ss;
             ss << "content.topLogProbs.size()=" << content.topLogProbs.size()
-               << " does not match topLogprobs * content.speculativeTokenNum ="
-               << topLogprobs * content.speculativeTokenNum;
+               << " does not match topLogprobs = "
+               << topLogprobs;
             throw std::logic_error(ss.str());
         }
 
@@ -373,8 +373,6 @@ void SingleLLMReqHandlerBase::DumpInferParam(const RequestSPtr request)
     setParam("temperature", request->temperature);
     setParam("top_k", request->topK);
     setParam("top_p", request->topP);
-    setParam("enable_thinking", request->enableThinking);
-    setParam("thinking_budget", request->thinkingBudget);
     setParam("typical_p", request->typicalP);
     setParam("do_sample", request->doSample);
     setParam("seed", request->seed);
