@@ -9,12 +9,12 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include "utils.h"
 #include <sstream>
 #include <cstring>
 #include <securec.h>
-#include "system_log.h"
+#include "atb_speed/log.h"
 #include "atb_speed/utils/check_util.h"
+#include "utils.h"
 
 namespace atb_speed {
 namespace common {
@@ -23,7 +23,7 @@ atb::SVector<int64_t> GetCopyTensorStride(atb::Dims &tensorDims)
 {
     atb::SVector<int64_t> tmpStrides(tensorDims.dimNum, 1);
     if (tensorDims.dimNum > 8) {  // 8: tensor最大维度数量
-        LOG_ERROR_MODEL << "Tensor's dimNum is larger than 8, `GetCopyTensorStride` failed.";
+        ATB_SPEED_LOG_ERROR("Tensor's dimNum is larger than 8, `GetCopyTensorStride` failed.");
         return tmpStrides;
     }
     for (int64_t i = static_cast<int64_t>(tensorDims.dimNum) - 2; i >= 0; i--) {
@@ -66,7 +66,7 @@ bool IsA2()
     // 使用atb的判断逻辑：atb的更优
     const uint32_t lenOfAtlasA2 = 10;
     std::string socName = aclrtGetSocName();
-    LOG_DEBUG_MODEL << "SocVersionName:" << std::string(socName);
+    ATB_SPEED_LOG_DEBUG("SocVersionName:" << std::string(socName));
     bool isA2 = (std::string(socName).find("Ascend910B") != std::string::npos &&
         std::string(socName).length() > lenOfAtlasA2) ||
         std::string(socName).find("Ascend910_93") != std::string::npos;
@@ -76,7 +76,7 @@ bool IsA2()
 bool IsA3()
 {
     std::string socName = aclrtGetSocName();
-    LOG_DEBUG_MODEL << "SocVersionName:" << std::string(socName);
+    ATB_SPEED_LOG_DEBUG("SocVersionName:" << std::string(socName));
     bool isA3 = std::string(socName).find("Ascend910_93") != std::string::npos;
     return isA3;
 }
@@ -84,7 +84,7 @@ bool IsA3()
 bool Is310P()
 {
     std::string socName = aclrtGetSocName();
-    LOG_DEBUG_MODEL << "SocVersionName:" << std::string(socName);
+    ATB_SPEED_LOG_DEBUG("SocVersionName:" << std::string(socName));
     bool is310P = std::string(socName).find("Ascend310P") != std::string::npos;
     return is310P;
 }
@@ -133,22 +133,22 @@ std::string PrintATBVariankPack(const atb::VariantPack &atbVariantPack)
 bool IsHostDataEqual(const std::shared_ptr<AclNNTensor> tensorA, const atb::Tensor &tensorB, int tensorIdx)
 {
     if (tensorA->intArrayHostData.intArray != nullptr && tensorB.hostData == nullptr) {
-        LOG_DEBUG_MODEL << "Plugin Op Cache: tensor index "
-                            << tensorIdx << " aclnnVariantPack hostData is not null but atbVariantPack hostData is";
+        ATB_SPEED_LOG_DEBUG("Plugin Op Cache: tensor index "
+                            << tensorIdx << " aclnnVariantPack hostData is not null but atbVariantPack hostData is");
         return false;
     }
     if (tensorA->intArrayHostData.intArray == nullptr && tensorB.hostData != nullptr) {
-        LOG_DEBUG_MODEL << "Plugin Op Cache: tensor index "
-                            << tensorIdx << " aclnnVariantPack hostData is null but atbVariantPack hostData is not";
+        ATB_SPEED_LOG_DEBUG("Plugin Op Cache: tensor index "
+                            << tensorIdx << " aclnnVariantPack hostData is null but atbVariantPack hostData is not");
         return false;
     }
     if (tensorA->intArrayHostData.intArray != nullptr && tensorB.hostData != nullptr) {
         if (tensorA->intArrayHostData.dataOri.size() * 4 != tensorB.dataSize) {  // 8: int64_t in bytes
-            LOG_DEBUG_MODEL << "Plugin Op Cache: tensor index " << tensorIdx << " dataSize not equal";
+            ATB_SPEED_LOG_DEBUG("Plugin Op Cache: tensor index " << tensorIdx << " dataSize not equal");
             return false;
         }
         if (memcmp(tensorA->intArrayHostData.dataOri.data(), tensorB.hostData, tensorB.dataSize) != 0) {
-            LOG_DEBUG_MODEL << "Plugin Op Cache: tensor index " << tensorIdx << " hostData not equal";
+            ATB_SPEED_LOG_DEBUG("Plugin Op Cache: tensor index " << tensorIdx << " hostData not equal");
             return false;
         }
     }
@@ -158,29 +158,29 @@ bool IsHostDataEqual(const std::shared_ptr<AclNNTensor> tensorA, const atb::Tens
 bool IsTensorDescEqual(const atb::TensorDesc &tensorDescA, const atb::TensorDesc &tensorDescB, int tensorIdx)
 {
     if (tensorDescA.dtype != tensorDescB.dtype) {
-        LOG_DEBUG_MODEL << "Plugin Op Cache: tensor index " << tensorIdx
+        ATB_SPEED_LOG_DEBUG("Plugin Op Cache: tensor index " << tensorIdx
                         << " dtype not equal, aclnnVariantPack dtype " << tensorDescA.dtype
-                        << " atbVariantPack dtype " << tensorDescB.dtype;
+                        << " atbVariantPack dtype " << tensorDescB.dtype);
         return false;
     }
     if (tensorDescA.format != tensorDescB.format) {
-        LOG_DEBUG_MODEL << "Plugin Op Cache: tensor index " << tensorIdx
+        ATB_SPEED_LOG_DEBUG("Plugin Op Cache: tensor index " << tensorIdx
                         << " format not equal, aclnnVariantPack format " << tensorDescA.format
-                        << " atbVariantPack format " << tensorDescB.format;
+                        << " atbVariantPack format " << tensorDescB.format);
         return false;
     }
     if (tensorDescA.shape.dimNum != tensorDescB.shape.dimNum || \
         tensorDescA.shape.dimNum > 8 || tensorDescA.shape.dimNum <= 0) {  // 8: tensor最大维度数量
-        LOG_DEBUG_MODEL << "Plugin Op Cache: tensor index " << tensorIdx
+        ATB_SPEED_LOG_DEBUG("Plugin Op Cache: tensor index " << tensorIdx
                         << " dimNum not equal, aclnnVariantPack dimNum " << tensorDescA.shape.dimNum
-                        << " atbVariantPack dimNum " << tensorDescB.shape.dimNum;
+                        << " atbVariantPack dimNum " << tensorDescB.shape.dimNum);
         return false;
     }
     for (uint64_t j = 0; j < tensorDescA.shape.dimNum; j++) {
         if (tensorDescA.shape.dims[j] != tensorDescB.shape.dims[j]) {
-            LOG_DEBUG_MODEL << "Plugin Op Cache: : tensor index " << tensorIdx
+            ATB_SPEED_LOG_DEBUG("Plugin Op Cache: : tensor index " << tensorIdx
                             << " shape.dims " << j << " not equal, aclnnVariantPack value "
-                            << tensorDescA.shape.dims[j] << " atbVariantPack value " << tensorDescB.shape.dims[j];
+                            << tensorDescA.shape.dims[j] << " atbVariantPack value " << tensorDescB.shape.dims[j]);
             return false;
         }
     }
@@ -192,9 +192,9 @@ bool AreTensorVectorsEqual(
 {
     // Check the size of two vectors
     if (aclnnTensors.size() != atbTensors.size()) {
-        LOG_DEBUG_MODEL << "Plugin Op Cache: size not equal, aclnnVariantPack size "
+        ATB_SPEED_LOG_DEBUG("Plugin Op Cache: size not equal, aclnnVariantPack size "
                       << aclnnTensors.size() << " atbVariantPack size "
-                      << atbTensors.size();
+                      << atbTensors.size());
         return false;
     }
 
@@ -217,8 +217,8 @@ bool AreTensorVectorsEqual(
 
 bool IsVariankPackEqual(const AclNNVariantPack &aclnnVariantPack, const atb::VariantPack &atbVariantPack)
 {
-    LOG_DEBUG_MODEL << PrintAclNNVariankPack(aclnnVariantPack);
-    LOG_DEBUG_MODEL << PrintATBVariankPack(atbVariantPack);
+    ATB_SPEED_LOG_DEBUG(PrintAclNNVariankPack(aclnnVariantPack));
+    ATB_SPEED_LOG_DEBUG(PrintATBVariankPack(atbVariantPack));
 
     if (!AreTensorVectorsEqual(aclnnVariantPack.aclInTensors, atbVariantPack.inTensors)) {
         return false;
@@ -228,7 +228,7 @@ bool IsVariankPackEqual(const AclNNVariantPack &aclnnVariantPack, const atb::Var
         return false;
     }
 
-    LOG_DEBUG_MODEL << "Plugin Op Cache: TensorDesc match";
+    ATB_SPEED_LOG_DEBUG("Plugin Op Cache: TensorDesc match");
     return true;
 }
 
@@ -248,7 +248,7 @@ atb::Status CreateTensor(atb::Tensor atbTensor, size_t tensorIdx, std::shared_pt
     }
     // GetStrideFunc is nullptr
     if (!GetStrideFuncPtr) {
-        LOG_ERROR_MODEL << "GetStrideFuncPtr is nullptr";
+        ATB_SPEED_LOG_ERROR("GetStrideFuncPtr is nullptr");
         return atb::ERROR_INTERNAL_ERROR;
     }
     aclnnTensor->strides = GetStrideFuncPtr(atbTensor.desc.shape);
@@ -264,7 +264,7 @@ int ConvertTensorToSeqLengths(atb::Tensor &tensor, aclIntArray *&actualSeqLength
         seqLenCache.resize(dataSize);
     }
     if (memcpy_s(seqLenCache.data(), dataSize * 8, tensor.hostData, dataSize * 8) != 0) { // 8: int64 size
-        LOG_ERROR_MODEL << " memcpy_s failed";
+        ATB_SPEED_LOG_ERROR(" memcpy_s failed");
         return atb::ERROR_INTERNAL_ERROR;
     }
     if (actualSeqLengths != nullptr) {

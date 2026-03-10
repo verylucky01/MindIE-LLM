@@ -9,10 +9,9 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
+#include <acl/acl.h>
 
 #include "atb_speed/utils/model_task_executor.h"
-#include <acl/acl.h>
-#include "system_log.h"
 
 namespace atb_speed {
 ModelTaskExecutor::~ModelTaskExecutor()
@@ -49,17 +48,17 @@ void ModelTaskExecutor::PushTask(int idx, const Task &task)
 
 void ModelTaskExecutor::WorkerThread(int workerId)
 {
-    LOG_ERROR_MODEL << "WorkerThread " << workerId << " start.";
+    ATB_SPEED_LOG_DEBUG("WorkerThread " << workerId << " start.");
     auto &worker = workers_[workerId];
     int ret = aclrtSetDevice(worker.deviceIdx);
     if (ret != 0) {
-        LOG_ERROR_MODEL << "AsdRtDeviceSetCurrent fail, error:" << ret;
+        ATB_SPEED_LOG_ERROR("AsdRtDeviceSetCurrent fail, error:" << ret);
     }
     while (!worker.stop) {
         auto task = worker.queue.Dequeue();
         task();
     }
-    LOG_ERROR_MODEL << "WorkerThread " << workerId << " end.";
+    ATB_SPEED_LOG_DEBUG("WorkerThread " << workerId << " end.");
     return;
 }
 } // namespace atb_speed

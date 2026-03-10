@@ -9,13 +9,14 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include "w4a16_operation.h"
 #include <iostream>
 #include <sstream>
 #include <memory>
 #include "acl/acl.h"
+#include "atb_speed/log.h"
 #include "atb_speed/utils/check_util.h"
 #include "operations/aclnn/utils/utils.h"
+#include "w4a16_operation.h"
 
 namespace atb_speed {
 namespace common {

@@ -9,11 +9,11 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include "dequant_rope_quant_kvcache_operation.h"
 #include "acl/acl.h"
-#include "system_log.h"
+#include "atb_speed/log.h"
 #include "operations/aclnn/utils/utils.h"
 #include "aclnnop/aclnn_dequant_rope_quant_kvcache.h"
+#include "dequant_rope_quant_kvcache_operation.h"
 
 namespace atb_speed {
 namespace common {
@@ -27,11 +27,11 @@ DequantRopeQuantKvcacheOperation::DequantRopeQuantKvcacheOperation(
 
 DequantRopeQuantKvcacheOperation::~DequantRopeQuantKvcacheOperation()
 {
-    LOG_DEBUG_MODEL << "DequantRopeQuantKvcacheOperation deconstructor";
+    ATB_SPEED_LOG_DEBUG("DequantRopeQuantKvcacheOperation deconstructor");
     this->DestroyOperation();
     int ret = aclDestroyIntArray(sizeSplits);
     if (ret > 0) {
-        LOG_ERROR_MODEL << opName_ << " call aclDestroyIntArray failed.";
+        ATB_SPEED_LOG_ERROR(opName_ << " call aclDestroyIntArray failed.");
     }
 }
 
@@ -39,7 +39,7 @@ atb::Status DequantRopeQuantKvcacheOperation::InferShape(
     const atb::SVector<atb::TensorDesc> &inTensorDescs,
     atb::SVector<atb::TensorDesc> &outTensorDescs) const
 {
-    LOG_DEBUG_MODEL << opName_ << " infer shape start";
+    ATB_SPEED_LOG_DEBUG(opName_ << " infer shape start");
 
     for (int i = 0; i < NUM3; ++i) {
         outTensorDescs.at(i).format = inTensorDescs.at(0).format;
@@ -62,16 +62,16 @@ atb::Status DequantRopeQuantKvcacheOperation::InferShape(
     // 打印 aclInTensors 地址信息
     AclNNVariantPack &aclnnVariantPack = this->aclnnOpCache_->aclnnVariantPack;
     for (size_t i = 0; i < aclnnVariantPack.aclInTensors.size(); ++i) {
-        LOG_DEBUG_MODEL << "Input tensor[" << i << "] address: "
-                                           << aclnnVariantPack.aclInTensors.at(i)->tensor;
+        ATB_SPEED_LOG_DEBUG("Input tensor[" << i << "] address: "
+                                           << aclnnVariantPack.aclInTensors.at(i)->tensor);
     }
 
     // 打印 aclOutTensors 地址信息
     for (size_t i = 0; i < aclnnVariantPack.aclOutTensors.size(); ++i) {
-        LOG_DEBUG_MODEL << "Output tensor[" << i << "] address: "
-                                            << aclnnVariantPack.aclOutTensors.at(i)->tensor;
+        ATB_SPEED_LOG_DEBUG("Output tensor[" << i << "] address: "
+                                            << aclnnVariantPack.aclOutTensors.at(i)->tensor);
     }
-    LOG_DEBUG_MODEL << opName_ << " infer shape end";
+    ATB_SPEED_LOG_DEBUG(opName_ << " infer shape end");
     return 0;
 }
 
@@ -101,7 +101,7 @@ atb::Status DequantRopeQuantKvcacheOperation::CreateAclNNInTensorVariantPack(con
             aclnnTensor->strides.data(), 0, atbTensor.desc.format, atbTensor.desc.shape.dims,
             atbTensor.desc.shape.dimNum, atbTensor.deviceData);
         if (aclnnTensor->tensor == nullptr) {
-            LOG_ERROR_MODEL << this->opName_ << " InTensor aclCreateTensor index " << i << " fail";
+            ATB_SPEED_LOG_ERROR(this->opName_ << " InTensor aclCreateTensor index " << i << " fail");
             return atb::ERROR_INTERNAL_ERROR;
         }
         aclnnVariantPack.aclInTensors[i] = aclnnTensor;
@@ -121,7 +121,7 @@ atb::Status DequantRopeQuantKvcacheOperation::CreateAclNNOutTensorVariantPack(co
 
 int DequantRopeQuantKvcacheOperation::SetAclNNWorkspaceExecutor()
 {
-    LOG_DEBUG_MODEL << opName_ << " start";
+    ATB_SPEED_LOG_DEBUG(opName_ << " start");
     AclNNVariantPack &aclnnVariantPack = this->aclnnOpCache_->aclnnVariantPack;
     char cacheMode[5] = "page";
     int ret = aclnnDequantRopeQuantKvcacheGetWorkspaceSize(
@@ -149,9 +149,9 @@ int DequantRopeQuantKvcacheOperation::SetAclNNWorkspaceExecutor()
         &this->aclnnOpCache_->workspaceSize, // 21: workspaceSize
         &this->aclnnOpCache_->aclExecutor); // 22: executor
 
-    LOG_DEBUG_MODEL << opName_ << " end, ret:"
+    ATB_SPEED_LOG_DEBUG(opName_ << " end, ret:"
                                << ret << ", workspaceSize:" << this->aclnnOpCache_->workspaceSize
-                               << ", aclExecutor:" << this->aclnnOpCache_->aclExecutor;
+                               << ", aclExecutor:" << this->aclnnOpCache_->aclExecutor);
     return ret;
 }
 
@@ -163,7 +163,7 @@ int DequantRopeQuantKvcacheOperation::ExecuteAclNNOp(uint8_t *workspace, aclrtSt
         this->aclnnOpCache_->aclExecutor,
         stream);
     if (ret != 0) {
-        LOG_ERROR_MODEL << "!!!!!!!!!!!! aclnnDequantRopeQuantKvcache failed, ret: " << ret;
+        ATB_SPEED_LOG_ERROR("!!!!!!!!!!!! aclnnDequantRopeQuantKvcache failed, ret: " << ret);
     }
     return ret;
 }

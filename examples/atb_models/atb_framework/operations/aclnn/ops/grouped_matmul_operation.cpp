@@ -18,7 +18,7 @@
 #include <unistd.h>
 #include "acl/acl.h"
 #include "aclnnop/aclnn_grouped_matmul.h"
-#include "system_log.h"
+#include "atb_speed/log.h"
 #include "atb_speed/utils/timer.h"
 #include "aclnnop/aclnn_grouped_matmul_v4.h"
 #include "operations/aclnn/utils/utils.h"
@@ -38,8 +38,8 @@ GroupedMatmulOperation::~GroupedMatmulOperation() {
 atb::Status GroupedMatmulOperation::InferShape(
     const atb::SVector<atb::TensorDesc> &inTensorDescs, atb::SVector<atb::TensorDesc> &outTensorDescs) const
 {
-    LOG_DEBUG_MODEL << opName_ << "GroupedMatmulOperation infer shape start";
-    LOG_DEBUG_MODEL << opName_ << "exports" << inTensorDescs.at(DIM2).shape.dims[DIM0];
+    ATB_SPEED_LOG_DEBUG(opName_ << "GroupedMatmulOperation infer shape start");
+    ATB_SPEED_LOG_DEBUG(opName_ << "exports" << inTensorDescs.at(DIM2).shape.dims[DIM0]);
 
     outTensorDescs.at(DIM0).format = inTensorDescs.at(DIM0).format;
     outTensorDescs.at(DIM0).dtype = param_.outDataType == ACL_BF16 || inTensorDescs.at(DIM0).dtype == ACL_BF16 ? \
@@ -47,10 +47,10 @@ atb::Status GroupedMatmulOperation::InferShape(
     outTensorDescs.at(DIM0).shape.dimNum = inTensorDescs.at(DIM0).shape.dimNum;
 
     int nDim = param_.transposeB ? DIM1 : DIM2;
-    LOG_DEBUG_MODEL << opName_ << "GroupedMatmulOperation infer shape origin inTensorDescs.at(DIM0).shape.dims[DIM0]"
-                  << inTensorDescs.at(DIM0).shape.dims[DIM0];
-    LOG_DEBUG_MODEL << opName_ << "GroupedMatmulOperation infer shape origin inTensorDescs.at(DIM1).shape.dims[nDim]"
-                  << inTensorDescs.at(DIM1).shape.dims[nDim];
+    ATB_SPEED_LOG_DEBUG(opName_ << "GroupedMatmulOperation infer shape origin inTensorDescs.at(DIM0).shape.dims[DIM0]"
+                  << inTensorDescs.at(DIM0).shape.dims[DIM0]);
+    ATB_SPEED_LOG_DEBUG(opName_ << "GroupedMatmulOperation infer shape origin inTensorDescs.at(DIM1).shape.dims[nDim]"
+                  << inTensorDescs.at(DIM1).shape.dims[nDim]);
 
     outTensorDescs.at(DIM0).shape.dims[DIM0] = inTensorDescs.at(DIM0).shape.dims[DIM0];
     outTensorDescs.at(DIM0).shape.dims[DIM1] = inTensorDescs.at(DIM1).shape.dims[nDim];
@@ -59,7 +59,8 @@ atb::Status GroupedMatmulOperation::InferShape(
         outTensorDescs.at(DIM0).shape.dims[DIM1] = \
         CheckIntMulOverFlow(outTensorDescs.at(DIM0).shape.dims[DIM1], 2); // 2: 最后一维shape * 2
     }
-    LOG_DEBUG_MODEL << opName_ << "GroupedMatmulOperation infer shape end";
+
+    ATB_SPEED_LOG_DEBUG(opName_ << "GroupedMatmulOperation infer shape end");
     return 0;
 }
 
@@ -285,7 +286,7 @@ int GroupedMatmulOperation::CreateW8A8Token(AclNNVariantPack &aclnnVariantPack)
 
 int GroupedMatmulOperation::SetAclNNWorkspaceExecutor()
 {
-    LOG_DEBUG_MODEL << opName_ << " SetAclNNWorkspaceExecutor start";
+    ATB_SPEED_LOG_DEBUG(opName_ << " SetAclNNWorkspaceExecutor start");
     AclNNVariantPack &aclnnVariantPack = this->aclnnOpCache_->aclnnVariantPack;
     int ret = 0;
     if (param_.quantType == GmmQuantType::NONE) {
@@ -311,18 +312,18 @@ int GroupedMatmulOperation::SetAclNNWorkspaceExecutor()
         ret = CreateW8A8Token(aclnnVariantPack);
     }
 
-    LOG_DEBUG_MODEL << opName_ << " SetAclNNWorkspaceExecutor end, ret:" << ret
+    ATB_SPEED_LOG_DEBUG(opName_ << " SetAclNNWorkspaceExecutor end, ret:" << ret
                   << ", workspaceSize:" << this->aclnnOpCache_->workspaceSize
-                  << ", aclExecutor:" << this->aclnnOpCache_->aclExecutor;
+                  << ", aclExecutor:" << this->aclnnOpCache_->aclExecutor);
     return ret;
 }
 
 int GroupedMatmulOperation::ExecuteAclNNOp(uint8_t *workspace, aclrtStream &stream)
 {
-    LOG_DEBUG_MODEL << opName_ << " aclnnGroupedMatmul start";
+    ATB_SPEED_LOG_DEBUG(opName_ << " aclnnGroupedMatmul start");
     int ret = aclnnGroupedMatmulV4(
         workspace, this->aclnnOpCache_->workspaceSize, this->aclnnOpCache_->aclExecutor, stream);
-    LOG_DEBUG_MODEL << opName_ << " aclnnGroupedMatmul end, ret:" << ret;
+    ATB_SPEED_LOG_DEBUG(opName_ << " aclnnGroupedMatmul end, ret:" << ret);
     return ret;
 }
 

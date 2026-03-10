@@ -9,7 +9,6 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include "std_operation.h"
 #include <cstring>
 #include <iostream>
 #include <securec.h>
@@ -18,9 +17,10 @@
 
 #include "acl/acl.h"
 #include "aclnnop/aclnn_std.h"
-#include "system_log.h"
+#include "atb_speed/log.h"
 #include "operations/aclnn/utils/utils.h"
 #include "acl/acl.h"
+#include "std_operation.h"
 
 namespace atb_speed {
 namespace common {
@@ -43,7 +43,7 @@ StdOperation::~StdOperation()
 atb::Status StdOperation::InferShape(const atb::SVector<atb::TensorDesc> &inTensorDescs,
     atb::SVector<atb::TensorDesc> &outTensorDescs) const
 {
-    LOG_DEBUG_MODEL << opName_ << "StdOperation infer shape start";
+    ATB_SPEED_LOG_DEBUG(opName_ << "StdOperation infer shape start");
     outTensorDescs.at(0).format = inTensorDescs.at(0).format;
     outTensorDescs.at(0).dtype = inTensorDescs.at(0).dtype;
     outTensorDescs.at(0).shape.dimNum = inTensorDescs.at(0).shape.dimNum;
@@ -52,9 +52,9 @@ atb::Status StdOperation::InferShape(const atb::SVector<atb::TensorDesc> &inTens
     }
     outTensorDescs.at(0).shape.dims[dimData.at(0)] = 1;
 
-    LOG_DEBUG_MODEL << opName_ << "StdOperation infer shape end"
+    ATB_SPEED_LOG_DEBUG(opName_ << "StdOperation infer shape end"
                   << " format: " << inTensorDescs.at(0).format << " dimNum: " << inTensorDescs.at(0).shape.dimNum
-                  << " dims: " << inTensorDescs.at(0).shape.dims[0];
+                  << " dims: " << inTensorDescs.at(0).shape.dims[0]);
     return 0;
 }
 
@@ -110,7 +110,7 @@ atb::Status StdOperation::CreateAclNNOutTensorVariantPack(const atb::VariantPack
 
 int StdOperation::SetAclNNWorkspaceExecutor()
 {
-    LOG_DEBUG_MODEL << opName_ << " SetAclNNWorkspaceExecutor start";
+    ATB_SPEED_LOG_DEBUG(opName_ << " SetAclNNWorkspaceExecutor start");
     if (dim == nullptr) {
         dim = aclCreateIntArray(dimData.data(), 1);
     }
@@ -122,18 +122,18 @@ int StdOperation::SetAclNNWorkspaceExecutor()
         aclnnVariantPack.aclOutTensors.at(0)->tensor,
         &this->aclnnOpCache_->workspaceSize,
         &this->aclnnOpCache_->aclExecutor);
-    LOG_DEBUG_MODEL << opName_ << " SetAclNNWorkspaceExecutor end, ret:" << ret
+    ATB_SPEED_LOG_DEBUG(opName_ << " SetAclNNWorkspaceExecutor end, ret:" << ret
                   << ", workspaceSize:" << this->aclnnOpCache_->workspaceSize
-                  << ", aclExecutor:" << this->aclnnOpCache_->aclExecutor;
+                  << ", aclExecutor:" << this->aclnnOpCache_->aclExecutor);
     return ret;
 }
 
 
 int StdOperation::ExecuteAclNNOp(uint8_t *workspace, aclrtStream &stream)
 {
-    LOG_DEBUG_MODEL << opName_ << " StdOperation start";
+    ATB_SPEED_LOG_DEBUG(opName_ << " StdOperation start");
     int ret = aclnnStd(workspace, this->aclnnOpCache_->workspaceSize, this->aclnnOpCache_->aclExecutor, stream);
-    LOG_DEBUG_MODEL << opName_ << " StdOperation end, ret:" << ret;
+    ATB_SPEED_LOG_DEBUG(opName_ << " StdOperation end, ret:" << ret);
     return ret;
 }
 

@@ -17,6 +17,7 @@
 #include <atb/comm.h>
 #include "nlohmann/json.hpp"
 #include "atb/atb_infer.h"
+#include "atb_speed/log.h"
 #include "atb_speed/base/external_comm_manager.h"
 #include "atb_speed/utils/operation_util.h"
 #include "models/moe/layer/decoder_layer.h"

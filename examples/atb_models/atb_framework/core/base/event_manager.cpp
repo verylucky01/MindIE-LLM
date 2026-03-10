@@ -9,8 +9,6 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
-#include "atb_speed/base/event_manager.h"
 #include <chrono>
 #include <thread>
 #include <nlohmann/json.hpp>
@@ -22,8 +20,8 @@
 
 #include "atb_speed/utils/operation_util.h"
 #include "atb_speed/utils/check_util.h"
-#include "system_log.h"
-
+#include "atb_speed/log.h"
+#include "atb_speed/base/event_manager.h"
 
 namespace atb_speed {
 
@@ -32,7 +30,7 @@ thread_local std::vector<std::pair<atb::Operation*, atb::common::EventParam>> g_
 #define CHECK_ACL_STATUS_RETURN_AND_LOG_IF_ERROR(ret, customErr, msg) \
     do { \
         if ((ret) != ACL_SUCCESS) { \
-            LOG_ERROR_MODEL << (msg) << " aclError = " << (ret); \
+            ATB_SPEED_LOG_ERROR((msg) << " aclError = " << (ret)); \
             return (customErr); \
         } \
     } while (0)
@@ -47,7 +45,7 @@ thread_local std::vector<std::pair<atb::Operation*, atb::common::EventParam>> g_
 #define CHECK_EM_STATUS_RETURN_AND_LOG_IF_ERROR(status, retVal, msg) \
     do { \
         if ((status) != EM_SUCCESS) { \
-            LOG_ERROR_MODEL << (msg) << " status=" << (status); \
+            ATB_SPEED_LOG_ERROR((msg) << " status=" << (status)); \
             return (retVal); \
         } \
     } while (0)
@@ -60,7 +58,7 @@ EventManager& EventManager::GetInstance()
 
 EventManager::EventManager()
 {
-    LOG_DEBUG_MODEL << "EventManager created.";
+    ATB_SPEED_LOG_DEBUG("EventManager created.");
     uint32_t opWaitTimeout = 1080;
     SetWaitOperationTimeout(opWaitTimeout);
 }
@@ -75,16 +73,16 @@ EventManager::~EventManager()
             DestroyEvent(event);
         }
     }
-    LOG_DEBUG_MODEL << "EventManager destroyed.";
+    ATB_SPEED_LOG_DEBUG("EventManager destroyed.");
 }
 
 void EventManager::SetWaitOperationTimeout(uint32_t timeout)
 {
     aclError ret = aclrtSetOpWaitTimeout(timeout);
     if (ret != ACL_SUCCESS) {
-        LOG_ERROR_MODEL << "aclrtSetOpWaitTimeout failed, aclError = " << ret;
+        ATB_SPEED_LOG_ERROR("aclrtSetOpWaitTimeout failed, aclError = " << ret);
     } else {
-        LOG_DEBUG_MODEL << "aclrtSetOpWaitTimeout end, set to " << timeout << " seconds.";
+        ATB_SPEED_LOG_DEBUG("aclrtSetOpWaitTimeout end, set to " << timeout << " seconds.");
     }
 }
 
@@ -93,7 +91,8 @@ EventManagerStatus EventManager::CreateEvent(aclrtEvent &event) const
     uint32_t flags = ACL_EVENT_SYNC;
     aclError ret = aclrtCreateEventWithFlag(&event, flags);
     CHECK_ACL_STATUS_RETURN_AND_LOG_IF_ERROR(ret, EM_CREATE_EVENT_FAILED, "aclrtCreateEventWithFlag failed,");
-    LOG_DEBUG_MODEL << "Event created, event = " << event;
+    ATB_SPEED_LOG_DEBUG("Event created, event = " << event);
+
     return EM_SUCCESS;
 }
 
@@ -101,7 +100,8 @@ EventManagerStatus EventManager::DestroyEvent(aclrtEvent event) const
 {
     aclError ret = aclrtDestroyEvent(event);
     CHECK_ACL_STATUS_RETURN_AND_LOG_IF_ERROR(ret, EM_DESTROY_EVENT_FAILED, "aclrtDestroyEvent failed,");
-    LOG_DEBUG_MODEL << "Event destroyed end, event = " << event;
+    ATB_SPEED_LOG_DEBUG("Event destroyed end, event = " << event);
+
     return EM_SUCCESS;
 }
 
@@ -119,9 +119,10 @@ EventManagerStatus EventManager::CreateAndPushEvent(aclrtEvent &event, const std
     eventCount_.fetch_add(1, std::memory_order_relaxed);
     eventCond_.notify_one();
 
-    LOG_DEBUG_MODEL << "PushEvent: event = " << event
+    ATB_SPEED_LOG_DEBUG("PushEvent: event = " << event
                         << ", Event pushed to queue, queueSize = " << eventQueues_[pipeKey].size()
-                        << ", current eventCount = " << eventCount_.load();
+                        << ", current eventCount = " << eventCount_.load());
+
     return EM_SUCCESS;
 }
 
@@ -130,7 +131,7 @@ EventManagerStatus EventManager::PopEvent(aclrtEvent &event, const std::string &
     std::unique_lock<std::mutex> lk(queueMutex_);
     if (!eventCond_.wait_for(lk, std::chrono::microseconds(1),
         [this, pipeKey] { return !eventQueues_[pipeKey].empty(); })) {
-        LOG_DEBUG_MODEL << "PopEvent: Timeout waiting for event, current eventCount = " << eventCount_.load();
+        ATB_SPEED_LOG_DEBUG("PopEvent: Timeout waiting for event, current eventCount = " << eventCount_.load());
         return EM_POP_EVENT_TIMEOUT;
     }
     event = eventQueues_[pipeKey].front();
@@ -138,7 +139,9 @@ EventManagerStatus EventManager::PopEvent(aclrtEvent &event, const std::string &
     eventCount_.fetch_sub(1, std::memory_order_relaxed);
     lk.unlock();
 
-    LOG_DEBUG_MODEL << "PopEvent: event = " << event << ", current eventCount = " << eventCount_.load();
+    ATB_SPEED_LOG_DEBUG("PopEvent: event = " << event
+                        << ", current eventCount = " << eventCount_.load());
+
     return EM_SUCCESS;
 }
 
@@ -158,7 +161,7 @@ atb::Status EventManager::EventInternal(EventAction eventAction,
         opType = atb::common::EventParam::OperatorType::WAIT;
         eventTypeStr = "WaitEvent";
     } else {
-        LOG_ERROR_MODEL << "Invalid EventType: " << static_cast<int>(eventType);
+        ATB_SPEED_LOG_ERROR("Invalid EventType: " << static_cast<int>(eventType));
         return EM_INVALID_TYPE;
     }
     eventParam.operatorType = opType;
@@ -169,20 +172,20 @@ atb::Status EventManager::EventInternal(EventAction eventAction,
     if (eventAction == EventAction::PUSH) {
         ret = CreateAndPushEvent(event, pipeKey);
         CHECK_EM_STATUS_RETURN_AND_LOG_IF_ERROR(ret, EM_PUSH_EVENT_FAILED,
-            (eventTypeStr + ": CreateAndPushEvent failed with error"));
-        LOG_DEBUG_MODEL << eventTypeStr << ": Pushed event, event: " << event;
+            eventTypeStr + ": CreateAndPushEvent failed with error");
+        ATB_SPEED_LOG_DEBUG(eventTypeStr << ": Pushed event, event: " << event);
         if (!opsWithoutEvent_[pipeKey].empty()) {
             auto& opParam = opsWithoutEvent_[pipeKey].front();
             opsWithoutEvent_[pipeKey].pop();
             opParam.second.event = eventQueues_[pipeKey].front();
             eventQueues_[pipeKey].pop();
             atb::UpdateOperationParam(opParam.first, opParam.second);
-            LOG_DEBUG_MODEL << eventTypeStr << ": Popped event, event: " << event;
+            ATB_SPEED_LOG_DEBUG(eventTypeStr << ": Popped event, event: " << event);
         }
     } else if (eventAction == EventAction::POP) {
         ret = PopEvent(event, pipeKey);
         if (ret == EM_POP_EVENT_TIMEOUT) {
-            LOG_DEBUG_MODEL << eventTypeStr << ": Popped event, event: time out";
+            ATB_SPEED_LOG_DEBUG(eventTypeStr << ": Popped event, event: time out");
             atb::common::EventParam eventParamTmp;
             if (atb::CreateOperation(eventParamTmp, &op) != atb::NO_ERROR) {
                 return EM_OPERATION_CREATION_FAILED;
@@ -190,7 +193,7 @@ atb::Status EventManager::EventInternal(EventAction eventAction,
             opsWithoutEvent_[pipeKey].push(std::make_pair(op, eventParam));
             return atb::NO_ERROR;
         }
-        LOG_DEBUG_MODEL << eventTypeStr << ": Popped event, event: " << event;
+        ATB_SPEED_LOG_DEBUG(eventTypeStr << ": Popped event, event: " << event);
     } else {
         return EM_INVALID_ACTION;
     }

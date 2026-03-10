@@ -9,12 +9,12 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include "scatter_operation.h"
 #include "acl/acl.h"
-#include "system_log.h"
+#include "atb_speed/log.h"
 #include "operations/aclnn/utils/utils.h"
 #include "operations/aclnn/core/acl_nn_operation.h"
 #include "aclnnop/aclnn_scatter.h"
+#include "scatter_operation.h"
 
 namespace atb_speed {
 namespace common {
@@ -25,7 +25,7 @@ ScatterOperation::ScatterOperation(
 
 ScatterOperation::~ScatterOperation()
 {
-    LOG_DEBUG_MODEL << "ScatterOperation deconstructor";
+    ATB_SPEED_LOG_DEBUG("ScatterOperation deconstructor");
     this->DestroyOperation();
 }
 
@@ -34,10 +34,10 @@ constexpr int MAX_DIMENSION = 8;
 atb::Status ScatterOperation::InferShape(const atb::SVector<atb::TensorDesc> &inTensorDescs,
                                          atb::SVector<atb::TensorDesc> &outTensorDescs) const
 {
-    LOG_DEBUG_MODEL << opName_ << " infer shape start";
+    ATB_SPEED_LOG_DEBUG(opName_ << " infer shape start");
 
     if (inTensorDescs.at(0).shape.dimNum > MAX_DIMENSION) {
-        LOG_ERROR_MODEL << opName_ << " self tensor dim num exceeds limit";
+        ATB_SPEED_LOG_ERROR(opName_ << " self tensor dim num exceeds limit");
         return atb::ERROR_INVALID_PARAM;
     }
 
@@ -48,7 +48,8 @@ atb::Status ScatterOperation::InferShape(const atb::SVector<atb::TensorDesc> &in
     for (uint32_t i = 0; i < inTensorDescs.at(0).shape.dimNum; i++) {
         outTensorDescs.at(0).shape.dims[i] = inTensorDescs.at(0).shape.dims[i];
     }
-    LOG_DEBUG_MODEL << opName_ << " infer shape end";
+
+    ATB_SPEED_LOG_DEBUG(opName_ << " infer shape end");
     return atb::NO_ERROR;
 }
 
@@ -63,7 +64,7 @@ atb::Status ScatterOperation::CreateAclNNInTensorVariantPack(const atb::VariantP
 
     for (size_t i = 0; i < aclnnVariantPack.aclInTensors.size(); ++i) { // self, index, src
         if (CreateTensor(variantPack.inTensors.at(i), i, aclnnVariantPack.aclInTensors[i]) != atb::NO_ERROR) {
-            LOG_ERROR_MODEL << this->opName_ << " InTensor aclCreateTensor index " << i << " fail";
+            ATB_SPEED_LOG_ERROR(this->opName_ << " InTensor aclCreateTensor index " << i << " fail");
             return atb::ERROR_INTERNAL_ERROR;
         }
     }
@@ -75,14 +76,15 @@ atb::Status ScatterOperation::CreateAclNNOutTensorVariantPack(const atb::Variant
     AclNNVariantPack &aclnnVariantPack = this->aclnnOpCache_->aclnnVariantPack;
     aclnnVariantPack.aclOutTensors.resize(GetOutputNum());
     CHECK_OPERATION_STATUS_RETURN(CreateTensor(variantPack.outTensors.at(0), 0, aclnnVariantPack.aclOutTensors[0]));
-    LOG_DEBUG_MODEL << opName_ << " CreateAclNNVariantPack end";
+    ATB_SPEED_LOG_DEBUG(opName_ << " CreateAclNNVariantPack end");
+
     this->aclnnOpCache_->executorRepeatable = false;
     return atb::NO_ERROR;
 }
 
 int ScatterOperation::SetAclNNWorkspaceExecutor()
 {
-    LOG_DEBUG_MODEL << opName_ << " SetAclNNWorkspaceExecutor start";
+    ATB_SPEED_LOG_DEBUG(opName_ << " SetAclNNWorkspaceExecutor start");
     AclNNVariantPack &aclnnVariantPack = this->aclnnOpCache_->aclnnVariantPack;
 
     int64_t reduceType = static_cast<int64_t>(param_.reduce);
@@ -97,12 +99,12 @@ int ScatterOperation::SetAclNNWorkspaceExecutor()
             &this->aclnnOpCache_->workspaceSize,
             &this->aclnnOpCache_->aclExecutor);
         if (ret != atb::NO_ERROR) {
-            LOG_ERROR_MODEL << opName_ << " aclnnScatterGetWorkspaceSize failed with error code: " << ret;
+            ATB_SPEED_LOG_ERROR(opName_ << " aclnnScatterGetWorkspaceSize failed with error code: " << ret);
             return ret;
         }
-        LOG_DEBUG_MODEL << opName_ << " aclnnScatter SetAclNNWorkspaceExecutor end, ret: " << ret
+        ATB_SPEED_LOG_DEBUG(opName_ << " aclnnScatter SetAclNNWorkspaceExecutor end, ret: " << ret
                                     << ", workspaceSize: " << this->aclnnOpCache_->workspaceSize
-                                    << ", aclExecutor: " << this->aclnnOpCache_->aclExecutor;
+                                    << ", aclExecutor: " << this->aclnnOpCache_->aclExecutor);
         return ret;
     } else {
         int ret = aclnnInplaceScatterGetWorkspaceSize(
@@ -114,12 +116,12 @@ int ScatterOperation::SetAclNNWorkspaceExecutor()
             &this->aclnnOpCache_->workspaceSize,
             &this->aclnnOpCache_->aclExecutor);
         if (ret != atb::NO_ERROR) {
-            LOG_ERROR_MODEL << opName_ << "aclnnInplaceScatterGetWorkspaceSize failed with error code: " << ret;
+            ATB_SPEED_LOG_ERROR(opName_ << "aclnnInplaceScatterGetWorkspaceSize failed with error code: " << ret);
             return ret;
         }
-        LOG_DEBUG_MODEL << opName_ << " aclnnScatterInplace SetAclNNWorkspaceExecutor end, ret: " << ret
+        ATB_SPEED_LOG_DEBUG(opName_ << " aclnnScatterInplace SetAclNNWorkspaceExecutor end, ret: " << ret
                                     << ", workspaceSize: " << this->aclnnOpCache_->workspaceSize
-                                    << ", aclExecutor: " << this->aclnnOpCache_->aclExecutor;
+                                    << ", aclExecutor: " << this->aclnnOpCache_->aclExecutor);
         return ret;
     }
 }
@@ -133,7 +135,7 @@ int ScatterOperation::ExecuteAclNNOp(uint8_t *workspace, aclrtStream &stream)
             this->aclnnOpCache_->aclExecutor,
             stream);
         if (ret != 0) {
-            LOG_ERROR_MODEL << "aclnnScatter ExecuteAclNNOp failed, ret: " << ret;
+            ATB_SPEED_LOG_ERROR("aclnnScatter ExecuteAclNNOp failed, ret: " << ret);
         }
         return ret;
     } else {
@@ -143,7 +145,7 @@ int ScatterOperation::ExecuteAclNNOp(uint8_t *workspace, aclrtStream &stream)
             this->aclnnOpCache_->aclExecutor,
             stream);
         if (ret != 0) {
-            LOG_ERROR_MODEL << "aclnnInplaceScatter ExecuteAclNNOp failed, ret: " << ret;
+            ATB_SPEED_LOG_ERROR("aclnnInplaceScatter ExecuteAclNNOp failed, ret: " << ret);
         }
         return ret;
     }

@@ -10,7 +10,7 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "atb_speed/utils/model_factory.h"
-#include "system_log.h"
+#include "atb_speed/log.h"
 
 namespace atb_speed {
 bool ModelFactory::Register(const std::string &modelName, CreateModelFuncPtr createModel)
@@ -18,9 +18,10 @@ bool ModelFactory::Register(const std::string &modelName, CreateModelFuncPtr cre
     auto it = ModelFactory::GetRegistryMap().find(modelName);
     if (it != ModelFactory::GetRegistryMap().end()) {
         if (it->second == nullptr) {
-            LOG_ERROR_MODEL << "Find modelName error: " << modelName;
+            ATB_SPEED_LOG_ERROR("Find modelName error: " << modelName);
             return false;
         }
+        ATB_SPEED_LOG_WARN(modelName << " model already exists, but the duplication doesn't matter.");
         return false;
     }
     ModelFactory::GetRegistryMap()[modelName] = createModel;
@@ -31,10 +32,10 @@ std::shared_ptr<atb_speed::Model> ModelFactory::CreateInstance(const std::string
 {
     auto it = ModelFactory::GetRegistryMap().find(modelName);
     if (it != ModelFactory::GetRegistryMap().end()) {
-        LOG_DEBUG_MODEL << "Find model: " << modelName;
+        ATB_SPEED_LOG_DEBUG("Find model: " << modelName);
         return it->second(param);
     }
-    LOG_WARN_MODEL << "ModelName: " << modelName << " not find in model factory map";
+    ATB_SPEED_LOG_WARN("ModelName: " << modelName << " not find in model factory map");
     return nullptr;
 }
 

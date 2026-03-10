@@ -9,7 +9,6 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include "quant_gmm_dequant_operation.h"
 #include <cstring>
 #include <iostream>
 #include <securec.h>
@@ -17,10 +16,11 @@
 #include <unistd.h>
 #include <cmath>
 
-#include "system_log.h"
+#include "atb_speed/log.h"
 #include "operations/aclnn/utils/utils.h"
 #include "acl/acl.h"
 #include "aclnnop/aclnn_quant_grouped_matmul_dequant.h"
+#include "quant_gmm_dequant_operation.h"
 
 namespace atb_speed {
 namespace common {
@@ -33,14 +33,14 @@ QuantGMMDequantOperation::QuantGMMDequantOperation(
 
 QuantGMMDequantOperation::~QuantGMMDequantOperation()
 {
-    LOG_DEBUG_MODEL << "QuantGMMDequantOperation deconstructor";
+    ATB_SPEED_LOG_DEBUG("QuantGMMDequantOperation deconstructor");
     this->DestroyOperation();
 }
 
 atb::Status QuantGMMDequantOperation::InferShape(const atb::SVector<atb::TensorDesc> &inTensorDescs,
     atb::SVector<atb::TensorDesc> &outTensorDescs) const
 {
-    LOG_DEBUG_MODEL << opName_ << "QuantGMMDequantOperation infer shape start";
+    ATB_SPEED_LOG_DEBUG(opName_ << "QuantGMMDequantOperation infer shape start");
     outTensorDescs.at(0).format = inTensorDescs.at(0).format; // FORMAT_ND
     outTensorDescs.at(0).dtype = param_.outDataType; // ACL_FLOAT16;
     // in1 (8192, 7168); in2 [64, 2048, 7168]; out0 (8192, 2048)
@@ -49,24 +49,24 @@ atb::Status QuantGMMDequantOperation::InferShape(const atb::SVector<atb::TensorD
     outTensorDescs.at(0).shape.dims[DIM1] = inTensorDescs.at(NUM1).shape.dims[param_.transposeB ? DIM1 : DIM2];
 
     for (uint64_t i = 0; i < GetInputNum(); ++i) {
-        LOG_DEBUG_MODEL << opName_ << " QuantGMMDequantOperation infer shape end" <<
+        ATB_SPEED_LOG_DEBUG(opName_ << " QuantGMMDequantOperation infer shape end" <<
                             " format: " << inTensorDescs.at(i).format <<
                             " dtype: " << inTensorDescs.at(i).dtype <<
                             " dimNum: " << inTensorDescs.at(i).shape.dimNum <<
                             " dim0: " << inTensorDescs.at(i).shape.dims[0] <<
-                            " dim1: " << inTensorDescs.at(i).shape.dims[1];
+                            " dim1: " << inTensorDescs.at(i).shape.dims[1]
+                            );
         if (i == 1) {
-            static constexpr size_t dim2 = 2;
-            LOG_DEBUG_MODEL << " dim2: " << inTensorDescs.at(1).shape.dims[dim2];
+            ATB_SPEED_LOG_DEBUG(" dim2: " << inTensorDescs.at(1).shape.dims[2]);
         }
     }
 
-    LOG_DEBUG_MODEL << opName_ << " QuantGMMDequantOperation infer shape end" <<
+    ATB_SPEED_LOG_DEBUG(opName_ << " QuantGMMDequantOperation infer shape end" <<
                         " format: " << outTensorDescs.at(0).format <<
                         " dtype: " << outTensorDescs.at(0).dtype <<
                         " dimNum: " << outTensorDescs.at(0).shape.dimNum <<
                         " dims: " << outTensorDescs.at(0).shape.dims[0] <<
-                        " dims: " << outTensorDescs.at(0).shape.dims[1];
+                        " dims: " << outTensorDescs.at(0).shape.dims[1]);
     return 0;
 }
 
@@ -83,9 +83,9 @@ uint32_t QuantGMMDequantOperation::GetOutputNum() const
 atb::Dims QuantGMMDequantOperation::GetWeightStorageShape(const atb::TensorDesc atbTensorDesc) const
 {
     atb::Dims storageTensorDims = atbTensorDesc.shape;  // ND格式下，storageShape和originalShape一致
-    static constexpr size_t dim2 = 2;
-    LOG_DEBUG_MODEL << opName_ << " GetWeightStorageShape inWeightTensor dim: " <<
-        atbTensorDesc.shape.dims[0] << ", " << atbTensorDesc.shape.dims[1] << ", " << atbTensorDesc.shape.dims[dim2];
+    ATB_SPEED_LOG_DEBUG(opName_ << " GetWeightStorageShape inWeightTensor dim: " <<
+        atbTensorDesc.shape.dims[0] << ", " << atbTensorDesc.shape.dims[1] << ", " << atbTensorDesc.shape.dims[2]
+    );
 
     if (atbTensorDesc.format == ACL_FORMAT_FRACTAL_NZ) {
         // nz格式
@@ -102,11 +102,10 @@ atb::Dims QuantGMMDequantOperation::GetWeightStorageShape(const atb::TensorDesc 
             storageTensorDims.dims[2] = ((atbTensorDesc.shape.dims[2] + 16 - 1) / 16);  // 2, 16：1: 维度, 16: padding大小
         }
     }
-    static constexpr size_t dim3 = 3;
-    static constexpr size_t dim4 = 4;
-    LOG_DEBUG_MODEL << opName_ << " GetWeightStorageShape storageTensorDims dims: " <<
+    ATB_SPEED_LOG_DEBUG(opName_ << " GetWeightStorageShape storageTensorDims dims: " <<
         storageTensorDims.dims[0] << ", " << storageTensorDims.dims[1] << ", " << storageTensorDims.dims[2] << ", " <<
-        storageTensorDims.dims[dim3] << ", " << storageTensorDims.dims[dim4];
+        storageTensorDims.dims[3] << ", " << storageTensorDims.dims[4]
+    );
     return storageTensorDims;
 }
 
@@ -160,7 +159,7 @@ atb::Status QuantGMMDequantOperation::CreateAclNNOutTensorVariantPack(const atb:
 
 int QuantGMMDequantOperation::SetAclNNWorkspaceExecutor()
 {
-    LOG_DEBUG_MODEL << opName_ << " SetAclNNWorkspaceExecutor start";
+    ATB_SPEED_LOG_DEBUG(opName_ << " SetAclNNWorkspaceExecutor start");
     AclNNVariantPack &aclnnVariantPack = this->aclnnOpCache_->aclnnVariantPack;
 
     int ret = aclnnQuantGroupedMatmulDequantGetWorkspaceSize(
@@ -175,19 +174,19 @@ int QuantGMMDequantOperation::SetAclNNWorkspaceExecutor()
         &this->aclnnOpCache_->workspaceSize,
         &this->aclnnOpCache_->aclExecutor);
 
-    LOG_DEBUG_MODEL << opName_ << " SetAclNNWorkspaceExecutor end, ret:" << ret
+    ATB_SPEED_LOG_DEBUG(opName_ << " SetAclNNWorkspaceExecutor end, ret:" << ret
                   << ", workspaceSize:" << this->aclnnOpCache_->workspaceSize
-                  << ", aclExecutor:" << this->aclnnOpCache_->aclExecutor;
+                  << ", aclExecutor:" << this->aclnnOpCache_->aclExecutor);
     return ret;
 }
 
 
 int QuantGMMDequantOperation::ExecuteAclNNOp(uint8_t *workspace, aclrtStream &stream)
 {
-    LOG_DEBUG_MODEL << opName_ << " QuantGMMDequantOperation start";
+    ATB_SPEED_LOG_DEBUG(opName_ << " QuantGMMDequantOperation start");
     int ret = aclnnQuantGroupedMatmulDequant(workspace, this->aclnnOpCache_->workspaceSize,
         this->aclnnOpCache_->aclExecutor, stream);
-    LOG_DEBUG_MODEL << opName_ << " QuantGMMDequantOperation end, ret:" << ret;
+    ATB_SPEED_LOG_DEBUG(opName_ << " QuantGMMDequantOperation end, ret:" << ret);
     return 0;
 }
 

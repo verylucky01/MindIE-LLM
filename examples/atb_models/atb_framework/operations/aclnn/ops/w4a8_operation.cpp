@@ -9,12 +9,12 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include "w4a8_operation.h"
 #include "acl/acl.h"
-#include "system_log.h"
+#include "atb_speed/log.h"
 #include "operations/aclnn/utils/utils.h"
 #include "operations/aclnn/core/acl_nn_operation.h"
 #include "aclnnop/aclnn_quant_matmul_v5.h"
+#include "w4a8_operation.h"
 
 namespace atb_speed {
 namespace common {
@@ -25,30 +25,30 @@ W4A8Operation::W4A8Operation(
 
 W4A8Operation::~W4A8Operation()
 {
-    LOG_DEBUG_MODEL << "W4A8Operation deconstructor";
+    ATB_SPEED_LOG_DEBUG("W4A8Operation deconstructor");
     this->DestroyOperation();
 }
 
 atb::Status W4A8Operation::InferShape(const atb::SVector<atb::TensorDesc> &inTensorDescs,
                                       atb::SVector<atb::TensorDesc> &outTensorDescs) const
 {
-    LOG_DEBUG_MODEL << opName_ << " infer shape start";
+    ATB_SPEED_LOG_DEBUG(opName_ << " infer shape start");
     outTensorDescs.at(0).format = inTensorDescs.at(0).format; // ND或者NZ
     outTensorDescs.at(0).shape.dimNum = inTensorDescs.at(0).shape.dimNum; // tensor维度
     outTensorDescs.at(0).dtype = param_.outDataType;
     if (inTensorDescs.at(0).shape.dimNum == DIM2) {
-        LOG_DEBUG_MODEL << "[input0 dimNum = 2] CHECK " << opName_ << " inputs shape: [input0]"
-                       << inTensorDescs.at(DIM0).shape.dims[DIM0] << ", " << inTensorDescs.at(DIM0).shape.dims[DIM1];
-        LOG_DEBUG_MODEL << "[input0 dimNum = 2] CHECK " << opName_ << " inputs shape: [input1]"
-                       << inTensorDescs.at(DIM1).shape.dims[DIM0] << ", " << inTensorDescs.at(DIM1).shape.dims[DIM1];
+        ATB_SPEED_LOG_DEBUG("[input0 dimNum = 2] CHECK " << opName_ << " inputs shape: [input0]"
+                       << inTensorDescs.at(DIM0).shape.dims[DIM0] << ", " << inTensorDescs.at(DIM0).shape.dims[DIM1]);
+        ATB_SPEED_LOG_DEBUG("[input0 dimNum = 2] CHECK " << opName_ << " inputs shape: [input1]"
+                       << inTensorDescs.at(DIM1).shape.dims[DIM0] << ", " << inTensorDescs.at(DIM1).shape.dims[DIM1]);
         outTensorDescs.at(DIM0).shape.dims[DIM0] = inTensorDescs.at(DIM0).shape.dims[DIM0];
         // 8: int4 packed int32
         outTensorDescs.at(DIM0).shape.dims[DIM1] = inTensorDescs.at(DIM1).shape.dims[DIM1] * 8;
     } else {
-        LOG_ERROR_MODEL << opName_ << " invalid dim num:" << inTensorDescs.at(DIM0).shape.dimNum;
+        ATB_SPEED_LOG_ERROR(opName_ << " invalid dim num:" << inTensorDescs.at(DIM0).shape.dimNum);
         return atb::ERROR_INVALID_TENSOR_DIM_NUM;
     }
-    LOG_DEBUG_MODEL << opName_ << " infer shape end";
+    ATB_SPEED_LOG_DEBUG(opName_ << " infer shape end");
     return atb::NO_ERROR;
 }
 
@@ -73,7 +73,7 @@ atb::Status W4A8Operation::CreateAclNNInTensorVariantPack(const atb::VariantPack
 
 int W4A8Operation::SetAclNNWorkspaceExecutor()
 {
-    LOG_DEBUG_MODEL << opName_ << " start";
+    ATB_SPEED_LOG_DEBUG(opName_ << " start");
     AclNNVariantPack &aclnnVariantPack = this->aclnnOpCache_->aclnnVariantPack;
     int ret = aclnnQuantMatmulV5GetWorkspaceSize(
         aclnnVariantPack.aclInTensors.at(0)->tensor,  // 0: input
@@ -91,9 +91,9 @@ int W4A8Operation::SetAclNNWorkspaceExecutor()
         aclnnVariantPack.aclOutTensors.at(0)->tensor,
         &this->aclnnOpCache_->workspaceSize,
         &this->aclnnOpCache_->aclExecutor);
-    LOG_DEBUG_MODEL << opName_ << " end, ret:"
+    ATB_SPEED_LOG_DEBUG(opName_ << " end, ret:"
                   << ret << ", workspaceSize:" << this->aclnnOpCache_->workspaceSize
-                  << ", aclExecutor:" << this->aclnnOpCache_->aclExecutor;
+                  << ", aclExecutor:" << this->aclnnOpCache_->aclExecutor);
     return ret;
 }
 
@@ -105,7 +105,7 @@ int W4A8Operation::ExecuteAclNNOp(uint8_t *workspace, aclrtStream &stream)
         this->aclnnOpCache_->aclExecutor,
         stream);
     if (ret != 0) {
-        LOG_ERROR_MODEL << "ExecuteAclNNOp failed, ret: " << ret;
+        ATB_SPEED_LOG_ERROR("ExecuteAclNNOp failed, ret: " << ret);
     }
     return ret;
 }

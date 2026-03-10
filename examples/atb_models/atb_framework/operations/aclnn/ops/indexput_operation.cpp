@@ -9,23 +9,25 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include "indexput_operation.h"
 #include "acl/acl.h"
-#include "system_log.h"
+#include "atb_speed/log.h"
+
 #include "aclnnop/aclnn_index_put_impl.h"
+
 #include "operations/aclnn/utils/utils.h"
+#include "indexput_operation.h"
 
 namespace atb_speed {
 namespace common {
 IndexputOperation::IndexputOperation(const std::string &name, AclNNIndexputParam param)
     : AclNNOperation(name), param_(param)
 {
-    LOG_DEBUG_MODEL << "IndexputOperation, param: " << param_.ToString();
+    ATB_SPEED_LOG_DEBUG("IndexputOperation, param: " << param_.ToString());
 }
 
 IndexputOperation::~IndexputOperation()
 {
-    LOG_DEBUG_MODEL << "~IndexputOperation";
+    ATB_SPEED_LOG_DEBUG("~IndexputOperation");
     this->DestroyOperation();
 }
 
@@ -36,15 +38,15 @@ uint32_t IndexputOperation::GetOutputNum() const { return NUM1; }
 atb::Status IndexputOperation::InferShape(const atb::SVector<atb::TensorDesc> &inTensorDescs,
                                           atb::SVector<atb::TensorDesc> &outTensorDescs) const
 {
-    LOG_DEBUG_MODEL << opName_ << " infer shape start";
+    ATB_SPEED_LOG_DEBUG(opName_ << " infer shape start");
     outTensorDescs.at(0) = inTensorDescs.at(0);
-    LOG_DEBUG_MODEL << opName_ << " infer shape end";
+    ATB_SPEED_LOG_DEBUG(opName_ << " infer shape end");
     return atb::NO_ERROR;
 }
 
 atb::Status IndexputOperation::CreateAclNNInTensorVariantPack(const atb::VariantPack &variantPack)
 {
-    LOG_DEBUG_MODEL << opName_ << " CreateAclNNVariantPack start";
+    ATB_SPEED_LOG_DEBUG(opName_ << " CreateAclNNVariantPack start");
     AclNNVariantPack &aclnnVariantPack = this->aclnnOpCache_->aclnnVariantPack;
     uint32_t inputNum = this->GetInputNum();
     aclnnVariantPack.aclInTensors.resize(inputNum);
@@ -70,31 +72,33 @@ atb::Status IndexputOperation::CreateAclNNOutTensorVariantPack(const atb::Varian
     AclNNVariantPack &aclnnVariantPack = this->aclnnOpCache_->aclnnVariantPack;
     aclnnVariantPack.aclOutTensors.clear();
     CHECK_OPERATION_STATUS_RETURN(CreateTensor(variantPack.outTensors.at(0), 0, aclnnVariantPack.aclOutTensors[0]));
-    LOG_DEBUG_MODEL << opName_ << " CreateAclNNVariantPack end";
+    ATB_SPEED_LOG_DEBUG(opName_ << " CreateAclNNVariantPack end");
+    
     return atb::NO_ERROR;
 }
 
 int IndexputOperation::SetAclNNWorkspaceExecutor()
 {
-    LOG_DEBUG_MODEL << opName_ << " SetAclNNWorkspaceExecutor start";
+    ATB_SPEED_LOG_DEBUG(opName_ << " SetAclNNWorkspaceExecutor start");
     AclNNVariantPack &aclnnVariantPack = this->aclnnOpCache_->aclnnVariantPack;
 
     int ret = aclnnIndexPutImplGetWorkspaceSize(
         aclnnVariantPack.aclInTensors.at(0)->tensor, aclnnVariantPack.aclInTensorList.at(0),
         aclnnVariantPack.aclInTensors.at(2)->tensor, param_.accumulate, param_.unsafe,
         &this->aclnnOpCache_->workspaceSize, &this->aclnnOpCache_->aclExecutor);
-    LOG_DEBUG_MODEL << opName_ << " end, ret:" << ret << ", workspaceSize:" << this->aclnnOpCache_->workspaceSize
-                  << ", aclExecutor:" << this->aclnnOpCache_->aclExecutor;
-    LOG_DEBUG_MODEL << opName_ << " SetAclNNWorkspaceExecutor end";
+    ATB_SPEED_LOG_DEBUG(opName_ << " end, ret:" << ret << ", workspaceSize:" << this->aclnnOpCache_->workspaceSize
+                  << ", aclExecutor:" << this->aclnnOpCache_->aclExecutor);
+
+    ATB_SPEED_LOG_DEBUG(opName_ << " SetAclNNWorkspaceExecutor end");
     return ret;
 }
 
 int IndexputOperation::ExecuteAclNNOp(uint8_t *workspace, aclrtStream &stream)
 {
-    LOG_DEBUG_MODEL << opName_ << " ExecuteAclNNOp start";
+    ATB_SPEED_LOG_DEBUG(opName_ << " ExecuteAclNNOp start");
     int ret =
         aclnnIndexPutImpl(workspace, this->aclnnOpCache_->workspaceSize, this->aclnnOpCache_->aclExecutor, stream);
-    LOG_DEBUG_MODEL << opName_ << " ExecuteAclNNOp end, ret:" << ret;
+    ATB_SPEED_LOG_DEBUG(opName_ << " ExecuteAclNNOp end, ret:" << ret);
     return ret;
 }
 

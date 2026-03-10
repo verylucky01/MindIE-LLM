@@ -17,7 +17,7 @@
 #include <atb/types.h>
 #include "acl/acl.h"
 #include "aclnnop/aclnn_moe_distribute_combine_v2.h"
-#include "system_log.h"
+#include "atb_speed/log.h"
 #include "atb_speed/utils/timer.h"
 #include "atb_speed/utils/check_util.h"
 #include "operations/aclnn/utils/utils.h"
@@ -32,21 +32,21 @@ MoeDistributeCombineV2Operation::~MoeDistributeCombineV2Operation() {}
 atb::Status MoeDistributeCombineV2Operation::InferShape(
     const atb::SVector<atb::TensorDesc> &inTensorDescs, atb::SVector<atb::TensorDesc> &outTensorDescs) const
 {
-    LOG_DEBUG_MODEL << opName_ << "MoeDistributeCombineV2Operation infer shape start";
+    ATB_SPEED_LOG_DEBUG(opName_ << "MoeDistributeCombineV2Operation infer shape start");
 
     outTensorDescs.at(DIM0).format = inTensorDescs.at(DIM0).format;
     outTensorDescs.at(DIM0).dtype = inTensorDescs.at(DIM0).dtype;
     outTensorDescs.at(DIM0).shape.dimNum = inTensorDescs.at(DIM0).shape.dimNum;
 
-    LOG_DEBUG_MODEL << opName_
+    ATB_SPEED_LOG_DEBUG(opName_
                   << "MoeDistributeCombineV2Operation infer shape origin inTensorDescs.at(DIM1).shape.dims[DIM0]"
-                  << inTensorDescs.at(DIM1).shape.dims[DIM0];
-    LOG_DEBUG_MODEL << opName_
+                  << inTensorDescs.at(DIM1).shape.dims[DIM0]);
+    ATB_SPEED_LOG_DEBUG(opName_
                   << "MoeDistributeCombineV2Operation infer shape origin inTensorDescs.at(DIM0).shape.dims[DIM1]"
-                  << inTensorDescs.at(DIM0).shape.dims[DIM1];
+                  << inTensorDescs.at(DIM0).shape.dims[DIM1]);
     outTensorDescs.at(DIM0).shape.dims[DIM0] = inTensorDescs.at(DIM1).shape.dims[DIM0];
     outTensorDescs.at(DIM0).shape.dims[DIM1] = inTensorDescs.at(DIM0).shape.dims[DIM1];
-    LOG_DEBUG_MODEL << opName_ << "MoeDistributeCombineV2Operation infer shape end";
+    ATB_SPEED_LOG_DEBUG(opName_ << "MoeDistributeCombineV2Operation infer shape end");
     return 0;
 }
 uint32_t MoeDistributeCombineV2Operation::GetInputNum() const
@@ -76,7 +76,7 @@ int32_t MoeDistributeCombineV2Operation::GetGlobalBS(const atb::TensorDesc &inTe
 
 int MoeDistributeCombineV2Operation::SetAclNNWorkspaceExecutor()
 {
-    LOG_DEBUG_MODEL << opName_ << " MoeDistributeCombineV2Operation start";
+    ATB_SPEED_LOG_DEBUG(opName_ << " MoeDistributeCombineV2Operation start");
     AclNNVariantPack &aclnnVariantPack = this->aclnnOpCache_->aclnnVariantPack;
     
     aclnnVariantPack.aclInTensors.at(NUM6)->tensorIdx = NUM10;
@@ -112,19 +112,19 @@ int MoeDistributeCombineV2Operation::SetAclNNWorkspaceExecutor()
         aclnnVariantPack.aclOutTensors.at(DIM0)->tensor,
         &this->aclnnOpCache_->workspaceSize,
         &this->aclnnOpCache_->aclExecutor);
-    LOG_DEBUG_MODEL << opName_ << " SetAclNNWorkspaceExecutor end, ret:" << ret
+    ATB_SPEED_LOG_DEBUG(opName_ << " SetAclNNWorkspaceExecutor end, ret:" << ret
                   << ", workspaceSize:" << this->aclnnOpCache_->workspaceSize
-                  << ", aclExecutor:" << this->aclnnOpCache_->aclExecutor;
+                  << ", aclExecutor:" << this->aclnnOpCache_->aclExecutor);
     return ret;
 }
 
 int MoeDistributeCombineV2Operation::ExecuteAclNNOp(uint8_t *workspace, aclrtStream &stream)
 {
-    LOG_DEBUG_MODEL << opName_ << " MoeDistributeCombineV2Operation start";
+    ATB_SPEED_LOG_DEBUG(opName_ << " MoeDistributeCombineV2Operation start");
 
     int ret = aclnnMoeDistributeCombineV2(
         workspace, this->aclnnOpCache_->workspaceSize, this->aclnnOpCache_->aclExecutor, stream);
-    LOG_DEBUG_MODEL << opName_ << " MoeDistributeCombineV2Operation end, ret:" << ret;
+    ATB_SPEED_LOG_DEBUG(opName_ << " MoeDistributeCombineV2Operation end, ret:" << ret);
     return ret;
 }
 

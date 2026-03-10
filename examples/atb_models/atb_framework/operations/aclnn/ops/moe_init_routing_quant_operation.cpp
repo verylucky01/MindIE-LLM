@@ -9,17 +9,18 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include "moe_init_routing_quant_operation.h"
 #include <cstring>
 #include <iostream>
 #include <securec.h>
 #include <sstream>
 #include "acl/acl.h"
 #include "aclnnop/aclnn_moe_init_routing_quant_v2.h"
-#include "system_log.h"
+#include "atb_speed/log.h"
 #include "atb_speed/utils/timer.h"
 #include "operations/aclnn/utils/utils.h"
 #include "moe_init_routing_operation.h"
+#include "moe_init_routing_quant_operation.h"
+
 
 namespace atb_speed {
 namespace common {
@@ -31,7 +32,7 @@ MoeInitRoutingQuantOperation::~MoeInitRoutingQuantOperation() {}
 atb::Status MoeInitRoutingQuantOperation::InferShape(
     const atb::SVector<atb::TensorDesc> &inTensorDescs, atb::SVector<atb::TensorDesc> &outTensorDescs) const
 {
-    LOG_DEBUG_MODEL << opName_ << "MoeInitRoutingQuantOperation infer shape start";
+    ATB_SPEED_LOG_DEBUG(opName_ << "MoeInitRoutingQuantOperation infer shape start");
 
     outTensorDescs.at(DIM0).format = inTensorDescs.at(DIM0).format;
     outTensorDescs.at(DIM0).dtype = aclDataType::ACL_INT8;
@@ -53,9 +54,9 @@ atb::Status MoeInitRoutingQuantOperation::InferShape(
     outTensorDescs.at(NUM4).dtype = aclDataType::ACL_FLOAT;
     outTensorDescs.at(NUM4).shape.dimNum = DIM1;
 
-    LOG_DEBUG_MODEL << opName_ << "MoeInitRoutingQuantOperation infer shape origin \
+    ATB_SPEED_LOG_DEBUG(opName_ << "MoeInitRoutingQuantOperation infer shape origin \
         inTensorDescs.at(DIM0).shape.dims[DIM0]"
-                  << inTensorDescs.at(DIM0).shape.dims[DIM0];
+                  << inTensorDescs.at(DIM0).shape.dims[DIM0]);
     int inputSize = inTensorDescs.at(DIM0).shape.dims[DIM0]; // 输入 token 数
     int outputSize = GetMoeInitRoutingOpOutputSize(inputSize, param_);
     outTensorDescs.at(DIM0).shape.dims[DIM0] = outputSize;
@@ -65,7 +66,7 @@ atb::Status MoeInitRoutingQuantOperation::InferShape(
     outTensorDescs.at(DIM3).shape.dims[DIM0] = param_.expertNum;
     outTensorDescs.at(NUM4).shape.dims[DIM0] = outputSize;
 
-    LOG_DEBUG_MODEL << opName_ << "MoeInitRoutingQuantOperation infer shape end";
+    ATB_SPEED_LOG_DEBUG(opName_ << "MoeInitRoutingQuantOperation infer shape end");
     return 0;
 }
 uint32_t MoeInitRoutingQuantOperation::GetInputNum() const
@@ -80,7 +81,7 @@ uint32_t MoeInitRoutingQuantOperation::GetOutputNum() const
 
 int MoeInitRoutingQuantOperation::SetAclNNWorkspaceExecutor()
 {
-    LOG_DEBUG_MODEL << opName_ << " MoeInitRoutingQuantOperation start";
+    ATB_SPEED_LOG_DEBUG(opName_ << " MoeInitRoutingQuantOperation start");
     AclNNVariantPack &aclnnVariantPack = this->aclnnOpCache_->aclnnVariantPack;
     int inputSize =  aclnnVariantPack.aclInTensors.at(DIM0)->atbTensor.desc.shape.dims[DIM0]; // 输入 token 数
     int outputSize = GetMoeInitRoutingOpOutputSize(inputSize, param_);
@@ -98,19 +99,19 @@ int MoeInitRoutingQuantOperation::SetAclNNWorkspaceExecutor()
         aclnnVariantPack.aclOutTensors.at(NUM4)->tensor,
         &this->aclnnOpCache_->workspaceSize,
         &this->aclnnOpCache_->aclExecutor);
-    LOG_DEBUG_MODEL << opName_ << " SetAclNNWorkspaceExecutor end, ret:" << ret
+    ATB_SPEED_LOG_DEBUG(opName_ << " SetAclNNWorkspaceExecutor end, ret:" << ret
                   << ", workspaceSize:" << this->aclnnOpCache_->workspaceSize
-                  << ", aclExecutor:" << this->aclnnOpCache_->aclExecutor;
+                  << ", aclExecutor:" << this->aclnnOpCache_->aclExecutor);
     return ret;
 }
 
 int MoeInitRoutingQuantOperation::ExecuteAclNNOp(uint8_t *workspace, aclrtStream &stream)
 {
-    LOG_DEBUG_MODEL << opName_ << " MoeInitRoutingQuantOperation start";
+    ATB_SPEED_LOG_DEBUG(opName_ << " MoeInitRoutingQuantOperation start");
 
     int ret = aclnnMoeInitRoutingQuantV2(
         workspace, this->aclnnOpCache_->workspaceSize, this->aclnnOpCache_->aclExecutor, stream);
-    LOG_DEBUG_MODEL << opName_ << " MoeInitRoutingQuantOperation end, ret:" << ret;
+    ATB_SPEED_LOG_DEBUG(opName_ << " MoeInitRoutingQuantOperation end, ret:" << ret);
     return ret;
 }
 

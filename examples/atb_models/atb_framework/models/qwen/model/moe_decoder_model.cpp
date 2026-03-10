@@ -9,15 +9,15 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include "models/qwen/model/moe_decoder_model.h"
 #include "nlohmann/json.hpp"
 #include "vector"
 #include "atb/atb_infer.h"
-#include "system_log.h"
+#include "atb_speed/log.h"
 #include "operations/fusion/lmhead/lmhead.h"
 #include "operations/fusion/embedding/word_embedding.h"
 #include "operations/fusion/embedding/positional_embedding.h"
 #include "models/qwen/layer/moe_decoder_layer.h"
+#include "models/qwen/model/moe_decoder_model.h"
 
 namespace atb_speed {
 namespace qwen {
@@ -45,7 +45,7 @@ void QwenMoeParam::SetHcclComm() const
     if (!isPrefill && enableAllToAllMC2 && expertParallelDegree == 2) { // 2: dynamic ep level
         // Assign commDomain by rankIds and rank
         if (dispatchAndCombineHcclComm != nullptr) {
-            LOG_DEBUG_MODEL << "Reuse the hccl communication group for dispatch and combine.";
+            ATB_SPEED_LOG_DEBUG("Reuse the hccl communication group for dispatch and combine.");
         } else {
             atb_speed::common::ParallelInfo moeEpParallelInfo = mapping.Get(base::MOE_EP);
             dispatchAndCombinecommDomain = GetSingleton<ExternalCommManager>().GetCommDomain(
@@ -54,7 +54,7 @@ void QwenMoeParam::SetHcclComm() const
 
             dispatchAndCombineHcclComm = \
                 GetSingleton<ExternalCommManager>().GetCommPtr(dispatchAndCombinecommDomain);
-            LOG_DEBUG_MODEL << "Create the hccl communication group for dispatch and combine.";
+            ATB_SPEED_LOG_DEBUG("Create the hccl communication group for dispatch and combine.");
         }
     }
 }
@@ -67,7 +67,7 @@ void QwenMoeParam::ParseBasicParams(const nlohmann::json &paramJson)
 
 void QwenMoeParam::AddLogInfo()
 {
-    LOG_DEBUG_MODEL << "MoeDecoderModel param" << ", isFA:" << isFA << ", isPrefill:" << isPrefill
+    ATB_SPEED_LOG_DEBUG("MoeDecoderModel param" << ", isFA:" << isFA << ", isPrefill:" << isPrefill
                   << ", isBF16:" << isBF16
                   << ", isEmbeddingParallel: " << isEmbeddingParallel << ", isLmHeadParallel: "
                   << isLmHeadParallel << ", lmHeadTransposeType: " << lmHeadTransposeType
@@ -84,7 +84,7 @@ void QwenMoeParam::AddLogInfo()
                   << ", mlpLinearQuantType: " << mlpLinearQuantType << ", moeLinearQuantType: " << moeLinearQuantType
                   << ", attnLinearTransposeTyp: " << attnLinearTransposeType
                   << ", mlpLinearTransposeType: " << mlpLinearTransposeType
-                  << ", moeLinearTransposeType: " << moeLinearTransposeType;
+                  << ", moeLinearTransposeType: " << moeLinearTransposeType);
 }
 
 void QwenMoeParam::AddParamJson(const std::string &param)
@@ -127,7 +127,7 @@ void QwenMoeParam::FromString(const std::string &param)
     if (rank >= worldSize) {
         std::stringstream ss;
         ss << "worldSize must be greater than rank, please check." << std::endl;
-        LOG_ERROR_MODEL << ss.str();
+        ATB_SPEED_LOG_ERROR(ss.str());
         throw std::runtime_error(ss.str());
     }
     backend = paramJson["backend"].get<std::string>();
@@ -188,7 +188,7 @@ void MoeDecoderModel::ConstructInTensorMap()
         atb_speed::common::AssignTensorIdx(qwenMoeModelInTensorCandidates, "force_load_balance", this->inTensorMap);
     }
     // 添加perfix_cache所需的Tensor
-    LOG_INFO_MODEL << "model enableSplitFuse: " << param_.enableSplitFuse;
+    ATB_SPEED_LOG_INFO("model enableSplitFuse: " << param_.enableSplitFuse);
     if (param_.enableSpeculate || param_.enableSplitFuse) {
         atb_speed::common::AssignTensorIdx(qwenMoeModelInTensorCandidates, "q_len", this->inTensorMap);
     }
@@ -243,7 +243,7 @@ atb::Status MoeDecoderModel::InferShape(
     std::vector<atb::TensorDesc> &outTensorDescs
 )
 {
-    LOG_DEBUG_MODEL << "Enter MoeDecoderModel InferShape";
+    ATB_SPEED_LOG_DEBUG("Enter MoeDecoderModel InferShape");
     if (outTensorDescs.size() != GetOutputNum()) {
         return atb::ERROR_INVALID_GRAPH;
     }
@@ -339,7 +339,7 @@ atb::Status MoeDecoderModel::AddWordEmbedding()
     };
     wordEmbeddingNode->outTensors = {&graph_.internalTensors.at(
         atb_speed::common::GetTensorIdx(this->internalTensorMap, "internal_tensor_hidden_states"))};
-    LOG_DEBUG_MODEL << "wordEmbeddingNode is doing!";
+    ATB_SPEED_LOG_DEBUG("wordEmbeddingNode is doing!");
     graph_.nodes.push_back(*wordEmbeddingNode);
     return atb::NO_ERROR;
 }
@@ -360,7 +360,7 @@ atb::Status MoeDecoderModel::AddPositionalEmbedding()
         &graph_.internalTensors.at(atb_speed::common::GetTensorIdx(this->internalTensorMap, "internal_tensor_sin_emb"))
     };
     graph_.nodes.push_back(*posEmbeddingNode);
-    LOG_DEBUG_MODEL << "posEmbeddingNode is doing!";
+    ATB_SPEED_LOG_DEBUG("posEmbeddingNode is doing!");
     return atb::NO_ERROR;
 }
 
@@ -541,9 +541,9 @@ atb::Status MoeDecoderModel::AddSingleLayer(uint32_t layerId)
         uint32_t moeLayerId = layerId - static_cast<uint32_t>(param.firstKDenseReplace);
         layerNode.outTensors.push_back(&graph_.outTensors.at(ExpertCumSumStartIdx + moeLayerId));
     }
-    LOG_DEBUG_MODEL << "layerNode_" << layerId << " is doing!";
+    ATB_SPEED_LOG_DEBUG("layerNode_" << layerId << " is doing!");
     graph_.nodes.push_back(layerNode);
-    LOG_DEBUG_MODEL << "layerNode is doing!";
+    ATB_SPEED_LOG_DEBUG("layerNode is doing!");
     return atb::NO_ERROR;
 }
 
@@ -568,7 +568,7 @@ atb::Status MoeDecoderModel::AddFinalNorm()
         &graph_.internalTensors.at(atb_speed::common::GetTensorIdx(this->internalTensorMap, "last_hidden_states"))
     };
 
-    LOG_DEBUG_MODEL << "finalNormNode is doing!";
+    ATB_SPEED_LOG_DEBUG("finalNormNode is doing!");
     graph_.nodes.push_back(*finalNormNode);
     return atb::NO_ERROR;
 }
@@ -596,7 +596,7 @@ atb::Status MoeDecoderModel::AddLmhead()
             lmHeadParam.linearParallelParam.tensorParallelInfo.commDomain);
     }
     CHECK_OPERATION_STATUS_RETURN(LmHead(lmHeadParam, &op));
-    LOG_DEBUG_MODEL << "lmHeadNode is doing!";
+    ATB_SPEED_LOG_DEBUG("lmHeadNode is doing!");
 
     lmHeadNode->operation.reset(op);
     const size_t finalLinearWeightTensorId = this -> graph_.weightTensors.size() - WEIGHT_COUNT_LM_HEAD;
@@ -623,14 +623,14 @@ atb::Status MoeDecoderModel::AddLmhead()
     // shpae: FA: [batchSize, seqLen, vocabSize] PA: [seqLen, vocabSize]
     lmHeadNode->outTensors = {&graph_.outTensors.at(atb_speed::common::GetTensorIdx(this->outTensorMap, "logits"))};
 
-    LOG_DEBUG_MODEL << "MoeDecoderModel build graph success";
+    ATB_SPEED_LOG_DEBUG("MoeDecoderModel build graph success");
     graph_.nodes.push_back(*lmHeadNode);
     return atb::NO_ERROR;
 }
 
 atb::Status MoeDecoderModel::ParseParam(const std::string &param)
 {
-    LOG_DEBUG_MODEL << "ParseParam start.";
+    ATB_SPEED_LOG_DEBUG("ParseParam start.");
     CHECK_PARAM_LT(param.size(), MAX_PARAM_STRING_LENGTH);
     nlohmann::json paramJson = atb_speed::base::StringToJson(param);
 
@@ -639,27 +639,27 @@ atb::Status MoeDecoderModel::ParseParam(const std::string &param)
         int tokenOffset = item.get<int>();
         CHECK_PARAM_LT(tokenOffset, MAX_PARAM_VALUE);
         tokenOffset_.push_back(tokenOffset);
-        LOG_DEBUG_MODEL << "tokenOffset value: " << item;
+        ATB_SPEED_LOG_DEBUG("tokenOffset value: " << item);
     }
     seqLen_.clear();
     for (auto item : paramJson["seqLen"]) {
         int seqLen = item.get<int>();
         CHECK_PARAM_LT(seqLen, MAX_PARAM_VALUE);
         seqLen_.push_back(seqLen);
-        LOG_DEBUG_MODEL << "Prefill" << paramJson["isPrefill"] << "seqLen value: " << item;
+        ATB_SPEED_LOG_DEBUG("Prefill" << paramJson["isPrefill"] << "seqLen value: " << item);
     }
     qLen_.clear();
     for (auto item : paramJson["qLen"]) {
         this->qLen_.push_back(item.get<int>());
-        LOG_DEBUG_MODEL << "qLen value: " << item;
+        ATB_SPEED_LOG_DEBUG("qLen value: " << item);
     }
-    LOG_DEBUG_MODEL << "ParseParam end.";
+    ATB_SPEED_LOG_DEBUG("ParseParam end.");
     return atb::NO_ERROR;
 }
 
 atb::Status MoeDecoderModel::BindParamHostTensor(uint32_t nodeId)
 {
-    LOG_DEBUG_MODEL << "BindParamHostTensor nodeId = " << nodeId;
+    ATB_SPEED_LOG_DEBUG("BindParamHostTensor nodeId = " << nodeId);
 
     if (nodeId != 0) {
         // 仅需在graph的intensor中bind一次
@@ -679,7 +679,7 @@ atb::Status MoeDecoderModel::BindParamHostTensor(uint32_t nodeId)
         graph_.inTensors.at(qLenTensorIdx).hostData = qLen_.data();
     }
 
-    LOG_DEBUG_MODEL << "BindParamHostTensor end";
+    ATB_SPEED_LOG_DEBUG("BindParamHostTensor end");
     return atb::NO_ERROR;
 }
 } // namespace qwen

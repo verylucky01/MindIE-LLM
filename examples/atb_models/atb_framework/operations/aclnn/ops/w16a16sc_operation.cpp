@@ -17,7 +17,7 @@
 #include <vector>
 #include <unistd.h>
 #include "acl/acl.h"
-#include "system_log.h"
+#include "atb_speed/log.h"
 #include "atb_speed/utils/timer.h"
 #include "operations/aclnn/utils/utils.h"
 
@@ -35,21 +35,21 @@ W16A16SCOperation::~W16A16SCOperation() {
 atb::Status W16A16SCOperation::InferShape(
     const atb::SVector<atb::TensorDesc> &inTensorDescs, atb::SVector<atb::TensorDesc> &outTensorDescs) const
 {
-    LOG_DEBUG_MODEL << opName_ << "W16A16SCOperation infer shape start";
+    ATB_SPEED_LOG_DEBUG(opName_ << "W16A16SCOperation infer shape start");
 
     outTensorDescs.at(DIM0).format = inTensorDescs.at(DIM0).format;
     outTensorDescs.at(DIM0).dtype = inTensorDescs.at(DIM0).dtype;
     outTensorDescs.at(DIM0).shape.dimNum = inTensorDescs.at(DIM0).shape.dimNum;
     
-    LOG_DEBUG_MODEL << opName_ << "W16A16SCOperation infer shape origin inTensorDescs.at(DIM0).shape.dims[DIM0]"
-                  << inTensorDescs.at(DIM0).shape.dims[DIM0];
-    LOG_DEBUG_MODEL << opName_ << "W16A16SCOperation infer shape origin inTensorDescs.at(DIM1).shape.dims[nDim]"
-                  << inTensorDescs.at(DIM2).shape.dims[DIM0];
+    ATB_SPEED_LOG_DEBUG(opName_ << "W16A16SCOperation infer shape origin inTensorDescs.at(DIM0).shape.dims[DIM0]"
+                  << inTensorDescs.at(DIM0).shape.dims[DIM0]);
+    ATB_SPEED_LOG_DEBUG(opName_ << "W16A16SCOperation infer shape origin inTensorDescs.at(DIM1).shape.dims[nDim]"
+                  << inTensorDescs.at(DIM2).shape.dims[DIM0]);
 
     outTensorDescs.at(DIM0).shape.dims[DIM0] = inTensorDescs.at(DIM0).shape.dims[DIM0];
     outTensorDescs.at(DIM0).shape.dims[DIM1] = inTensorDescs.at(DIM2).shape.dims[DIM0];
 
-    LOG_DEBUG_MODEL << opName_ << "W16A16SCOperation infer shape end";
+    ATB_SPEED_LOG_DEBUG(opName_ << "W16A16SCOperation infer shape end");
     return 0;
 }
 
@@ -107,7 +107,7 @@ atb::Status W16A16SCOperation::CreateAclNNInTensorVariantPack(const atb::Variant
             aclnnTensor->strides.data(), 0, squeezedAtbTensor.desc.format,
             storageTensorDims.dims, storageTensorDims.dimNum, squeezedAtbTensor.deviceData);
         if (aclnnTensor->tensor == nullptr) {
-            LOG_ERROR_MODEL << this->opName_ << " InTensor aclCreateTensor index " << i << " fail";
+            ATB_SPEED_LOG_ERROR(this->opName_ << " InTensor aclCreateTensor index " << i << " fail");
             return atb::ERROR_INTERNAL_ERROR;
         }
         aclnnVariantPack.aclInTensors[i] = aclnnTensor;
@@ -132,7 +132,7 @@ atb::Status W16A16SCOperation::CreateAclNNOutTensorVariantPack(const atb::Varian
             squeezedAtbTensor.desc.format, squeezedAtbTensor.desc.shape.dims,
             squeezedAtbTensor.desc.shape.dimNum, squeezedAtbTensor.deviceData);
         if (aclnnTensor->tensor == nullptr) {
-            LOG_ERROR_MODEL << this->opName_ << " OutTensor aclCreateTensor index " << i << " fail";
+            ATB_SPEED_LOG_ERROR(this->opName_ << " OutTensor aclCreateTensor index " << i << " fail");
             return atb::ERROR_INTERNAL_ERROR;
         }
         aclnnVariantPack.aclOutTensors[i] = aclnnTensor;
@@ -142,7 +142,7 @@ atb::Status W16A16SCOperation::CreateAclNNOutTensorVariantPack(const atb::Varian
 
 int W16A16SCOperation::SetAclNNWorkspaceExecutor()
 {
-    LOG_DEBUG_MODEL << opName_ << " SetAclNNWorkspaceExecutor start";
+    ATB_SPEED_LOG_DEBUG(opName_ << " SetAclNNWorkspaceExecutor start");
     AclNNVariantPack &aclnnVariantPack = this->aclnnOpCache_->aclnnVariantPack;
 
     int ret = aclnnMatmulCompressGetWorkspaceSize(
@@ -154,18 +154,18 @@ int W16A16SCOperation::SetAclNNWorkspaceExecutor()
         &this->aclnnOpCache_->workspaceSize,
         &this->aclnnOpCache_->aclExecutor);
 
-    LOG_DEBUG_MODEL << opName_ << " SetAclNNWorkspaceExecutor end, ret:" << ret
+    ATB_SPEED_LOG_DEBUG(opName_ << " SetAclNNWorkspaceExecutor end, ret:" << ret
                   << ", workspaceSize:" << this->aclnnOpCache_->workspaceSize
-                  << ", aclExecutor:" << this->aclnnOpCache_->aclExecutor;
+                  << ", aclExecutor:" << this->aclnnOpCache_->aclExecutor);
     return ret;
 }
 
 int W16A16SCOperation::ExecuteAclNNOp(uint8_t *workspace, aclrtStream &stream)
 {
-    LOG_DEBUG_MODEL << opName_ << " aclnnMatmulCompress start";
+    ATB_SPEED_LOG_DEBUG(opName_ << " aclnnMatmulCompress start");
     int ret = aclnnMatmulCompress(
         workspace, this->aclnnOpCache_->workspaceSize, this->aclnnOpCache_->aclExecutor, stream);
-    LOG_DEBUG_MODEL << opName_ << " aclnnMatmulCompress end, ret:" << ret;
+    ATB_SPEED_LOG_DEBUG(opName_ << " aclnnMatmulCompress end, ret:" << ret);
     return ret;
 }
 

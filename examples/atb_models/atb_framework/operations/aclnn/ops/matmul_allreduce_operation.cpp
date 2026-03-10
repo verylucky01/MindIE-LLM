@@ -18,7 +18,7 @@
 #include "acl/acl.h"
 #include "hccl/hccl.h"
 #include "aclnnop/aclnn_matmul_all_reduce.h"
-#include "system_log.h"
+#include "atb_speed/log.h"
 #include "operations/aclnn/utils/utils.h"
 
 namespace atb_speed {
@@ -35,7 +35,7 @@ MatmulAllreduceOperation::~MatmulAllreduceOperation() {}
 atb::Status MatmulAllreduceOperation::InferShape(const atb::SVector<atb::TensorDesc> &inTensorDescs,
     atb::SVector<atb::TensorDesc> &outTensorDescs) const
 {
-    LOG_DEBUG_MODEL << opName_ << " infer shape start";
+    ATB_SPEED_LOG_DEBUG(opName_ << " infer shape start");
     outTensorDescs.at(0).format = inTensorDescs.at(0).format;
     outTensorDescs.at(0).dtype = inTensorDescs.at(0).dtype;
     outTensorDescs.at(0).shape.dimNum = inTensorDescs.at(0).shape.dimNum;
@@ -48,9 +48,9 @@ atb::Status MatmulAllreduceOperation::InferShape(const atb::SVector<atb::TensorD
         outTensorDescs.at(0).shape.dims[DIM0] = inTensorDescs.at(DIM0).shape.dims[DIM0];
         outTensorDescs.at(0).shape.dims[DIM1] = inTensorDescs.at(DIM1).shape.dims[DIM1];
     } else {
-        LOG_ERROR_MODEL << opName_ << " invalid dim num:" << inTensorDescs.at(DIM0).shape.dimNum;
+        ATB_SPEED_LOG_ERROR(opName_ << " invalid dim num:" << inTensorDescs.at(DIM0).shape.dimNum);
     }
-    LOG_DEBUG_MODEL << opName_ << " infer shape end";
+    ATB_SPEED_LOG_DEBUG(opName_ << " infer shape end");
     return 0;
 }
 
@@ -99,7 +99,7 @@ atb::Status MatmulAllreduceOperation::CreateAclNNInTensorVariantPack(const atb::
                 squeezedAtbTensor.deviceData);
         }
         if (aclnnTensor->tensor == nullptr) {
-            LOG_ERROR_MODEL << this->opName_ << " InTensor aclCreateTensor index " << i << " fail";
+            ATB_SPEED_LOG_ERROR(this->opName_ << " InTensor aclCreateTensor index " << i << " fail");
             return atb::ERROR_INTERNAL_ERROR;
         }
         aclnnVariantPack.aclInTensors[i] = aclnnTensor;
@@ -124,7 +124,7 @@ atb::Status MatmulAllreduceOperation::CreateAclNNOutTensorVariantPack(const atb:
             aclnnTensor->strides.data(), 0, atbTensor.desc.format, atbTensor.desc.shape.dims,
             atbTensor.desc.shape.dimNum, atbTensor.deviceData);
         if (aclnnTensor->tensor == nullptr) {
-            LOG_ERROR_MODEL << this->opName_ << " OutTensor aclCreateTensor index " << i << " fail";
+            ATB_SPEED_LOG_ERROR(this->opName_ << " OutTensor aclCreateTensor index " << i << " fail");
             return atb::ERROR_INTERNAL_ERROR;
         }
         aclnnVariantPack.aclOutTensors[i] = aclnnTensor;
@@ -134,7 +134,7 @@ atb::Status MatmulAllreduceOperation::CreateAclNNOutTensorVariantPack(const atb:
 
 int MatmulAllreduceOperation::SetAclNNWorkspaceExecutor()
 {
-    LOG_DEBUG_MODEL << opName_ << " aclnnMatmulAllReduceGetWorkspaceSize start";
+    ATB_SPEED_LOG_DEBUG(opName_ << " aclnnMatmulAllReduceGetWorkspaceSize start");
     AclNNVariantPack &aclnnVariantPack = this->aclnnOpCache_->aclnnVariantPack;
     int ret = aclnnMatmulAllReduceGetWorkspaceSize(aclnnVariantPack.aclInTensors.at(DIM0)->tensor,
         aclnnVariantPack.aclInTensors.at(DIM1)->tensor,
@@ -146,18 +146,18 @@ int MatmulAllreduceOperation::SetAclNNWorkspaceExecutor()
         aclnnVariantPack.aclOutTensors.at(DIM0)->tensor,
         &this->aclnnOpCache_->workspaceSize,
         &this->aclnnOpCache_->aclExecutor);
-    LOG_DEBUG_MODEL << opName_ << " aclnnMatmulAllReduceGetWorkspaceSize end, ret:" << ret
+    ATB_SPEED_LOG_DEBUG(opName_ << " aclnnMatmulAllReduceGetWorkspaceSize end, ret:" << ret
                   << ", workspaceSize:" << this->aclnnOpCache_->workspaceSize
-                  << ", aclExecutor:" << this->aclnnOpCache_->aclExecutor;
+                  << ", aclExecutor:" << this->aclnnOpCache_->aclExecutor);
     return ret;
 }
 
 int MatmulAllreduceOperation::ExecuteAclNNOp(uint8_t *workspace, aclrtStream &stream)
 {
-    LOG_DEBUG_MODEL << opName_ << " aclnnMatmulAllReduce start";
+    ATB_SPEED_LOG_DEBUG(opName_ << " aclnnMatmulAllReduce start");
     int ret = aclnnMatmulAllReduce(workspace, this->aclnnOpCache_->workspaceSize,
         this->aclnnOpCache_->aclExecutor, stream);
-    LOG_DEBUG_MODEL << opName_ << " aclnnMatmulAllReduce end, ret:" << ret;
+    ATB_SPEED_LOG_DEBUG(opName_ << " aclnnMatmulAllReduce end, ret:" << ret);
     return ret;
 }
 

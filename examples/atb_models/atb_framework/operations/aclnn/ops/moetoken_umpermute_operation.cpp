@@ -9,11 +9,11 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include "moetoken_unpermute_operation.h"
 #include "operations/aclnn/utils/utils.h"
 #include "acl/acl.h"
-#include "system_log.h"
+#include "atb_speed/log.h"
 #include "aclnnop/aclnn_moe_token_unpermute.h"
+#include "moetoken_unpermute_operation.h"
 
 namespace atb_speed::common {
 
@@ -21,7 +21,7 @@ MoeTokenUnpermuteOperation::MoeTokenUnpermuteOperation(const std::string &name) 
 
 MoeTokenUnpermuteOperation::~MoeTokenUnpermuteOperation()
 {
-    LOG_DEBUG_MODEL << "MoeTokenPermuteOperation deconstruct";
+    ATB_SPEED_LOG_DEBUG("MoeTokenPermuteOperation deconstruct");
     this->DestroyOperation();
 }
 
@@ -34,28 +34,28 @@ MoeTokenUnpermuteOperation::~MoeTokenUnpermuteOperation()
 atb::Status MoeTokenUnpermuteOperation::InferShape(const atb::SVector<atb::TensorDesc> &inTensorDescs,
     atb::SVector<atb::TensorDesc> &outTensorDescs) const
 {
-    LOG_DEBUG_MODEL << opName_ << "MoeTokenUnpermuteOperation infer shape start";
+    ATB_SPEED_LOG_DEBUG(opName_ << "MoeTokenUnpermuteOperation infer shape start");
     outTensorDescs.at(DIM0).format = inTensorDescs.at(DIM0).format;
     outTensorDescs.at(DIM0).dtype = inTensorDescs.at(DIM0).dtype;
     outTensorDescs.at(DIM0).shape.dimNum = inTensorDescs.at(DIM0).shape.dimNum;
     outTensorDescs.at(DIM0).shape.dims[DIM0] = inTensorDescs.at(DIM2).shape.dims[DIM0];
     outTensorDescs.at(DIM0).shape.dims[DIM1] = inTensorDescs.at(DIM0).shape.dims[DIM1];
 
-    LOG_DEBUG_MODEL << opName_ << "MoeTokenUnpermuteOperation infer shape end, inTensor0:"
+    ATB_SPEED_LOG_DEBUG(opName_ << "MoeTokenUnpermuteOperation infer shape end, inTensor0:"
                 << " format: " << inTensorDescs.at(DIM0).format << " dimNum: " << inTensorDescs.at(DIM0).shape.dimNum
                 << " dims: " << inTensorDescs.at(DIM0).shape.dims[DIM0] << ", "
-                << inTensorDescs.at(DIM0).shape.dims[DIM1];
-    LOG_DEBUG_MODEL << opName_ << "MoeTokenUnpermuteOperation infer shape end, inTensor1:"
+                << inTensorDescs.at(DIM0).shape.dims[DIM1]);
+    ATB_SPEED_LOG_DEBUG(opName_ << "MoeTokenUnpermuteOperation infer shape end, inTensor1:"
                 << " format: " << inTensorDescs.at(DIM1).format << " dimNum: " << inTensorDescs.at(DIM1).shape.dimNum
-                << " dims: " << inTensorDescs.at(DIM1).shape.dims[DIM0];
-    LOG_DEBUG_MODEL << opName_ << "MoeTokenUnpermuteOperation infer shape end, inTensor2:"
+                << " dims: " << inTensorDescs.at(DIM1).shape.dims[DIM0]);
+    ATB_SPEED_LOG_DEBUG(opName_ << "MoeTokenUnpermuteOperation infer shape end, inTensor2:"
                 << " format: " << inTensorDescs.at(DIM2).format << " dimNum: " << inTensorDescs.at(DIM2).shape.dimNum
                 << " dims: " << inTensorDescs.at(DIM2).shape.dims[DIM0] << ", "
-                << inTensorDescs.at(DIM2).shape.dims[DIM1];
-    LOG_DEBUG_MODEL << opName_ << "MoeTokenUnpermuteOperation infer shape end, outTensor0:"
+                << inTensorDescs.at(DIM2).shape.dims[DIM1]);
+    ATB_SPEED_LOG_DEBUG(opName_ << "MoeTokenUnpermuteOperation infer shape end, outTensor0:"
                 << " format: " << outTensorDescs.at(DIM0).format << " dimNum: " << outTensorDescs.at(DIM0).shape.dimNum
                 << " dims: " << outTensorDescs.at(DIM0).shape.dims[DIM0] << ", "
-                << outTensorDescs.at(DIM0).shape.dims[DIM1];
+                << outTensorDescs.at(DIM0).shape.dims[DIM1]);
 
     return atb::NO_ERROR;
 }
@@ -73,7 +73,7 @@ uint32_t MoeTokenUnpermuteOperation::GetOutputNum() const
 
 int MoeTokenUnpermuteOperation::SetAclNNWorkspaceExecutor()
 {
-    LOG_DEBUG_MODEL << opName_ << " SetAclNNWorkspaceExecutor start";
+    ATB_SPEED_LOG_DEBUG(opName_ << " SetAclNNWorkspaceExecutor start");
     AclNNVariantPack &aclnnVariantPack = this->aclnnOpCache_->aclnnVariantPack;
     int ret = aclnnMoeTokenUnpermuteGetWorkspaceSize(
         aclnnVariantPack.aclInTensors.at(0)->tensor,     // permutedTokens
@@ -84,22 +84,23 @@ int MoeTokenUnpermuteOperation::SetAclNNWorkspaceExecutor()
         aclnnVariantPack.aclOutTensors.at(0)->tensor,    // out
         &this->aclnnOpCache_->workspaceSize,
         &this->aclnnOpCache_->aclExecutor);
-    LOG_DEBUG_MODEL << opName_ << " SetAclNNWorkspaceExecutor end"
+    ATB_SPEED_LOG_DEBUG(opName_ << " SetAclNNWorkspaceExecutor end"
                     << ", ret: " << ret
                     << ", workspaceSize: " << this->aclnnOpCache_->workspaceSize
-                    << ", aclExecutor: " << this->aclnnOpCache_->aclExecutor;
+                    << ", aclExecutor: " << this->aclnnOpCache_->aclExecutor);
     return ret;
 }
 
 int MoeTokenUnpermuteOperation::ExecuteAclNNOp(uint8_t *workspace, aclrtStream &stream)
 {
-    LOG_DEBUG_MODEL << opName_ << " ExecuteAclNNOp start";
+    ATB_SPEED_LOG_DEBUG(opName_ << " ExecuteAclNNOp start");
     int ret = aclnnMoeTokenUnpermute(
         workspace,
         this->aclnnOpCache_->workspaceSize,
         this->aclnnOpCache_->aclExecutor,
         stream);
-    LOG_DEBUG_MODEL << opName_ << " ExecuteAclNNOp end" << ", ret: " << ret;
+    ATB_SPEED_LOG_DEBUG(opName_ << " ExecuteAclNNOp end"
+                    << ", ret: " << ret);
     return ret;
 }
 }  // namespace atb_speed::common

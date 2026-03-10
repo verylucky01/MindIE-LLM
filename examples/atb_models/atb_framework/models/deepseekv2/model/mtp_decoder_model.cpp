@@ -15,7 +15,7 @@
 #include "hccl/hccl.h"
 #include "nlohmann/json.hpp"
 #include "atb/atb_infer.h"
-#include "system_log.h"
+#include "atb_speed/log.h"
 #include "operations/aclnn/utils/utils.h"
 #include "operations/fusion/embedding/positional_embedding.h"
 #include "operations/fusion/embedding/word_embedding.h"
@@ -225,7 +225,7 @@ atb::Status MtpDecoderModel::InferShape(
     std::vector<atb::TensorDesc> &outTensorDescs
 )
 {
-    LOG_DEBUG_MODEL << "Enter MtpDecoderModel InferShape";
+    ATB_SPEED_LOG_DEBUG("Enter MtpDecoderModel InferShape");
     if (outTensorDescs.size() != GetOutputNum()) {
         return atb::ERROR_INVALID_GRAPH;
     }
@@ -344,7 +344,7 @@ atb::Status MtpDecoderModel::AddENorm()
         &graph_.internalTensors.at(atb_speed::common::GetTensorIdx(this->internalTensorMap,
                                                                    "enorm")),
     };
-    LOG_DEBUG_MODEL << "MtpDecoderModel AddENorm";
+    ATB_SPEED_LOG_DEBUG("MtpDecoderModel AddENorm");
     graph_.nodes.push_back(*eNormNode);
     return atb::NO_ERROR;
 }
@@ -368,7 +368,7 @@ atb::Status MtpDecoderModel::AddHNorm()
         &graph_.internalTensors.at(atb_speed::common::GetTensorIdx(this->internalTensorMap,
                                                                    "hnorm")),
     };
-    LOG_DEBUG_MODEL << "MtpDecoderModel AddHNorm";
+    ATB_SPEED_LOG_DEBUG("MtpDecoderModel AddHNorm");
     graph_.nodes.push_back(*hNormNode);
     return atb::NO_ERROR;
 }
@@ -392,7 +392,7 @@ atb::Status MtpDecoderModel::AddConcat()
         &graph_.internalTensors.at(atb_speed::common::GetTensorIdx(this->internalTensorMap,
                                                                    "concat")),
     };
-    LOG_DEBUG_MODEL << "MtpDecoderModel AddConcat";
+    ATB_SPEED_LOG_DEBUG("MtpDecoderModel AddConcat");
     graph_.nodes.push_back(*concatNode);
     return atb::NO_ERROR;
 }
@@ -423,7 +423,7 @@ atb::Status MtpDecoderModel::AddLinear()
         &graph_.internalTensors.at(atb_speed::common::GetTensorIdx(this->internalTensorMap,
                                                                    "internal_tensor_hidden_states")),
     };
-    LOG_DEBUG_MODEL << "MtpDecoderModel AddLinear";
+    ATB_SPEED_LOG_DEBUG("MtpDecoderModel AddLinear");
     graph_.nodes.push_back(*linearNode);
     return atb::NO_ERROR;
 }
@@ -549,17 +549,17 @@ atb::Status MtpDecoderModel::AddSingleLayer(uint32_t layerId)
     atb_speed::Model::Node layerNode;
     DecoderLayerParam layerParam;
     SetLayerParam(layerParam, layerId);
-    LOG_DEBUG_MODEL << "start create Decoderlayer";
+    ATB_SPEED_LOG_DEBUG("start create Decoderlayer");
     CHECK_OPERATION_STATUS_RETURN(DecoderLayer(layerParam, &op));
-    LOG_DEBUG_MODEL << "Decoderlayer create success";
+    ATB_SPEED_LOG_DEBUG("Decoderlayer create success");
     layerNode.operation.reset(op);
-    LOG_DEBUG_MODEL << "Decoderlayer inTensor number: " << layerNode.operation->GetInputNum();
+    ATB_SPEED_LOG_DEBUG("Decoderlayer inTensor number: " << layerNode.operation->GetInputNum());
     layerNode.inTensors.resize(layerNode.operation->GetInputNum());
     size_t inTensorId = 0;
     AddLayerWeights(layerNode, inTensorId, layerId);
-    LOG_DEBUG_MODEL << "start add layerhostweight";
+    ATB_SPEED_LOG_DEBUG("start add layerhostweight");
     AddLayerHostWeight(layerNode, inTensorId, layerId);
-    LOG_DEBUG_MODEL << "Add layerhostweight seccess";
+    ATB_SPEED_LOG_DEBUG("Add layerhostweight seccess");
     if (layerId == param.numHiddenLayers - 1 && \
         !(param.lmHeadLocalTp && param.enableDistributed)) {
             layerNode.outTensors = {&graph_.outTensors.at(
@@ -579,7 +579,7 @@ atb::Status MtpDecoderModel::AddSingleLayer(uint32_t layerId)
             atb_speed::common::GetTensorIdx(this->outTensorMap, "activation_topk")));
     }
     graph_.nodes.push_back(layerNode);
-    LOG_DEBUG_MODEL << "[+] add mtp layerNode num" << layerId;
+    ATB_SPEED_LOG_DEBUG("[+] add mtp layerNode num" << layerId);
     return atb::NO_ERROR;
 }
 
@@ -767,7 +767,7 @@ atb::Status MtpDecoderModel::AddFinalNorm()
         &graph_.internalTensors.at(layerOutTensorId),
     };
 
-    LOG_DEBUG_MODEL << "MtpDecoderModel build graph:finalNormNode end";
+    ATB_SPEED_LOG_DEBUG("MtpDecoderModel build graph:finalNormNode end");
     graph_.nodes.push_back(*finalNormNode);
     return atb::NO_ERROR;
 }
@@ -803,7 +803,7 @@ atb::Status MtpDecoderModel::AddLmhead()
         }
     }
     CHECK_OPERATION_STATUS_RETURN(LmHead(lmHeadParam, &op));
-    LOG_DEBUG_MODEL << "MtpDecoderModel build graph:create LMHead end";
+    ATB_SPEED_LOG_DEBUG("MtpDecoderModel build graph:create LMHead end");
 
     lmHeadNode->operation.reset(op);
     const size_t finalLinearWeightTensorId = this -> graph_.weightTensors.size() - WEIGHT_COUNT_LM_HEAD;
@@ -834,7 +834,7 @@ atb::Status MtpDecoderModel::AddLmhead()
         &graph_.internalTensors.at(atb_speed::common::GetTensorIdx(this->internalTensorMap,"internal_lmhead_out")) : \
         &graph_.outTensors.at(atb_speed::common::GetTensorIdx(this->outTensorMap, "logits"))};
 
-    LOG_DEBUG_MODEL << "MtpDecoderModel build graph success";
+    ATB_SPEED_LOG_DEBUG("MtpDecoderModel build graph success");
     graph_.nodes.push_back(*lmHeadNode);
     return atb::NO_ERROR;
 }
@@ -865,7 +865,7 @@ atb::Status MtpDecoderModel::AddSliceFinalStateOut()
     sliceNode->operation.reset(op);
     graph_.nodes.push_back(*sliceNode);
 
-    LOG_DEBUG_MODEL << "AddSliceFinalStateOut AddGatherFinalStateOut success";
+    ATB_SPEED_LOG_DEBUG("AddSliceFinalStateOut AddGatherFinalStateOut success");
     return atb::NO_ERROR;
 }
 
@@ -883,7 +883,7 @@ atb::Status MtpDecoderModel::AddGatherFinalStateOut()
         atb_speed::common::GetTensorIdx(this->outTensorMap, "final_hidden_states"))};
     unpadNode->operation.reset(op);
     graph_.nodes.push_back(*unpadNode);
-    LOG_DEBUG_MODEL << "MtpDecoderModel AddGatherFinalStateOut success";
+    ATB_SPEED_LOG_DEBUG("MtpDecoderModel AddGatherFinalStateOut success");
     return atb::NO_ERROR;
 }
 
@@ -901,7 +901,7 @@ atb::Status MtpDecoderModel::AddGatherAfterLmhead()
         "internal_lmhead_out_dp"))};
     unpadNode->operation.reset(op);
     graph_.nodes.push_back(*unpadNode);
-    LOG_DEBUG_MODEL << "MtpDecoderModel AddGatherAfterLmhead calculation success";
+    ATB_SPEED_LOG_DEBUG("MtpDecoderModel AddGatherAfterLmhead calculation success");
     return atb::NO_ERROR;
 }
 
@@ -918,13 +918,13 @@ atb::Status MtpDecoderModel::AddIndicesGatherAfterLmhead()
     unpadNode->outTensors = {&graph_.outTensors.at(0)};
     unpadNode->operation.reset(op);
     graph_.nodes.push_back(*unpadNode);
-    LOG_DEBUG_MODEL << "MtpDecoderModel AddIndicesGatherAfterLmhead calculation success";
+    ATB_SPEED_LOG_DEBUG("MtpDecoderModel AddIndicesGatherAfterLmhead calculation success");
     return atb::NO_ERROR;
 }
 
 atb::Status MtpDecoderModel::BindParamHostTensor(uint32_t nodeId)
 {
-    LOG_DEBUG_MODEL << "BindParamHostTensor nodeId = " << nodeId;
+    ATB_SPEED_LOG_DEBUG("BindParamHostTensor nodeId = " << nodeId);
 
     if (nodeId != 0) {
         // 仅需在graph的intensor中bind一次
@@ -980,7 +980,7 @@ atb::Status MtpDecoderModel::BindParamHostTensor(uint32_t nodeId)
             }
         }
     }
-    LOG_DEBUG_MODEL << "BindParamHostTensor end";
+    ATB_SPEED_LOG_DEBUG("BindParamHostTensor end");
 
     return atb::NO_ERROR;
 }

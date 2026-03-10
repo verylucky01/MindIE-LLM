@@ -234,16 +234,16 @@ inline void AppendLevel(std::string& out, LogSeverity level)
 
 inline void FilterAndAppend(std::string& out, const char* input, size_t length)
 {
+    static constexpr unsigned char kAsciiControlMin = 0x00;
     static constexpr unsigned char kAsciiControlMax = 0x1F;
     static constexpr unsigned char kAsciiDelete = 0x7F;
     static constexpr unsigned char kLineFeed = '\n';
     static constexpr unsigned char kCarriageReturn = '\r';
-
     const char* cursor = input;
     const char* end = input + length;
     while (cursor < end) {
         unsigned char ch = static_cast<unsigned char>(*cursor++);
-        const bool isControlChar = (ch <= kAsciiControlMax) || (ch == kAsciiDelete);
+        const bool isControlChar = (ch >= kAsciiControlMin && ch <= kAsciiControlMax) || (ch == kAsciiDelete);
         const bool isLineBreak = (ch == kLineFeed) || (ch == kCarriageReturn);
         if (isControlChar || isLineBreak) {
             out.push_back('_');
@@ -422,25 +422,6 @@ void LogManager::Init()
     isRunning_ = true;
     flushThread_ = std::thread(&LogManager::FlushLoop, this);
     pthread_setname_np(flushThread_.native_handle(), "LogFlushThread");
-}
-
-void LogManager::StartAsyncThread()
-{
-    if (isRunning_) {
-        return;
-    }
-    isRunning_ = true;
-    flushThread_ = std::thread(&LogManager::FlushLoop, this);
-    pthread_setname_np(flushThread_.native_handle(), "LogFlushThread");
-}
-
-void LogManager::RestartAfterFork()
-{
-    if (flushThread_.joinable()) {
-        flushThread_.detach();
-    }
-    isRunning_ = false;
-    StartAsyncThread();
 }
 
 void LogManager::LoadComponentConfigs()

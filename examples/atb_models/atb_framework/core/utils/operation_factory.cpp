@@ -10,14 +10,14 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "atb_speed/utils/operation_factory.h"
-#include "system_log.h"
+#include "atb_speed/log.h"
 
 namespace atb_speed {
 bool OperationFactory::Register(const std::string &operationName, CreateOperationFuncPtr createOperation)
 {
     auto it = OperationFactory::GetRegistryMap().find(operationName);
     if (it != OperationFactory::GetRegistryMap().end()) {
-        LOG_WARN_MODEL << operationName << " operation already exists, but the duplication doesn't matter.";
+        ATB_SPEED_LOG_WARN(operationName << " operation already exists, but the duplication doesn't matter.");
         return false;
     }
     OperationFactory::GetRegistryMap()[operationName] = createOperation;
@@ -29,13 +29,13 @@ atb::Operation *OperationFactory::CreateOperation(const std::string &operationNa
     auto it = OperationFactory::GetRegistryMap().find(operationName);
     if (it != OperationFactory::GetRegistryMap().end()) {
         if (it->second == nullptr) {
-            LOG_ERROR_MODEL << "Find operation error: " << operationName;
+            ATB_SPEED_LOG_ERROR("Find operation error: " << operationName);
             return nullptr;
         }
-        LOG_ERROR_MODEL << "Find operation: " << operationName;
+        ATB_SPEED_LOG_DEBUG("Find operation: " << operationName);
         return it->second(param);
     }
-    LOG_WARN_MODEL << "OperationName: " << operationName << " not find in operation factory map";
+    ATB_SPEED_LOG_WARN("OperationName: " << operationName << " not find in operation factory map");
     return nullptr;
 }
 

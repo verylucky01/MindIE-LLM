@@ -9,7 +9,6 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include "models/deepseekv2/layer/decoder_layer.h"
 #include "operations/fusion/linear/linear.h"
 #include "operations/fusion/linear/linear_parallel.h"
 #include "operations/fusion/norm/norm_linear.h"
@@ -21,7 +20,7 @@
 #include "operations/fusion/moe/moe_shared_expert.h"
 #include "models/deepseekv2/operation/latent_attention.h"
 #include "atb_speed/base/event_manager.h"
-#include "system_log.h"
+#include "models/deepseekv2/layer/decoder_layer.h"
 
 namespace atb_speed {
 namespace deepseekV2 {
@@ -358,7 +357,7 @@ std::map<std::string, uint32_t> ConstructTensorMap(
     inTensorNum = inTensorList.size();
     internalTensorNum = intermediateTensorList.size();
     outTensorNum = outTensorList.size();
-    LOG_DEBUG_MODEL << "ConstructTensorMap done";
+    ATB_SPEED_LOG_DEBUG("ConstructTensorMap done");
     return atb_speed::common::GetTensorMap(inTensorList, outTensorList, intermediateTensorList);
 }
 
@@ -598,7 +597,7 @@ int64_t SetAttention(atb::GraphParam &opGraph, const DecoderLayerParam &param,
     attentionNode.inTensorIds = atb_speed::common::GetTensorIdxList(tensorMap, attnInTensorNames);
     attentionNode.outTensorIds = atb_speed::common::GetTensorIdxList(tensorMap, {"intermediate_attention_out"});
     opGraph.nodes.push_back(attentionNode);
-    LOG_DEBUG_MODEL << "Attention calculation success";
+    ATB_SPEED_LOG_DEBUG("Attention calculation success");
     return atb::NO_ERROR;
 }
 
@@ -616,7 +615,7 @@ atb::Status SetPadding(atb::GraphParam &opGraph, std::map<std::string, uint32_t>
         "intermediate_dense_tp_oproj_attn_pad" : "intermediate_attention_out_padding"});
 
     opGraph.nodes.push_back(gatherNode);
-    LOG_DEBUG_MODEL << "create SetPadding";
+    ATB_SPEED_LOG_DEBUG("create SetPadding");
     return atb::NO_ERROR;
 }
 
@@ -719,7 +718,7 @@ atb::Status SetSelfResidualAdd(atb::GraphParam &opGraph, const DecoderLayerParam
         {"intermediate_attention_add_out"});
 
     opGraph.nodes.push_back(selfResidualAddNode);
-    LOG_DEBUG_MODEL << "SelfResidualAdd calculation success";
+    ATB_SPEED_LOG_DEBUG("SelfResidualAdd calculation success");
     return atb::NO_ERROR;
 }
 
@@ -758,7 +757,7 @@ int64_t SetAllGather(atb::GraphParam &opGraph, const DecoderLayerParam &param,
     opGraph.nodes.push_back(allGatherNode);
     CHECK_OPERATION_STATUS_RETURN(common::AddDapEventsAfterComm(opGraph));
 
-    LOG_DEBUG_MODEL << "AllGather calculation success";
+    ATB_SPEED_LOG_DEBUG("AllGather calculation success");
     return atb::NO_ERROR;
 }
 
@@ -777,7 +776,7 @@ atb::Status SetAllGatherCCOverlap(atb::GraphParam &opGraph, const DecoderLayerPa
                 opGraph, atb_speed::EventAction::PUSH, atb_speed::common::COMP_CONTROL));
         }
     }
-    LOG_DEBUG_MODEL << "AllGather CCOverlap Event success";
+    ATB_SPEED_LOG_DEBUG("AllGather CCOverlap Event success");
     return atb::NO_ERROR;
 }
 
@@ -806,7 +805,7 @@ int64_t SetAttnUnpadding(atb::GraphParam &opGraph, const DecoderLayerParam &para
     };
     opGraph.nodes.push_back(unpadNode);
 
-    LOG_DEBUG_MODEL << "AllGather calculation success";
+    ATB_SPEED_LOG_DEBUG("AllGather calculation success");
     return atb::NO_ERROR;
 }
 
@@ -887,7 +886,7 @@ int64_t SetSelfNorm(atb::GraphParam &opGraph, const DecoderLayerParam &param,
         ObfuscationReshape(param, selfNormNode, 0);
     }
     opGraph.nodes.push_back(selfNormNode);
-    LOG_DEBUG_MODEL << "SelfNorm calculation success";
+    ATB_SPEED_LOG_DEBUG("SelfNorm calculation success");
     return atb::NO_ERROR;
 }
 
@@ -901,7 +900,7 @@ int64_t SetMlpOutUnpad(atb::GraphParam &opGraph, std::map<std::string, uint32_t>
     gatherNode.outTensorIds = atb_speed::common::GetTensorIdxList(
         tensorMap, {"intermediate_mlp_out_unpad"});
     opGraph.nodes.push_back(gatherNode);
-    LOG_DEBUG_MODEL << "Set mlpOutUnpad success";
+    ATB_SPEED_LOG_DEBUG("Set mlpOutUnpad success");
     return atb::NO_ERROR;
 }
 
@@ -915,7 +914,7 @@ int64_t SetAttnAddOutUnpad(atb::GraphParam &opGraph, std::map<std::string, uint3
     gatherNode.outTensorIds = atb_speed::common::GetTensorIdxList(
         tensorMap, {"intermediate_attn_add_out_unpad"});
     opGraph.nodes.push_back(gatherNode);
-    LOG_DEBUG_MODEL << "Set attnAddOutUnpad success";
+    ATB_SPEED_LOG_DEBUG("Set attnAddOutUnpad success");
     return atb::NO_ERROR;
 }
 
@@ -963,7 +962,7 @@ int64_t SetMlpExpert(atb::GraphParam &opGraph, const DecoderLayerParam &param,
         };
     }
     opGraph.nodes.push_back(mlpExpertNode);
-    LOG_DEBUG_MODEL << "mlp expert calculation success";
+    ATB_SPEED_LOG_DEBUG("mlp expert calculation success");
     return atb::NO_ERROR;
 }
 
@@ -1118,7 +1117,7 @@ int64_t SetMoe(atb::GraphParam &opGraph, const DecoderLayerParam &param, std::ma
         moeNode.outTensorIds.push_back(atb_speed::common::GetTensorIdx(tensorMap, {"out_topk_list"}));
     }
     opGraph.nodes.push_back(moeNode);
-    LOG_DEBUG_MODEL << "Moe sparse calculation success";
+    ATB_SPEED_LOG_DEBUG("Moe sparse calculation success");
     return atb::NO_ERROR;
 }
 
@@ -1186,7 +1185,7 @@ int64_t SetSharedExpert(atb::GraphParam &opGraph, const DecoderLayerParam &param
         atb::SetExecuteStreamId(sharedExpertNode.operation, STREAM1);
     }
     opGraph.nodes.push_back(sharedExpertNode);
-    LOG_DEBUG_MODEL << "Shared expert calculation success";
+    ATB_SPEED_LOG_DEBUG("Shared expert calculation success");
     return atb::NO_ERROR;
 }
 
@@ -1207,7 +1206,7 @@ int64_t AddExpertAdd(atb::GraphParam &opGraph, const DecoderLayerParam &param,
         expertAddNode.outTensorIds = atb_speed::common::GetTensorIdxList(tensorMap, {"intermediate_mlp_out"});
     }
     opGraph.nodes.push_back(expertAddNode);
-    LOG_DEBUG_MODEL << "create add operation";
+    ATB_SPEED_LOG_DEBUG("create add operation");
     return atb::NO_ERROR;
 }
 
@@ -1240,7 +1239,7 @@ int64_t SetAllReduce(atb::GraphParam &opGraph, const DecoderLayerParam &param,
 
     CreateOperation(allReduceParam, &moeAllReduceNode.operation);
     if (moeAllReduceNode.operation == nullptr) {
-        LOG_ERROR_MODEL << "moeAllReduceNode op is nullptr: ";
+        ATB_SPEED_LOG_ERROR("moeAllReduceNode op is nullptr: ");
     }
     moeAllReduceNode.inTensorIds = atb_speed::common::GetTensorIdxList(tensorMap,
         {"intermediate_moe_out_with_shared"});
@@ -1248,7 +1247,7 @@ int64_t SetAllReduce(atb::GraphParam &opGraph, const DecoderLayerParam &param,
     CHECK_OPERATION_STATUS_RETURN(common::AddDapEventsBeforeComm(opGraph));
     opGraph.nodes.push_back(moeAllReduceNode);
     CHECK_OPERATION_STATUS_RETURN(common::AddDapEventsAfterComm(opGraph));
-    LOG_DEBUG_MODEL << "create all reduce";
+    ATB_SPEED_LOG_DEBUG("create all reduce");
     return atb::NO_ERROR;
 }
 
@@ -1282,7 +1281,7 @@ atb::Status SetMlpResidualAdd(atb::GraphParam &opGraph, const DecoderLayerParam 
     mlpResidualAddNode.inTensorIds = atb_speed::common::GetTensorIdxList(tensorMap, mlpResidualAddInTensorNames);
     mlpResidualAddNode.outTensorIds = atb_speed::common::GetTensorIdxList(tensorMap, mlpResidualAddOutTensorNames);
     opGraph.nodes.push_back(mlpResidualAddNode);
-    LOG_DEBUG_MODEL << "create mlpResidualAdd";
+    ATB_SPEED_LOG_DEBUG("create mlpResidualAdd");
     return atb::NO_ERROR;
 }
 
@@ -1300,7 +1299,7 @@ int64_t SetFFNPadding(atb::GraphParam &opGraph, const DecoderLayerParam &param,
     padNode.outTensorIds = atb_speed::common::GetTensorIdxList(
         tensorMap, {"intermediate_moe_out_with_shared_with_padding"});
     opGraph.nodes.push_back(padNode);
-    LOG_DEBUG_MODEL << "create padNode";
+    ATB_SPEED_LOG_DEBUG("create padNode");
     return atb::NO_ERROR;
 }
 
@@ -1325,7 +1324,7 @@ int64_t SetMlpReduceScatter(atb::GraphParam &opGraph, const DecoderLayerParam &p
 
     CreateOperation(reduceScatterParam, &reduceScatterNode.operation);
     if (reduceScatterNode.operation == nullptr) {
-        LOG_ERROR_MODEL << "moeAllReduceNode op is nullptr: ";
+        ATB_SPEED_LOG_ERROR("moeAllReduceNode op is nullptr: ");
     }
     reduceScatterNode.inTensorIds = atb_speed::common::GetTensorIdxList(
         tensorMap, {param.hasDenseTp ?
@@ -1335,7 +1334,7 @@ int64_t SetMlpReduceScatter(atb::GraphParam &opGraph, const DecoderLayerParam &p
     CHECK_OPERATION_STATUS_RETURN(common::AddDapEventsBeforeComm(opGraph));
     opGraph.nodes.push_back(reduceScatterNode);
     CHECK_OPERATION_STATUS_RETURN(common::AddDapEventsAfterComm(opGraph));
-    LOG_DEBUG_MODEL << "create all reduce";
+    ATB_SPEED_LOG_DEBUG("create all reduce");
     return atb::NO_ERROR;
 }
 
@@ -1350,7 +1349,7 @@ int64_t SetMlpReduceScatterNanToNum(atb::GraphParam &opGraph,
     nanToNumNode.inTensorIds = {atb_speed::common::GetTensorIdx(tensorMap, "intermediate_mlp_out")};
     nanToNumNode.outTensorIds = {atb_speed::common::GetTensorIdx(tensorMap, "intermediate_mlp_out")};
     opGraph.nodes.push_back(nanToNumNode);
-    LOG_DEBUG_MODEL << "create nan to num";
+    ATB_SPEED_LOG_DEBUG("create nan to num");
     return atb::NO_ERROR;
 }
 
@@ -1375,7 +1374,7 @@ int64_t SetMlpResidualAddNanToNum(atb::GraphParam &opGraph, const DecoderLayerPa
     nanToNumNode.inTensorIds = atb_speed::common::GetTensorIdxList(tensorMap, mlpResidualAddOutTensorNames);
     nanToNumNode.outTensorIds = atb_speed::common::GetTensorIdxList(tensorMap, mlpResidualAddOutTensorNames);
     opGraph.nodes.push_back(nanToNumNode);
-    LOG_DEBUG_MODEL << "create nan to num";
+    ATB_SPEED_LOG_DEBUG("create nan to num");
     return atb::NO_ERROR;
 }
 
@@ -1482,10 +1481,10 @@ atb::Status CalculateDataPartition(DecoderLayerParam &param)
     }
     // Lmhead
     param.lmheadStreamNum = 1; // Lmhead DP使用
-    LOG_DEBUG_MODEL << "CalculateDataPartition done"
+    ATB_SPEED_LOG_DEBUG("CalculateDataPartition done"
         << ". Attention Stream Num is " << param.attnStreamNum
         << " . FFN Stream Num is " << param.ffnStreamNum
-        << " . lmheadStreamNum Stream Num is " << param.lmheadStreamNum;
+        << " . lmheadStreamNum Stream Num is " << param.lmheadStreamNum);
     return atb::NO_ERROR;
 }
 
@@ -1517,12 +1516,12 @@ atb::Status CalculateCommType(DecoderLayerParam &param)
 
     param.hasAttnComm = param.attnReduceScatter || param.attnAllGather;
     param.hasFfnComm = param.ffnReduceScatter || param.ffnAllGather;
-    LOG_DEBUG_MODEL << "CalculateCommType done"
+    ATB_SPEED_LOG_DEBUG("CalculateCommType done"
         << ". outStreamNum is " << outStreamNum
         << ". attnAllreduce is " << param.attnAllreduce << " . attnReduceScatter is " << param.attnReduceScatter
         << " . attnAllGather is " << param.attnAllGather
         << " . ffnAllreduce is " << param.ffnAllreduce << " . ffnReduceScatter is " << param.ffnReduceScatter
-        << " . ffnAllGather is " << param.ffnAllGather;
+        << " . ffnAllGather is " << param.ffnAllGather);
     return atb::NO_ERROR;
 }
 
@@ -1538,7 +1537,7 @@ atb::Status CreateNewStreamRecordWithoutNodeId(atb::GraphParam &opGraph, atb_spe
         cvKey));
     atb::SetExecuteStreamId(recordNode.operation, STREAM1);
     opGraph.nodes.push_back(recordNode);
-    LOG_DEBUG_MODEL << "Record event success";
+    ATB_SPEED_LOG_DEBUG("Record event success");
     return atb::NO_ERROR;
 }
 
@@ -1554,7 +1553,7 @@ atb::Status CreateNewStreamWaitWithoutNodeId(atb::GraphParam &opGraph, atb_speed
         cvKey));
     atb::SetExecuteStreamId(waitNode.operation, STREAM1);
     opGraph.nodes.push_back(waitNode);
-    LOG_DEBUG_MODEL << "Wait event success";
+    ATB_SPEED_LOG_DEBUG("Wait event success");
     return atb::NO_ERROR;
 }
 
@@ -1589,7 +1588,7 @@ atb::Status SetCast(atb::GraphParam &opGraph, const DecoderLayerParam &param,
             "intermediate_selfattention_norm_out" : "intermediate_selfattention_norm_out_partial")};
 
     opGraph.nodes.push_back(castNode);
-    LOG_DEBUG_MODEL << "Cast calculation success";
+    ATB_SPEED_LOG_DEBUG("Cast calculation success");
     return atb::NO_ERROR;
 }
 
@@ -1646,7 +1645,7 @@ atb::Status SetGatherPreNorm(atb::GraphParam &opGraph, const DecoderLayerParam &
     ObfuscationReshape(param, gatherNormNode, obfuscationIdx);
 
     opGraph.nodes.push_back(gatherNormNode);
-    LOG_DEBUG_MODEL << "SelfNorm calculation success";
+    ATB_SPEED_LOG_DEBUG("SelfNorm calculation success");
 
     return atb::NO_ERROR;
 }
@@ -1690,7 +1689,7 @@ atb::Status SetPreNorm(atb::GraphParam &opGraph, const DecoderLayerParam &param,
     preNormNode.outTensorIds = atb_speed::common::GetTensorIdxList(tensorMap, outTensorNames);
     ObfuscationReshape(param, preNormNode, 1); // 1: pmcc tensor idx
     opGraph.nodes.push_back(preNormNode);
-    LOG_DEBUG_MODEL << "SelfNorm calculation success";
+    ATB_SPEED_LOG_DEBUG("SelfNorm calculation success");
 
     return atb::NO_ERROR;
 }
@@ -1869,10 +1868,10 @@ atb::Status SetPostMoeProcess(std::map<std::string, uint32_t> &tensorMap,
             CHECK_OPERATION_STATUS_RETURN(AddExpertAdd(opGraph, param, tensorMap));
         }
     }
-    LOG_DEBUG_MODEL << "enableMlaPrefetch: " << param.enableMlaPrefetch;
+    ATB_SPEED_LOG_DEBUG("enableMlaPrefetch: " << param.enableMlaPrefetch);
     if (param.enableMlaPrefetch) {
         CHECK_OPERATION_STATUS_RETURN(SetMlaPrefetch(opGraph, tensorMap));
-        LOG_DEBUG_MODEL << "set mla prefetch success";
+        ATB_SPEED_LOG_DEBUG("set mla prefetch success");
     }
     CHECK_OPERATION_STATUS_RETURN(SetMlpResidualAdd(opGraph, param, tensorMap));
     if (param.enableInfNan) {
@@ -1905,9 +1904,9 @@ atb::Status DecoderLayer(DecoderLayerParam &param, atb::Operation **operation)
     param.enableQkvdownDp = param.enableQkvdownDp && param.ffnAllGather;
     std::map<std::string, uint32_t> tensorMap = ConstructTensorMap(
         param, opGraph.inTensorNum, opGraph.outTensorNum, opGraph.internalTensorNum);
-    LOG_DEBUG_MODEL << "layer graph inTensorNum: " << opGraph.inTensorNum;
-    LOG_DEBUG_MODEL << "layer graph outTensorNum: " << opGraph.outTensorNum;
-    LOG_DEBUG_MODEL << "layer graph internalTensorNum: " << opGraph.internalTensorNum;
+    ATB_SPEED_LOG_DEBUG("layer graph inTensorNum: " << opGraph.inTensorNum);
+    ATB_SPEED_LOG_DEBUG("layer graph outTensorNum: " << opGraph.outTensorNum);
+    ATB_SPEED_LOG_DEBUG("layer graph internalTensorNum: " << opGraph.internalTensorNum);
     CHECK_OPERATION_STATUS_RETURN(SetAttention(opGraph, param, tensorMap));
     CHECK_OPERATION_STATUS_RETURN(SetPostAttnProcess(tensorMap, param, opGraph));
     CHECK_OPERATION_STATUS_RETURN(SetFFN(tensorMap, param, opGraph));

@@ -9,7 +9,6 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include "attn_operation.h"
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -20,8 +19,9 @@
 #include "acl/acl.h"
 #include "aclnnop/aclnn_fused_infer_attention_score_v2.h"
 #include "atb/types.h"
-#include "system_log.h"
+#include "atb_speed/log.h"
 #include "operations/aclnn/utils/utils.h"
+#include "attn_operation.h"
 
 namespace atb_speed {
 namespace common {
@@ -41,7 +41,7 @@ AttnOperation::~AttnOperation()
 atb::Status AttnOperation::InferShape(const atb::SVector<atb::TensorDesc> &inTensorDescs,
                                       atb::SVector<atb::TensorDesc> &outTensorDescs) const
 {
-    LOG_DEBUG_MODEL << opName_ << " infer shape start";
+    ATB_SPEED_LOG_DEBUG(opName_ << " infer shape start");
     // FA和 [B,S,H], PA [B,S,N,D]
     outTensorDescs.at(0) = inTensorDescs.at(0);
     if (!param_.isFA) {
@@ -51,7 +51,7 @@ atb::Status AttnOperation::InferShape(const atb::SVector<atb::TensorDesc> &inTen
         outTensorDescs.at(0).shape.dims[DIM3] = inTensorDescs.at(DIM0).shape.dims[DIM3]; // D
         outTensorDescs.at(0).shape.dimNum = inTensorDescs.at(0).shape.dimNum;
     }
-    LOG_DEBUG_MODEL << opName_ << " infer shape end";
+    ATB_SPEED_LOG_DEBUG(opName_ << " infer shape end");
     return 0;
 }
 
@@ -146,7 +146,7 @@ atb::Status AttnOperation::CreateAclNNOutTensorVariantPack(const atb::VariantPac
 
 int AttnOperation::SetAclNNWorkspaceExecutor()
 {
-    LOG_DEBUG_MODEL << opName_ << " aclnnAttnGetWorkspaceSize start";
+    ATB_SPEED_LOG_DEBUG(opName_ << " aclnnAttnGetWorkspaceSize start");
     char inputLayoutFA[5] = "BSH";
     char inputLayoutPA[5] = "BSND";
     double scaleValue = 1 / sqrt(param_.headDim);
@@ -181,9 +181,9 @@ int AttnOperation::SetAclNNWorkspaceExecutor()
         param_.isFA ? 0 : param_.blockSize, 0, false, 0, 0,
         task.aclOutTensors.at(0)->tensor,      // 0: out tensor
         nullptr, &this->aclnnOpCache_->workspaceSize, &this->aclnnOpCache_->aclExecutor);
-    LOG_DEBUG_MODEL << opName_ << " aclnnAttnGetWorkspaceSize end, ret:" << ret <<
+    ATB_SPEED_LOG_DEBUG(opName_ << " aclnnAttnGetWorkspaceSize end, ret:" << ret <<
                         ", workspaceSize:" << this->aclnnOpCache_->workspaceSize <<
-                        ", aclExecutor:" << this->aclnnOpCache_->aclExecutor;
+                        ", aclExecutor:" << this->aclnnOpCache_->aclExecutor);
     return ret;
 }
 

@@ -9,12 +9,11 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include "models/deepseekv2/operation/ring_attention.h"
 #include <securec.h>
 #include "operations/fusion/utils.h"
 #include "operations/fusion/parallel_info.h"
 #include "operations/aclnn/ops/attn_operation.h"
-#include "system_log.h"
+#include "models/deepseekv2/operation/ring_attention.h"
 
 namespace atb_speed {
 namespace common {
@@ -103,7 +102,7 @@ atb::Status AddSelfAttnPrefixNode(
         newShape.dims[2] = param.qkNopeHeadDim; // 2: dim id
     };
     opGraph.nodes.push_back(selfAttentionPrefixNode);
-    LOG_DEBUG_MODEL << "MLA SelfAttnPrefixNode calculation success";
+    ATB_SPEED_LOG_DEBUG("MLA SelfAttnPrefixNode calculation success");
     return atb::NO_ERROR;
 }
 
@@ -146,7 +145,7 @@ atb::Status AddPaEncoderLBNode(
 
     CHECK_OPERATION_STATUS_RETURN(AddSelfAttnNode(param, opGraph, tensorMap, qIdx, kvIdx));
 
-    LOG_DEBUG_MODEL << "PA encoder calculation success";
+    ATB_SPEED_LOG_DEBUG("PA encoder calculation success");
     return atb::NO_ERROR;
 }
 
@@ -170,7 +169,7 @@ atb::Status AddPaEncoderLBPrefixNode(
 
     CHECK_OPERATION_STATUS_RETURN(AddSelfAttnPrefixNode(param, opGraph, tensorMap, isQFirst));
 
-    LOG_DEBUG_MODEL << "PA history encoder calculation success";
+    ATB_SPEED_LOG_DEBUG("PA history encoder calculation success");
     return atb::NO_ERROR;
 }
 
@@ -192,7 +191,7 @@ atb::Status AddQGatherNode(atb::GraphParam &opGraph, std::map<std::string, uint3
         atb_speed::common::GetTensorIdxList(tensorMap, {"intermediate_q", "in_cp_load_balance_idx_last"});
     gatherQLastNode.outTensorIds = atb_speed::common::GetTensorIdxList(tensorMap, {"intermediate_q_last"});
     opGraph.nodes.push_back(gatherQLastNode);
-    LOG_DEBUG_MODEL << "MLA gather_q calculation success";
+    ATB_SPEED_LOG_DEBUG("MLA gather_q calculation success");
 
     return atb::NO_ERROR;
 }
@@ -277,7 +276,7 @@ atb::Status AddKVGatherNode(atb::GraphParam &opGraph, std::map<std::string, uint
         newShape.dims[2] = oldShape.dims[3]; // 2, 3: dim id
     };
     opGraph.nodes.push_back(gatherVNode);
-    LOG_DEBUG_MODEL << "MLA gather_kv calculation success";
+    ATB_SPEED_LOG_DEBUG("MLA gather_kv calculation success");
 
     return atb::NO_ERROR;
 }

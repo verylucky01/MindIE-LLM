@@ -9,9 +9,9 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include "w8a16_operation.h"
-#include "system_log.h"
+#include "atb_speed/log.h"
 #include "operations/aclnn/utils/utils.h"
+#include "w8a16_operation.h"
 
 namespace atb_speed {
 namespace common {
@@ -22,7 +22,7 @@ W8A16Operation::W8A16Operation(
 
 atb::Tensor W8A16Operation::PreprocessATBInTensor(atb::Tensor atbTensor, int index)
 {
-    LOG_DEBUG_MODEL << "W8A16 preprocess ATB in tensor " << index;
+    ATB_SPEED_LOG_DEBUG("W8A16 preprocess ATB in tensor " << index);
     atb::Tensor squeezedATBTensor = SqueezeBatchSeq(atbTensor);
     return squeezedATBTensor;
 }

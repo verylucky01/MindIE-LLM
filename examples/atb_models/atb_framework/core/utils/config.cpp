@@ -14,7 +14,7 @@
 #include <iostream>
 #include <thread>
 #include <atb_speed/utils/str_split.h>
-#include "system_log.h"
+#include "atb_speed/log.h"
 
 namespace atb_speed {
 Config::Config()
@@ -23,9 +23,9 @@ Config::Config()
     isTorchTensorFormatCast_ = true;
     isUseTilingCopyStream_ = IsEnable("ATB_USE_TILING_COPY_STREAM");
     isLayerInternalTensorReuse_ = true;
-    LOG_DEBUG_MODEL << " \nIsConvertNCHWToND:" << isConvertNCHWToND_
+    ATB_SPEED_LOG_DEBUG(" \nIsConvertNCHWToND:" << isConvertNCHWToND_
                    << "\nIsTorchTensorFormatCast:" << isTorchTensorFormatCast_
-                   << "\nIsLayerInternalTensorReuse:" << isLayerInternalTensorReuse_;
+                   << "\nIsLayerInternalTensorReuse:" << isLayerInternalTensorReuse_);
 }
 
 Config::~Config() {}

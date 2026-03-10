@@ -13,7 +13,7 @@
 #include "operations/aclnn/utils/utils.h"
 #include "acl/acl.h"
 #include "aclnnop/aclnn_minimum.h"
-#include "system_log.h"
+#include "atb_speed/log.h"
 
 namespace atb_speed {
 namespace common {
@@ -22,7 +22,7 @@ MinimumOperation::MinimumOperation(const std::string &name) : AclNNOperation(nam
 
 MinimumOperation::~MinimumOperation()
 {
-    LOG_DEBUG_MODEL << "MinimumOperation deconstruct";
+    ATB_SPEED_LOG_DEBUG("MinimumOperation deconstruct");
     this->DestroyOperation();
 }
 
@@ -34,14 +34,14 @@ atb::Status MinimumOperation::InferShape(
     const atb::SVector<atb::TensorDesc> &inTensorDesc,
     atb::SVector<atb::TensorDesc> &outTensorDesc) const
 {
-    LOG_DEBUG_MODEL << opName_ << " MinimumOperation infer shape start";
+    ATB_SPEED_LOG_DEBUG(opName_ << " MinimumOperation infer shape start");
     outTensorDesc.at(0).format = inTensorDesc.at(0).format;
     outTensorDesc.at(0).dtype = inTensorDesc.at(0).dtype;
     outTensorDesc.at(0).shape.dimNum = inTensorDesc.at(0).shape.dimNum;
     for (uint64_t i = 0; i < inTensorDesc.at(0).shape.dimNum; ++i) {
         outTensorDesc.at(0).shape.dims[i] = inTensorDesc.at(0).shape.dims[i];
     }
-    LOG_DEBUG_MODEL << opName_ << "MinimumOperation InferShape end";
+    ATB_SPEED_LOG_DEBUG(opName_ << "MinimumOperation InferShape end");
 
     return atb::NO_ERROR;
 }
@@ -52,12 +52,13 @@ atb::Status MinimumOperation::CreateAclNNInTensorVariantPack(const atb::VariantP
     aclnnVariantPack.aclInTensors.resize(GetInputNum());
     for (size_t i = 0; i < aclnnVariantPack.aclInTensors.size(); ++i) {
         if (CreateTensor(variantPack.inTensors.at(i), i, aclnnVariantPack.aclInTensors[i]) != atb::NO_ERROR) {
-            LOG_ERROR_MODEL << this->opName_ << " InTensor aclCreateTensor index " << i << " fail";
+            ATB_SPEED_LOG_ERROR(this->opName_ << " InTensor aclCreateTensor index " << i << " fail");
             return atb::ERROR_INTERNAL_ERROR;
         }
     }
     return atb::NO_ERROR;
 }
+
 
 atb::Status MinimumOperation::CreateAclNNOutTensorVariantPack(const atb::VariantPack &variantPack)
 {
@@ -65,7 +66,7 @@ atb::Status MinimumOperation::CreateAclNNOutTensorVariantPack(const atb::Variant
     aclnnVariantPack.aclOutTensors.resize(GetOutputNum());
     for (size_t i = 0; i < aclnnVariantPack.aclOutTensors.size(); ++i) {
         if (CreateTensor(variantPack.outTensors.at(i), i, aclnnVariantPack.aclOutTensors[i]) != atb::NO_ERROR) {
-            LOG_ERROR_MODEL << this->opName_ << " outTensor aclCreateTensor index " << i << " fail";
+            ATB_SPEED_LOG_ERROR(this->opName_ << " outTensor aclCreateTensor index " << i << " fail");
             return atb::ERROR_INTERNAL_ERROR;
         }
     }
@@ -74,7 +75,7 @@ atb::Status MinimumOperation::CreateAclNNOutTensorVariantPack(const atb::Variant
 
 int MinimumOperation::SetAclNNWorkspaceExecutor()
 {
-    LOG_DEBUG_MODEL << opName_ << " SetAclNNWorkspaceExecutor start";
+    ATB_SPEED_LOG_DEBUG(opName_ << " SetAclNNWorkspaceExecutor start");
     AclNNVariantPack &aclnnVariantPack = this->aclnnOpCache_->aclnnVariantPack;
     int ret = aclnnMinimumGetWorkspaceSize(
         aclnnVariantPack.aclInTensors.at(0)->tensor,  // self
@@ -82,18 +83,20 @@ int MinimumOperation::SetAclNNWorkspaceExecutor()
         aclnnVariantPack.aclOutTensors.at(0)->tensor,  // out
         &this->aclnnOpCache_->workspaceSize,
         &this->aclnnOpCache_->aclExecutor);
-    LOG_DEBUG_MODEL << opName_ << " SetAclNNWorkspaceExecutor end"
+    ATB_SPEED_LOG_DEBUG(
+        opName_ << " SetAclNNWorkspaceExecutor end"
                 << ", ret: " << ret
                 << ", workspaceSize: " << this->aclnnOpCache_->workspaceSize
-                << ", aclExecutor: " << this->aclnnOpCache_->aclExecutor;
+                << ", aclExecutor: " << this->aclnnOpCache_->aclExecutor
+    );
     return ret;
 }
 
 int MinimumOperation::ExecuteAclNNOp(uint8_t *workspace, aclrtStream &stream)
 {
-    LOG_DEBUG_MODEL << opName_ << " ExecuteAclNNOp start";
+    ATB_SPEED_LOG_DEBUG(opName_ << " ExecuteAclNNOp start");
     int ret = aclnnMinimum(workspace, this->aclnnOpCache_->workspaceSize, this->aclnnOpCache_->aclExecutor, stream);
-    LOG_DEBUG_MODEL << opName_ << " ExecuteAclNNOp end, ret:" << ret;
+    ATB_SPEED_LOG_DEBUG(opName_ << " ExecuteAclNNOp end, ret:" << ret);
     return ret;
 }
 } // namespace common

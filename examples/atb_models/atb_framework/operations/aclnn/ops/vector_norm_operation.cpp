@@ -9,11 +9,12 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include "vector_norm_operation.h"
 #include "operations/aclnn/utils/utils.h"
 #include "acl/acl.h"
-#include "system_log.h"
+#include "atb_speed/log.h"
 #include "aclnnop/aclnn_linalg_vector_norm.h"
+#include "vector_norm_operation.h"
+
 
 namespace atb_speed::common {
 
@@ -28,7 +29,7 @@ namespace atb_speed::common {
 
     VectorNormOperation::~VectorNormOperation()
     {
-        LOG_DEBUG_MODEL << "VectorNormOperation deconstruct";
+        ATB_SPEED_LOG_DEBUG("VectorNormOperation deconstruct");
         if (dims != nullptr) {
             aclDestroyIntArray(dims);
         }
@@ -50,30 +51,30 @@ namespace atb_speed::common {
         atb::SVector<atb::TensorDesc> &outTensorDesc
     ) const
     {
-        LOG_DEBUG_MODEL << opName_ << " InferShape start";
+        ATB_SPEED_LOG_DEBUG(opName_ << " InferShape start");
         outTensorDesc.at(0).format = inTensorDesc.at(0).format;
         outTensorDesc.at(0).dtype = inTensorDesc.at(0).dtype;
         outTensorDesc.at(0).shape.dimNum = inTensorDesc.at(0).shape.dimNum;
 
         if (inTensorDesc.at(0).shape.dimNum == DIM3) {
-            LOG_DEBUG_MODEL << "[input0 dimNum = 3] CHECK " << opName_ << " input shape: [input0] "
+            ATB_SPEED_LOG_DEBUG("[input0 dimNum = 3] CHECK " << opName_ << " input shape: [input0] "
                           << inTensorDesc.at(0).shape.dims[DIM0] << ", "
                           << inTensorDesc.at(0).shape.dims[DIM1] << ", "
-                          << inTensorDesc.at(0).shape.dims[DIM2];
+                          << inTensorDesc.at(0).shape.dims[DIM2]);
             outTensorDesc.at(0).shape.dims[DIM0] = inTensorDesc.at(0).shape.dims[DIM0];
             outTensorDesc.at(0).shape.dims[DIM1] = inTensorDesc.at(0).shape.dims[DIM1];
             outTensorDesc.at(0).shape.dims[DIM2] = inTensorDesc.at(0).shape.dims[DIM2];
         } else if (inTensorDesc.at(0).shape.dimNum == DIM2) {
-            LOG_DEBUG_MODEL << "[input0 dimNum = 2] CHECK " << opName_ << " input shape: [input0] "
+            ATB_SPEED_LOG_DEBUG("[input0 dimNum = 2] CHECK " << opName_ << " input shape: [input0] "
                           << inTensorDesc.at(0).shape.dims[DIM0] << ", "
-                          << inTensorDesc.at(0).shape.dims[DIM1];
+                          << inTensorDesc.at(0).shape.dims[DIM1]);
             outTensorDesc.at(0).shape.dims[DIM0] = inTensorDesc.at(0).shape.dims[DIM0];
             outTensorDesc.at(0).shape.dims[DIM1] = 1;
         }  else {
-            LOG_ERROR_MODEL << opName_ << " invalid dimNum = " << inTensorDesc.at(0).shape.dimNum;
+            ATB_SPEED_LOG_ERROR(opName_ << " invalid dimNum = " << inTensorDesc.at(0).shape.dimNum);
         }
 
-        LOG_DEBUG_MODEL << opName_ << " InferShape end";
+        ATB_SPEED_LOG_DEBUG(opName_ << " InferShape end");
         return atb::NO_ERROR;
     }
 
@@ -95,10 +96,10 @@ namespace atb_speed::common {
             atb::Tensor (*ReshapeTensorDecsFuncPtr)(atb::Tensor) = &SqueezeBatchSeq;
             if (CreateTensor(variantPack.inTensors.at(i), i, aclnnVariantPack.aclInTensors[i],
                              ReshapeTensorDecsFuncPtr) != atb::NO_ERROR) {
-                LOG_ERROR_MODEL << this->opName_ << " InTensor aclCreateTensor index " << i << " fail";
+                ATB_SPEED_LOG_ERROR(this->opName_ << " InTensor aclCreateTensor index " << i << " fail");
                 return atb::ERROR_INTERNAL_ERROR;
             }
-            LOG_DEBUG_MODEL << opName_ << " aclnnTensor = " << aclnnVariantPack.aclInTensors[i];
+            ATB_SPEED_LOG_DEBUG(opName_ << " aclnnTensor = " << aclnnVariantPack.aclInTensors[i]);
         }
         return atb::NO_ERROR;
     }
@@ -111,7 +112,7 @@ namespace atb_speed::common {
             atb::Tensor (*ReshapeTensorDecsFuncPtr)(atb::Tensor) = &SqueezeBatchSeq;
             if (CreateTensor(variantPack.outTensors.at(i), i, aclnnVariantPack.aclOutTensors[i],
                              ReshapeTensorDecsFuncPtr) != atb::NO_ERROR) {
-                LOG_ERROR_MODEL << this->opName_ << " OutTensor aclCreateTensor index " << i << " fail";
+                ATB_SPEED_LOG_ERROR(this->opName_ << " OutTensor aclCreateTensor index " << i << " fail");
                 return atb::ERROR_INTERNAL_ERROR;
             }
         }
@@ -120,7 +121,7 @@ namespace atb_speed::common {
 
     int VectorNormOperation::SetAclNNWorkspaceExecutor()
     {
-        LOG_DEBUG_MODEL << opName_ << " SetAclNNWorkspaceExecutor start";
+        ATB_SPEED_LOG_DEBUG(opName_ << " SetAclNNWorkspaceExecutor start");
         AclNNVariantPack &aclnnVariantPack = this->aclnnOpCache_->aclnnVariantPack;
         float ord = 1.0;
         param_.ord = aclCreateScalar(&ord, aclDataType::ACL_FLOAT);
@@ -138,23 +139,23 @@ namespace atb_speed::common {
             aclnnVariantPack.aclOutTensors.at(0)->tensor,
             &this->aclnnOpCache_->workspaceSize,
             &this->aclnnOpCache_->aclExecutor);
-        LOG_DEBUG_MODEL << opName_ << " SetAclNNWorkspaceExecutor end"
+        ATB_SPEED_LOG_DEBUG(opName_ << " SetAclNNWorkspaceExecutor end"
                       << ", ret: " << ret
                       << ", workspaceSize: " << this->aclnnOpCache_->workspaceSize
-                      << ", aclExecutor: " << this->aclnnOpCache_->aclExecutor;
+                      << ", aclExecutor: " << this->aclnnOpCache_->aclExecutor);
         return ret;
     }
 
     int VectorNormOperation::ExecuteAclNNOp(uint8_t *workspace, aclrtStream &stream)
     {
-        LOG_DEBUG_MODEL << opName_ << " ExecuteAclNNOp start";
+        ATB_SPEED_LOG_DEBUG(opName_ << " ExecuteAclNNOp start");
         int ret = aclnnLinalgVectorNorm(
             workspace,
             this->aclnnOpCache_->workspaceSize,
             this->aclnnOpCache_->aclExecutor,
             stream);
-        LOG_DEBUG_MODEL << opName_ << " ExecuteAclNNOp end"
-                      << ", ret: " << ret;
+        ATB_SPEED_LOG_DEBUG(opName_ << " ExecuteAclNNOp end"
+                      << ", ret: " << ret);
         return ret;
     }
 

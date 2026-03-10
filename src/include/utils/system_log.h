@@ -108,7 +108,6 @@ public:
     bool IsPrintLog(LogComponent comp, LogSeverity level);
     void Push(LogComponent comp, LogType type, std::string&& formattedLog);
     ComponentConfig& GetComponentConfig(LogComponent comp);
-    void RestartAfterFork();
 
 public:
     template<class T, class Parser, class Setter>
@@ -147,7 +146,6 @@ private:
     ~LogManager();
 
     void Init();
-    void StartAsyncThread();
     void LoadComponentConfigs();
     bool IsAnyComponentToFile() const;
     void GetLogRotate();

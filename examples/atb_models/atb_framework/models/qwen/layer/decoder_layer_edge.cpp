@@ -16,8 +16,7 @@
 #include "operations/fusion/linear/linear_parallel.h"
 #include "operations/fusion/mlp/mlp.h"
 #include "operations/fusion/norm/norm_linear.h"
-#include "system_log.h"
-
+ 
 namespace atb_speed {
 namespace qwen {
 
@@ -283,9 +282,9 @@ atb::Status DecoderLayer(const DecoderLayerParam &param, atb::Operation **operat
     opGraph.name = param.isPrefill ? "Prefill_layer" : "Decoder_layer";
     std::map<std::string, uint32_t> tensorMap =
         ConstructTensorMap(param, opGraph.inTensorNum, opGraph.outTensorNum, opGraph.internalTensorNum);
-    LOG_DEBUG_MODEL << "layer graph inTensorNum " << opGraph.inTensorNum;
-    LOG_DEBUG_MODEL << "layer graph outTensorNum " << opGraph.outTensorNum;
-    LOG_DEBUG_MODEL << "layer graph internalTensorNum " << opGraph.internalTensorNum;
+    ATB_SPEED_LOG_DEBUG("layer graph inTensorNum " << opGraph.inTensorNum);
+    ATB_SPEED_LOG_DEBUG("layer graph outTensorNum " << opGraph.outTensorNum);
+    ATB_SPEED_LOG_DEBUG("layer graph internalTensorNum " << opGraph.internalTensorNum);
 
     atb::Node attentionNode;
     atb::Node selfResidualAddNode;

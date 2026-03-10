@@ -19,7 +19,7 @@
 #include <unordered_map>
 
 #include "atb/operation.h"
-#include "system_log.h"
+#include "atb_speed/log.h"
 #include "nlohmann/json.hpp"
 
 
@@ -39,9 +39,9 @@ private:
         struct Register##_##nameSpace##_##operationCreateFunc {                                              \
             inline Register##_##nameSpace##_##operationCreateFunc()                                          \
             {                                                                                                \
-                LOG_DEBUG_MODEL << "register operation " << #nameSpace << "_" << #operationCreateFunc;        \
+                ATB_SPEED_LOG_DEBUG("register operation " << #nameSpace << "_" << #operationCreateFunc;        \
                 OperationFactory::Register(OPERATION_NAMESPACE_STRINGIFY(nameSpace##_##operationCreateFunc), \
-                    &(operationCreateFunc));                                                                 \
+                    &(operationCreateFunc)));                                                                 \
             }                                                                                                \
         } static instance_##nameSpace##operationCreateFunc
 } // namespace atb_speed

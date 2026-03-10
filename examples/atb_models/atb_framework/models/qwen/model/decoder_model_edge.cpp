@@ -15,7 +15,7 @@
 #include "nlohmann/json.hpp"
 #include "vector"
 
-#include "system_log.h"
+#include "atb_speed/log.h"
 #include "models/qwen/layer/decoder_layer_edge.h"
 #include "operations/fusion/embedding/positional_embedding.h"
 #include "operations/fusion/embedding/word_embedding.h"
@@ -86,7 +86,7 @@ void DecoderModelEdge::Param::AddParamJson(const std::string &param)
     } catch (const std::exception &e) {
         std::stringstream ss;
         ss << "parse param fail, please check param's format, error: " << e.what() << std::endl;
-        LOG_ERROR_MODEL << ss.str();
+        ATB_SPEED_LOG_ERROR(ss.str());
         throw std::runtime_error(ss.str());
     }
     if (paramJson.contains("quantGroupSize")) {
@@ -117,14 +117,14 @@ void DecoderModelEdge::Param::FromString(const std::string &param)
     } catch (const std::exception &e) {
         std::stringstream ss;
         ss << "parse param fail, please check param's format, error: " << e.what() << std::endl;
-        LOG_ERROR_MODEL << ss.str();
+        ATB_SPEED_LOG_ERROR(ss.str());
         throw std::runtime_error(ss.str());
     }
     ParseBasicParams(paramJson);
     if (rank >= worldSize) {
         std::stringstream ss;
         ss << "worldSize must be greater than rank, please check." << std::endl;
-        LOG_ERROR_MODEL << ss.str();
+        ATB_SPEED_LOG_ERROR(ss.str());
         throw std::runtime_error(ss.str());
     }
     backend = paramJson["backend"].get<std::string>();
@@ -134,7 +134,7 @@ void DecoderModelEdge::Param::FromString(const std::string &param)
 
 void DecoderModelEdge::Param::PrintParam()
 {
-    LOG_DEBUG_MODEL << "DecoderModel param"
+    ATB_SPEED_LOG_DEBUG("DecoderModel param"
                         << ", isFA:" << isFA << ", isPrefill:" << isPrefill << ", isBF16:" << isBF16
                         << ", withEmbedding: " << withEmbedding << ", isEmbeddingParallel: " << isEmbeddingParallel
                         << ", isLmHeadParallel: " << isLmHeadParallel << ", supportSwiGLU: " << supportSwiGLU
@@ -143,7 +143,7 @@ void DecoderModelEdge::Param::PrintParam()
                         << ", numHiddenLayers:" << numHiddenLayers
                         << ", numKeyValueHeadsPerRank:" << numKeyValueHeadsPerRank << ", supportLcoc:" << supportLcoc
                         << ", rank:" << rank << ", worldSize:" << worldSize << ", backend:" << backend
-                        << ", kvQuant: " << kvQuant  << ", enableAddNorm:" << enableAddNorm;
+                        << ", kvQuant: " << kvQuant  << ", enableAddNorm:" << enableAddNorm);
 }
 
 DecoderModelEdge::DecoderModelEdge(const std::string &param) : Model("DecoderModel", param)
@@ -181,7 +181,7 @@ void DecoderModelEdge::ConstructInTensorMap()
     for (auto tensor = this->inTensorMap_.cbegin(); tensor != this->inTensorMap_.cend(); ++tensor) {
         ss << "tensor name: " << tensor->first << ", tensor id: " << tensor->second << std::endl;
     }
-    LOG_DEBUG_MODEL << "tensor map" << ss.str();
+    ATB_SPEED_LOG_DEBUG("tensor map" << ss.str());
 }
 
 std::map<std::string, std::vector<std::string>> GetQwenModelInternalTensorCandidates()
@@ -209,7 +209,7 @@ void DecoderModelEdge::ConstructInternalTensorMap()
     for (auto tensor = this->internalTensorMap_.cbegin(); tensor != this->internalTensorMap_.cend(); ++tensor) {
         ss << "tensor name: " << tensor->first << ", tensor id: " << tensor->second << std::endl;
     }
-    LOG_DEBUG_MODEL << "inteltensor map" << ss.str();
+    ATB_SPEED_LOG_DEBUG("inteltensor map" << ss.str());
 }
 
 std::map<std::string, std::vector<std::string>> GetQwenModelOutTensorCandidates()
@@ -238,7 +238,7 @@ void DecoderModelEdge::ConstructOutTensorMap()
     for (auto tensor = this->outTensorMap_.cbegin(); tensor != this->outTensorMap_.cend(); ++tensor) {
         ss << "tensor name: " << tensor->first << ", tensor id: " << tensor->second << std::endl;
     }
-    LOG_DEBUG_MODEL << "OUTtensor map" << ss.str();
+    ATB_SPEED_LOG_DEBUG("OUTtensor map" << ss.str());
 }
 
 uint32_t DecoderModelEdge::GetInputNum() const { return graph_.inTensors.size(); }
@@ -319,7 +319,7 @@ int64_t DecoderModelEdge::AddWordEmbedding()
             &graph_.inTensors.at(atb_speed::common::GetTensorIdx(this->inTensorMap_, "input_ids_or_embedding"))};
         wordEmbeddingNode.outTensors = {
             &graph_.internalTensors.at(atb_speed::common::GetTensorIdx(this->internalTensorMap_, "hidden_states"))};
-        LOG_DEBUG_MODEL << "[+] wordEmbeddingNode";
+        ATB_SPEED_LOG_DEBUG("[+] wordEmbeddingNode");
         graph_.nodes.push_back(wordEmbeddingNode);
     }
 
@@ -342,7 +342,7 @@ int64_t DecoderModelEdge::AddPositionalEmbedding()
     positionalEmbeddingGatherNode.outTensors = {
         &graph_.internalTensors.at(atb_speed::common::GetTensorIdx(this->internalTensorMap_, "cosine_embedding")),
         &graph_.internalTensors.at(atb_speed::common::GetTensorIdx(this->internalTensorMap_, "sine_embedding"))};
-    LOG_DEBUG_MODEL << "[+] positionalEmbeddingGatherNode";
+    ATB_SPEED_LOG_DEBUG("[+] positionalEmbeddingGatherNode");
     graph_.nodes.push_back(positionalEmbeddingGatherNode);
 
     return atb::NO_ERROR;
@@ -451,7 +451,7 @@ int64_t DecoderModelEdge::AddLayer()
         CHECK_OPERATION_STATUS_RETURN(SetLayerNodeDefaultInput(layerNode, layerId, inTensorId));
         layerNode.outTensors.resize(3); // EdgeHardware layer output num is 3
         CHECK_OPERATION_STATUS_RETURN(SetLayerNodeoutput(layerNode, layerId));
-        LOG_DEBUG_MODEL << "[+] layerNode_" << layerId;
+        ATB_SPEED_LOG_DEBUG("[+] layerNode_" << layerId);
         graph_.nodes.push_back(layerNode);
     }
 
@@ -476,7 +476,7 @@ int64_t DecoderModelEdge::AddFinalNorm()
             : &graph_.inTensors.at(atb_speed::common::GetTensorIdx(this->inTensorMap_, "input_ids_or_embedding")),
         &graph_.weightTensors.at(finalLayerNormWeightTensorId)};
     finalNormNode.outTensors = {finalNormNode.inTensors.at(0)}; // 输出原地写在输入上
-    LOG_DEBUG_MODEL << "[+] finalNormNode";
+    ATB_SPEED_LOG_DEBUG("[+] finalNormNode");
     graph_.nodes.push_back(finalNormNode);
 
     return atb::NO_ERROR;
@@ -508,12 +508,12 @@ int64_t DecoderModelEdge::BuildGraph()
     ConstructInTensorMap();
     const uint64_t inTensorCount = this->inTensorCount_ + param_.numHiddenLayers * 2 - 1;
     this->graph_.inTensors.resize(inTensorCount);
-    LOG_DEBUG_MODEL << "graph_.inTensorCount_ " << this->inTensorCount_;
+    ATB_SPEED_LOG_DEBUG("graph_.inTensorCount_ " << this->inTensorCount_);
 
     // 准备internalTensor
     ConstructInternalTensorMap();
     this->graph_.internalTensors.resize(this->internalTensorCount_);
-    LOG_DEBUG_MODEL << "graph_.internalTensorCount_ " << this->internalTensorCount_;
+    ATB_SPEED_LOG_DEBUG("graph_.internalTensorCount_ " << this->internalTensorCount_);
     ConstructOutTensorMap();
     
     // 准备outTensor
@@ -523,26 +523,26 @@ int64_t DecoderModelEdge::BuildGraph()
     const uint64_t weightTensorSize = WEIGHT_COUNT_WORD_EMBEDDING +
                                       CheckIntMulOverFlow(weightCountPerLayer_, param_.numHiddenLayers) +
                                       WEIGHT_COUNT_POST_NORM + WEIGHT_COUNT_LM_HEAD;
-    LOG_DEBUG_MODEL << "WEIGHT_SIZE:"<<weightTensorSize;
+    ATB_SPEED_LOG_DEBUG("WEIGHT_SIZE:"<<weightTensorSize);
     graph_.weightTensors.resize(weightTensorSize);
 
-    LOG_DEBUG_MODEL << "weightTensors.size=" << graph_.weightTensors.size()
+    ATB_SPEED_LOG_DEBUG("weightTensors.size=" << graph_.weightTensors.size()
                                               << ", inTensors.size=" << graph_.inTensors.size()
                                               << ", outTensors.size=" << graph_.outTensors.size()
-                                              << ", internalTensor.size=" << graph_.internalTensors.size();
-    LOG_DEBUG_MODEL << "DecoderModel build graph begin";
+                                              << ", internalTensor.size=" << graph_.internalTensors.size());
+    ATB_SPEED_LOG_DEBUG("DecoderModel build graph begin");
     CHECK_OPERATION_STATUS_RETURN(AddWordEmbedding());
     CHECK_OPERATION_STATUS_RETURN(AddPositionalEmbedding());
     CHECK_OPERATION_STATUS_RETURN(AddLayer());
     CHECK_OPERATION_STATUS_RETURN(AddFinalNorm());
     CHECK_OPERATION_STATUS_RETURN(AddLmhead());
-    LOG_DEBUG_MODEL << "DecoderModel build graph success";
+    ATB_SPEED_LOG_DEBUG("DecoderModel build graph success");
     return atb::NO_ERROR;
 }
 
 atb::Status DecoderModelEdge::ParseParam(const std::string &param)
 {
-    LOG_DEBUG_MODEL << "ParseParam start.";
+    ATB_SPEED_LOG_DEBUG("ParseParam start.");
     CHECK_PARAM_LT(param.size(), MAX_PARAM_STRING_LENGTH);
     nlohmann::json paramJson;
     try {
@@ -550,7 +550,7 @@ atb::Status DecoderModelEdge::ParseParam(const std::string &param)
     } catch (const std::exception &e) {
         std::stringstream ss;
         ss << "parse param fail, please check param's format, error: " << e.what() << std::endl;
-        LOG_ERROR_MODEL << ss.str();
+        ATB_SPEED_LOG_ERROR(ss.str());
         throw std::runtime_error(ss.str());
     }
 
@@ -559,7 +559,7 @@ atb::Status DecoderModelEdge::ParseParam(const std::string &param)
         int tokenOffset = item.get<int>();
         CHECK_PARAM_LT(tokenOffset, MAX_PARAM_VALUE);
         tokenOffset_.push_back(tokenOffset);
-        LOG_DEBUG_MODEL << "token offset value: " << item;
+        ATB_SPEED_LOG_DEBUG("token offset value: " << item);
     }
 
     seqLen_.clear();
@@ -567,7 +567,7 @@ atb::Status DecoderModelEdge::ParseParam(const std::string &param)
         int seqLen = item.get<int>();
         CHECK_PARAM_LT(seqLen, MAX_PARAM_VALUE);
         seqLen_.push_back(seqLen);
-        LOG_DEBUG_MODEL << "Prefill" << paramJson["isPrefill"] << "seqLen value: " << item;
+        ATB_SPEED_LOG_DEBUG("Prefill" << paramJson["isPrefill"] << "seqLen value: " << item);
     }
 
     qLen_.clear();
@@ -575,9 +575,9 @@ atb::Status DecoderModelEdge::ParseParam(const std::string &param)
         int qLen = item.get<int>();
         CHECK_PARAM_LT(qLen, MAX_PARAM_VALUE);
         qLen_.push_back(qLen);
-        LOG_DEBUG_MODEL << "qLen value: " << item;
+        ATB_SPEED_LOG_DEBUG("qLen value: " << item);
     }
-    LOG_DEBUG_MODEL << "ParseParam end.";
+    ATB_SPEED_LOG_DEBUG("ParseParam end.");
     return atb::NO_ERROR;
 }
 

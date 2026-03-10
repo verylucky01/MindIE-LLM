@@ -9,13 +9,13 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include "attn_v3_operation.h"
 #include <cstring>
 
 #include "acl/acl.h"
 #include "aclnnop/aclnn_fused_infer_attention_score_v3.h"
-#include "system_log.h"
+#include "atb_speed/log.h"
 #include "operations/aclnn/utils/utils.h"
+#include "attn_v3_operation.h"
 
 namespace atb_speed {
 namespace common {
@@ -26,7 +26,7 @@ FusedInferAttentionOperation::FusedInferAttentionOperation(
 
 FusedInferAttentionOperation::~FusedInferAttentionOperation()
 {
-    LOG_DEBUG_MODEL << opName_ << "FusedInferAttentionOperation deconstructor";
+    ATB_SPEED_LOG_DEBUG(opName_ << "FusedInferAttentionOperation deconstructor");
     this->DestroyOperation();
 }
 
@@ -34,7 +34,7 @@ atb::Status FusedInferAttentionOperation::InferShape(
     const atb::SVector<atb::TensorDesc> &inTensorDescs,
     atb::SVector<atb::TensorDesc> &outTensorDescs) const
 {
-    LOG_DEBUG_MODEL << opName_ << "FusedInferAttentionOperation infer shape start";
+    ATB_SPEED_LOG_DEBUG(opName_ << "FusedInferAttentionOperation infer shape start");
     outTensorDescs.at(0) = inTensorDescs.at(0);
     if (param_.inputLayoutPA == "TND") {
         outTensorDescs.at(0).shape.dims[DIM0] = inTensorDescs.at(DIM0).shape.dims[DIM0]; // T
@@ -47,7 +47,7 @@ atb::Status FusedInferAttentionOperation::InferShape(
         outTensorDescs.at(0).shape.dims[DIM2] = inTensorDescs.at(DIM0).shape.dims[DIM3]; // D
         outTensorDescs.at(0).shape.dimNum = inTensorDescs.at(0).shape.dimNum - 1;
     }
-    LOG_DEBUG_MODEL << opName_ << "FusedInferAttentionOperation infer shape end";
+    ATB_SPEED_LOG_DEBUG(opName_ << "FusedInferAttentionOperation infer shape end");
     return 0;
 }
 
@@ -105,7 +105,7 @@ atb::Status FusedInferAttentionOperation::CreateAclNNInTensorVariantPack(const a
 
 int FusedInferAttentionOperation::SetAclNNWorkspaceExecutor()
 {
-    LOG_DEBUG_MODEL << opName_ << " aclnnFusedInferAttentionScoreV3GetWorkspaceSize start";
+    ATB_SPEED_LOG_DEBUG(opName_ << " aclnnFusedInferAttentionScoreV3GetWorkspaceSize start");
     AclNNVariantPack &aclnnVariantPack = this->aclnnOpCache_->aclnnVariantPack;
     double scaleValue = 1 / sqrt(param_.headDim);
     int ret = aclnnFusedInferAttentionScoreV3GetWorkspaceSize(aclnnVariantPack.aclInTensors.at(0)->tensor,  // q
@@ -152,22 +152,22 @@ int FusedInferAttentionOperation::SetAclNNWorkspaceExecutor()
         nullptr,  // softmaxLse
         &this->aclnnOpCache_->workspaceSize,  // workspaceSize
         &this->aclnnOpCache_->aclExecutor);   // executor
-    LOG_DEBUG_MODEL << opName_ << " aclnnFusedInferAttentionScoreV3GetWorkspaceSize end, ret:" << ret
+    ATB_SPEED_LOG_DEBUG(opName_ << " aclnnFusedInferAttentionScoreV3GetWorkspaceSize end, ret:" << ret
         << ", workspaceSize:" << this->aclnnOpCache_->workspaceSize << ", aclExecutor:"
-        << this->aclnnOpCache_->aclExecutor;
+        << this->aclnnOpCache_->aclExecutor);
 
     return ret;
 }
 
 int FusedInferAttentionOperation::ExecuteAclNNOp(uint8_t *workspace, aclrtStream &stream)
 {
-    LOG_DEBUG_MODEL << opName_ << " aclnnFusedInferAttentionScoreV3 start";
+    ATB_SPEED_LOG_DEBUG(opName_ << " aclnnFusedInferAttentionScoreV3 start");
     int ret = aclnnFusedInferAttentionScoreV3(
         workspace,
         this->aclnnOpCache_->workspaceSize,
         this->aclnnOpCache_->aclExecutor,
         stream);
-    LOG_DEBUG_MODEL << opName_ << " aclnnFusedInferAttentionScoreV3 end, ret:" << ret;
+    ATB_SPEED_LOG_DEBUG(opName_ << " aclnnFusedInferAttentionScoreV3 end, ret:" << ret);
     return ret;
 }
 } // namespace common

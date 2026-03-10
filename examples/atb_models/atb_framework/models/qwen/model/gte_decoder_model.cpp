@@ -9,12 +9,12 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include "models/qwen/model/gte_decoder_model.h"
 #include "nlohmann/json.hpp"
 #include "vector"
 #include "atb/atb_infer.h"
+#include "atb_speed/log.h"
 #include "models/qwen/layer/decoder_layer.h"
-
+#include "models/qwen/model/gte_decoder_model.h"
 namespace atb_speed {
 namespace qwen {
 

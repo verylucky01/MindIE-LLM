@@ -9,9 +9,9 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include "executor_manager.h"
 #include <sstream>
-#include "system_log.h"
+#include "atb_speed/log.h"
+#include "executor_manager.h"
 
 namespace atb_speed {
 namespace common {
@@ -21,15 +21,15 @@ int ExecutorManager::IncreaseReference(aclOpExecutor *executor)
 {
     std::map<aclOpExecutor *, int>::iterator it = this->executorCount_.find(executor);
     if (it == this->executorCount_.end()) {
-        LOG_DEBUG_MODEL << "Plugin Op Cache: Executor addr[" << executor << "] not found in ExecutorManager, add one";
+        ATB_SPEED_LOG_DEBUG("Plugin Op Cache: Executor addr[" << executor << "] not found in ExecutorManager, add one");
         this->executorCount_[executor] = 1;
         return 1;
     }
 
     int &count = it->second;
     count += 1;
-    LOG_DEBUG_MODEL << "Plugin Op Cache: ExecutorManager Executor addr["
-                  << executor << "] increase reference to " << count;
+    ATB_SPEED_LOG_DEBUG("Plugin Op Cache: ExecutorManager Executor addr["
+                  << executor << "] increase reference to " << count);
     return count;
 }
 
@@ -37,19 +37,19 @@ int ExecutorManager::DecreaseReference(aclOpExecutor *executor)
 {
     std::map<aclOpExecutor *, int>::iterator it = this->executorCount_.find(executor);
     if (it == this->executorCount_.end()) {
-        LOG_ERROR_MODEL << "Plugin Op Cache: Executor addr[" << executor << "] not found in ExecutorManager";
+        ATB_SPEED_LOG_ERROR("Plugin Op Cache: Executor addr[" << executor << "] not found in ExecutorManager");
         return 0;
     }
     int &count = it->second;
     if (count == 1) {
-        LOG_DEBUG_MODEL << "Plugin Op Cache: delete Executor addr[" << executor << "]";
+        ATB_SPEED_LOG_DEBUG("Plugin Op Cache: delete Executor addr[" << executor << "]");
         this->executorCount_.erase(executor);
         return 0;
     }
 
     count -= 1;
-    LOG_DEBUG_MODEL << "Plugin Op Cache: ExecutorManager Executor addr["
-        << executor << "] decrease reference to " << count;
+    ATB_SPEED_LOG_DEBUG("Plugin Op Cache: ExecutorManager Executor addr["
+                  << executor << "] decrease reference to " << count);
     return count;
 }
 

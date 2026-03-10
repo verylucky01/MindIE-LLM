@@ -9,26 +9,24 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
-#include "atb_speed/base/external_comm_manager.h"
 #include <cmath>
 #include <cerrno>
 #include "securec.h"
-#include "system_log.h"
+#include "atb_speed/base/external_comm_manager.h"
 
 namespace atb_speed {
 
 CommInfo::~CommInfo()
 {
-    LOG_DEBUG_MODEL << "External Comm Manager: CommInfo ["
-        << std::hash<const CommInfo*>{}(this) << "] destruction starts.";
+    ATB_SPEED_LOG_DEBUG("External Comm Manager: CommInfo ["
+        << std::hash<const CommInfo*>{}(this) << "] destruction starts.");
     if (this->hcclComm_ != nullptr) {
         auto ret = HcclCommDestroy(this->hcclComm_);
         if (ret != HCCL_SUCCESS) {
-            LOG_ERROR_MODEL << "External Comm Manager: Call `HcclCommDestroy` API from CANN "
+            ATB_SPEED_LOG_ERROR("External Comm Manager: Call `HcclCommDestroy` API from CANN "
                 << "to destroy hccl communication group failed. "
                 << "Error code: " << ret << ". "
-                << "Check the default log path at $HOME/ascend/log for more details. ";
+                << "Check the default log path at $HOME/ascend/log for more details. ");
         }
     }
     this->hcclComm_ = nullptr;
@@ -63,13 +61,14 @@ bool AreVectorsEqual(const std::vector<uint32_t> &rankIdsA, const std::vector<ui
 void ExternalCommManager::Init(uint32_t worldSize, uint32_t subCommRankId,
     std::string backend, std::string rankTableFile, uint32_t streamId)
 {
-    LOG_DEBUG_MODEL << "External Comm Manager: try to create global comm with "
+    ATB_SPEED_LOG_DEBUG("External Comm Manager: try to create global comm with "
         << "worldSize " << worldSize << ", subCommRankId " << subCommRankId
-        << ", backend " << backend << ", rankTableFile " << rankTableFile;
+        << ", backend " << backend << ", rankTableFile " << rankTableFile
+    );
 
     if (this->globalComm_ != nullptr) {
-        LOG_DEBUG_MODEL << "External Comm Manager: A global communication group is already created, "
-            << "so the creation process will be skipped.";
+        ATB_SPEED_LOG_DEBUG("External Comm Manager: A global communication group is already created, "
+            << "so the creation process will be skipped.");
         return;
     }
 
@@ -95,7 +94,7 @@ void ExternalCommManager::Init(uint32_t worldSize, uint32_t subCommRankId,
         commDomain = GetCommDomainFromCache(rankIds, backend, 200, streamId);  // 200: buffer size
         if (commDomain == "") { commDomain = GetSelfAssignedCommDomain(commInfo, 0); }
     }
-    LOG_DEBUG_MODEL << "External Comm Manager: Add [" << commDomain << "] to cache.";
+    ATB_SPEED_LOG_DEBUG("External Comm Manager: Add [" << commDomain << "] to cache.");
     this->commInfoCache_[commDomain] = commInfo;
 }
 
@@ -120,16 +119,16 @@ void ExternalCommManager::Reset()
 std::string ExternalCommManager::GetCommDomain(uint32_t groupId, const std::vector<uint32_t> &rankIds,
     uint32_t subCommRankId, std::string backend, uint32_t bufferSize, uint32_t streamId, bool enableReuse)
 {
-    LOG_DEBUG_MODEL << "External Comm Manager: try to create comm with rankIds " << rankIds
+    ATB_SPEED_LOG_DEBUG("External Comm Manager: try to create comm with rankIds " << rankIds
         << ", subCommRankId " << subCommRankId << ", backend: " << backend << ", bufferSize " << bufferSize
-        << ", streamId " << streamId;
+        << ", streamId " << streamId);
 
     std::string commDomain = "";
 
     if (rankIds.size() <= 1) { return commDomain; }
 
     if (enableReuse) {
-        LOG_DEBUG_MODEL << "External Comm Manager: try to reuse communication group from cache.";
+        ATB_SPEED_LOG_DEBUG("External Comm Manager: try to reuse communication group from cache.");
         commDomain = GetCommDomainFromCache(rankIds, backend, bufferSize, streamId);
         if (commDomain != "") {
             return commDomain;
@@ -150,7 +149,7 @@ std::string ExternalCommManager::GetCommDomain(uint32_t groupId, const std::vect
         commDomain = GetHcclSubCommDomain(commInfo, groupId);
     }
     this->commInfoCache_[commDomain] = commInfo;
-    LOG_DEBUG_MODEL << "External Comm Manager: Add [" << commDomain << "] to cache";
+    ATB_SPEED_LOG_DEBUG("External Comm Manager: Add [" << commDomain << "] to cache");
     return commDomain;
 }
 
@@ -163,9 +162,9 @@ std::string ExternalCommManager::GetCommDomainFromCache(
             it->second->backend_ == backend && it->second->bufferSize_ == bufferSize && \
             it->second->streamId_ == streamId && it->second->enableReuse_
         ) {
-            LOG_DEBUG_MODEL << "External Comm Manager: Comm with rankIds " << rankIds
+            ATB_SPEED_LOG_DEBUG("External Comm Manager: Comm with rankIds " << rankIds
                 << ", bufferSize " << bufferSize << ", backend: " << backend
-                << ", streamId" << streamId << " hit. CommDomain [" << it->first << "] is reused.";
+                << ", streamId" << streamId << " hit. CommDomain [" << it->first << "] is reused.");
             return it->first;
         }
     }
@@ -199,13 +198,13 @@ std::string ExternalCommManager::GetSelfAssignedCommDomain(std::shared_ptr<CommI
     }
     std::string commDomain = std::to_string(commDomainInt);
     this->commDomainCounter_ = this->commDomainCounter_ + ceil(this->worldSize_ / commInfo->rankIds_.size());
-    LOG_DEBUG_MODEL << "External Comm Manager: commDomainCounter_ update to " << this->commDomainCounter_;
+    ATB_SPEED_LOG_DEBUG("External Comm Manager: commDomainCounter_ update to " << this->commDomainCounter_);
     return commDomain;
 }
 
 std::string ExternalCommManager::GetHcclGlobalCommDomain(std::shared_ptr<CommInfo> &commInfo)
 {
-    LOG_DEBUG_MODEL << "GetHcclGlobalCommDomain start.";
+    ATB_SPEED_LOG_DEBUG("GetHcclGlobalCommDomain start.");
     std::string commDomain = "";
     if (this->rankTableFile_ != "") {
         char commName[128] = {};  // 128: max commName length
@@ -224,13 +223,14 @@ std::string ExternalCommManager::GetHcclGlobalCommDomain(std::shared_ptr<CommInf
         // There is only one global commonDomain. Thus, group Id is 0.
         commDomain = GetSelfAssignedCommDomain(commInfo, 0);
     }
-    LOG_DEBUG_MODEL << "GetHcclGlobalCommDomain end.";
+    ATB_SPEED_LOG_DEBUG("GetHcclGlobalCommDomain end.");
+
     return commDomain;
 }
 
 std::string ExternalCommManager::GetHcclSubCommDomain(std::shared_ptr<CommInfo> &commInfo, uint32_t groupId)
 {
-    LOG_DEBUG_MODEL << "GetHcclSubCommDomain start.";
+    ATB_SPEED_LOG_DEBUG("GetHcclSubCommDomain start.");
     std::string commDomain = "";
     if (this->globalComm_ != nullptr) {
         HcclComm hcclComm;
@@ -242,10 +242,10 @@ std::string ExternalCommManager::GetHcclSubCommDomain(std::shared_ptr<CommInfo> 
         auto ret = HcclCreateSubCommConfig(&this->globalComm_, tempRankIds.size(), tempRankIds.data(),
             commInfo->cacheId_, commInfo->subCommRankId_, &config, &hcclComm);
         if (hcclComm == nullptr) {
-            LOG_ERROR_MODEL << "External Comm Manager: Call `HcclCreateSubCommConfig` API from CANN "
+            ATB_SPEED_LOG_ERROR("External Comm Manager: Call `HcclCreateSubCommConfig` API from CANN "
                 << "to create the hccl communication group failed. "
                 << "Error code: " << ret << ". "
-                << "Check the default log path at $HOME/ascend/log for more details. ";
+                << "Check the default log path at $HOME/ascend/log for more details. ");
         }
         commInfo->hcclComm_ = hcclComm;
         char hcclCommName[128] = {};
@@ -254,7 +254,7 @@ std::string ExternalCommManager::GetHcclSubCommDomain(std::shared_ptr<CommInfo> 
     } else {
         commDomain = GetSelfAssignedCommDomain(commInfo, groupId);
     }
-    LOG_DEBUG_MODEL << "GetHcclSubCommDomain end.";
+    ATB_SPEED_LOG_DEBUG("GetHcclSubCommDomain end.");
     return commDomain;
 }
 

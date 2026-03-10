@@ -13,6 +13,6 @@ target_link_directories(speed_unittest PRIVATE ${PROJECT_SOURCE_DIR}/third_party
 target_include_directories(speed_unittest PRIVATE ${PROJECT_SOURCE_DIR}/third_party/mockcpp/include)
 target_link_directories(speed_unittest PRIVATE ${PROJECT_SOURCE_DIR}/third_party/mockcpp/lib)
 
-target_link_libraries(speed_unittest PRIVATE atb_log system_log atb atb_speed_torch atb_speed_core atb_speed_models atb_speed_operations ascendcl -lgtest -lgtest_main -lpthread -lm -lmockcpp)
+target_link_libraries(speed_unittest PRIVATE atb_log atb atb_speed_torch atb_speed_core atb_speed_models atb_speed_operations ascendcl -lgtest -lgtest_main -lpthread -lm -lmockcpp)
 
 install(TARGETS speed_unittest DESTINATION bin)

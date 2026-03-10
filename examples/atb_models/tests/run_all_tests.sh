@@ -211,7 +211,7 @@ function fn_coverage_gate()
         echo "Dt test failed, please check the following message:"
         cat temp.txt
         rm temp.txt
-        exit 0
+        exit -1
     fi
 }
 

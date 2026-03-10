@@ -12,7 +12,6 @@
 
 #include "models/qwen3vl/model/decoder_model.h"
 #include "operations/fusion/infer_shape_functions.h"
-#include "system_log.h"
 
 namespace atb_speed {
 namespace qwen3vl {
@@ -67,7 +66,7 @@ void DecoderModel::SetLayerNodeDefaultInput(
         &graph_.inTensors.at(atb_speed::common::GetTensorIdx(this->inTensorMap, "block_tables"));
     layerNode.inTensors.at(inTensorId++) = \
         &graph_.inTensors.at(atb_speed::common::GetTensorIdx(this->inTensorMap, "slots"));
-    LOG_DEBUG_MODEL << "LayerNode Default Input set success, inputs num: " << inTensorId;
+    ATB_SPEED_LOG_DEBUG("LayerNode Default Input set success, inputs num: " << inTensorId);
 }
 
 void DecoderModel::SetLayerNodeOptionalInput(
@@ -103,7 +102,7 @@ void DecoderModel::SetLayerNodeOptionalInput(
         layerNode.inTensors.at(inTensorId++) = &graph_.inTensors.at(
             atb_speed::common::GetTensorIdx(this->inTensorMap, "deepstack_visual_embeds_2"));
     }
-    LOG_DEBUG_MODEL << "LayerNode Optional Input set success, inputs num: " << inTensorId;
+    ATB_SPEED_LOG_DEBUG("LayerNode Optional Input set success, inputs num: " << inTensorId);
 }
 
 atb::Status DecoderModel::CreateLayerOperation(atb::Operation **op, uint32_t layerId)

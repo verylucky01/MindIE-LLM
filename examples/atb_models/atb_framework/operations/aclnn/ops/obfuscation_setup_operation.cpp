@@ -9,11 +9,11 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include "obfuscation_setup_operation.h"
 #include "acl/acl.h"
 #include "aclnnop/aclnn_obfuscation_setup_v2.h"
-#include "system_log.h"
+#include "atb_speed/log.h"
 #include "operations/aclnn/utils/utils.h"
+#include "obfuscation_setup_operation.h"
 
 namespace atb_speed {
 namespace common {
@@ -23,7 +23,7 @@ ObfuscationSetupOperation::ObfuscationSetupOperation(const std::string &name,
 
 ObfuscationSetupOperation:: ~ObfuscationSetupOperation()
 {
-    LOG_DEBUG_MODEL << "ObfuscationSetupOperation deconstructor";
+    ATB_SPEED_LOG_DEBUG("ObfuscationSetupOperation deconstructor");
     this->DestroyOperation();
 }
 
@@ -31,16 +31,17 @@ atb::Status ObfuscationSetupOperation::InferShape(
     const atb::SVector<atb::TensorDesc> &inTensorDescs,
     atb::SVector<atb::TensorDesc> &outTensorDescs) const
 {
-    LOG_DEBUG_MODEL << "ObfuscationSetupOperation infer shape start";
+    ATB_SPEED_LOG_DEBUG("ObfuscationSetupOperation infer shape start");
     if (inTensorDescs.size() != 0) {
-        LOG_ERROR_MODEL << "ObfuscationSetupOperation intensors should be 0, but get " << inTensorDescs.size();
+        ATB_SPEED_LOG_ERROR("ObfuscationSetupOperation intensors should be 0, but get " <<
+           inTensorDescs.size());
         return atb::ERROR_INVALID_TENSOR_SIZE;
     }
     outTensorDescs.at(DIM0).format = aclFormat::ACL_FORMAT_ND;
     outTensorDescs.at(DIM0).dtype = aclDataType::ACL_INT32;
     outTensorDescs.at(DIM0).shape.dimNum = NUM1;
     outTensorDescs.at(DIM0).shape.dims[DIM0] = NUM1;
-    LOG_DEBUG_MODEL << "ObfuscationSetupOperation infer shape end";
+    ATB_SPEED_LOG_DEBUG("ObfuscationSetupOperation infer shape end");
     return 0;
 }
 
@@ -50,7 +51,7 @@ uint32_t ObfuscationSetupOperation::GetOutputNum() const { return NUM1; }
 
 int ObfuscationSetupOperation::SetAclNNWorkspaceExecutor()
 {
-    LOG_DEBUG_MODEL << "aclnnObfuscationSetupGetWorkspaceSize start";
+    ATB_SPEED_LOG_DEBUG("aclnnObfuscationSetupGetWorkspaceSize start");
     AclNNVariantPack &aclnnVariantPack = this->aclnnOpCache_->aclnnVariantPack;
     int ret = aclnnObfuscationSetupV2GetWorkspaceSize(
         param_.fdtoClose,
@@ -65,22 +66,22 @@ int ObfuscationSetupOperation::SetAclNNWorkspaceExecutor()
         aclnnVariantPack.aclOutTensors.at(0)->tensor,
         &this->aclnnOpCache_->workspaceSize,
         &this->aclnnOpCache_->aclExecutor);
-    LOG_DEBUG_MODEL << "aclnnObfuscationSetupGetWorkspaceSize end, ret:" <<
+    ATB_SPEED_LOG_DEBUG("aclnnObfuscationSetupGetWorkspaceSize end, ret:" <<
         ret << ", workspaceSize:" << this->aclnnOpCache_->workspaceSize <<
-        ", aclExecutor:" << this->aclnnOpCache_->aclExecutor;
+        ", aclExecutor:" << this->aclnnOpCache_->aclExecutor);
 
     return ret;
 }
 
 int ObfuscationSetupOperation::ExecuteAclNNOp(uint8_t *workspace, aclrtStream &stream)
 {
-    LOG_DEBUG_MODEL << "aclnnObfuscationSetup start";
+    ATB_SPEED_LOG_DEBUG("aclnnObfuscationSetup start");
     int ret = aclnnObfuscationSetupV2(
         workspace,
         this->aclnnOpCache_->workspaceSize,
         this->aclnnOpCache_->aclExecutor,
         stream);
-    LOG_DEBUG_MODEL << "aclnnObfuscationSetup end, ret:" << ret;
+    ATB_SPEED_LOG_DEBUG("aclnnObfuscationSetup end, ret:" << ret);
     return ret;
 }
 
