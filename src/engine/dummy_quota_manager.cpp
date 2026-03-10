@@ -11,7 +11,7 @@
  */
  
 #include "dummy_quota_manager.h"
-#include "system_log.h"
+#include "log.h"
 
 using namespace mindie_llm;
 using namespace std;
@@ -21,7 +21,7 @@ DummyQuotaManager::DummyQuotaManager(int rank, int quota) : initQuota_(quota), r
 {
     quotaLeft_.store(quota);
     acrossProcSyncThread_ = thread([this]() { this->AcrossProcSyncThreadEntry_(); });
-    LOG_INFO_LLM << "DummyQuotaManager init successfully. rank:" << rank_ << ", initQuota:" << initQuota_;
+    MINDIE_LLM_LOG_INFO("DummyQuotaManager init successfully. rank:" << rank_ << ", initQuota:" << initQuota_);
 }
 
 DummyQuotaManager::~DummyQuotaManager()
@@ -31,6 +31,7 @@ DummyQuotaManager::~DummyQuotaManager()
     if (acrossProcSyncThread_.joinable()) {
         acrossProcSyncThread_.join();
     }
+    MINDIE_LLM_LOG_INFO("DummyQuotaManager sync thread stopped.");
 }
 
 bool DummyQuotaManager::AcquireQuota(bool isDummy)
@@ -44,9 +45,10 @@ bool DummyQuotaManager::AcquireQuota(bool isDummy)
             Wakeup();
             this_thread::sleep_for(chrono::milliseconds(1)); // wait until wake up finish
             if (reqWaitLoop++ % REQ_WAIT_LOG_LOOP == 0) {
-                LOG_WARN_LLM << "no quota available. wait wakup to restore quota. If you keep seeing this, there might "
-                    << "be bug in DummyTokenManager. reqWaitLoop:"
-                    << reqWaitLoop << "; dummy queue size:" << dummyBatchQueue_.size();
+                MINDIE_LLM_LOG_WARN(
+                    "no quota available. wait wakup to restore quota. If you keep seeing this, there might "
+                    "be bug in DummyTokenManager. reqWaitLoop:"
+                    << reqWaitLoop << "; dummy queue size:" << dummyBatchQueue_.size());
             }
         }
         dummyBatchQueue_.push(isDummy);
@@ -87,12 +89,13 @@ void DummyQuotaManager::AllGather_(bool iAmDummy, bool &allDummy, int &maxQuota,
         auto end = high_resolution_clock::now();
         cost = static_cast<size_t>(duration_cast<milliseconds>(end - start).count());
     } catch (const std::exception &e) {
-        LOG_WARN_LLM << "allgather standard exception caught: " << e.what() << ". downgrade to dummy-always.";
+        MINDIE_LLM_LOG_WARN("allgather standard exception caught: " << e.what() << ". downgrade to dummy-always.");
         quotaLeft_.store(initQuota_);
         threadNeedStop_.store(true);
         return;
     } catch (...) {
-        LOG_WARN_LLM << "allgather got unknown exception, DummyTokenManager cannot work, downgrade to dummy-always.";
+        MINDIE_LLM_LOG_WARN("allgather got unknown exception, DummyTokenManager cannot work, downgrade "
+                            "to dummy-always.");
         quotaLeft_.store(initQuota_);
         threadNeedStop_.store(true);
         return;
@@ -107,9 +110,9 @@ void DummyQuotaManager::AllGather_(bool iAmDummy, bool &allDummy, int &maxQuota,
         maxQuota = max(maxQuota, tensor[1].item<int>());
         if ((cnt++ > 0 && preGatherType != tensor[2].item<int>()) ||
             maxDummyBatchQueueSize > MAX_ALLOWED_DUMMY_QUEUE_PENDINGS) {
-            LOG_WARN_LLM << "All-gather message type is not same or dummy batch too many. rank"
+            MINDIE_LLM_LOG_WARN("All-gather message type is not same or dummy batch too many. rank"
                                  << rank_ << ", is dummyBatchSync:" << tensor[2].item<int>() << ", err rank:" << cnt--
-                                 << ", maxDummyBatchQueueSize:" << maxDummyBatchQueueSize;
+                                 << ", maxDummyBatchQueueSize:" << maxDummyBatchQueueSize);
             quotaLeft_.store(initQuota_);
             threadNeedStop_.store(true);
             return;
@@ -119,10 +122,10 @@ void DummyQuotaManager::AllGather_(bool iAmDummy, bool &allDummy, int &maxQuota,
     allCost += cost;
     count++;
     if (cost > 200) {
-        LOG_INFO_LLM.SetType(LogType::REQUEST) << "dummy all gather cost too long, dp:"
-            << rank_ << ", time:" << cost << ", quotaLeft_:" << quotaLeft_.load() << ", iAmDummy:"
-            << iAmDummy << ", dummyQueue size:" << dummyBatchQueue_.size() << ", allDummy:" << allDummy
-            << ", maxQuota:" << maxQuota << ", average cost:" << (allCost / count);
+        MINDIE_LLM_LOG_INFO_REQUEST("dummy all gather cost too long, dp:"
+                            << rank_ << ", time:" << cost << ", quotaLeft_:" << quotaLeft_.load() << ", iAmDummy:"
+                            << iAmDummy << ", dummyQueue size:" << dummyBatchQueue_.size() << ", allDummy:" << allDummy
+                            << ", maxQuota:" << maxQuota << ", average cost:" << (allCost / count));
     }
 }
 void DummyQuotaManager::QuotaAllGather_(bool &iAmDummy, bool &allDummy, int &maxQuota)
@@ -147,9 +150,9 @@ void DummyQuotaManager::AcrossProcSyncThreadEntry_()
     int cnt = 0;
     while (!threadNeedStop_.load()) {
         if (cnt % 1000 == 0) {
-            LOG_INFO_LLM.SetType(LogType::REQUEST) << "DummyQuotaManager across process synchronization thread is live."
-                << " dprank: " << rank_ << "; quotaLeft_:" << quotaLeft_.load()
-                << "; dummyBatchQueue_ size:" << dummyBatchQueue_.size();
+            MINDIE_LLM_LOG_INFO_REQUEST("DummyQuotaManager across process synchronization thread is live. dprank:"
+                                << rank_ << "; quotaLeft_:" << quotaLeft_.load()
+                                << "; dummyBatchQueue_ size:" << dummyBatchQueue_.size());
         }
         cnt++;
         // when dummyBatchQueue_ has item, or will have item, we must do dummy sync
@@ -181,6 +184,7 @@ void DummyQuotaManager::AcrossProcSyncThreadEntry_()
             }
         }
     }
+    MINDIE_LLM_LOG_INFO("DummyQuotaManager across process synchronization thread exits.");
 }
 
 // replace sleep and poll when fully tested

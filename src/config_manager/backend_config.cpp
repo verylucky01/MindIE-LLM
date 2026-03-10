@@ -13,7 +13,6 @@
 #include "common_util.h"
 #include "param_checker.h"
 #include "base_config_manager.h"
-#include "system_log.h"
 
 using Json = nlohmann::json;
 using namespace nlohmann::literals;
@@ -66,7 +65,7 @@ bool BackendConfigManager::InitTlsConfigFromJson(Json &backendConfigData)
 
     auto ret = ParamChecker::CheckJsonArray(backendConfigData["interNodeTlsCaFiles"], "string", "");
     if (!ret) {
-        LOG_ERROR_LLM << "interNodeTlsCaFiles init failed";
+        std::cout << "interNodeTlsCaFiles init error" << std::endl;
         return false;
     } else {
         for (auto &caFile : backendConfigData["interNodeTlsCaFiles"]) {
@@ -76,13 +75,13 @@ bool BackendConfigManager::InitTlsConfigFromJson(Json &backendConfigData)
     }
     if (backendConfig_.interNodeTlsCaFilesVec.size() > MAX_FILE_LIST_SIZE ||
         backendConfig_.interNodeTlsCaFilesVec.empty()) {
-        LOG_ERROR_LLM << "interNodeTlsCaFiles size is invalid";
+        std::cout << "interNodeTlsCaFiles size is invalid" << std::endl;
         return false;
     }
 
     ret = ParamChecker::CheckJsonArray(backendConfigData["interNodeTlsCrlFiles"], "string", "");
     if (!ret) {
-        LOG_ERROR_LLM << "interNodeTlsCrlFiles init failed";
+        std::cout << "interNodeTlsCrlFiles init error" << std::endl;
         return false;
     } else {
         for (auto &crlFile : backendConfigData["interNodeTlsCrlFiles"]) {
@@ -92,7 +91,7 @@ bool BackendConfigManager::InitTlsConfigFromJson(Json &backendConfigData)
     }
 
     if (backendConfig_.interNodeTlsCrlFilesVec.size() > MAX_FILE_LIST_SIZE) {
-        LOG_ERROR_LLM << "interNodeTlsCrlFiles size is invalid";
+        std::cout << "interNodeTlsCrlFiles size is invalid" << std::endl;
         return false;
     }
     return true;
@@ -102,7 +101,7 @@ bool BackendConfigManager::CheckInterTlsParam()
 {
     std::string homePath{};
     if (!GetHomePath(homePath).IsOk()) {
-        LOG_ERROR_LLM << "Failed to get home path";
+        std::cout << "Failed to get home path" << std::endl;
         return false;
     }
     homePath += "/";
@@ -163,13 +162,13 @@ bool BackendConfigManager::InitFromJson()
         }
     }
     if (npuSetNum != backendConfigData["modelInstanceNumber"]) {
-        LOG_ERROR_LLM << "The size of npuDeviceIds does not equal to modelInstanceNumber";
+        std::cout << "The size of npuDeviceIds does not equal to modelInstanceNumber" << std::endl;
         return false;
     }
     auto singleConfig = backendConfigData["ModelDeployConfig"]["ModelConfig"][0];
     for (auto npuDeviceId : backendConfigData["npuDeviceIds"]) {
         if (npuDeviceId.size() != singleConfig["worldSize"]) {
-            LOG_ERROR_LLM << "The size of npuDeviceIds (subset) does not equal to worldSize";
+            std::cout << "The size of npuDeviceIds (subset) does not equal to worldSize" << std::endl;
             return false;
         }
     }
@@ -193,11 +192,11 @@ bool BackendConfigManager::InitFromJson()
     if (backendConfig_.interNodeTLSEnabled) {
         try {
             if (!InitTlsConfigFromJson(backendConfigData)) {
-                LOG_ERROR_LLM << "Failed to init tls cfg";
+                std::cout << "Failed to init tls cfg" << std::endl;
                 return false;
             }
         } catch (const nlohmann::json::type_error &e) {
-            LOG_ERROR_LLM << "Failed to init tls cfg: " << e.what();
+            std::cout << "Failed to init tls cfg. [BackendConfigManager::InitFromJson] " << e.what() << std::endl;
             return false;
         }
     }
@@ -221,7 +220,7 @@ bool BackendConfigManager::CheckParam()
                                                                     "backendConfig.multiNodesInferPort"));
     for (auto npuDeviceId : backendConfig_.npuDeviceIds) {
         if (npuDeviceId.size() != backendConfig_.worldSize) {
-            LOG_ERROR_LLM << "npuDeviceID does not allow repetitive element";
+            std::cout << "npuDeviceID does not allow repetitive element" << std::endl;
             initFlag = false;
         }
     }
@@ -240,7 +239,7 @@ bool BackendConfigManager::CheckBackendInterTlsParam()
         return true;
     }
     if (!CheckInterTlsParam()) {
-        LOG_ERROR_LLM << "Backend inter tls config is invalid";
+        std::cout << "Backend inter tls config is invalid" << std::endl;
         return false;
     }
     return true;
@@ -258,19 +257,20 @@ void BackendConfigManager::UpdateMultiNodesInfer(const RanktableParam &ranktable
                 npuDeviceId.insert(static_cast<size_t>(std::stoi(ele.deviceId)));
             } catch (const std::invalid_argument &e) {
                 initFlag = false;
-                LOG_ERROR_LLM << "Invalid device_id " << ele.deviceId << " in ranktable file";
+                std::cout << "Invalid device_id " << ele.deviceId << " in ranktable file" << std::endl;
                 return;
             } catch (const std::out_of_range &e) {
                 initFlag = false;
-                LOG_ERROR_LLM << "Invalid device_id " << ele.deviceId << " in ranktable file";
+                std::cout << "Invalid device_id " << ele.deviceId << " in ranktable file" << std::endl;
                 return;
             } catch (...) {
                 initFlag = false;
-                LOG_ERROR_LLM << "Invalid device_id " << ele.deviceId << " in ranktable file";
+                std::cout << "Invalid device_id " << ele.deviceId << " in ranktable file" << std::endl;
                 return;
             }
         }
     }
-    LOG_INFO_LLM << "Update worldSize and npuDeviceIds of backend config successfully for Multi Nodes Inference.";
+    std::cout << "Update worldSize and npuDeviceIds of backend config successfully for Multi Nodes Inference."
+              << std::endl;
 }
 } // namespace mindie_llm

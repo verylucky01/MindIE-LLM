@@ -15,7 +15,7 @@
 #include <string>
 #include <chrono>
 
-#include "system_log.h"
+#include "log.h"
 #include "msServiceProfiler/msServiceProfiler.h"
 #include "live_infer_context.h"
 #include "policy/stage_policy/stage_policy.h"
@@ -49,7 +49,7 @@ void ModelExecOutputHandler::AsyncPublishPrefilledKvCache(ModelBatchResultSPtr &
         if (firstSample.finish_reason() == static_cast<int64_t>(InferStatusType::ITERATION_CONTINUE)) {
             // 返回 continue 表示 prefill 完成了
             if (seqGroup == nullptr) {
-                LOG_INFO_LLM << "Can not find sequence group, seqId=" << firstSample.seq_id();
+                MINDIE_LLM_LOG_INFO("Can not find sequence group, seqId=" << firstSample.seq_id());
                 continue;
             }
 
@@ -61,10 +61,10 @@ void ModelExecOutputHandler::AsyncPublishPrefilledKvCache(ModelBatchResultSPtr &
             response->responseContents.resize(1);
             response->responseContents[0].srcBlockTable = seqGroup->pBlockTable;
             response->responseContents[0].singleLLMPrefillReqHandlerId = localDPRank_;
-            LOG_INFO_LLM.SetType(LogType::REQUEST) << "DP RankId: "
+            MINDIE_LLM_LOG_INFO_REQUEST("[LlmEngine|Request-Publish Complete] DP RankId: "
                                 << dpRankId_ << ". Request Prefill Complete, requestId: "
                                 << seqGroup->metrics_.inferReqId_ << ", seqId: " << firstSample.seq_id()
-                                << ", pInstanceId:" << seqGroup->pInstanceId << ", localDPRank_:" << localDPRank_;
+                                << ", pInstanceId:" << seqGroup->pInstanceId << ", localDPRank_:" << localDPRank_);
             // 返回推理结果给上层的回调函数
             forwardRespToManagerCall_(response);
         }
@@ -121,18 +121,17 @@ void ModelExecOutputHandler::Entry4Executor(ModelBatchResultSPtr &modelBatchResu
 
         if (response != nullptr) {
             if (discardChunkedPrefillReqToken) {
-                LOG_DEBUG_LLM.SetType(LogType::REQUEST)
-                    << "The output token of the chunked prefill request need to be discard.";
+                MINDIE_LLM_LOG_DEBUG_REQUEST("The output token of the chunked prefill request need to be discard.");
             } else {
                 queueWaitTimes.push_back(queueWaitTime);
                 responsesToCallback.push_back(response);
                 for (size_t i = 0; i < response->responseContents.size(); i++) {
                     g_decodeTokenCount += response->responseContents[i].speculativeTokenNum;
                 }
-                LOG_INFO_LLM.SetType(LogType::TOKEN) << "DP RankId: "
+                MINDIE_LLM_LOG_INFO_TOKEN("[LlmEngine|Request-Response] DP RankId: "
                                           << dpRankId_ << ". Response generated, requestId: " << response->reqId
                                           << ", batchsize: " << modelBatchResult->outputs_size()
-                                          << ", total decoded tokens: " << g_decodeTokenCount;
+                                          << ", total decoded tokens: " << g_decodeTokenCount);
                 prefixCachedTokenNums.push_back(currentPrefixCachedTokenNums);
             }
         }
@@ -194,8 +193,10 @@ void ModelExecOutputHandler::ProcessSequenceStatus(SequenceId seqId, int64_t fin
     if (finishReason == static_cast<int64_t>(InferStatusType::ITERATION_CONTINUE)) {
         return;
     }
-    LOG_INFO_LLM.SetType(LogType::REQUEST) << "DP RankId: " << dpRankId_ << ". Sequence finished. seqId: " << seqId
-        << "; finishReason: " << finishReason;
+    MINDIE_LLM_LOG_INFO_REQUEST("[LlmEngine|Request-End] DP RankId: " << dpRankId_
+                                                              << ". Sequence finished. seqId: " << seqId
+                                                              << "; finishReason: "
+                                                              << finishReason);
     if (finishReason == static_cast<int64_t>(InferStatusType::END_OF_SENTENCE)) {
         finishedSeqIds_.PushBack(seqId);
     } else {
@@ -218,7 +219,8 @@ void ModelExecOutputHandler::HandleGreedySampling(const model_execute_data::Sequ
         if (output_token != PLACEHOLDER_TOKEN) {
             seqIdToOutputTokenQueue_.PushBack(std::pair<SequenceId, TokenId>{sample.seq_id(), output_token});
         } else if (schedulerConfig_->layerwiseDisaggregated) {
-            LOG_INFO_LLM << "seq id is " << sample.seq_id() << ", output_token is -1";
+            MINDIE_LLM_LOG_INFO("[layerwiseDisaggregated|handler] "<<"seq id is "
+                << sample.seq_id() << ", output_token is -1");
         }
     }
     ProcessSequenceStatus(sample.seq_id(), sample.finish_reason());
@@ -283,7 +285,7 @@ void ModelExecOutputHandler::CreateNewSequenceGroup(const model_execute_data::Se
                                                     LiveInferContextSPtr &liveInferContext) const
 {
     if (!rootSeqGrp->seqId2ParallelSeqGroup_.Get(sample.parent_seq_id())) {
-        LOG_ERROR_LLM << "Can not find sequence group for parent seq id=" << sample.parent_seq_id();
+        MINDIE_LLM_LOG_ERROR("Can not find sequence group for parent seq id=" << sample.parent_seq_id());
         throw std::runtime_error("Can not find sequence group for parent seq id");
     }
     SequenceGroupSPtr parentSeqGrp = rootSeqGrp->seqId2ParallelSeqGroup_.Get(sample.parent_seq_id()).value();
@@ -313,7 +315,7 @@ void ModelExecOutputHandler::UpdateSequenceGroup(const model_execute_data::Seque
         throw std::runtime_error("rootSeqGrp is null.");
     }
     if (!rootSeqGrp->seqId2ParallelSeqGroup_.Get(sample.parent_seq_id())) {
-        LOG_ERROR_LLM << "Can not find sequence group for parent seq id=" << sample.parent_seq_id();
+        MINDIE_LLM_LOG_ERROR("Can not find sequence group for parent seq id=" << sample.parent_seq_id());
         throw std::runtime_error("Can not find sequence group for parent seq id");
     }
     SequenceGroupSPtr parentSeqGrp = rootSeqGrp->seqId2ParallelSeqGroup_.Get(sample.parent_seq_id()).value();
@@ -321,7 +323,7 @@ void ModelExecOutputHandler::UpdateSequenceGroup(const model_execute_data::Seque
         throw std::runtime_error("parentSeqGrp is null.");
     }
     if (!rootSeqGrp->seqId2ParallelSeqGroup_.Get(sample.seq_id())) {
-        LOG_ERROR_LLM << "Can not find sequence group for seq id=" << sample.seq_id();
+        MINDIE_LLM_LOG_ERROR("Can not find sequence group for seq id=" << sample.seq_id());
         throw std::runtime_error("Can not find sequence group for seq id");
     }
     SequenceGroupSPtr seqGrp = rootSeqGrp->seqId2ParallelSeqGroup_.Get(sample.seq_id()).value();
@@ -386,7 +388,7 @@ ResponseSPtr ModelExecOutputHandler::ConvertSequenceGroupOutputToResponse(
     }
     if (seqGroup == nullptr) {
         // TBC 集中式时不同dp会返回全部的结果，导致找不到其他dp的seqGroup而日志刷屏，待修复
-        LOG_DEBUG_LLM.SetType(LogType::REQUEST) << "Can not find sequence group.";
+        MINDIE_LLM_LOG_DEBUG_REQUEST("Can not find sequence group.");
         return nullptr;
     }
 
@@ -429,8 +431,9 @@ void ModelExecOutputHandler::SetResponseFlags(const model_execute_data::Completi
         }));
     if (continueSeqCount == 0) {
         response->isEos = true;
-        LOG_INFO_LLM.SetType(LogType::REQUEST) << "DP RankId: " << dpRankId_ << ". Send eos response. seqId: "
-            << output.samples(0).seq_id();
+        MINDIE_LLM_LOG_INFO_REQUEST("[LlmEngine|Request-End] DP RankId: " << dpRankId_
+                                                                  << ". Send eos response. seqId: "
+                                                                  << output.samples(0).seq_id());
     }
     response->inferStatusFlag = static_cast<InferStatusType>(output.samples(0).finish_reason());
     LiveInferContextSPtr liveInferContext = LiveInferContext::GetInstance(localDPRank_);

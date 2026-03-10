@@ -10,13 +10,9 @@
  * See the Mulan PSL v2 for more details.
  */
  
-#include "latency_predictor.h"
-
 #include <utility>
-#include <climits>
-
-#include "system_log.h"
-
+#include "log.h"
+#include "latency_predictor.h"
 
 namespace mindie_llm {
 void LatencyPredictor::UpdateBatchStats()
@@ -39,11 +35,11 @@ void LatencyPredictor::UpdateBatchStats()
         decodeLatency_.AddDataPoint(batchStatsPtr->batchSpendTimeFloat);
     }
     batchId_.fetch_sub(1);
-    LOG_DEBUG_LLM << "UpdateBatchStats batch info: forwardMode: "
+    MINDIE_LLM_LOG_DEBUG("UpdateBatchStats batch info: forwardMode: "
                          << (batchStatsPtr->forwardMode == ForwardMode::PREFILL ? "prefill" : "decode")
                          << ", numBatchedTokens: " << batchStatsPtr->numBatchedTokens
                          << ", kvCacheBlockNum: " << batchStatsPtr->kvCacheBlockNum
-                         << ", batchSpendTime: " << batchStatsPtr->batchSpendTimeFloat << "ms";
+                         << ", batchSpendTime: " << batchStatsPtr->batchSpendTimeFloat << "ms");
 }
 
 float LatencyPredictor::PredictBatchExecTime(BatchStats &batchStats)

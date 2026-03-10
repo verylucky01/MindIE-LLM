@@ -13,6 +13,7 @@
 #include "block_table.h"
 #include <algorithm>
 #include <stdexcept>
+#include "log.h"
 #include "math_utils.h"
 
 

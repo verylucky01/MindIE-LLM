@@ -21,6 +21,7 @@
 #include "hashless_block_allocator.h"
 #include "hit_rate_calculator.h"
 #include "evictor.h"
+#include "log.h"
 
 namespace mindie_llm {
 

@@ -17,6 +17,7 @@
 #include <pybind11/stl.h>
 #include <iostream>
 #include <string>
+#include "log.h"
 
 namespace py = pybind11;
 

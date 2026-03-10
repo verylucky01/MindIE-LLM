@@ -18,7 +18,6 @@
 #include "env_util.h"
 #include "check_utils.h"
 #include "base_config_manager.h"
-#include "system_log.h"
 
 using Json = nlohmann::json;
 using namespace nlohmann::literals;
@@ -116,7 +115,7 @@ std::string RanktableConfigManager::GetContainerIPAddress()
 
     auto **addrList = reinterpret_cast<struct in_addr **>(host->h_addr_list);
     if (addrList == nullptr || addrList[0] == nullptr) {
-        LOG_ERROR_LLM << "Getting IP address failed";
+        std::cout << "Error getting IP address" << std::endl;
         return "";
     }
     std::string containerIP(inet_ntoa(*addrList[0]));
@@ -137,9 +136,10 @@ std::string RanktableConfigManager::GetHostIPAddress()
 
 bool RanktableConfigManager::InitFromJson()
 {
+    std::cout << "Start to parse ranktable file" << std::endl;
     if (ranktablePath_.empty()) {
         initFlag = false;
-        LOG_ERROR_LLM << "Ranktable file path is invalid.";
+        std::cout << "Ranktable file path is invalid." << std::endl;
         return initFlag;
     }
 
@@ -147,7 +147,7 @@ bool RanktableConfigManager::InitFromJson()
     Json serverListJsonData;
     if (!ReadRanktableData(serverCount, serverListJsonData)) {
         initFlag = false;
-        LOG_ERROR_LLM << "Failed to parse the json data of ranktable file data.";
+        std::cout << "Failed to parse the json data of ranktable file data." << std::endl;
         return initFlag;
     }
 
@@ -174,6 +174,7 @@ bool RanktableConfigManager::InitFromJson()
         }
     }
     ranktableParam_.globalWorldSize = globalWorldSize;
+    std::cout << "Finished parsing ranktable file." << std::endl;
     return initFlag;
 }
 
@@ -211,17 +212,17 @@ bool RanktableConfigManager::CheckDeviceId(const std::string &deviceIdStr) const
         CHECK_CONFIG_VALIDATION(checkDeviceIdFlag,
                                 ParamChecker::CheckMaxMinValue<uint32_t>(deviceId, 63U, 0U, "device_id"));
         if (!checkDeviceIdFlag) {
-            LOG_ERROR_LLM << "Parameter device_id is " << deviceId << ", which is out of allow range [0, 63].";
+            std::cout << "Parameter device_id is " << deviceId << ", which is out of allow range [0, 63]." << std::endl;
             return false;
         }
     } catch (const std::invalid_argument &e) {
-        LOG_ERROR_LLM << "Parameter device_id is invalid in ranktable file.";
+        std::cout << "Parameter device_id is invalid in ranktable file." << std::endl;
         return false;
     } catch (const std::out_of_range &e) {
-        LOG_ERROR_LLM << "Parameter device_id is out of uint32_t range [0, 4294967295] in ranktable file.";
+        std::cout << "Parameter device_id is out of uint32_t range [0, 4294967295] in ranktable file." << std::endl;
         return false;
     } catch (...) {
-        LOG_ERROR_LLM << "Unknown exception occurred in device_id check.";
+        std::cout << "Unknown exception occurred in device_id check." << std::endl;
         return false;
     }
     return true;
@@ -232,7 +233,7 @@ bool RanktableConfigManager::CheckDeviceIp(const std::string &deviceIpStr) const
     bool checkDeviceIpFlag = true;
     CHECK_CONFIG_VALIDATION(checkDeviceIpFlag, CheckIp(deviceIpStr, "device_ip", false));
     if (!checkDeviceIpFlag) {
-        LOG_ERROR_LLM << "Parameter device_ip is invalid in ranktable file.";
+        std::cout << "Parameter device_ip is invalid in ranktable file." << std::endl;
         return false;
     }
     return true;
@@ -265,35 +266,35 @@ bool RanktableConfigManager::CheckParam()
 {
     if (ranktableParam_.serverCount < MIN_SERVER_COUNT || ranktableParam_.serverCount > MAX_SERVER_COUNT) {
         initFlag = false;
-        LOG_ERROR_LLM << "Parameter server_count must be in range [" << MIN_SERVER_COUNT << ", " << MAX_SERVER_COUNT
-                  << "], but got " << ranktableParam_.serverCount;
+        std::cout << "Parameter server_count must be in range [" << MIN_SERVER_COUNT << ", " << MAX_SERVER_COUNT
+                  << "], but got " << ranktableParam_.serverCount << std::endl;
     }
 
     if (ranktableParam_.serverCount != ranktableParam_.serverList.size()) {
         initFlag = false;
-        LOG_ERROR_LLM << "Parameter server_count is " << ranktableParam_.serverCount
+        std::cout << "Parameter server_count is " << ranktableParam_.serverCount
                   << ", which is not equal to server_list length in ranktable file, which is "
-                  << ranktableParam_.serverList.size();
+                  << ranktableParam_.serverList.size() << std::endl;
     }
 
     auto localDeviceCount = ranktableParam_.serverList[0].device.size();
     if (localDeviceCount < MIN_LOCAL_DEVICE_COUNT || localDeviceCount > MAX_LOCAL_DEVICE_COUNT) {
         initFlag = false;
-        LOG_ERROR_LLM << "The number of devices on single node must be in [" << MIN_LOCAL_DEVICE_COUNT << ", "
-                  << MAX_LOCAL_DEVICE_COUNT << "], but got " << localDeviceCount;
+        std::cout << "The number of devices on single node must be in [" << MIN_LOCAL_DEVICE_COUNT << ", "
+                  << MAX_LOCAL_DEVICE_COUNT << "], but got " << localDeviceCount << std::endl;
     }
 
     for (const ServerEle &ele : ranktableParam_.serverList) {
         if (ele.device.size() != localDeviceCount) {
             initFlag = false;
-            LOG_ERROR_LLM << "The number of devices in every server node is " << ele.device.size()
-                      << " which not equal in ranktable file, which is " << localDeviceCount;
+            std::cout << "The number of devices in every server node is " << ele.device.size()
+                      << " which not equal in ranktable file, which is " << localDeviceCount << std::endl;
             break;
         }
 
         if (ele.containerIp == "") {
             initFlag = false;
-            LOG_ERROR_LLM << "The containerIp in the server node is empty in ranktable file.";
+            std::cout << "The containerIp in the server node is empty in ranktable file." << std::endl;
             break;
         }
 

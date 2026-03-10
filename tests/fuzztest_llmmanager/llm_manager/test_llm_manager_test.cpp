@@ -17,6 +17,7 @@
 #include <iostream>
 #include <memory>
 #include "file_system.h"
+#include "log.h"
 #include "secodeFuzz.h"
 #include "infer_request.h"
 #include "pd_role.h"
@@ -253,12 +254,14 @@ int MockInstanceInit(llm::backend::ModelBackend *modelBackend, const std::map<st
     initResults["npuBlockNum"] = "1";
     initResults["maxPositionEmbeddings"] = "1";
     initResults["status"] = "ok";
+    MINDIE_LLM_LOG_INFO("MockInstanceInit success");
     return 0;
 }
 
 TEST(LlmManagerDTFuzz, Exists)
 {
     std::srand(time(NULL));
+    MINDIE_LLM_LOG_DEBUG("begin====================");
     std::string fuzzName = "LlmManagerDTFuzz";
     std::string homePath;
     mindie_llm::GetLlmPath(homePath);
@@ -305,6 +308,7 @@ TEST(LlmManagerDTFuzz, Exists)
 TEST(LlmManagerDTFuzz1, EngineInit)
 {
     std::srand(time(NULL));
+    MINDIE_LLM_LOG_DEBUG("begin====================");
     std::string fuzzName = "LlmManagerDTFuzz";
     std::string homePath;
     mindie_llm::GetLlmPath(homePath);
@@ -376,6 +380,7 @@ TEST(LlmManagerDTFuzz1, CommonUtilError)
 TEST(LlmManagerDTFuzz1, InitInferEngineForDistributed)
 {
     std::srand(time(NULL));
+    MINDIE_LLM_LOG_DEBUG("begin====================");
     std::string fuzzName = "LlmManagerDTFuzz:InitInferEngine";
     std::string homePath;
     mindie_llm::GetLlmPath(homePath);
@@ -464,6 +469,7 @@ int MockInstanceTransfer(llm::backend::ModelBackend *modelBackend,
 TEST(LlmManagerDTFuzz1, InitInferEngineForPd)
 {
     std::srand(time(NULL));
+    MINDIE_LLM_LOG_DEBUG("begin====================");
     std::string fuzzName = "LlmManagerDTFuzz:InitInferEngineForPd";
     std::string homePath;
     mindie_llm::GetLlmPath(homePath);

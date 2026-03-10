@@ -11,8 +11,7 @@
  */
 
 #include "infer_request_impl.h"
-
-#include "system_log.h"
+#include "log.h"
 #include "check_utils.h"
 using namespace mindie_llm;
 
@@ -24,7 +23,7 @@ InferRequestImpl::InferRequestImpl(InferRequestId requestId) : requestId_(reques
 void InferRequestImpl::SetTensor(const std::string& tensorName, TensorPtr &tensor)
 {
     if (!CheckStringInputLength(tensorName, MAX_STRING_LENGTH)) {
-        LOG_ERROR_LLM << "The length of tensor name: " << tensorName << "is too long.";
+        MINDIE_LLM_LOG_ERROR("The length of tensor name: " << tensorName << "is too long.");
         return;
     }
     inputs_[tensorName] = tensor;
@@ -33,7 +32,7 @@ void InferRequestImpl::SetTensor(const std::string& tensorName, TensorPtr &tenso
 Status InferRequestImpl::AddTensor(const std::string& tensorName, TensorPtr &tensor)
 {
     if (!CheckStringInputLength(tensorName, MAX_STRING_LENGTH)) {
-        LOG_ERROR_LLM << "The length of tensor name: " << tensorName << "is too long in 'AddTensor'.";
+        MINDIE_LLM_LOG_ERROR("The length of tensor name: " << tensorName << "is too long in 'AddTensor'.");
         return Status(Error::Code::INVALID_ARG, "The length of tensor name: " + tensorName + " is too long");
     }
     if (tensor == nullptr) {
@@ -49,7 +48,7 @@ Status InferRequestImpl::AddTensor(const std::string& tensorName, TensorPtr &ten
 Status InferRequestImpl::GetTensorByName(const std::string& tensorName, TensorPtr &tensor)
 {
     if (!CheckStringInputLength(tensorName, MAX_STRING_LENGTH)) {
-        LOG_ERROR_LLM << "The length of tensor name: " << tensorName << " is too long in 'GetTensorByName'.";
+        MINDIE_LLM_LOG_ERROR("The length of tensor name: " << tensorName << " is too long in 'GetTensorByName'.");
         return Status(Error::Code::INVALID_ARG, "The length of tensor name: " + tensorName + " is too long");
     }
     auto iter = inputs_.find(tensorName);
@@ -66,7 +65,7 @@ Status InferRequestImpl::GetTensorByName(const std::string& tensorName, TensorPt
 Status InferRequestImpl::DelTensorByName(const std::string &name)
 {
     if (!CheckStringInputLength(name, MAX_STRING_LENGTH)) {
-        LOG_ERROR_LLM << "The length of tensor name: " << name << "is too long in 'DelTensorByName'.";
+        MINDIE_LLM_LOG_ERROR("The length of tensor name: " << name << "is too long in 'DelTensorByName'.");
         return Status(Error::Code::INVALID_ARG, "The length of tensor name: " + name + " is too long");
     }
     if (inputs_.erase(name) != 1) {
@@ -86,7 +85,7 @@ Status InferRequestImpl::SetMaxOutputLen(uint32_t maxOutputLen)
         maxOutputLen_ = maxOutputLen;
         return Status(Error::Code::OK, "Success");
     } else {
-        LOG_ERROR_LLM << "InferRequest SetMaxOutputLen failed due to invalid parameter";
+        MINDIE_LLM_LOG_ERROR("InferRequest SetMaxOutputLen failed due to invalid parameter");
         return Status(Error::Code::ERROR, "output length is invalid parameter");
     }
 }
@@ -164,7 +163,7 @@ bool InferRequestImpl::IsDecodeReq() const
 void InferRequestImpl::SetDTarget(std::string &dTarget)
 {
     if (!CheckStringInputLength(dTarget, MAX_STRING_LENGTH)) {
-        LOG_ERROR_LLM << "The Length of dTarget: " << dTarget << " is too long in SetDTarget.";
+        MINDIE_LLM_LOG_ERROR("The Length of dTarget: " << dTarget << " is too long in SetDTarget.");
         return;
     }
     dTarget_ = dTarget;
@@ -178,7 +177,7 @@ std::string InferRequestImpl::GetDTarget() const
 void InferRequestImpl::SetPrefillAddr(std::string &prefillAddr)
 {
     if (!CheckStringInputLength(prefillAddr, MAX_STRING_LENGTH)) {
-        LOG_ERROR_LLM << "The Length of dTarget: prefillAddr is too long";
+        MINDIE_LLM_LOG_ERROR("The Length of dTarget: prefillAddr is too long");
         return;
     }
     prefillAddr_ = prefillAddr;

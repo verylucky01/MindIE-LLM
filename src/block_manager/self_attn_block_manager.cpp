@@ -14,6 +14,7 @@
 
 #include <numeric>
 
+#include "log.h"
 #include "cpu_npu_block_allocator.h"
 #include "msServiceProfiler/msServiceProfiler.h"
 #include "math_utils.h"
@@ -58,6 +59,8 @@ SelfAttnBlockManager::SelfAttnBlockManager(const BlockManagerConfig &config, siz
         memPoolInstance_ = std::make_shared<MemPool>(std::make_shared<py::object>(memPool_));
         PyGILState_Release(gstate);
     }
+
+    MINDIE_LLM_LOG_INFO("SelfAttnBlockManager init success!");
 }
 
 BlockSpaceManagerSPtr BlockManagerFactory::CreateBlockSpaceManager(BlockManagerType type,

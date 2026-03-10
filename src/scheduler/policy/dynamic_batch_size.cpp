@@ -10,12 +10,10 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#include "dynamic_batch_size.h"
-
-#include "system_log.h"
+#include "log.h"
 #include "policy/seq_group_collection.h"
 #include "stage_policy/stage_policy.h"
-
+#include "dynamic_batch_size.h"
 
 namespace mindie_llm {
 DynamicBatchSize::DynamicBatchSize(const SchedulerConfigSPtr schedulerConfig,
@@ -69,12 +67,14 @@ void DynamicBatchSize::AdjustBatchSize(size_t previousStage, size_t previousDeco
     if (avgBatchSize == 0 || std::fabs(avgDecodeLatency) < 1e-6f || previousStage != 1) {
         return;
     }
-    LOG_INFO_LLM.SetType(LogType::REQUEST) << "avg decode latency: " << avgDecodeLatency
-                        << "ms, avg batch size:" << avgBatchSize;
+
+    MINDIE_LLM_LOG_INFO_REQUEST("[DynamicBatchSize] avg decode latency: " << avgDecodeLatency
+                        << "ms, avg batch size:" << avgBatchSize);
     const uint16_t stageModulo = 2;
     stage_ = (stage_ + 1) % stageModulo;
-    LOG_INFO_LLM.SetType(LogType::REQUEST) << "waiting size=" << waitingSize << ", running size="
-        << runningSize << ", swapped size=" << swappedSize;
+    MINDIE_LLM_LOG_INFO_REQUEST("[DynamicBatchSize] waiting size="
+                        << waitingSize << ", running size=" << runningSize << ", swapped size=" << swappedSize);
+
     if (stage_ % stageModulo == 0) {
         BinarySearchBatchSize(currentDecodeRequestNum, avgDecodeLatency, avgBatchSize);
     } else {
@@ -119,9 +119,9 @@ void DynamicBatchSize::BinarySearchBatchSize(uint64_t currentDecodeRequestNum, d
     if (previousDecodeMaxBatchSize_ == newDecodeMaxBatchSize) {
         return;
     }
-    LOG_INFO_LLM << "Updated maxPrefillBatchSize: "
+    MINDIE_LLM_LOG_INFO("[DynamicBatchSize] Updated maxPrefillBatchSize: "
                         << newPrefillMaxBatchSize << ", maxBatchSize: " << previousDecodeMaxBatchSize_ << " -> "
-                        << newDecodeMaxBatchSize;
+                        << newDecodeMaxBatchSize);
     previousDecodeMaxBatchSize_ = newDecodeMaxBatchSize;
 }
 
@@ -132,7 +132,7 @@ void DynamicBatchSize::SetMinimalBatchSize(uint64_t currentDecodeRequestNum, dou
     if (currentDecodeRequestNum != 0 && (avgDecodeLatency > schedulerConfig_->decodeExpectedTime + deltaMs)) {
         schedulerConfig_->maxBatchSize = currentDecodeRequestNum;
         schedulerConfig_->maxPrefillBatchSize = 0UL;
-        LOG_INFO_LLM << "Updated maxPrefillBatchSize: 0, maxBatchSize: " << currentDecodeRequestNum;
+        MINDIE_LLM_LOG_INFO("[DynamicBatchSize] Updated maxPrefillBatchSize: 0, maxBatchSize: " << currentDecodeRequestNum);
         previousDecodeMaxBatchSize_ = currentDecodeRequestNum;
     }
 }

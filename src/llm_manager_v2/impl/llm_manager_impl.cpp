@@ -11,18 +11,15 @@
  */
  
 #include "llm_manager_impl.h"
-
 #include <chrono>
 #include <iomanip>
 #include <pybind11/pybind11.h>
-#include "nlohmann/json.hpp"
-
 #include "memory_utils.h"
-
+#include "nlohmann/json.hpp"
 #include "config_manager.h"
 #include "param_checker.h"
 #include "file_utils.h"
-#include "system_log.h"
+#include "log.h"
 #include "llm_manager_v2.h"
 #include "request_response/callback.h"
 #include "string_utils.h"
@@ -47,7 +44,7 @@ void HandleResponse(ResponseSPtr response)
 {
     auto spanHandleResponse = PROF(INFO, Domain("Engine").SpanStart("HandleResponse"));
     if (response == nullptr) {
-        LOG_ERROR_LLM << "Response is null!";
+        MINDIE_LLM_LOG_ERROR("[LlmManagerImpl] Response is null!");
         PROF(spanHandleResponse.SpanEnd());
         return;
     }
@@ -60,16 +57,17 @@ void HandleResponse(ResponseSPtr response)
     // EOS or PUBLISH_KV_COMPLETE时，删除callback
     if (response->isEos || response->transferStatusFlag == TransferStatusType::PUBLISH_KV_COMPLETE) {
         InferInstance::GetCallbackMap().Erase(response->reqId);
-        LOG_INFO_LLM.SetType(LogType::REQUEST) << "Remove SendResponsesCallback requestId: " << response->reqId
-            << " when encountering EOS or PUBLISH_KV_COMPLETE.";
+        MINDIE_LLM_LOG_INFO_REQUEST("[LlmManagerImpl] Remove SendResponsesCallback requestId: " + response->reqId +
+                            " when encountering EOS or PUBLISH_KV_COMPLETE.");
     }
 
     if (serverResponseCallback.has_value()) {
         serverResponseCallback.value()(response);
     } else if (!InferInstance::IsPaused()) {
-        LOG_INFO_LLM.SetType(LogType::REQUEST)
-            << "SendResponsesCallback of requestId: " << response->reqId << " is not exist.";
+        MINDIE_LLM_LOG_INFO_REQUEST("[LlmManagerImpl] SendResponsesCallback of requestId: " + response->reqId +
+                            " is not exist.");
     }
+    
     PROF(spanHandleResponse.SpanEnd());
 }
 
@@ -214,11 +212,11 @@ bool SafeStoull(const std::string &str, uint64_t &outValue)
         outValue = std::stoull(str);
         return true;
     } catch (const std::invalid_argument &e) {
-        LOG_ERROR_LLM << "Invalid number string: " << str << ", " << e.what();
+        MINDIE_LLM_LOG_ERROR("Invalid number string: " << str << ", " << e.what());
         outValue = 0;
         return false;
     } catch (const std::out_of_range &e) {
-        LOG_ERROR_LLM << "Number out of range: " << str << ", " << e.what();
+        MINDIE_LLM_LOG_ERROR("Number out of range: " << str << ", " << e.what());
         outValue = UINT64_MAX;
         return false;
     }
@@ -232,8 +230,8 @@ bool AddFailedLinkToReq(RequestSPtr &runtimeRequest, const PDLinkResponse &respo
     for (int64_t i = 0; i < failedLinkNum; ++i) {
         uint64_t clusterId;
         if (!SafeStoull(response.failed_link_info(i).cluster_id(), clusterId)) {
-            LOG_ERROR_LLM << "Failed to parse cluster_id for failed link info at index " << i
-                << ", invalid cluster_id: " << response.failed_link_info(i).cluster_id();
+            MINDIE_LLM_LOG_ERROR("Failed to parse cluster_id for failed link info at index " << i
+                << ", invalid cluster_id: " << response.failed_link_info(i).cluster_id());
             return false;
         }
         failedLinkInfo.cluster_id = clusterId;
@@ -276,7 +274,7 @@ LlmManagerImpl::LlmManagerImpl(const std::string &llmConfigPath, GetRequestsCall
     if (ipInfo.count("infer_mode") > 0 && ipInfo["infer_mode"] == "dmi") {
         isDmiInfer_ = true;
     }
-    LOG_INFO_LLM << "LLMRuntime init success!";
+    MINDIE_LLM_LOG_INFO("LLMRuntime init success!");
 }
 
 void LlmManagerImpl::Step()
@@ -296,7 +294,7 @@ void LlmManagerImpl::Step()
         sendRuntimeThread_ = std::thread(&LlmManagerImpl::SendRuntimeStep, this);
         pthread_setname_np(sendRuntimeThread_.native_handle(), "ManagerSendRT");
     }
-    LOG_INFO_LLM << "LLMRuntime thread start success!";
+    MINDIE_LLM_LOG_INFO("LLMRuntime thread start success!");
 }
 
 void LlmManagerImpl::Stop()
@@ -331,13 +329,14 @@ void LlmManagerImpl::Stop()
             sendRuntimeThread_.join();
         }
     }
+    MINDIE_LLM_LOG_INFO("LLMRuntime thread stop success!");
 }
 
 void LlmManagerImpl::Shutdown()
 {
     auto ret = Finalize();
     if (!ret.IsOk()) {
-        LOG_ERROR_LLM << "Shut down LLMRuntime failed!. errmsg: " << ret.StatusMsg();
+        MINDIE_LLM_LOG_ERROR("Shut down LLMRuntime failed!. errmsg:" << ret.StatusMsg());
     }
 }
 
@@ -396,19 +395,21 @@ static void UpdateFromEnv(std::set<size_t> &npuDeviceIds, uint32_t modelInstance
     Json jsonData;
     try {
         jsonData["npuDeviceIds"] = Json::parse(envNpuIds, CheckJsonDepthCallback);
-        LOG_INFO_LLM << "Config data has been updated by env variable: " << ENV_NPU_DEVICE_IDS;
+        MINDIE_LLM_LOG_INFO("Config data has been updated by env variable:" << ENV_NPU_DEVICE_IDS);
+        
         npuDeviceIds.clear();
         for (auto &ele : jsonData["npuDeviceIds"][modelInstanceId]) {
             npuDeviceIds.insert(static_cast<size_t>(ele));
         }
     } catch (Json::parse_error &e) {
-        LOG_ERROR_LLM << "Env variable resolution failed: " << ENV_NPU_DEVICE_IDS << ", Incorrect format: " << e.what();
+        MINDIE_LLM_LOG_ERROR("Env variable resolution failed: " <<
+            ENV_NPU_DEVICE_IDS << ", Incorrect format: " << e.what());
     } catch (Json::out_of_range &e) {
-        LOG_ERROR_LLM << "modelInstanceId=" << modelInstanceId << " out of range: " << e.what();
+        MINDIE_LLM_LOG_ERROR("modelInstanceId=" << modelInstanceId << " out of range: " << e.what());
     } catch (Json::type_error &e) {
-        LOG_ERROR_LLM << "Type error for modelInstanceId=" << modelInstanceId << ": " << e.what();
+        MINDIE_LLM_LOG_ERROR("Type error for modelInstanceId=" << modelInstanceId << ": " << e.what());
     }
-    LOG_INFO_LLM << "ModelDeployConfig::npuDeviceIds=" << jsonData["npuDeviceIds"];
+    MINDIE_LLM_LOG_INFO("ModelDeployConfig::npuDeviceIds=" << jsonData["npuDeviceIds"]);
 }
 
 static void SetModelParams(ModelDeployConfig &modelDeployParam)
@@ -428,9 +429,10 @@ static void SetModelParams(ModelDeployConfig &modelDeployParam)
     if (g_truncation) {
         g_truncLen = std::min(modelDeployParam.maxInputTokenLen, modelDeployParam.maxSeqLen - 1);
     }
-    LOG_INFO_LLM << "InitModelConfig: maxSeqLen=" << modelDeployParam.maxSeqLen
-        << ", maxInputTokenLen=" << modelDeployParam.maxInputTokenLen
-        << ", g_truncation=" << g_truncation << ", g_truncLen=" << g_truncLen;
+    MINDIE_LLM_LOG_INFO("InitModelConfig: maxSeqLen=" << modelDeployParam.maxSeqLen
+                                                      << ", maxInputTokenLen=" << modelDeployParam.maxInputTokenLen
+                                                      << ", g_truncation=" << g_truncation
+                                                      << ", g_truncLen=" << g_truncLen);
 }
 
 static void UpdateNpuDeviceId(std::set<size_t> &modelNpuDeviceIds, std::set<size_t> &npuDeviceIds,
@@ -493,11 +495,11 @@ static bool GetPluginEnable(std::string pluginName, std::vector<ModelDeployConfi
         if (it != modelParam.modelConfig.end()) {
             pluginParam = it->second;
         } else {
-            LOG_INFO_LLM << "Input plugin_params is empty or only contains whitespace.";
+            MINDIE_LLM_LOG_INFO("Input plugin_params is empty or only contains whitespace.");
             return false;
         }
         if (!CheckStringInputLength(pluginParam, MAX_STRING_LENGTH)) {
-            LOG_ERROR_LLM << "The 'pluginParam' is too long.";
+            MINDIE_LLM_LOG_ERROR("The 'pluginParam' is too long.");
             return false;
         }
         nlohmann::json jstring;
@@ -508,7 +510,7 @@ static bool GetPluginEnable(std::string pluginName, std::vector<ModelDeployConfi
             errMsg << "Invalid plugin parameters. "
                    << "Please check the 'plugin_params' field in the 'config.json' file for the service, "
                    << "and ensure it adheres to the JSON format. The error info is: " << e.what();
-            LOG_ERROR_LLM << errMsg.str();
+            MINDIE_LLM_LOG_ERROR(errMsg.str());
             throw std::invalid_argument(errMsg.str());
         }
         if (jstring.contains("plugin_type")) {
@@ -532,7 +534,7 @@ static bool GetPluginEnable(std::string pluginName, std::vector<ModelDeployConfi
                 }
             }
         } else {
-            LOG_ERROR_LLM << "'plugin_type' field not found in plugin_params, please check!";
+            MINDIE_LLM_LOG_ERROR("'plugin_type' field not found in plugin_params, please check!");
             return false;
         }
     }
@@ -543,17 +545,17 @@ static bool CheckEngineConfig(EngineConfig &engineConfig)
 {
     bool checkRes = true;
     if (engineConfig.enableSplit && engineConfig.templateType != "Mix") {
-        LOG_ERROR_LLM << "templateType must be Mix when enableSplit is True, but is " << engineConfig.templateType;
+        MINDIE_LLM_LOG_ERROR("templateType must be Mix when enableSplit is True, but is " << engineConfig.templateType);
         checkRes = false;
     }
     if (engineConfig.enableSplit && engineConfig.splitChunkTokens == 0) {
-        LOG_ERROR_LLM << "splitChunkTokens should be larger than 0 when splitfuse is enabled, but is "
-                             << engineConfig.splitChunkTokens;
+        MINDIE_LLM_LOG_ERROR("splitChunkTokens should be larger than 0 when splitfuse is enabled, but is "
+                             << engineConfig.splitChunkTokens);
         checkRes = false;
     }
     if (engineConfig.enableChunkedPrefill && engineConfig.supportSelectBatch) {
-        LOG_WARN_LLM << "Both splitfuse and supportSelectBatch are configured, the "
-            << "scheduling strategy will be executed according to splitfuse, supportSelectBatch will be disabled.";
+        MINDIE_LLM_LOG_WARN("Both splitfuse and supportSelectBatch are configured, the " <<
+            "scheduling strategy will be executed according to splitfuse, supportSelectBatch will be disabled.");
     }
     return checkRes;
 }
@@ -572,8 +574,8 @@ static void UpdateEngineConfig(EngineConfig &engineConfig)
     if (cpSize > 1 && (maxSeqLen % loadBalanceCpSize != 0)) {
         uint32_t base = maxSeqLen / loadBalanceCpSize;
         engineConfig.modelDeployParam[0].maxSeqLen = (base + 1) * loadBalanceCpSize;
-        LOG_INFO_LLM << "CP is enabled, maxSeqLen has been increased to the multiple of 4."
-            << " maxSeqLen after cp pad: " << engineConfig.modelDeployParam[0].maxSeqLen;
+        MINDIE_LLM_LOG_INFO("CP is enabled, maxSeqLen has been increased to the multiple of 4." <<
+            " maxSeqLen after cp pad: " << engineConfig.modelDeployParam[0].maxSeqLen);
     }
 }
 
@@ -754,13 +756,13 @@ static bool InitEngineConfig(EngineConfig &engineConfig, std::vector<ModelDeploy
 
     // 刷新modelConfigs_ 刷新engineConfig_
     std::string rankIdList = extendInfo.count("local_rank_ids") > 0 ? extendInfo["local_rank_ids"] : "";
-    LOG_INFO_LLM << "The rankIdList is " << rankIdList << "In InitEngineConfig paras";
+    MINDIE_LLM_LOG_INFO("The rankIdList is " << rankIdList << "In InitEngineConfig paras");
     if (!rankIdList.empty() && engineConfig.distributedEnable) {
         // localRankIds service传递的局部rankids
         std::vector<std::string> localRankIds;
         mindie_llm::Split(rankIdList, ',', localRankIds);
         engineConfig.globalWorldSize = ranktableParam.globalWorldSize;
-        LOG_INFO_LLM << "The globalWorldSize is " << engineConfig.globalWorldSize << "In InitEngineConfig paras";
+        MINDIE_LLM_LOG_INFO("The globalWorldSize is " << engineConfig.globalWorldSize << "In InitEngineConfig paras");
         engineConfig.globalRankIds.clear();
         std::vector<size_t> npuIds;
         for (auto device : ranktableParam.local.device) {
@@ -776,7 +778,7 @@ static bool InitEngineConfig(EngineConfig &engineConfig, std::vector<ModelDeploy
                 modelParam.npuDeviceIds.insert(id);
             }
             modelParam.worldSize = modelParam.npuDeviceIds.size();
-            LOG_INFO_LLM << "The world_size is " << modelParam.worldSize << " In InitEngineConfig";
+            MINDIE_LLM_LOG_INFO("The world_size is " << modelParam.worldSize << "In InitEngineConfig");
         }
     }
 
@@ -986,10 +988,10 @@ static void InitDeviceAndInstanceConfig(SchedulerConfig &schedulerConfig, const 
     auto ipInfoIt = ipInfo.find("local_instance_id");
     if (ipInfoIt != ipInfo.end()) {
         if (!StrToUint64(schedulerConfig.instanceId, ipInfoIt->second)) {
-            LOG_INFO_LLM << "Get instanceId failed: out of range.";
+            MINDIE_LLM_LOG_INFO("Get instanceId failed: out of range.");
             return;
         }
-        LOG_INFO_LLM << "schedulerConfig.instanceId" << schedulerConfig.instanceId;
+        MINDIE_LLM_LOG_INFO("schedulerConfig.instanceId" << schedulerConfig.instanceId);
     }
 }
 
@@ -1179,7 +1181,7 @@ BlockNum LlmManagerImpl::GetMinBlockNumFromExecutors()
     // 因此只需获取第一个Executor实例的数值即可
     uint32_t minCpuBlockNum = iExecutorSPtrs_.front()->GetCpuBlockNum();
     uint32_t minNpuBlockNum = iExecutorSPtrs_.front()->GetNpuBlockNum();
-    LOG_INFO_LLM << "CpuBlockNum:" << minCpuBlockNum << "; NpuBlockNum: " << minNpuBlockNum;
+    MINDIE_LLM_LOG_INFO("CpuBlockNum:" << minCpuBlockNum << "; NpuBlockNum: " << minNpuBlockNum);
     BlockNum blockNum{.cpuBlockNum = minCpuBlockNum, .npuBlockNum = minNpuBlockNum};
 
     return blockNum;
@@ -1188,13 +1190,13 @@ BlockNum LlmManagerImpl::GetMinBlockNumFromExecutors()
 Status LlmManagerImpl::LaunchLlmEngine(Role pdRole)
 {
     if (iExecutorSPtrs_.size() == 0) {
-        LOG_ERROR_LLM << "LlmManagerImpl::LaunchLlmEngine:iExecutorSPtrs_ is empty";
+        MINDIE_LLM_LOG_ERROR("LlmManagerImpl::LaunchLlmEngine:iExecutorSPtrs_ is empty");
         return Status(Error::Code::ERROR, "Executors is empty.");
     }
 
     if ((engineConfig_.multiNodesInferEnabled || engineConfig_.layerwiseDisaggregated) && !engineConfig_.isMaster) {
-        LOG_INFO_LLM << "In centralized inter-node PD co-locating, the slave node does not hold its own LlmEngine, "
-            << "it shares the same LlmEngine with the master node.";
+        MINDIE_LLM_LOG_INFO("In centralized inter-node PD co-locating, the slave node does not hold its own LlmEngine, "
+                            "it shares the same LlmEngine with the master node.");
         return Status(Error::Code::OK, "Success");
     }
 
@@ -1219,7 +1221,7 @@ Status LlmManagerImpl::LaunchLlmEngine(Role pdRole)
     // 标记Engine已就绪。请求会进入Scheduler队列，调度线程会按正常流程处理
     // 无需等待线程启动，因为队列和调度机制本身是线程安全的
     llmEngineReady_.store(true, std::memory_order_release);
-    LOG_INFO_LLM << "Engine started and ready to accept requests.";
+    MINDIE_LLM_LOG_INFO("[LaunchLlmEngine] Engine started and ready to accept requests.");
 
     // 注意，一定要在BatchSchduler初始化成功后再改变pdRole，以保证Scheduler初始化失败时，角色信息保持不变
     pdRole_ = pdRole;
@@ -1280,7 +1282,7 @@ Status LlmManagerImpl::Init(uint32_t modelInstanceId, std::set<size_t> npuDevice
     try {
         modelParamVec = GetModelDeployConfig();
     } catch (const std::exception &e) {
-        LOG_ERROR_LLM << "Config manager init exception: " << e.what();
+        MINDIE_LLM_LOG_ERROR("Config manager init exception: " << e.what());
         return Status(Error::Code::ERROR, "Get configManagerInstance failed.");
     }
     if (!InitEngineConfig(engineConfig_, modelParamVec, npuDeviceIds, modelInstanceId, extendInfo)) {
@@ -1291,7 +1293,7 @@ Status LlmManagerImpl::Init(uint32_t modelInstanceId, std::set<size_t> npuDevice
     
     auto &configManager = mindie_llm::ConfigManager::GetInstance();
     if (!LlmSetModelConfig(engineConfig_, modelConfigs_, ipInfo_, isDmiInfer_)) {
-        LOG_ERROR_LLM << "Malloc modelBackends_ failed.";
+        MINDIE_LLM_LOG_ERROR("Malloc modelBackends_ failed.");
         return Status(Error::Code::ERROR, "Engine init model failed: new modelBackends_ failed");
     }
 
@@ -1332,9 +1334,9 @@ Status LlmManagerImpl::Init(uint32_t modelInstanceId, std::set<size_t> npuDevice
     threads.reserve(executorNum);
     iExecutorSPtrs_.resize(executorNum);
     if (!SharedMemorySizeCheck(TOTAL_SHARED_MEMORY_PER_DP * shmCount)) {
-        LOG_ERROR_LLM << "Available shared memory size is not enough for all executors. Please increase the "
-            << "available shared memory. The least required size is "
-            << TOTAL_SHARED_MEMORY_PER_DP * shmCount;
+        MINDIE_LLM_LOG_ERROR("Available shared memory size is not enough for all executors. Please increase the "
+                                 "available shared memory. The least required size is " +
+                                 std::to_string(TOTAL_SHARED_MEMORY_PER_DP * shmCount));
         return Status(Error::Code::ERROR, "Shared memory size is not enough for all executors.");
     }
     for (size_t i = 0; i < executorNum; i++) {
@@ -1376,6 +1378,7 @@ Status LlmManagerImpl::Init(uint32_t modelInstanceId, std::set<size_t> npuDevice
 
 Status LlmManagerImpl::ProcessRequests(RequestSPtr request)
 {
+    MINDIE_LLM_LOG_WARN_REQUEST("Get a new inferRequest from server, requestId: " << request->requestId);
     return ForwardRequest(request);
 }
 
@@ -1389,12 +1392,14 @@ Status LlmManagerImpl::ProcessRequests()
     for (auto req : requests) {
         RequestIdNew reqId = req->requestId;
         if (req == nullptr) {
-            LOG_ERROR_LLM << "Error: Request is null!";
+            MINDIE_LLM_LOG_ERROR("Error: Request is null!");
             continue;
         }
+        MINDIE_LLM_LOG_INFO("Get a new inferRequest from server, requestId: " << req->requestId);
+
         Status ret = ForwardRequest(req);
         if (!ret.IsOk()) {
-            LOG_ERROR_LLM << "Error: Process is notOK!" << ret.StatusMsg();
+            MINDIE_LLM_LOG_ERROR("Error: Process is notOK!" << ret.StatusMsg());
         }
         if (statusResponseCallback_ != nullptr) {
             statusResponseCallback_(req->requestId, ret, StatusResponseTypeV2::REQUEST_ENQUEUE_STATUS);
@@ -1413,6 +1418,8 @@ Status LlmManagerImpl::ForwardRequest(RequestSPtr request)
     if (!llmEnginePtr_->AddRequest(request)) {
         return Status(Error::Code::ERROR, "Engine has been stopped. Cannot add request.");
     }
+
+    MINDIE_LLM_LOG_INFO_REQUEST("Insert a new inferRequest, requestId: " << request->requestId);
     return Status(Error::Code::OK, "Success");
 }
 
@@ -1422,7 +1429,7 @@ Status VerifyInputTokenSize(int64_t inputTokenSize, uint32_t maxInputTokenSize)
         std::string errorMsg = "This model's maximum input ids length cannot be greater than maxPositionEmbeddings " +
                                std::to_string(g_maxPositionEmbeddings) + "," + "the input ids length is " +
                                std::to_string(inputTokenSize);
-        LOG_ERROR_LLM << errorMsg;
+        MINDIE_LLM_LOG_ERROR(errorMsg);
         return Status(Error::Code::INVALID_ARG, errorMsg);
     }
 
@@ -1430,7 +1437,7 @@ Status VerifyInputTokenSize(int64_t inputTokenSize, uint32_t maxInputTokenSize)
         std::string errorMsg = "This model's maximum input ids length cannot be greater than " +
                                std::to_string(maxInputTokenSize) + "," + "the input ids length is " +
                                std::to_string(inputTokenSize);
-        LOG_ERROR_LLM << errorMsg;
+        MINDIE_LLM_LOG_ERROR(errorMsg);
         return Status(Error::Code::INVALID_ARG, errorMsg);
     }
 
@@ -1438,7 +1445,7 @@ Status VerifyInputTokenSize(int64_t inputTokenSize, uint32_t maxInputTokenSize)
         std::string errorMsg = "This model's maximum input ids length cannot be greater than maxSeqLen " +
                                std::to_string(g_maxSeqLen) + "," + "the input ids length is " +
                                std::to_string(inputTokenSize);
-        LOG_ERROR_LLM << errorMsg;
+        MINDIE_LLM_LOG_ERROR(errorMsg);
         return Status(Error::Code::INVALID_ARG, errorMsg);
     }
     return Status(Error::Code::OK, "Success");
@@ -1449,20 +1456,20 @@ Status VerifyTopK(RequestSPtr &request)
     int32_t topK = request->topK.value();
     if (g_vocabSizeConfig > static_cast<uint32_t>(INT32_MAX)) {
         std::string errorMsg = "The value of g_vocabSizeConfig exceeds the maximum limit INT32_MAX.";
-        LOG_ERROR_LLM << errorMsg;
+        MINDIE_LLM_LOG_ERROR(errorMsg);
         return Status(Error::Code::INVALID_ARG, errorMsg);
     }
     int32_t signedVocabSizeConfig = static_cast<int32_t>(g_vocabSizeConfig);
     if (topK < 0 || topK > std::numeric_limits<int32_t>::max()) {
         std::string errorMsg = "The value of topK must be in [0, 2147483647], but the topK is " + std::to_string(topK) +
                                ", please set topK in [0, 2147483647]";
-        LOG_ERROR_LLM << errorMsg;
+        MINDIE_LLM_LOG_ERROR(errorMsg);
         return Status(Error::Code::INVALID_ARG, errorMsg);
     }
     if (topK > signedVocabSizeConfig || topK > g_maxTopKConfig) {
         request->topK = std::min(signedVocabSizeConfig, g_maxTopKConfig);
-        LOG_INFO_LLM.SetType(LogType::REQUEST) << "Request topK value has been set to " << request->topK.value()
-            << ". Config the `top_k` value in the `generation_config.json` file of the model.";
+        MINDIE_LLM_LOG_INFO_REQUEST("Request topK value has been set to " << request->topK.value()
+                            << ". Config the `top_k` value in the `generation_config.json` file of the model.");
     }
     return Status(Error::Code::OK, "Success");
 }
@@ -1472,10 +1479,10 @@ static Status CheckReqInputIds(RequestSPtr &request, const uint32_t vocabSize)
     if (vocabSize == 0) { // 有些配置下（如多模态），vocabSize可能为0，表示不检查input_ids
         return Status(Error::Code::OK, "Success");
     }
-    LOG_DEBUG_LLM.SetType(LogType::REQUEST) << "Checking input ids from request in CheckReqInputIds function.";
+    MINDIE_LLM_LOG_DEBUG_REQUEST("Checking input ids from request in CheckReqInputIds function.");
     for (auto id : request->input_ids) {
         if (id >= vocabSize) {
-            LOG_ERROR_LLM << "Unexpect Input Id: " << id << ", vocab size: " << vocabSize;
+            MINDIE_LLM_LOG_ERROR("Unexpect Input Id: " << id << ", vocab size: " << vocabSize);
             return Status(Error::Code::INVALID_ARG, "Invalid Input Ids");
         }
     }
@@ -1485,7 +1492,7 @@ static Status CheckReqInputIds(RequestSPtr &request, const uint32_t vocabSize)
 Status LlmManagerImpl::ProccessReqInputIds(RequestSPtr &request) const
 {
     if (!request) {
-        LOG_ERROR_LLM << "CheckReqInputIds: request is nullptr.";
+        MINDIE_LLM_LOG_ERROR("CheckReqInputIds: request is nullptr.");
         return Status(Error::Code::ERROR, "CheckReqInputIds: request is nullptr.");
     }
     Status ret = CheckReqInputIds(request, g_vocabSizeConfig);
@@ -1524,8 +1531,8 @@ void LlmManagerImpl::ControlRequest(const RequestIdNew &requestId, OperationV2 o
 {
     RequestId reqId = requestId;
     std::unordered_set<RequestId> reqIds = {reqId};
-    LOG_INFO_LLM.SetType(LogType::REQUEST) << "Get a new ControlRequest from server, requestId: "
-        << reqId << ", with operation:" << static_cast<int>(operation);
+    MINDIE_LLM_LOG_INFO_REQUEST("Get a new ControlRequest from server, requestId: " << reqId << ", with operation:"
+                                                                            << static_cast<int>(operation));
     if (operation == OperationV2::STOP) {
         llmEnginePtr_->AbortRequests(reqIds);
     } else if (operation == OperationV2::RELEASE_KV) {
@@ -1540,6 +1547,8 @@ void LlmManagerImpl::ControlRequest()
     auto stopReqPairs = controlCallback_();
     for (auto reqPair : stopReqPairs) {
         RequestId reqId = reqPair.first;
+        MINDIE_LLM_LOG_INFO("Get a new ControlRequest from server, requestId: "
+                    << reqId << ", with operation:" << static_cast<int>(reqPair.second));
         std::unordered_set<RequestId> reqIds = {reqId};
         if (reqPair.second == OperationV2::STOP) {
             llmEnginePtr_->AbortRequests(reqIds);
@@ -1593,7 +1602,7 @@ void LlmManagerImpl::SendJsonData(EngineMetric &engineMetric)
                      {"decode_throughput", engineMetric.decodeThroughput_}};
     std::string strData = jsonData.dump();
     if (statusCallback_ == nullptr) {
-        LOG_ERROR_LLM << "The statusCallback_ function is nullptr";
+        MINDIE_LLM_LOG_ERROR("The statusCallback_ function is nullptr");
     } else {
         statusCallback_(strData);
     }
@@ -1606,7 +1615,7 @@ Status LlmManagerImpl::Finalize()
 
     // 1. finalize engine
     if (multiNodesInferEnabled_ && !isMaster_) {
-        LOG_INFO_LLM << "Multi Nodes inference slave instance need not finalize.";
+        MINDIE_LLM_LOG_INFO("Multi Nodes inference slave instance need not finalize.");
     } else {
         llmEnginePtr_->Stop();
     }
@@ -1623,7 +1632,7 @@ Status LlmManagerImpl::Finalize()
 Status LlmManagerImpl::FinalizeLlmEngine() const
 {
     if (multiNodesInferEnabled_ && !isMaster_) {
-        LOG_INFO_LLM << "Multi Nodes inference slave instance need not finalize.";
+        MINDIE_LLM_LOG_INFO("Multi Nodes inference slave instance need not finalize.");
     } else {
         llmEnginePtr_->Stop();
     }
@@ -1640,7 +1649,7 @@ Status LlmManagerImpl::RelaunchLlmEngine(int64_t roleIndex)
     constexpr int MIN_ROLE_INDEX = 1;
     constexpr int MAX_ROLE_INDEX = 3;
     if (roleIndex < MIN_ROLE_INDEX || roleIndex > MAX_ROLE_INDEX) {
-        LOG_ERROR_LLM << "Switch PD role error: P/D role is not set.";
+        MINDIE_LLM_LOG_ERROR("[RelaunchLlmEngine] Switch PD role error: P/D role is not set.");
         return Status(Error::Code::ERROR, "Switch P/D role error: P/D role is not set.");
     }
 
@@ -1650,12 +1659,12 @@ Status LlmManagerImpl::RelaunchLlmEngine(int64_t roleIndex)
 
     auto res = FinalizeLlmEngine();
     if (!res.IsOk()) {
-        LOG_ERROR_LLM << "Failed to finalize LlmEngine.";
+        MINDIE_LLM_LOG_ERROR("[RelaunchLlmEngine] Failed to finalize LlmEngine.");
         return res;
     }
     res = LaunchLlmEngine(pdRole);
     if (!res.IsOk()) {
-        LOG_ERROR_LLM << "Failed to relaunch LlmEngine.";
+        MINDIE_LLM_LOG_ERROR("[RelaunchLlmEngine] Failed to relaunch LlmEngine.");
         return res;
     }
     return Status(Error::Code::OK, "Switch P/D role successfully!");
@@ -1695,15 +1704,17 @@ bool LlmManagerImpl::SetExecuteConfig(bool isForceRelease, std::map<std::string,
 bool LlmManagerImpl::UpdateEngineInfo(RequestSPtr &runtimeRequest, bool isForceRelease)
 {
     if (pdRole_ == Role::FlexP && isFlexInitialized_) {
-        LOG_INFO_LLM << "Only set flex prefill percentage.";
+        MINDIE_LLM_LOG_INFO("[LlmManager::LlmManagerImpl::UpdateEngineInfo] Only set flex prefill percentage.");
         return true;
     }
+
     std::map<std::string, std::string> executeConfig;
     // 身份切换，需要重启LlmEngine
     if (!SetExecuteConfig(isForceRelease, executeConfig, runtimeRequest)) {
         return false;
     }
-    LOG_INFO_LLM << "EXECUTE_TYPE is " << executeConfig["EXECUTE_TYPE"];
+    MINDIE_LLM_LOG_INFO("[LlmManagerImpl::UpdateEngineInfo] EXECUTE_TYPE is " << executeConfig["EXECUTE_TYPE"]);
+
     PDLinkRequestData pdLinkRequestData = GetPDLinkRequestDataFromInferRequest(runtimeRequest);
     PDLinkRequest pdLinkRequest = BuildPDLinkRequest(pdLinkRequestData);
     // set pdlink
@@ -1737,6 +1748,8 @@ bool LlmManagerImpl::UpdateEngineInfo(RequestSPtr &runtimeRequest, bool isForceR
     if (pdRole_ == Role::FlexP) {
         isFlexInitialized_ = true;
     }
+
+    MINDIE_LLM_LOG_INFO("[LlmManagerV2::LlmManagerImpl::UpdateEngineInfo] Success.");
     return true;
 }
 
@@ -1769,7 +1782,7 @@ Status LlmManagerImpl::HandleLoraImpl(const LoraOperation loraOperation, std::ve
         return ret;
     }
     if (pdRole_ != Role::PnD && pdRole_ != Role::FlexP) {
-        LOG_ERROR_LLM << "Multi Lora does not support PD separation.";
+        MINDIE_LLM_LOG_ERROR("[LlmManager::LlmManagerImpl::HandleLoraImpl] Multi Lora does not support PD separation.");
         return Status(Error::Code::ERROR, "Multi Lora does not support PD separation!");
     }
     if (loraOperation == mindie_llm::LoraOperation::LORA_LOAD) {
@@ -1783,7 +1796,7 @@ Status LlmManagerImpl::HandleLoraImpl(const LoraOperation loraOperation, std::ve
 bool LlmManagerImpl::UpdateFlexSwitchInfo(const std::shared_ptr<FlexSwitchInfo> flexSwitchInfo)
 {
     if (flexSwitchInfo == nullptr) {
-        LOG_ERROR_LLM << "flexSwitchInfo is nullptr.";
+        MINDIE_LLM_LOG_ERROR("[UpdateFlexSwitchInfo] flexSwitchInfo is nullptr.");
         return false;
     }
     llmEnginePtr_->SetPrefillPercentage(flexSwitchInfo->flexPrefillPercentage);
@@ -1805,7 +1818,7 @@ bool LlmManagerImpl::ExecuteRecoverCommand(RecoverCommandInfo &commandInfo) cons
         llmEnginePtr_->ExecuteRecoverCommand(commandInfo);
         llmEnginePtr_->ResumeScheduling();
     } else {
-        LOG_ERROR_LLM << "Unknown recover command: " + command;
+        MINDIE_LLM_LOG_ERROR("Unknown recover command: " + command);
     }
     return true;
 }

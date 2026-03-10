@@ -9,9 +9,7 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
-#include "post_processing.h"
-
+ 
 #include <cmath>
 #include <cstddef>
 #include <iostream>
@@ -23,7 +21,7 @@
 #include <map>
 #include <deque>
 #include "check_utils.h"
-#include "system_log.h"
+#include "post_processing.h"
 
 namespace {
 
@@ -123,18 +121,22 @@ void mindie_llm::cpu_logits_handler::PostProcessing::Run()
     threadIdStr = ss.str();
     for (int i = 0; i < batchSize; i++) {
         if ((*dictConf).find(requestIds[i]) == (*dictConf).end()) {
+            MINDIE_LLM_LOG_DEBUG("No conf,Do ArgMax");
             DecodeBySize(scoreSize);
             ArgMax(false);
         } else {
             conf = &((*dictConf).at(requestIds[i]));
+            MINDIE_LLM_LOG_DEBUG("Init task for config: " << conf->GetConfig());
             if (conf->logprobs < 0 || conf->logprobs > maxLogprobs) {
                 throw std::invalid_argument("The logprobs is < 0 or > maxLogprobs.");
             }
             if (conf->sample) {
                 DoTopK();
                 DoTopP();
+                MINDIE_LLM_LOG_DEBUG("Do sample for param " << conf->sample);
                 Sampling(conf->logprobs);
             } else {
+                MINDIE_LLM_LOG_DEBUG("Do ArgMax");
                 DecodeBySize(scoreSize);
                 ArgMax(false, conf->logprobs);
             }
@@ -159,8 +161,10 @@ void mindie_llm::cpu_logits_handler::PostProcessing::DoTopK()
 void mindie_llm::cpu_logits_handler::PostProcessing::DoTopP()
 {
     if (std::fabs(conf->topP - 1.0) > 1e-9 and useApprox) {
+        MINDIE_LLM_LOG_DEBUG("Do TopApprox for param " << conf->topP);
         TopApprox();
     } else if (std::fabs(conf->topP - 1.0) > 1e-9 and not useApprox) {
+        MINDIE_LLM_LOG_DEBUG("Do TopP for param " << conf->topP);
         TopP();
     }
 }
@@ -270,7 +274,7 @@ void mindie_llm::cpu_logits_handler::PostProcessing::Sampling(const int &numLogp
     } else if (conf->sampleMethod == mindie_llm::cpu_logits_handler::SamplerType::MULTINOMIAL) {
         MultinomialSample(numLogprobs);
     } else {
-        LOG_ERROR_LLM << "sampler type [" << static_cast<int>(conf->sampleMethod) << "]";
+        MINDIE_LLM_LOG_ERROR("Error sampler type [" << static_cast<int>(conf->sampleMethod) << "]");
     }
 }
 
@@ -294,6 +298,8 @@ void mindie_llm::cpu_logits_handler::PostProcessing::SoftmaxNoModify(bool indexS
         for (size_t i = 0; i < scoreIndex.size(); i++) {
             softmaxIndex[i].first = 1.0f / scoreIndex.size();
         }
+        MINDIE_LLM_LOG_DEBUG("The value of sumT is near zero in softmax operation. " <<
+                             "softmax value will be " << softmaxIndex[0].first);
     } else {
         for (size_t i = 0; i < scoreIndex.size(); i++) {
             softmaxIndex[i].first /= sumT;
@@ -449,8 +455,9 @@ void mindie_llm::cpu_logits_handler::PostProcessing::DecodeByDtype()
             }
             break;
         default:
-            LOG_ERROR_LLM << "dtype " << static_cast<int>(dtype);
+            MINDIE_LLM_LOG_FATAL("Error dtype " << static_cast<int>(dtype));
     }
+    MINDIE_LLM_LOG_DEBUG("Init task dtype " << static_cast<int>(dtype));
 
     for (int i = 0; i < scoreSizeReal; i++) {
         scoreIndex[i] = std::pair<float, int>(sortedLogits[i], i);
@@ -473,6 +480,6 @@ void mindie_llm::cpu_logits_handler::PostProcessing::DecodeByDtypeElement(int i)
             break;
 
         default:
-            LOG_ERROR_LLM << "dtype " << static_cast<int>(dtype);
+            MINDIE_LLM_LOG_FATAL("Error dtype " << static_cast<int>(dtype));
     }
 }

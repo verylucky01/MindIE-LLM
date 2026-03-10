@@ -17,6 +17,7 @@
 #include <mutex>
 #include <shared_mutex>
 #include <queue>
+#include "log.h"
 
 namespace mindie_llm {
 template <typename T> class BlockingQueue {

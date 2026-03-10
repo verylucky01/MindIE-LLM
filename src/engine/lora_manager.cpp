@@ -12,7 +12,7 @@
 #include "lora_manager.h"
 #include <sstream>
 #include "basic_types.h"
-#include "system_log.h"
+#include "log.h"
 
 namespace mindie_llm {
 std::once_flag LoraManager::initFlag_;
@@ -118,6 +118,7 @@ void LoraManager::Initialize(std::vector<IExecutorSPtr> executors, uint32_t maxL
 LlmLoraPtr LoraManager::GetInstance(size_t localDPRank)
 {
     if (!instances_.at(localDPRank)) {
+        MINDIE_LLM_LOG_ERROR("[LoraManager::GetInstance] LoraManager not initialized");
         return nullptr;
     }
     return instances_.at(localDPRank);
@@ -162,13 +163,14 @@ Status LoraManager::Load(const LoraParamSPtr loraInfo)
     LoraStatus loraStatus = this->GetLoraStatus(loraInfo, loraIsInvalid);
     if (!loraIsInvalid) {
         loraMessage = GetLoraMessage(loraStatus, loraInfo->loraName, loraInfo->loraPath);
+        MINDIE_LLM_LOG_INFO("[LoraManager::Load] " << loraMessage);
         return Status(Error::Code::OK, loraMessage);
     }
 
     // 通过Execute下放
     LoraOperationRequest lorarequest = BuildLoraOperationRequest(loraInfo, model_execute_data::LoraOperationType::LOAD);
     if (!executor_->ExecutLoraRequest(lorarequest)) {
-        LOG_ERROR_LLM << "Failed to execute load LoRA request.";
+        MINDIE_LLM_LOG_ERROR("[LoraManager::Load] Failed to execute load LoRA request.");
         return Status(Error::Code::ERROR, "Failed to execute load LoRA request.");
     }
     LoraOperationResponse loraOperationResponse = executor_->GetLoraOperationResponse();
@@ -179,6 +181,7 @@ Status LoraManager::Load(const LoraParamSPtr loraInfo)
         loaded_.Insert(loraInfo->loraName, loraInfo);
     }
     loraMessage = GetLoraMessage(loraStatus, loraInfo->loraName, loraInfo->loraPath);
+    MINDIE_LLM_LOG_INFO("[LoraManager::Load] " << loraMessage);
     return Status(Error::Code::OK, loraMessage);
 }
 
@@ -189,7 +192,7 @@ Status LoraManager::StartToUnload(const std::string &loraName)
     std::string loraPath = "";
     if (loaded_.Count(loraName) == 0 || wait2Unloaded_.Count(loraName) != 0) {
         loraMessage = GetLoraMessage(LoraStatus::LORA_NOT_FOUND, loraName, loraPath);
-        LOG_INFO_LLM << "Failed to unload LoRA: LoRA has not been loaded or is waiting to unload.";
+        MINDIE_LLM_LOG_INFO("[LoraManager::StartToUnload] Failed to unload LoRA: LoRA has not been loaded or is waiting to unload.");
         return Status(Error::Code::OK, loraMessage);
     }
     LoraParamSPtr wait2unloadloraparam;
@@ -198,6 +201,7 @@ Status LoraManager::StartToUnload(const std::string &loraName)
 
     wait2Unloaded_.Insert(loraName, wait2unloadloraparam);
     loraMessage = GetLoraMessage(LoraStatus::UNLOAD_SUCCESS, loraName, loraPath);
+    MINDIE_LLM_LOG_INFO("[LoraManager::StartToUnload] Start to unload LoRA.");
     return Status(Error::Code::OK, loraMessage);
 }
 
@@ -225,13 +229,14 @@ void LoraManager::TryUnLoadWaiting()
                                                                          model_execute_data::LoraOperationType::UNLOAD);
             bool succ = executor_->ExecutLoraRequest(lorarequest);
             if (!succ) {
-                LOG_ERROR_LLM << "Call ExecuteUnloadLora failed.";
+                MINDIE_LLM_LOG_ERROR("Call ExecuteUnloadLora failed.");
                 throw std::runtime_error("The unload execution failed.Check logs.");
             }
             // 卸载成功删除lora
             wait2Unloaded_.Erase(unloadLoraParam->loraName);
             loaded_.Erase(unloadLoraParam->loraName);
-            LOG_ERROR_LLM << unloadLoraParam->loraName << " is successfully unload";
+            MINDIE_LLM_LOG_INFO("[LoraManager::UnLoad] " << unloadLoraParam->loraName <<
+                                " is successfully unload");
         }
     }
 }
@@ -245,6 +250,8 @@ bool LoraManager::ValidateLoraId(const std::optional<std::string> &loraId)
             return true;
         }
     }
+    MINDIE_LLM_LOG_INFO_REQUEST(
+        "[LoraManager::ValidateLoraId] LoraId is not available, will use baseModel to inference.");
     return false;
 }
 
@@ -265,7 +272,7 @@ void LoraManager::DecLoraRef(const std::optional<std::string> &loraId)
         if (loraIdValue != "" && loraIdValue != "None") {
             if (loraIdRef_.Count(loraIdValue) == 0 || !loraIdRef_.Get(loraIdValue).has_value() ||
                 loraIdRef_.Get(loraIdValue).value() == 0) {
-                    LOG_WARN_LLM << "The LoraId(" << loraIdValue << ") does not exist";
+                MINDIE_LLM_LOG_WARN("The LoraId(" << loraIdValue << ") does not exist");
             } else {
                 loraIdRef_.DecValue(loraIdValue);
             }

@@ -13,8 +13,7 @@
 #ifndef DECODE_REGRESSION
 #define DECODE_REGRESSION
 
-#include <cstdint>
-#include <vector>
+#include "log.h"
 
 namespace mindie_llm {
 

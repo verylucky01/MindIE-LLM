@@ -14,7 +14,6 @@
 #define IPC_COMMUNICATOR_H
 
 #include <memory>
-#include <thread>
 #include <condition_variable>
 
 #include "executor/executor_interface.h"

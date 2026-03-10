@@ -11,6 +11,7 @@
  */
 #include "policy_helper.h"
 
+#include "log.h"
 #include "msServiceProfiler/msServiceProfiler.h"
 
 #include <stdexcept>

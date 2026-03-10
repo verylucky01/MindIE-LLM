@@ -9,14 +9,11 @@
  * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
-#include "env_util.h"
-
 #include <cstring>
 #include <cstdlib>
 #include <string>
-
-#include "system_log.h"
+#include "log.h"
+#include "env_util.h"
 
 namespace mindie_llm {
 constexpr size_t MAX_ENV_LENGTH = 256; // 环境变量长度最大为256个字符
@@ -66,7 +63,8 @@ std::string EnvUtil::GetEnvByName(const std::string& name) const
 
     size_t itemLength = strlen(item);
     if (itemLength > MAX_ENV_LENGTH) {
-        LOG_ERROR_LLM << "Value length is too long";
+        ULOG_WARN(SUBMODLE_NAME_ENDPOINT, GenerateDaemonErrCode(WARNING, SUBMODLE_FEATURE_SERVER_REQUEST,
+            CHECK_WARNING), "Value length is too long");
         return "";
     }
     return item;
@@ -83,7 +81,8 @@ int32_t EnvUtil::GetInt(const std::string& name, int32_t defaultValue) const
     try {
         return std::stoi(value);
     } catch (...) {
-        LOG_ERROR_LLM << "Failed to convert " << name << " to integer";
+        ULOG_WARN(SUBMODLE_NAME_ENDPOINT, GenerateDaemonErrCode(WARNING, SUBMODLE_FEATURE_SERVER_REQUEST,
+            CHECK_WARNING), "Failed to convert " << name << " to integer");
         return defaultValue;
     }
 }

@@ -11,7 +11,7 @@
  */
 #include "load_balancer.h"
 
-#include "system_log.h"
+#include "log.h"
 
 namespace mindie_llm {
 LoadBalancer::LoadBalancer(const std::vector<EnginePerDPSPtr> &enginePerDPs, size_t waveNumPerDP, size_t thresholdPerDP,
@@ -42,12 +42,12 @@ LoadBalancer::~LoadBalancer()
 void LoadBalancer::AddSeqGroup(SequenceGroupSPtr &seqGroup)
 {
     if (seqGroup == nullptr) {
-        LOG_ERROR_LLM << "Attempt to add a null SequenceGroup.";
+        MINDIE_LLM_LOG_ERROR("Attempt to add a null SequenceGroup.");
         return;
     }
 
     if (stop_) {
-        LOG_INFO_LLM << "LoadBalancer stopped.";
+        MINDIE_LLM_LOG_INFO("LoadBalancer stopped.");
         return;
     }
 
@@ -62,6 +62,7 @@ void LoadBalancer::AddSeqGroup(SequenceGroupSPtr &seqGroup)
 void LoadBalancer::TriggerImmediatelyTask()
 {
     timer_.cancel();
+    MINDIE_LLM_LOG_DEBUG("TriggerImmediatelyTask.");
     Distribute();
 
     // 重新启动定时器
@@ -78,7 +79,7 @@ void LoadBalancer::ExecutePeriodicTask(const boost::system::error_code &ec)
 
     static int times = 0;
     if ((times++ % 3000) == 0) { // 由于周期性调度，降低刷新频率到1/3000
-        LOG_DEBUG_LLM << "ExecutePeriodicTask.";
+        MINDIE_LLM_LOG_DEBUG("ExecutePeriodicTask.");
     }
     Distribute();
 
@@ -91,6 +92,7 @@ void LoadBalancer::Stop()
 {
     stop_ = true;
     io_.stop();
+    MINDIE_LLM_LOG_INFO("LoadBalancer stopped.");
 }
 
 // 分配SequenceGroup到不同的Engine
@@ -103,7 +105,7 @@ void LoadBalancer::Distribute()
     // 1. 收集当前当前Scheduler中的wave信息
     std::vector<size_t> dpRankIds = GetDistributedDpRankIds();
     if (dpRankIds.empty()) {
-        LOG_WARN_LLM << "There is not scheduler need to distribute sequence group.";
+        MINDIE_LLM_LOG_WARN("There is not scheduler need to distribute sequence group.");
         return;
     }
 
@@ -160,14 +162,14 @@ void LoadBalancer::DistributeSeqGroups(const std::vector<size_t> &dpRankIds)
         auto &enginePerDP = enginePerDPs_[dpRankIds[i]];
         for (auto seqGroupSPtr : candidatesForSched) {
             if (seqGroupSPtr == nullptr) {
-                LOG_ERROR_LLM << "null seqGroup in candidates";
+                MINDIE_LLM_LOG_ERROR("null seqGroup in candidates");
                 continue;
             }
             seqGroupSPtr->waveId_ = waveId_;
             enginePerDP->scheduler->AddSeqGroup(seqGroupSPtr);
-            LOG_INFO_LLM.SetType(LogType::REQUEST) << "Load Balance dispatch request to DP RankId: "
+            MINDIE_LLM_LOG_INFO_REQUEST("[LlmEngine|Request-Enter Waiting] Load Balance dispatch request to DP RankId: "
                                 << dpRankIds[i] << ", requestId: " << seqGroupSPtr->metrics_.inferReqId_
-                                << "seqId: " << seqGroupSPtr->firstSeq->seqId_ << ").";
+                                << "seqId: " << seqGroupSPtr->firstSeq->seqId_ << ").");
             enginePerDP->addedRequestNum++;
         }
     }

@@ -30,7 +30,7 @@
 #include "env_util.h"
 #include "common_util.h"
 #include "nlohmann/json.hpp"
-#include "system_log.h"
+#include "log.h"
 #include "log/logger_def.h"
 
 using Json = nlohmann::json;
@@ -417,18 +417,18 @@ void GetModelInfo(const std::string &configPath, std::string &modelName, size_t 
     std::string errmsg;
     std::string regularPath;
     if (!FileUtils::RegularFilePath(configPathTmp, errmsg, regularPath)) {
-        LOG_ERROR_LLM << "Path validation for \"config.json\" failed." << errmsg;
+        MINDIE_LLM_LOG_ERROR("Path validation for \"config.json\" failed." << errmsg);
         return;
     }
     bool checkFlag = FileUtils::GetCheckPermissionFlag();
     FileValidationParams params = {true, MAX_CONFIG_PERM, MAX_CONFIG_FILE_SIZE_LIMIT, checkFlag};
     if (!FileUtils::IsFileValid(configPathTmp, errmsg, params)) {
-        LOG_ERROR_LLM << "File validation for \"config.json\" failed." << errmsg;
+        MINDIE_LLM_LOG_ERROR("File validation for \"config.json\" failed." << errmsg);
         return;
     }
     std::ifstream file(regularPath);
     if (!file.is_open()) {
-        LOG_ERROR_LLM << "Error: Open config json file failed, the file path: " << regularPath;
+        MINDIE_LLM_LOG_ERROR("Error: Open config json file failed, the file path: " << regularPath);
         return;
     }
     Json configJsonData;
@@ -448,7 +448,7 @@ void GetModelInfo(const std::string &configPath, std::string &modelName, size_t 
             serverCount = 1;
         }
     } catch (const Json::exception &e) {
-        LOG_ERROR_LLM << "Config json is invalid." << e.what();
+        MINDIE_LLM_LOG_ERROR("Config json is invalid." << e.what());
         return;
     }
 }
@@ -842,20 +842,28 @@ bool SafeGetMapVectorValue(const std::map<uint64_t, std::vector<int64_t>>& map,
     try {
         auto it = map.find(seqId);
         if (it == map.end()) {
-            LOG_ERROR_LLM << mapName << " sequence id " << seqId << " not found.";
+            ULOG_ERROR(SUBMODLE_NAME_ENDPOINT,
+                       GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SINGLE_INFERENCE, ABNORMAL_TRANSMISSION_ERROR),
+                       mapName << " sequence id " << seqId << " not found.");
             return false;
         }
         if (index >= it->second.size()) {
-            LOG_ERROR_LLM << mapName << " vector index out of range: seqId=" << seqId << ", index=" << index << ".";
+            ULOG_ERROR(SUBMODLE_NAME_ENDPOINT,
+                       GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SINGLE_INFERENCE, ABNORMAL_TRANSMISSION_ERROR),
+                       mapName << " vector index out of range: seqId=" << seqId << ", index=" << index << ".");
             return false;
         }
         outValue = it->second.at(index);
         return true;
     } catch (const std::out_of_range& e) {
-        LOG_ERROR_LLM << mapName << " vector index out of range: seqId=" << seqId << ", index=" << index << ".";
+        ULOG_ERROR(SUBMODLE_NAME_ENDPOINT,
+                   GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SINGLE_INFERENCE, ABNORMAL_TRANSMISSION_ERROR),
+                   mapName << " vector index out of range: seqId=" << seqId << ", index=" << index << ".");
         return false;
     } catch (const std::exception& e) {
-        LOG_ERROR_LLM << mapName << " access failed: " << e.what() << ".";
+        ULOG_ERROR(SUBMODLE_NAME_ENDPOINT,
+                   GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SINGLE_INFERENCE, ABNORMAL_TRANSMISSION_ERROR),
+                   mapName << " access failed: " << e.what() << ".");
         return false;
     }
 }
@@ -870,20 +878,28 @@ bool SafeGetMapVectorValue(const std::map<uint64_t, std::vector<float>>& map,
     try {
         auto it = map.find(seqId);
         if (it == map.end()) {
-            LOG_ERROR_LLM << mapName << " sequence id " << seqId << " not found.";
+            ULOG_ERROR(SUBMODLE_NAME_ENDPOINT,
+                       GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SINGLE_INFERENCE, ABNORMAL_TRANSMISSION_ERROR),
+                       mapName << " sequence id " << seqId << " not found.");
             return false;
         }
         if (index >= it->second.size()) {
-            LOG_ERROR_LLM << mapName << " vector index out of range: seqId=" << seqId << ", index=" << index << ".";
+            ULOG_ERROR(SUBMODLE_NAME_ENDPOINT,
+                       GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SINGLE_INFERENCE, ABNORMAL_TRANSMISSION_ERROR),
+                       mapName << " vector index out of range: seqId=" << seqId << ", index=" << index << ".");
             return false;
         }
         outValue = it->second.at(index);
         return true;
     } catch (const std::out_of_range& e) {
-        LOG_ERROR_LLM << mapName << " vector index out of range: seqId=" << seqId << ", index=" << index << ".";
+        ULOG_ERROR(SUBMODLE_NAME_ENDPOINT,
+                   GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SINGLE_INFERENCE, ABNORMAL_TRANSMISSION_ERROR),
+                   mapName << " vector index out of range: seqId=" << seqId << ", index=" << index << ".");
         return false;
     } catch (const std::exception& e) {
-        LOG_ERROR_LLM << mapName << " access failed: " << e.what() << ".";
+        ULOG_ERROR(SUBMODLE_NAME_ENDPOINT,
+                   GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SINGLE_INFERENCE, ABNORMAL_TRANSMISSION_ERROR),
+                   mapName << " access failed: " << e.what() << ".");
         return false;
     }
 }

@@ -18,8 +18,6 @@
 #include <grpcpp/server_builder.h>
 #include <experimental/filesystem>
 
-#include "system_log.h"
-
 using grpc::Server;
 using grpc::ServerBuilder;
 
@@ -29,12 +27,12 @@ bool ReadFileToString(const fs::path &filePath, std::string &outContent)
 {
     std::string path = filePath.string();
     if (!CanonicalPath(path)) {
-        LOG_ERROR_LLM << "Invalid Path: " << path;
+        MINDIE_LLM_LOG_ERROR("Invalid Path: " + path);
         return false;
     }
     std::ifstream file(path);
     if (!file) {
-        LOG_ERROR_LLM << "Cannot open file: " << path;
+        MINDIE_LLM_LOG_ERROR("Cannot open file: " + path);
         return false;
     }
     std::stringstream buf;
@@ -75,7 +73,7 @@ GRPCCommunicator::GRPCCommunicator(const std::unordered_map<std::string, std::st
         interNodeTlsCrlPath_ = fs::path(homePath) / modelConfig.at("interNodeTlsCrlPath");
         mindie_llm::Split(modelConfig.at("interNodeTlsCrlFiles"), ",", interNodeTlsCrlFiles_);
         if (!LoadCertificates()) {
-            LOG_ERROR_LLM << "Failed to load TLS certificates. Shutting down.";
+            MINDIE_LLM_LOG_ERROR("Failed to load TLS certificates. Shutting down.");
             throw std::runtime_error("Failed to load TLS certificates");
         }
     }
@@ -89,6 +87,7 @@ void GRPCCommunicator::StopServer()
     if (masterWorkerThread_.joinable()) {
         masterWorkerThread_.join();
     }
+    MINDIE_LLM_LOG_INFO("gRPC server shutdown complete");
 }
 
 void GRPCCommunicator::StopClient()
@@ -98,7 +97,7 @@ void GRPCCommunicator::StopClient()
         slaveStream_->WritesDone();
         grpc::Status status = slaveStream_->Finish();
         if (!status.ok()) {
-            LOG_ERROR_LLM << "Stream shutdown error: " << status.error_message();
+            MINDIE_LLM_LOG_ERROR("Stream shutdown error: " + status.error_message());
         }
     }
 
@@ -111,16 +110,20 @@ void GRPCCommunicator::StopClient()
     slaveStream_.reset();
     stub_.reset();
     channel_.reset();
+
+    MINDIE_LLM_LOG_INFO("gRPC connection shutdown complete");
 }
 
 GRPCCommunicator::~GRPCCommunicator()
 {
-    LOG_INFO_LLM << "GRPCCommunicator Starting destruction";
+    MINDIE_LLM_LOG_INFO("GRPCCommunicator Starting destruction");
     if (isMaster_) {
         StopServer();
     } else {
         StopClient();
     }
+
+    MINDIE_LLM_LOG_INFO("GRPCCommunicator destruction completed");
 }
 
 bool GRPCCommunicator::Init(int initCount)
@@ -128,7 +131,7 @@ bool GRPCCommunicator::Init(int initCount)
     // 确保仅在最后一次调用Init()时初始化，此时所有NPU节点启动信息已收集，Slave可向Master注册。
     int oldCallInitCount = callInitCount_.fetch_add(1, std::memory_order_acq_rel);
     if (oldCallInitCount == initCount - 1) {
-        LOG_INFO_LLM << "Start to init GRPCCommunicator";
+        MINDIE_LLM_LOG_INFO("Start to init GRPCCommunicator");
         if (isMaster_) {
             // On Master node, the number of response handler threads equals to the number of remote DP ranks
             return InitMaster(initCount);
@@ -146,7 +149,7 @@ bool GRPCCommunicator::Init(int initCount)
 // 需要保证master节点收到所有slave节点的注册信息后才初始化完成
 bool GRPCCommunicator::InitMaster(int respHandlerThreadCount)
 {
-    LOG_INFO_LLM << "GRPCCommunicator: Start to init as Master";
+    MINDIE_LLM_LOG_INFO("GRPCCommunicator: Start to init as Master");
     service_ = std::make_shared<MasterServiceImpl>(this, respHandlerThreadCount);
     masterWorkerThread_ = std::thread([this]() {
         std::string localAddr = FormatGrpcAddress(masterIP_, multiNodesInferPort_);
@@ -177,7 +180,7 @@ bool GRPCCommunicator::InitMaster(int respHandlerThreadCount)
                     auto crlProviderSpan = grpc_core::experimental::CreateStaticCrlProvider(crlContentVec);
                     auto crlProvider = crlProviderSpan.value_or(nullptr);
                     if (crlProvider == nullptr) {
-                        LOG_ERROR_LLM << "Failed to create crl provider";
+                        MINDIE_LLM_LOG_ERROR("Failed to create crl provider");
                         return false;
                     }
                     tlsServerOpts.set_crl_provider(crlProvider);
@@ -194,11 +197,12 @@ bool GRPCCommunicator::InitMaster(int respHandlerThreadCount)
         builder.RegisterService(service_.get());
         server_ = builder.BuildAndStart();
         if (!server_) {
-            LOG_ERROR_LLM << "Failed to start gRPC server on port " << multiNodesInferPort_;
+            MINDIE_LLM_LOG_ERROR("Failed to start gRPC server on port " + multiNodesInferPort_);
             return false;
         }
-        LOG_INFO_LLM << "gRPC server started on port " << multiNodesInferPort_ + " with " +
-                            (interNodeTLSEnabled_ ? "TLS" : "no encryption");
+        MINDIE_LLM_LOG_INFO("gRPC server started on port " + multiNodesInferPort_ + " with " +
+                            (interNodeTLSEnabled_ ? "TLS" : "no encryption"));
+
         server_->Wait();
         return true;
     });
@@ -210,23 +214,22 @@ bool GRPCCommunicator::InitMaster(int respHandlerThreadCount)
     }
 
     // 阻塞线程，需要等待所有slave节点连接成功后继续运行
-    LOG_INFO_LLM << "GRPCCommunicator: wait slave connecting...";
+    MINDIE_LLM_LOG_INFO("GRPCCommunicator: wait slave connecting...");
     WaitForAllSlavesConnected();
-    LOG_INFO_LLM << "GRPCCommunicator: All " << slaveCount_ << " slaves connected";
+    MINDIE_LLM_LOG_INFO("GRPCCommunicator: All " + std::to_string(slaveCount_) + " slaves connected");
     return true;
 }
 
 bool GRPCCommunicator::InitSlave()
 {
-    LOG_INFO_LLM << "GRPCCommunicator: Start to init as Slave (IP=" << slaveIp_ << ")";
+    MINDIE_LLM_LOG_INFO("GRPCCommunicator: Start to init as Slave (IP=" + slaveIp_ + ")");
     int retryCount = 0;
     int sleepInterval = 1;
     int maxRetries = 120; // 重试120次,持续2分钟,等待master端口启动成功（假设每次重试间隔1秒）
     bool connected = false;
     while (retryCount++ < maxRetries) {
         try {
-            LOG_INFO_LLM << "GRPCCommunicator: attempting connection to server at IP = "
-                << masterIP_ << ", port = " << multiNodesInferPort_;
+            MINDIE_LLM_LOG_INFO("GRPCCommunicator: attempting connection to server at IP = " + masterIP_ + ", port = " + multiNodesInferPort_);
             grpc::ChannelArguments channelArgs;
             channelArgs.SetInt(GRPC_ARG_MAX_CONCURRENT_STREAMS, maxConcurrentStreams);
             channelArgs.SetInt(GRPC_ARG_MAX_RECEIVE_MESSAGE_LENGTH, grpcSendReceiveBufSize);
@@ -253,7 +256,7 @@ bool GRPCCommunicator::InitSlave()
                         auto crlProviderSpan = grpc_core::experimental::CreateStaticCrlProvider(crlContentVec);
                         auto crlProvider = crlProviderSpan.value_or(nullptr);
                         if (crlProvider == nullptr) {
-                            LOG_ERROR_LLM << "Failed to create crl provider";
+                            MINDIE_LLM_LOG_ERROR("Failed to create crl provider");
                             return false;
                         }
                         tlsChannelOpts->set_crl_provider(crlProvider);
@@ -272,32 +275,32 @@ bool GRPCCommunicator::InitSlave()
             slaveStream_ = stub_->RegisterAndCommunicate(context_.get());
             if (!slaveStream_) {
                 // 连接失败，等待1秒后重试
-                LOG_WARN_LLM << "Failed to establish bidirectional stream to master. "
-                                    << "The master may not be ready yet. Retrying in 1 second...";
+                MINDIE_LLM_LOG_WARN("Failed to establish bidirectional stream to master. "
+                                    << "The master may not be ready yet. Retrying in 1 second...");
                 std::this_thread::sleep_for(std::chrono::seconds(sleepInterval));
                 continue;
             }
-            LOG_INFO_LLM << "Successfully connected to master and obtained slaveStream";
+            MINDIE_LLM_LOG_INFO("Successfully connected to master and obtained slaveStream");
 
             // 发送注册信息,如果注册失败则等待1秒后重试
             if (SendRegistration()) {
-                LOG_INFO_LLM << "Registration succeeded";
+                MINDIE_LLM_LOG_INFO("Registration succeeded");
                 connected = true;
                 break;
             } else {
                 slaveStream_->WritesDone();
                 slaveStream_->Finish();
-                LOG_WARN_LLM << "Send registration message to master failed. Retrying in 1 second...";
+                MINDIE_LLM_LOG_WARN("Send registration message to master failed. Retrying in 1 second...");
                 std::this_thread::sleep_for(std::chrono::seconds(sleepInterval));
             }
         } catch (const std::exception &e) {
-            LOG_ERROR_LLM << "gRPC CreateChannel Error: " << e.what();
+            MINDIE_LLM_LOG_ERROR("gRPC CreateChannel Error: " + std::string(e.what()));
         } catch (...) {
-            LOG_ERROR_LLM << "gRPC CreateChannel failed with unknown exception";
+            MINDIE_LLM_LOG_ERROR("gRPC CreateChannel failed with unknown exception");
         }
     }
     if (!connected) {
-        LOG_ERROR_LLM << "Failed to establish connection to master after maximum retries";
+        MINDIE_LLM_LOG_ERROR("Failed to establish connection to master after maximum retries");
         return false;
     }
     // 启动工作线程处理任务
@@ -317,7 +320,7 @@ bool GRPCCommunicator::SendRegistration()
     SlaveToMasterMsg msg;
     auto *reg = msg.mutable_register_request();
     reg->set_slave_ip(slaveIp_);
-    LOG_INFO_LLM << "Sent registration to master: slave_ip=" << slaveIp_;
+    MINDIE_LLM_LOG_INFO("Sent registration to master: slave_ip=" + slaveIp_);
     if (slaveStream_->Write(msg)) {
         return true;
     } else {
@@ -336,11 +339,11 @@ void GRPCCommunicator::StartWorkerThread()
                 ExecuteRequest request = task.execute_request();
                 HandleRequestFromMaster(request, targetDPRank);
             }
-            LOG_INFO_LLM << "gRPC Slave Worker Thread: stream closed by server";
+            MINDIE_LLM_LOG_INFO("gRPC Slave Worker Thread: stream closed by server");
         } catch (const std::exception &e) {
-            LOG_ERROR_LLM << "gRPC Slave Worker Thread Exception: " << e.what();
+            MINDIE_LLM_LOG_ERROR("gRPC Slave Worker Thread Exception: " + std::string(e.what()));
         } catch (...) {
-            LOG_ERROR_LLM << "gRPC Slave Worker Thread unknown exception";
+            MINDIE_LLM_LOG_ERROR("gRPC Slave Worker Thread unknown exception");
         }
     });
 }
@@ -349,12 +352,12 @@ template <typename StreamType, typename MsgType>
 bool GRPCCommunicator::SafeWriteMsgToStream(StreamType stream, const MsgType &msg)
 {
     if (!stream) {
-        LOG_ERROR_LLM << "SafeWriteMsgToStream: stream is null (cannot write message)";
+        MINDIE_LLM_LOG_ERROR("SafeWriteMsgToStream: stream is null (cannot write message)");
         return false;
     }
     std::lock_guard<std::mutex> lock(streamWriteMutex_); // 确保线程安全
     if (!stream->Write(msg)) {
-        LOG_ERROR_LLM << "SafeWriteMsgToStream: failed to write message to stream";
+        MINDIE_LLM_LOG_ERROR("SafeWriteMsgToStream: failed to write message to stream");
         return false;
     }
     return true;
@@ -364,7 +367,7 @@ bool GRPCCommunicator::SendRequest(ExecuteRequest &request, int sourceDPRank, in
                                    const std::string &slaveIp)
 {
     if (sourceDPRank < 0 || targetDPRank < 0) {
-        LOG_ERROR_LLM << "SendRequest: sourceDPRank and targetDPRank must be non-negative integers.";
+        MINDIE_LLM_LOG_ERROR("SendRequest: sourceDPRank and targetDPRank must be non-negative integers.");
         return false;
     }
     MasterToSlaveMsg msg;
@@ -396,7 +399,7 @@ bool GRPCCommunicator::GetSyncResponse(ExecuteResponse &response, int sourceDPRa
 bool GRPCCommunicator::SendResponse(ExecuteResponse &response, int sourceDPRank, int targetDPRank)
 {
     if (sourceDPRank < 0 || targetDPRank < 0) {
-        LOG_ERROR_LLM << "SendResponse: sourceDPRank and targetDPRank must be non-negative integers.";
+        MINDIE_LLM_LOG_ERROR("SendResponse: sourceDPRank and targetDPRank must be non-negative integers.");
         return false;
     }
     SlaveToMasterMsg msg;
@@ -405,7 +408,7 @@ bool GRPCCommunicator::SendResponse(ExecuteResponse &response, int sourceDPRank,
     *msg.mutable_execute_response() = response;
 
     if (!SafeWriteMsgToStream(slaveStream_.get(), msg)) {
-        LOG_ERROR_LLM << "SendResponse: failed to write response to slave stream.";
+        MINDIE_LLM_LOG_ERROR("SendResponse: failed to write response to slave stream.");
         return false;
     }
     return true;
@@ -415,11 +418,11 @@ template <typename HandlerType>
 bool RegisterHandler(ConcurrentMap<int, HandlerType> &handlers, int dpRankIdx, HandlerType handler)
 {
     if (handler == nullptr) {
-        LOG_ERROR_LLM << "GRPC RegisterHandler: handler is null.";
+        MINDIE_LLM_LOG_ERROR("GRPC RegisterHandler: handler is null.");
         return false;
     }
     if (handlers.Count(dpRankIdx) > 0) {
-        LOG_ERROR_LLM << "GRPC RegisterHandler: handler for dpRankIdx " << dpRankIdx << " is already registered.";
+        MINDIE_LLM_LOG_ERROR("GRPC RegisterHandler: handler for dpRankIdx " << dpRankIdx << " is already registered.");
         return false;
     }
     handlers.Insert(dpRankIdx, handler);
@@ -442,18 +445,19 @@ bool GRPCCommunicator::HandleResponseFromSlave(ExecuteResponse &response, int ta
     // ResponseHandler 对应于 ModelExecOutputHandler::Entry4Executor() 函数指针，并且是线程安全的
     std::optional<ResponseHandler> optHandler = responseHandlers_.Get(targetDPRank);
     if (!optHandler.has_value()) {
-        LOG_ERROR_LLM << "HandleResponseFromSlave: response handler for targetDPRank "
-                             << targetDPRank << " is not set or does not exist.";
+        MINDIE_LLM_LOG_ERROR("HandleResponseFromSlave: response handler for targetDPRank "
+                             << targetDPRank << " is not set or does not exist.");
         return false;
     }
     try {
         // 调用对应的处理函数
         optHandler.value()(response);
     } catch (const std::exception &e) {
-        LOG_ERROR_LLM << "HandleResponseFromSlave: exception occurred while handling response: " << e.what();
+        MINDIE_LLM_LOG_ERROR("HandleResponseFromSlave: exception occurred while handling response: " +
+                             std::string(e.what()));
         return false;
     } catch (...) {
-        LOG_ERROR_LLM << "HandleResponseFromSlave: unknown exception occurred while handling response.";
+        MINDIE_LLM_LOG_ERROR("HandleResponseFromSlave: unknown exception occurred while handling response.");
         return false;
     }
     return true;
@@ -470,8 +474,8 @@ void GRPCCommunicator::HandleRequestFromMaster(ExecuteRequest &request, int targ
     } else {
         std::optional<RequestHandler> optHandler = requestHandlers_.Get(targetDPRank);
         if (!optHandler.has_value()) {
-            LOG_ERROR_LLM << "GRPCCommunicator: request handler for targetDPRank "
-                                 << targetDPRank << " is not set or does not exist.";
+            MINDIE_LLM_LOG_ERROR("GRPCCommunicator: request handler for targetDPRank "
+                                 << targetDPRank << " is not set or does not exist.");
             return;
         }
         optHandler.value()(request); // 调用对应的处理函数
@@ -551,7 +555,7 @@ bool MasterServiceImpl::Take(int targetDPRank, ExecuteResponse &response)
 {
     auto blockingQueueOpt = dpRankIdxToSyncResp_.Get(targetDPRank);
     if (!blockingQueueOpt.has_value()) {
-        LOG_ERROR_LLM << "No blocking queue found for targetDPRank " << targetDPRank;
+        MINDIE_LLM_LOG_ERROR("No blocking queue found for targetDPRank " << targetDPRank);
         return false;
     }
     // This call will block until a response is available
@@ -566,7 +570,7 @@ ConcurrentMap<int, std::shared_ptr<ExecRespBlockingQueue>> &MasterServiceImpl::D
 
 bool GRPCCommunicator::LoadCertificates()
 {
-    LOG_INFO_LLM << "Loading TLS certificates for mutual authentication...";
+    MINDIE_LLM_LOG_INFO("Loading TLS certificates for mutual authentication...");
     std::string homePath;
     GetHomePath(homePath);
     // 1. 加载所有 CA 证书
@@ -575,13 +579,13 @@ bool GRPCCommunicator::LoadCertificates()
         fs::path caPath = fs::path(interNodeTlsCaPath_) / caFile;
         ReadFileToString(caPath, caCert_);
         caCert_ += "\n";
-        LOG_INFO_LLM << "Loaded CA certificate: " << caPath.string();
+        MINDIE_LLM_LOG_INFO("Loaded CA certificate: " + caPath.string());
     }
 
     // 2. 加载本端(服务端，客户端)证书
     fs::path certPath = interNodeTlsCert_;
     ReadFileToString(certPath, tlsCert_);
-    LOG_INFO_LLM << "Loaded server/client certificate: " << certPath.string();
+    MINDIE_LLM_LOG_INFO("Loaded server/client certificate: " + certPath.string());
   
     // 2. 读取本端证书的私钥
     fs::path keyPath = fs::path(interNodeTlsPk_);

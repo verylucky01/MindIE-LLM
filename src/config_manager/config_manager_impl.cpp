@@ -10,16 +10,14 @@
  * See the Mulan PSL v2 for more details.
  */
  
-#include "config_manager_impl.h"
-
 #include <thread>
-
 #include "cmath"
 #include "common_util.h"
 #include "base_config_manager.h"
 #include "env_util.h"
 #include "config_manager.h"
-#include "system_log.h"
+#include "log.h"
+#include "config_manager_impl.h"
 
 namespace mindie_llm {
 
@@ -55,26 +53,26 @@ bool ConfigManager::CreateInstance(std::string jsonPath)
     }
 
     if (jsonPath.empty() && !GetConfigPath(jsonPath).IsOk()) {
-        LOG_ERROR_LLM << "ConfigManager: Get config path failed.";
+        std::cout << "ConfigManager: Get config path failed." << std::endl;
         return false;
     }
     if (!CanonicalPath(jsonPath)) {
-        LOG_ERROR_LLM << "ConfigManager: Invalid config path.";
+        std::cout << "ConfigManager: Invalid config path." << std::endl;
         return false;
     }
-    LOG_INFO_LLM << "ConfigManager: Load Config from " << jsonPath << ".";
+    std::cout << "ConfigManager: Load Config from " << jsonPath << "." << std::endl;
     g_configPath = jsonPath;
     g_initialized = true;
     try {
         GetInstance();
     } catch (const nlohmann::json::exception &e) {
-        LOG_ERROR_LLM << "JSON error in ConfigManager: " << e.what();
+        std::cout << "JSON error in ConfigManager: " << e.what() << std::endl;
         return false;
     } catch (const std::runtime_error &e) {
-        LOG_ERROR_LLM << "ConfigManager init exception: " << e.what();
+        std::cout << "ConfigManager init exception: " << e.what() << std::endl;
         return false;
     } catch (const std::exception &e) {
-        LOG_ERROR_LLM << "ConfigManager Init exception: " << e.what();
+        std::cout << "ConfigManager Init exception: " << e.what() << std::endl;
         return false;
     }
     return true;
@@ -168,7 +166,8 @@ ConfigManager::Impl::Impl(const std::string &jsonPath)
     initialized_ = true;
 
     task_ = std::thread([this]() { this->UpdateConfig(); });
-    LOG_INFO_LLM << "Successfully init config manager";
+
+    std::cout << "[ConfigManager::InitConfigManager] Successfully init config manager" << std::endl;
 }
 
 bool ConfigManager::Impl::InitConfigManager()
@@ -185,6 +184,8 @@ bool ConfigManager::Impl::InitConfigManager()
         backendConfig_->UpdateMultiNodesInfer(ranktableConfig_->GetParam());
     }
     initialized_ = true;
+
+    std::cout << "[ConfigManager::InitConfigManager] Successfully init config manager" << std::endl;
     return true;
 }
 
@@ -229,18 +230,18 @@ bool ConfigManager::Impl::CheckAndInitLogParam() { return logConfig_->CheckParam
 static bool CheckScheduleConfigParam(const ScheduleConfig &scheduleConfigParam)
 {
     if (scheduleConfigParam.templateType != "Standard") {
-        LOG_ERROR_LLM << "layerwiseDisaggregated not incompatible with templateType " <<
-            scheduleConfigParam.templateType;
+        MINDIE_LLM_LOG_ERROR("layerwiseDisaggregated not incompatible with templateType " <<
+            scheduleConfigParam.templateType << std::endl);
         return false;
     }
 
     if (scheduleConfigParam.supportSelectBatch) {
-        LOG_ERROR_LLM << "layerwiseDisaggregated not incompatible with supportSelectBatch.";
+        MINDIE_LLM_LOG_ERROR("layerwiseDisaggregated not incompatible with supportSelectBatch." << std::endl);
         return false;
     }
 
     if (scheduleConfigParam.bufferResponseEnabled) {
-        LOG_ERROR_LLM << "layerwiseDisaggregated not incompatible with bufferResponseEnabled.";
+        MINDIE_LLM_LOG_ERROR("layerwiseDisaggregated not incompatible with bufferResponseEnabled." << std::endl);
         return false;
     }
 
@@ -253,12 +254,12 @@ static bool LwdCheckMultiNodesParam(const ServerConfig &serverConfigParam, const
     bool multiNodes = backendConfigParam.lwdMultiNodesEnable;
     uint32_t slaveIpNum = serverConfigParam.layerwiseDisaggregatedSlaveIpAddress.size();
     if (multiNodes && slaveIpNum != 2) { // 多机目前仅支持2机
-        LOG_ERROR_LLM << "layerwiseDisaggregated multi nodes only support slaveIpAddress size is 2 .";
+        MINDIE_LLM_LOG_ERROR("layerwiseDisaggregated multi nodes only support slaveIpAddress size is 2 ." << std::endl);
         return false;
     }
 
     if (multiNodes && (dpNum < 1 || dpNum > 2)) { // 多机目前仅支持dp=1和dp=2
-        LOG_ERROR_LLM << "layerwiseDisaggregated multi nodes only support dp size is 1 or 2.";
+        MINDIE_LLM_LOG_ERROR("layerwiseDisaggregated multi nodes only support dp size is 1 or 2." << std::endl);
         return false;
     }
 
@@ -274,17 +275,17 @@ bool ConfigManager::Impl::CheckLayerwiseDisaggregatedParam()
     const auto& modelDeployConfigParamVec = modelDeployConfig_->GetParam();
 
     if (backendConfigParam.multiNodesInferEnabled) {
-        LOG_ERROR_LLM << "layerwiseDisaggregated not incompatible with multiNodesInferEnabled.";
+        MINDIE_LLM_LOG_ERROR("layerwiseDisaggregated not incompatible with multiNodesInferEnabled."<<std::endl);
         return false;
     }
 
     if (serverConfigParam.distDPServerEnabled) {
-        LOG_ERROR_LLM << "layerwiseDisaggregated not incompatible with distDPServerEnabled.";
+        MINDIE_LLM_LOG_ERROR("layerwiseDisaggregated not incompatible with distDPServerEnabled." << std::endl);
         return false;
     }
 
     if (modelDeployConfigParamVec.size() == 0) {
-        LOG_ERROR_LLM << "layerwiseDisaggregated modelDeployConfigParamVec is empty.";
+        MINDIE_LLM_LOG_ERROR("layerwiseDisaggregated modelDeployConfigParamVec is empty." << std::endl);
         return false;
     }
 
@@ -292,15 +293,15 @@ bool ConfigManager::Impl::CheckLayerwiseDisaggregatedParam()
     const auto& modelConfigParam = modelDeployConfigParam.modelConfig;
 
     if (modelDeployConfigParam.backendType!= "atb") {
-        LOG_ERROR_LLM << "layerwiseDisaggregated not incompatible with backendType "
-            << modelDeployConfigParam.backendType;
+        MINDIE_LLM_LOG_ERROR("layerwiseDisaggregated not incompatible with backendType "
+                              <<modelDeployConfigParam.backendType<< std::endl);
         return false;
     }
 
     auto itrFindPluginType = modelConfigParam.find("plugin_type");
     bool checkConflicit = (itrFindPluginType!= modelConfigParam.end() && itrFindPluginType->second == "splitfuse");
     if (checkConflicit) {
-        LOG_ERROR_LLM << "layerwiseDisaggregated not incompatible with plugin_type: splitfuse.";
+        MINDIE_LLM_LOG_ERROR("layerwiseDisaggregated not incompatible with plugin_type: splitfuse." << std::endl);
         return false;
     }
 
@@ -318,7 +319,7 @@ bool ConfigManager::Impl::CheckLayerwiseDisaggregatedParam()
     bool singleNode = !backendConfigParam.lwdMultiNodesEnable;
     bool singleNodeInsNotSupportDpNum = isFindDp && (dpNum != 1);
     if (singleNode && singleNodeInsNotSupportDpNum) {
-        LOG_ERROR_LLM << "layerwiseDisaggregated not incompatible with dp "<< itrFindDp->second;
+        MINDIE_LLM_LOG_ERROR("layerwiseDisaggregated not incompatible with dp "<< itrFindDp->second << std::endl);
         return false;
     }
 
@@ -342,9 +343,7 @@ bool ConfigManager::Impl::CheckAllParam()
     }
 
     if (serverConfig_->GetParam().port == backendConfig_->GetParam().multiNodesInferPort) {
-        LOG_ERROR_LLM << "Endpoint port cannot be equal to multiNodesInferPort. "
-            << "endPointNum=" << serverConfig_->GetParam().port <<
-            ", multiNodesInferPort=" << backendConfig_->GetParam().multiNodesInferPort;
+        std::cout << "Endpoint port cannot be equal to multiNodesInferPort." << std::endl;
         result = false;
     }
 
@@ -353,15 +352,15 @@ bool ConfigManager::Impl::CheckAllParam()
     auto item = modelDeployConfig_->GetParam();
     for (auto &modelPam : item) {
         if (scheduleConfig_->GetParam().maxIterTimes == 0) {
-            LOG_ERROR_LLM << "The value of ScheduleParam.maxIterTimes can not be 0.";
+            std::cout << "The value of ScheduleParam.maxIterTimes can not be 0." << std::endl;
             result = false;
         }
         if ((scheduleConfig_->GetParam().maxPreemptCount != 0) && (modelPam.cpuMemSize == 0)) {
-            LOG_ERROR_LLM << "The value of modelParam.cpuMemSize can not be 0 when maxPreemptCount is not 0.";
+            std::cout << "The value of modelParam.cpuMemSize can not be 0 when maxPreemptCount is not 0." << std::endl;
             result = false;
         }
         if (maxPrefillTokens < modelPam.maxInputTokenLen && scheduleConfig_->GetParam().templateType != "Mix") {
-            LOG_ERROR_LLM << "The value of maxPrefillTokens should not be less than maxInputTokenLen.";
+            std::cout << "The value of maxPrefillTokens should not be less than maxInputTokenLen." << std::endl;
             result = false;
         }
     }
@@ -377,7 +376,7 @@ bool ConfigManager::Impl::CheckAllParam()
 std::string ConfigManager::Impl::GetConfigJsonStr()
 {
     if (!hasChecked_) {
-        LOG_ERROR_LLM << "Config not be checked, failed to get config json";
+        std::cout << "Config not be checked, failed to get config json" << std::endl;
         return "{}";
     }
     return configJson_.dump();
@@ -417,9 +416,10 @@ void ConfigManager::Impl::ExecuteConfigInteractions()
         // 执行插件状态检查并更新pluginEnabled字段
         ConfigInteraction::UpdatePluginEnabledStatus(modelDeployConfigs, *serverConfig_);
         ConfigInteraction::UpdateDeepseekEnabledStatus(modelDeployConfigs, *serverConfig_);
-        LOG_INFO_LLM << "Configuration interactions completed successfully";
+        
+        std::cout << "[ConfigManager::ExecuteConfigInteractions] Configuration interactions completed successfully" << std::endl;
     } catch (const std::exception& e) {
-        LOG_ERROR_LLM << "Execute failed: " << e.what();
+        std::cerr << "[ConfigManager::ExecuteConfigInteractions] Failed: " << e.what() << std::endl;
     }
 }
 

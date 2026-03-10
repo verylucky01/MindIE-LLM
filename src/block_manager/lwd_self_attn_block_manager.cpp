@@ -14,6 +14,7 @@
 #include "self_attn_block_manager.h"
 #include "lwd_self_attn_block_manager.h"
 
+#include "log.h"
 #include "cpu_npu_block_allocator.h"
 #include "msServiceProfiler/msServiceProfiler.h"
 #include "math_utils.h"
@@ -21,11 +22,14 @@
 namespace mindie_llm {
 LwdSelfAttnBlockManager::LwdSelfAttnBlockManager(const BlockManagerConfig &config, size_t localDPRank)
     : SelfAttnBlockManager(config, localDPRank)
-{}
+{
+    MINDIE_LLM_LOG_INFO("LwdSelfAttnBlockManager init success!");
+}
 
 void LwdSelfAttnBlockManager::LwdInitCloudBlockManager(const BlockManagerConfig &lwdCloudConfig, size_t localDPRank)
 {
     lwdCloudBlockManager_ = std::make_shared<SelfAttnBlockManager>(lwdCloudConfig, localDPRank);
+    MINDIE_LLM_LOG_INFO("LwdSelfAttnBlockManager lwdCloudBlockManager_ init success!");
 }
 
 void LwdSelfAttnBlockManager::LwdGetCloudRankedBlockIds(SequenceId seqId,

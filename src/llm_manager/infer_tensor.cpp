@@ -11,11 +11,9 @@
  */
 
 #include "llm_manager/infer_tensor.h"
-
 #include <cstring>
-
 #include "memory_utils.h"
-#include "system_log.h"
+#include "log.h"
 #include "check_utils.h"
 namespace mindie_llm {
 
@@ -25,11 +23,11 @@ constexpr uint32_t MAX_DIMCOUNT = 10000;
 InferTensor::InferTensor(std::string name, InferDataType dataType, std::vector<int64_t> dataShape)
 {
     if (!CheckStringInputLength(name, MAX_STRING_LENGTH)) {
-        LOG_ERROR_LLM << "The Input name of inferTensor: " << name << "is too long.";
+        MINDIE_LLM_LOG_ERROR("The Input name of inferTensor: " << name << "is too long.");
         return;
     }
     if (dataShape.size() > MAX_DIMCOUNT) {
-        LOG_ERROR_LLM << "The Input dataShape of inferTensor: " << name << "is too long";
+        MINDIE_LLM_LOG_ERROR("The Input dataShape of inferTensor: " << name << "is too long");
         return;
     }
     this->name = name;
@@ -70,11 +68,11 @@ void* InferTensor::GetData() const
 bool InferTensor::Truncate(const size_t truncLen) // for tensor of INPUT_IDS.
 {
     if (dataShape.size() == 0) {
-        LOG_ERROR_LLM << "Truncate: dataShape is empty.";
+        MINDIE_LLM_LOG_ERROR("Truncate: dataShape is empty.");
         return false;
     }
     if (truncLen > MAX_INPUTS_NUM) {
-        LOG_ERROR_LLM << "Truncate: truncLen is too large.";
+        MINDIE_LLM_LOG_ERROR("Truncate: truncLen is too large.");
         return false;
     }
     if (data == nullptr) {
@@ -103,7 +101,8 @@ bool InferTensor::Truncate(const size_t truncLen) // for tensor of INPUT_IDS.
     } else {
         dataShape[0] = truncLen;
     }
-    LOG_INFO_LLM << "Input truncation success: truncated length =" << truncLen;
+
+    MINDIE_LLM_LOG_INFO("Input truncation success: truncated length =" << truncLen);
     return true;
 }
 
@@ -128,11 +127,11 @@ bool InferTensor::Allocate(size_t size)
 void InferTensor::SetBuffer(const void *buffer, size_t tensorbyteSize, bool tensorNeedRelease)
 {
     if (buffer == nullptr) {
-        LOG_ERROR_LLM << "SetBuffer fail: buffer is nullptr";
+        MINDIE_LLM_LOG_ERROR("SetBuffer fail: buffer is nullptr");
         return;
     }
     if (tensorbyteSize > MAX_BYTE_ALLOWED) {
-        LOG_ERROR_LLM << "SetBuffer fail: tensorbyteSize is too large";
+        MINDIE_LLM_LOG_ERROR("SetBuffer fail: tensorbyteSize is too large");
         return;
     }
     data = const_cast<void *>(buffer);
