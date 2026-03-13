@@ -57,6 +57,15 @@ TLS_CRL_PATH = "tls_crl_path"
 TLS_CRL_FILES = "tls_crl_files"
 
 
+PREALLOC_SUPPORTED_QUANT_TYPES = {
+    QuantType.FLOAT,
+    QuantType.W8A8,
+    QuantType.W8A8_DYNAMIC,
+    QuantType.W8A8_PDMIX,
+    QuantType.W8A8_MIX
+}
+
+
 # Allow tensor initialization and casting with internal format(e.g., NZ)
 torch.npu.config.allow_internal_format = True
 
@@ -181,13 +190,6 @@ class ModelRunner:
         self.postprocessor = router_ins.postprocessor
         self.config_dict = router_ins.config_dict
         self.enable_atb_torch = router_ins.enable_atb_torch
-        self.prealloc_weight_mem_on_npu = router_ins.prealloc_weight_mem_on_npu and \
-            not self.layerwise_disaggregated and \
-            (self.config.quantize is None or \
-             self.config.quantize in [
-                QuantType.FLOAT, QuantType.W8A8, QuantType.W8A8_DYNAMIC,
-                QuantType.W8A8_PDMIX, QuantType.W8A8_MIX
-            ])
         self.llm_config = router_ins.llm_config
 
         if hasattr(self.config, "max_position_embeddings"):
@@ -203,6 +205,12 @@ class ModelRunner:
         self.fa_quant_type = self.config.quantization_config.fa_quant_type
         self.kv_cache_dtype = torch.int8 if self.kv_quant_type is not None or \
             self.fa_quant_type == "FAQuant" else self.dtype
+        self.prealloc_weight_mem_on_npu = (
+            router_ins.prealloc_weight_mem_on_npu and            # Router allows memory preallocation
+            not self.layerwise_disaggregated and                 # Layerwise disaggregation is disabled
+            self._is_quantization_supported() and                # Quantization configuration check
+            (self.kv_cache_dtype != torch.int8)                 # KV cache is not int8 type
+        )
         self.enable_nz = self.llm_config.llm.kv_cache_options.enable_nz
         
         if self.dtype not in [torch.float16, torch.bfloat16]:
@@ -277,13 +285,19 @@ class ModelRunner:
                 TLS_CRL_FILES: kwargs.get(TLS_CRL_FILES, ''),
             }
             batch_p_num = kwargs.get('batch_p_num', 1)
+            moe_quantize = getattr(self.config, 'moe_quantize', None)
             self.data_comm = EdgeCloudDataComm(self.dtype, batch_p_num)
             self.ctrl_comm = EdgeCloudCtrlComm(tls_config)
-            self.time_counter = CloudCutPolicy(self.layerwise_disaggregated_role_type, model_name_or_path, batch_p_num)
-            self.chunk_prefill_manager = ChunkPrefilPolicy(model_name_or_path, batch_p_num)
+            self.time_counter = CloudCutPolicy(self.layerwise_disaggregated_role_type, model_name_or_path, batch_p_num,
+                                               moe_quantize)
+            self.chunk_prefill_manager = ChunkPrefilPolicy(model_name_or_path, batch_p_num, moe_quantize)
             self.prefill_input_lengths = None
             self.edge_pre_chunk_length = 0
             self.prefill_total_seq_len = 0
+            lwd_comm_args = kwargs.get('lwd_comm_args', None)
+            lwd_comm_args.update({'npu_id': self.npu_id})
+            self.data_comm.set_comm_args(rank=self.local_rank, role=self.layerwise_disaggregated_role_type,
+                                         comm_args=lwd_comm_args)
 
     @classmethod
     def resume_hccl_comm(cls):
@@ -569,6 +583,7 @@ class ModelRunner:
                     decode batch size putted {hidden.shape}")
                 self.data_comm.decode_batch_size_queue.put(hidden.shape[0])
                 logger.info(f"[layerwiseDisaggregated] edge rank {self.rank} decode send {hidden.shape}")
+                self.data_comm.npu_net_host_hidden_sync(hidden)
                 self.data_comm.send_hidden('d', hidden)
 
                 self.ctrl_comm.decode_send_msg = self.ctrl_comm.shape_to_msg(hidden.shape)
@@ -602,6 +617,7 @@ class ModelRunner:
                         logger.info(f"[layerwiseDisaggregated] edge rank {self.rank}, "
                                     f"end put {self.edge_pre_chunk_length}")
                 logger.info(f"[layerwiseDisaggregated] edge rank {self.rank} prefill send {hidden.shape}")
+                self.data_comm.npu_net_host_hidden_sync(hidden)
                 self.data_comm.send_hidden('p', hidden)
 
                 self.ctrl_comm.prefill_send_msg = self.ctrl_comm.shape_to_msg(hidden.shape)
@@ -831,6 +847,11 @@ class ModelRunner:
             else:
                 res = self.forward_layerwise_disaggregated_cloud(**kwargs)
         else:
+            if not self.data_comm.init_finish and self.data_comm.get_lwd_rank_file() is not None:
+                self.data_comm.init_hccl()
+                if self.data_comm.init_finish:
+                    self.data_comm.hccl_comm_warmup(self.model.hidden_size)
+
             # warmup处理
             if layerwise_disaggregated_exe_stage is None:
                 input_lengths = kwargs.get("input_lengths")
@@ -843,6 +864,8 @@ class ModelRunner:
                 out_dict = {OUT_HIDDEN: torch.ones([len(input_ids), self.model.hidden_size],
                                                     dtype=self.dtype, device=self.device)}
                 kwargs.update(out_dict)
+                if self.data_comm.global_comm is not None:
+                    self.mapping.set_lwd_global_comm(self.data_comm.global_comm)
 
             """Call model's forward pass."""
             res = self.model.forward(**kwargs)
@@ -899,3 +922,10 @@ class ModelRunner:
 
     def clear_internal_tensors(self):
         self.dummy_operation.clear_internal_tensors()
+
+    def _is_quantization_supported(self):
+        """Check if current quantization configuration is supported"""
+        return (
+            self.config.quantize is None or 
+            self.config.quantize in PREALLOC_SUPPORTED_QUANT_TYPES
+        )

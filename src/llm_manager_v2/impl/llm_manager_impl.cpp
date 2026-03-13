@@ -557,6 +557,10 @@ static bool CheckEngineConfig(EngineConfig &engineConfig)
         MINDIE_LLM_LOG_WARN("Both splitfuse and supportSelectBatch are configured, the " <<
             "scheduling strategy will be executed according to splitfuse, supportSelectBatch will be disabled.");
     }
+    if (ConfigManager::GetInstance().IslayerwiseDisaggregated() && engineConfig.enablePrefixCache) {
+        MINDIE_LLM_LOG_ERROR("Prefix cache isn't supported in layerwise-disaggregated mode.");
+        checkRes = false;
+    }
     return checkRes;
 }
 
@@ -1115,6 +1119,20 @@ static void LLMInitSchedulerConfig(SchedulerConfig &schedulerConfig, BlockNum bl
     InitBufferResponseConfig(schedulerConfig, engineConfig);
     InitLayerwiseDisaggregated(schedulerConfig);
     InitKvPoolConfig(schedulerConfig, engineConfig);
+    // Fill multi-kv-cache descriptors from executor (populated via RemoteModelInitResults.kv_cache_descs).
+    // Backward compatible: if empty, scheduler will create a single block manager using cacheBlockSize.
+    {
+        std::lock_guard<std::mutex> lock(IExecutor::kvCacheOverview_.updateValueMutex);
+        schedulerConfig.kvCacheDescs.clear();
+        for (const auto &d : IExecutor::kvCacheOverview_.kvCacheDescs) {
+            SchedulerConfig::KVCacheDesc sd;
+            sd.npuBlockNum = d.npuBlockNum;
+            sd.blockSize = d.blockSize;
+            sd.compressionRatio = d.compressionRatio;
+            sd.cacheType = d.cacheType;
+            schedulerConfig.kvCacheDescs.push_back(sd);
+        }
+    }
 }
 
 static void LlmSetLoraConfig(const std::map<std::string, std::string> &loraModules,

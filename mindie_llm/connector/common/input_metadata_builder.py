@@ -349,6 +349,7 @@ def convert_execute_model_request_to_input_metadata_composite(
     is_req_last_chunk = []
     split_start_pos = []
     split_end_pos = []
+    batch_response_format = None
     
     # prefix cache
     batch_computed_block_order = None
@@ -386,7 +387,7 @@ def convert_execute_model_request_to_input_metadata_composite(
                 seq_group_metadata, block_id_for_simulate_req, is_sp_enable, is_cp_enable, config
             )
         else:
-            seq_blocks = convert_bytes_to_list(seq_group_metadata.block_tables)
+            seq_blocks = convert_bytes_to_list(seq_group_metadata.block_tables[0])
             if lwd_multi_nodes_enable and lwd_is_slave and is_scp_enbale:
                 seq_blocks = convert_bytes_to_list(seq_group_metadata.lwd_cloud_metadata.lwd_cloud_block_tables)
             sp_rank_block_num = None
@@ -481,10 +482,18 @@ def convert_execute_model_request_to_input_metadata_composite(
         batch_computed_block_order = prefill_params["batch_computed_block_order"]
         computed_blocks = prefill_params["computed_blocks"]
         remote_computed_blocks = prefill_params["remote_computed_blocks"]
+        batch_response_format = prefill_params["batch_response_format"]
     else:
+        # decode 阶段：收集必要的批次元数据
+        # 注意：在 decode 阶段，每个 seq_group 可能包含多个 sequence
+        # response_format_array 需要与 all_sequence_ids 一一对应（sequence 级别）
+        batch_response_format = []
         for seq_group_metadata in request.seq_group_metadata_list:
+            seq_ids = convert_bytes_to_list(seq_group_metadata.seqIds)
+            num_sequences = len(seq_ids)
+            
             batch_seq_ids.append(
-                np.array(convert_bytes_to_list(seq_group_metadata.seqIds), copy=True, dtype=np.int64)
+                np.array(seq_ids, copy=True, dtype=np.int64)
             )
             reserved_seqs_id_tensor = list(seq_group_metadata.reserved_seq_ids)
             if reserved_seqs_id_tensor is None:
@@ -492,6 +501,13 @@ def convert_execute_model_request_to_input_metadata_composite(
             else:
                 reserved_id = np.array(reserved_seqs_id_tensor, copy=True, dtype=np.int64)
             batch_reserved_seq_ids.append(reserved_id)
+            
+            # 收集 response_format（每个 sequence 都需要相同的 response_format）
+            response_format = None
+            if seq_group_metadata.HasField("response_format"):
+                response_format = seq_group_metadata.response_format
+            # Decode 阶段：按 sequence 数量扩展
+            batch_response_format.extend([response_format] * num_sequences)
     batch_ignore_eos = np.array(batch_ignore_eos)
     batch_skip_special_tokens = np.array(batch_skip_special_tokens)
     batch_include_stop = np.array(batch_include_stop)
@@ -538,7 +554,8 @@ def convert_execute_model_request_to_input_metadata_composite(
         is_append_block=batch_is_append_block,
         prefill_block_rank_id=batch_prefill_block_rank_id,
         block_rank_id=batch_block_rank_id,
-        layerwise_disaggregated_exe_stage=layerwise_disaggregated_exe_stage
+        layerwise_disaggregated_exe_stage=layerwise_disaggregated_exe_stage,
+        batch_response_format=batch_response_format
     )
 
     input_metadata_composite = InputMetadataComposite()
@@ -606,7 +623,7 @@ def convert_pull_kv_request_to_input_metadata_composite(
         if config is not None:
             is_sp_enable = config.sp_size > 1
             is_cp_enable = config.cp_size > 1
-        seq_blocks = convert_bytes_to_list(pull_kv_info.seq_group_metadata.block_tables)
+        seq_blocks = convert_bytes_to_list(pull_kv_info.seq_group_metadata.block_tables[0])
 
         if is_sp_enable or is_cp_enable:
             block_max_len = max(block_max_len, len(seq_blocks))
@@ -729,6 +746,7 @@ def parse_para_is_prefill(seq_group_metadata_list: List[SequenceGroupMetadata], 
     batch_logprobs = []
     batch_reserved_seq_ids = []
     batch_use_beam_search = np.array([], dtype=bool)
+    batch_response_format = []
     
     # prefix cache
     computed = []
@@ -773,6 +791,8 @@ def parse_para_is_prefill(seq_group_metadata_list: List[SequenceGroupMetadata], 
         batch_include_stop.append(seq_group_metadata.include_stop_str_in_output)
 
         seq_ids = convert_bytes_to_list(seq_group_metadata.seqIds)
+        num_sequences = len(seq_ids)
+        
         batch_seq_ids.append(
             np.array(seq_ids, copy=True, dtype=np.int64)
         )
@@ -793,6 +813,12 @@ def parse_para_is_prefill(seq_group_metadata_list: List[SequenceGroupMetadata], 
         batch_use_beam_search = np.append(
             batch_use_beam_search, np.array([sampling_params_detail.use_beam_search], dtype=bool)
         )
+        # 解析 response_format（每个 sequence 都需要相同的 response_format）
+        response_format = None
+        if seq_group_metadata.HasField("response_format"):
+            response_format = seq_group_metadata.response_format
+        # Prefill 阶段通常每个 seq_group 只有 1 个 sequence，但为了一致性也按 sequence 数量扩展
+        batch_response_format.extend([response_format] * num_sequences)
 
         # 解析每条request已计算的block数量，解析成一维list，如不存在将值置为None
         # 虚推请求不使用 prefix cache，填充 0 值以确保维度对齐
@@ -871,6 +897,7 @@ def parse_para_is_prefill(seq_group_metadata_list: List[SequenceGroupMetadata], 
         "batch_computed_block_order": batch_computed_block_order,
         "computed_blocks": computed_blocks,
         "remote_computed_blocks": remote_computed_blocks,
+        "batch_response_format": batch_response_format,
     }
 
 
@@ -959,7 +986,31 @@ def get_attribute_info(link_request: PDLinkRequest):
         device_num = len(pd_link_info.link_info[0].device_info)
     else:
         device_num = len(pd_link_info.unlink_info[0].device_info)
-    if pd_link_info.super_id_num > 0:
+
+    # 检查是否有超节点信息（A3场景），不仅依赖super_id_num，还要检查实际的超节点字段
+    has_super_info = pd_link_info.super_id_num > 0
+
+    def _has_super_info_in_remote_infos(remote_infos):
+        """检查RemoteInfo列表中是否包含超节点信息"""
+        for remote_info in remote_infos:
+            # 检查host_info中的super_pod_id
+            for host_info in remote_info.host_info:
+                if host_info.HasField("super_pod_id"):
+                    return True
+            # 检查device_info中的super_device_id
+            for device_info in remote_info.device_info:
+                if device_info.HasField("super_device_id"):
+                    return True
+        return False
+
+    if not has_super_info:
+        # 检查link_info中的超节点信息，如果没有，检查unlink_info中的超节点信息
+        has_super_info = (
+            _has_super_info_in_remote_infos(pd_link_info.link_info) or
+            _has_super_info_in_remote_infos(pd_link_info.unlink_info)
+        )
+
+    if has_super_info:
         device_info_num = 10  # A3 场景
     else:
         device_info_num = 9  # A2 场景
@@ -979,13 +1030,17 @@ def get_attribute_info(link_request: PDLinkRequest):
             host_info_list = host_ip_list + [int(host_info.cluster_id)]
             if host_info.HasField("super_pod_id"):
                 host_info_list.append(host_info.super_pod_id)
-            device_data[i, j, :] = host_info_list
+            device_data[i, j, :] = np.pad(
+                host_info_list, (0, device_info_num - len(host_info_list)), constant_values=-1
+            )
         for j, device_info in enumerate(_link_info.device_info):
             device_ip_list = ip_string_to_list(device_info.device_ip)
             device_info_list = device_ip_list + [device_info.physical_id]
             if device_info.HasField("super_device_id"):
                 device_info_list.append(device_info.super_device_id)
-            device_data[i, j + host_ip_num_per_dp, :] = device_info_list
+            device_data[i, j + host_ip_num_per_dp, :] = np.pad(
+                device_info_list, (0, device_info_num - len(device_info_list)), constant_values=-1
+            )
     # 处理unlink_info
     for i, _link_info in enumerate(pd_link_info.unlink_info):
         for j, host_info in enumerate(_link_info.host_info):
@@ -993,13 +1048,17 @@ def get_attribute_info(link_request: PDLinkRequest):
             host_info_list = host_ip_list + [int(host_info.cluster_id)]
             if host_info.HasField("super_pod_id"):
                 host_info_list.append(host_info.super_pod_id)
-            device_data[len(pd_link_info.link_info) + i, j, :] = host_info_list
+            device_data[len(pd_link_info.link_info) + i, j, :] = np.pad(
+                host_info_list, (0, device_info_num - len(host_info_list)), constant_values=-1
+            )
         for j, device_info in enumerate(_link_info.device_info):
             device_ip_list = ip_string_to_list(device_info.device_ip)
             device_info_list = device_ip_list + [device_info.physical_id]
             if device_info.HasField("super_device_id"):
                 device_info_list.append(device_info.super_device_id)
-            device_data[len(pd_link_info.link_info) + i, j + host_ip_num_per_dp, :] = device_info_list
+            device_data[len(pd_link_info.link_info) + i, j + host_ip_num_per_dp, :] = np.pad(
+                device_info_list, (0, device_info_num - len(device_info_list)), constant_values=-1
+            )
     # handle policy
     instance_ids = list(pd_link_info.instance2sp.keys())
     sp_sizes = [pd_link_info.instance2sp[instance_id] for instance_id in instance_ids]

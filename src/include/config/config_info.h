@@ -26,6 +26,9 @@ namespace mindie_llm {
 const std::string INFER_MODE_STANDARD = "standard";
 const std::string INFER_MODE_DMI = "dmi";
 
+constexpr uint32_t JSON_DEPTH_LIMIT_MIN = 10U;
+constexpr uint32_t JSON_DEPTH_LIMIT_MAX = 100U;
+
 enum class WorkFlowType : uint32_t {
     STANDARD_INFERENCE = 0,
     SPECULATIVE_INFERENCE = 1,
@@ -81,6 +84,7 @@ struct ServerConfig {
     std::string metricsTlsPk;
     bool openAiSupportedvLLM{true};
     bool distDPServerEnabled{false};
+    uint32_t maxJsonDepth = JSON_DEPTH_LIMIT_MIN;
 
     bool layerwiseDisaggregated{false};
     std::string layerwiseDisaggregatedRoleType;
@@ -448,6 +452,16 @@ struct SchedulerConfig {
     
     // blockManageConfig
     uint32_t cacheBlockSize;
+
+    // New requirement: multiple KV cache block managers (e.g. different block sizes / compression ratios).
+    // If empty, fallback to legacy single block manager using `cacheBlockSize`.
+    struct KVCacheDesc {
+        uint32_t npuBlockNum{0};
+        uint32_t blockSize{0};
+        uint32_t compressionRatio{1};
+        int32_t cacheType{0};
+    };
+    std::vector<KVCacheDesc> kvCacheDescs{};
 
     // workflow
     std::string modelName;

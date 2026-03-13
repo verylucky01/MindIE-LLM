@@ -64,6 +64,7 @@ struct Request {
     std::optional<bool> useBeamSearch;
     std::optional<uint32_t> topLogprobs;
     std::optional<bool> logprobs;
+    std::optional<std::string> responseFormat; // JSON structured output format
     uint64_t priority = 5; // PRIORITY_DFT
     std::string loraId = "None";
 
@@ -84,7 +85,7 @@ struct Request {
     bool isSimulateRequest = false;  //< 是否为虚推请求
     bool isRecompute = false;
     std::optional<InstanceId> pInstanceId; // pull kv will use management port (pInstanceId)
-    std::vector<int64_t> srcBlockTable; // block table from prefill
+    std::vector<std::vector<int64_t>> srcBlockTable; // block table from prefill
     std::vector<uint64_t> dpInstanceIds; // dp instance ids from prefill [maybe unused]
     // For Link/Unlink
     // {dpInstanceId: [host_ip1, host_ip2, ...]}
