@@ -8,7 +8,7 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 import unittest
-
+from unittest.mock import Mock
 import numpy as np
 
 from mindie_llm.text_generator.utils.sampling_metadata import SamplingMetadata
@@ -18,8 +18,9 @@ from mindie_llm.utils.validation import UnsupportedTypeError, OutOfBoundsError
 class TestSamplingMetadata(unittest.TestCase):
     def setUp(self):
         return super().setUp()
-
+    
     def test_validation(self):
+        mock_to_tensor = Mock(return_value=np.array([0]))
         with self.assertRaises(UnsupportedTypeError):
             SamplingMetadata.from_numpy(np.array([[100]]), is_prefill=None)
 
@@ -27,16 +28,16 @@ class TestSamplingMetadata(unittest.TestCase):
             SamplingMetadata.from_numpy(np.array([[100]]), repetition_penalty=np.array([-1]))
 
         with self.assertRaises(OutOfBoundsError):
-            SamplingMetadata.from_numpy(np.array([[100]]), do_sample=np.array([True]), temperature=np.array([-1]))
+            SamplingMetadata.from_numpy(np.array([[100]]), do_sample=np.array([True]), temperature=np.array([-1]), to_tensor=mock_to_tensor)
 
         with self.assertRaises(OutOfBoundsError):
-            SamplingMetadata.from_numpy(np.array([[100]]), do_sample=np.array([True]), top_k=np.array([-1]))
+            SamplingMetadata.from_numpy(np.array([[100]]), do_sample=np.array([True]), top_k=np.array([-1]), to_tensor=mock_to_tensor)
 
         with self.assertRaises(OutOfBoundsError):
-            SamplingMetadata.from_numpy(np.array([[100]]), do_sample=np.array([True]), top_p=np.array([2]))
+            SamplingMetadata.from_numpy(np.array([[100]]), do_sample=np.array([True]), top_p=np.array([2]), to_tensor=mock_to_tensor)
 
         with self.assertRaises(OutOfBoundsError):
-            SamplingMetadata.from_numpy(np.array([[100]]), do_sample=np.array([True]), seeds=np.array([-1]))
+            SamplingMetadata.from_numpy(np.array([[100]]), do_sample=np.array([True]), seeds=np.array([-1]), to_tensor=mock_to_tensor)
 
         SamplingMetadata.from_numpy(np.array([[100]]), top_logprobs=np.array([20], dtype=np.int32))
         with self.assertRaises(OutOfBoundsError):

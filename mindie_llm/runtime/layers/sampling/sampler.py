@@ -83,7 +83,11 @@ class Sampler:
             self.switch_selector(sampling_metadata)
 
         batch_logits = self.handlers(batch_logits, sampling_metadata)
-        output = self.greedy_select_on_device(batch_logits, sampling_metadata)
+        if sampling_metadata is not None and sampling_metadata.do_sample_tensor is not None:
+            output = self.random_select_on_device(batch_logits, sampling_metadata)
+        else:
+            output = self.greedy_select_on_device(batch_logits, sampling_metadata)
+
         self.handler_params.clear_token_counts()
         prof = span_attr(prof, "sampling_output", lambda: str(output))
         span_end(prof)
@@ -244,8 +248,8 @@ class Sampler:
 
         attribute_keys = ['repetition_penalty', 'frequency_penalty', 'presence_penalty', 'temperature', 'top_k_array',
                           'top_k_idx', 'top_k_disabled_mask', 'top_p_array', 'top_p', 'do_sample_array',
-                          'top_logprobs_array', 'seed_array', 'num_top_tokens', 'beam_width_array', 'best_of_array',
-                          'use_beam_search_array', 'output_lengths', 'cumulative_logprobs',
+                          'do_sample_tensor', 'top_logprobs_array', 'seed_array', 'num_top_tokens', 'beam_width_array',
+                          'best_of_array', 'use_beam_search_array', 'output_lengths', 'cumulative_logprobs',
                           'all_token_ids', 'output_token_ids', 'is_seq_prefill']
         for attribute_key in attribute_keys:
             attribute = getattr(sampling_metadata, attribute_key)
@@ -264,6 +268,84 @@ class Sampler:
                 setattr(discarded_sampling_metadata, attribute_key, max(associated_attribute))
 
         return retained_sampling_metadata, discarded_sampling_metadata, retained_indices
+
+    @staticmethod
+    def exponential_sample(logits: torch.Tensor, metadata: SamplingMetadata):
+        probs = logits.softmax(dim=-1)
+        q = torch.empty_like(probs)
+        q.exponential_()
+        if metadata.random_number_generators:
+            for i, generator in enumerate(metadata.random_number_generators):
+                if generator is not None:
+                    q[i].exponential_(generator=generator)
+                elif metadata.do_sample_tensor[i] > 0:
+                    raise RuntimeError("random_number_generators should not be None while doing sample")
+        return probs.div_(q).argmax(dim=-1).view(-1)
+
+    @staticmethod
+    def apply_top_k_top_p(logits: torch.Tensor, metadata: SamplingMetadata):
+        probs = logits.softmax(dim=-1)
+        probs_sort, _ = probs.sort(dim=-1, descending=False)
+        masked_value = -float("inf")
+        if metadata.top_k_idx is not None:
+            top_k_indices = probs_sort.size(1) - 1 - metadata.top_k_idx
+            if top_k_indices.dim() == 1:
+                top_k_indices = top_k_indices.unsqueeze(-1)
+
+            kth_probs = probs_sort.gather(-1, top_k_indices)
+
+            if metadata.top_k_disabled_mask is not None:
+                kth_probs.masked_fill_(metadata.top_k_disabled_mask, masked_value)
+
+            indices_to_remove = probs < kth_probs
+            logits.masked_fill_(indices_to_remove, masked_value)
+        if metadata.top_p is not None:
+            cumprob = torch.cumsum(probs_sort, dim=-1)
+            top_p = 1 - metadata.top_p
+            if top_p.dim() == 1:
+                top_p = top_p.unsqueeze(-1)
+            top_p_mask = cumprob <= top_p
+            top_p_mask[:, -1] = False
+            top_p_count = top_p_mask.sum(dim=-1).unsqueeze(1)
+            top_p_probs = probs_sort.gather(-1, top_p_count)
+            indices_to_remove = probs < top_p_probs
+            logits.masked_fill_(indices_to_remove, masked_value)
+        return logits
+    
+    def random_select_on_device(self, logits: torch.Tensor, metadata: SamplingMetadata):
+        batch_size = len(logits)
+        logits = self.apply_top_k_top_p(logits, metadata)
+        logprobs = logits.log_softmax(dim=-1)
+        if metadata.max_logprobs:
+            top_logprobs, top_token_ids = torch.topk(logprobs, metadata.max_logprobs)
+        else:
+            top_token_ids = torch.zeros((batch_size, 0), dtype=torch.int64)
+            top_logprobs = torch.zeros((batch_size, 0), dtype=torch.float32)
+
+        sampled_token_ids = self.exponential_sample(logits, metadata)
+        argmax_token_ids = logits.argmax(dim=-1)
+        token_ids = torch.where(
+            metadata.do_sample_tensor > 0,
+            sampled_token_ids,
+            argmax_token_ids
+        )
+        logprobs = torch.gather(logprobs, dim=-1, index=token_ids.unsqueeze(-1)).squeeze(1)
+
+        sampling_output = SamplingOutput(
+            sequence_ids=metadata.all_sequence_ids,
+            parent_sequence_ids=metadata.all_sequence_ids,
+            group_indices=[(i, i + 1) for i in range(batch_size)],
+            repeating_indices=torch.arange(batch_size),
+            token_ids=token_ids,
+            logprobs=logprobs,
+            top_token_ids=top_token_ids,
+            top_logprobs=top_logprobs,
+            cumulative_logprobs=torch.zeros(batch_size, dtype=torch.float32),
+            num_new_tokens=torch.ones(batch_size, dtype=torch.int64),
+            num_top_tokens=metadata.num_top_tokens
+        )
+
+        return sampling_output
 
     def configure(self, sampling_metadata: SamplingMetadata):
         if self.need_configuring:
@@ -286,7 +368,7 @@ class Sampler:
             self.__check_and_append(sampling_metadata.repetition_penalty, 'repetition_penalty')
             self.__check_and_append(sampling_metadata.frequency_penalty, 'frequency_penalty')
             self.__check_and_append(sampling_metadata.presence_penalty, 'presence_penalty')
-            if sampling_metadata.do_sample_array is not None:
+            if sampling_metadata.do_sample_tensor is not None:
                 self.__check_and_append(sampling_metadata.temperature, 'temperature')
                 if not self.fusion_sampling:
                     self.__check_and_append(sampling_metadata.top_k_idx, 'top_k')
@@ -299,7 +381,7 @@ class Sampler:
                     self.selector = self.selectors[SelectorType.BEAM_SEARCH]
                 else:
                     self.selector = self.__split_and_select
-            elif sampling_metadata.do_sample_array is not None:
+            elif sampling_metadata.do_sample_tensor is not None:
                 self.selector = self.selectors[SelectorType.RANDOM_SAMPLING]
             else:
                 self.selector = self.selectors[SelectorType.GREEDY_SEARCH]
@@ -318,7 +400,7 @@ class Sampler:
         beam_search_output = self.selectors[SelectorType.BEAM_SEARCH](
             batch_logits[sampling_metadata.use_beam_search_array], beam_metadata)
 
-        if sampling_metadata.do_sample_array is None:
+        if sampling_metadata.do_sample_tensor is None:
             greedy_sampling_output = self.selectors[SelectorType.GREEDY_SEARCH](
                 batch_logits[~sampling_metadata.use_beam_search_array], greedy_sampling_metadata)
         else:

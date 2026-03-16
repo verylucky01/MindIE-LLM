@@ -625,9 +625,9 @@ class PluginManager:
                 # NOTE: Add MTP and other plugin-based capabilites later
                     if len(sampling_output.token_ids.shape) != 2:
                         sampling_output.token_ids = torch.unsqueeze(sampling_output.token_ids, 1)
-                        sampling_output.logprobs = np.expand_dims(sampling_output.logprobs, 1)
-                        sampling_output.top_token_ids = np.expand_dims(sampling_output.top_token_ids, 1)
-                        sampling_output.top_logprobs = np.expand_dims(sampling_output.top_logprobs, 1)
+                        sampling_output.logprobs = torch.unsqueeze(sampling_output.logprobs, 1)
+                        sampling_output.top_token_ids = torch.unsqueeze(sampling_output.top_token_ids, 1)
+                        sampling_output.top_logprobs = torch.unsqueeze(sampling_output.top_logprobs, 1)
                 else:
                     prof = span_start("verify")	 
                     self.plugin_verify_manager(
