@@ -366,7 +366,6 @@ class SamplingMetadata:
     top_p_array: Optional[np.ndarray] = None
     top_p: Optional[backend.Tensor] = None
     do_sample_array: Optional[np.ndarray] = None
-    do_sample_tensor: Optional[backend.Tensor] = None
     top_logprobs_array: Optional[np.ndarray] = None
     max_logprobs: Optional[int] = None
     seed_array: Optional[np.ndarray] = None
@@ -377,7 +376,6 @@ class SamplingMetadata:
     use_beam_search_array: Optional[np.ndarray] = None
     output_lengths: Optional[np.ndarray] = None
     cumulative_logprobs: Optional[np.ndarray] = None
-    random_number_generators: Optional[List[backend.Generator]] = None
 
     all_token_ids: Optional[backend.Tensor] = None
     output_token_ids: Optional[backend.Tensor] = None
@@ -411,8 +409,7 @@ class SamplingMetadata:
         to_tensor: Optional[callable] = None,
         all_sequence_ids: Optional[np.ndarray] = None,
         is_seq_prefill: Optional[np.ndarray] = None,
-        is_mix: bool = False,
-        random_number_generators: Optional[List[backend.Generator]] = None
+        is_mix: bool = False
     ) -> 'SamplingMetadata':
         batch_size = len(batch_sequence_ids)
         if not isinstance(is_prefill, bool):
@@ -435,7 +432,6 @@ class SamplingMetadata:
         max_top_k_key = 'max_top_k'
         top_p_key = 'top_p'
         do_sample_key = 'do_sample'
-        do_sample_tensor_key = 'do_sample_tensor'
         seeds_key = 'seeds'
         top_logprobs_key = 'top_logprobs'
         max_logprobs_key = 'max_logprobs'
@@ -461,7 +457,6 @@ class SamplingMetadata:
         if do_sample is not None and any(do_sample):
             validate_1d_batch(do_sample_key, do_sample)
             sampling_params[do_sample_key] = do_sample
-            sampling_params[do_sample_tensor_key] = to_tensor(do_sample)
 
             if temperature is not None and np.asarray(temperature != 1.0).any():
                 validate_1d_batch(temperature_key, temperature)
@@ -568,7 +563,6 @@ class SamplingMetadata:
             top_p_array=top_p,
             top_p=sampling_params.get(top_p_key),
             do_sample_array=sampling_params.get(do_sample_key),
-            do_sample_tensor=sampling_params.get(do_sample_tensor_key),
             seed_array=sampling_params.get(seeds_key),
             top_logprobs_array=sampling_params.get(top_logprobs_key),
             max_logprobs=sampling_params.get(max_logprobs_key),
@@ -580,8 +574,7 @@ class SamplingMetadata:
             output_lengths=sampling_params.get('output_lengths'),
             cumulative_logprobs=sampling_params.get('cumulative_logprobs'),
             is_seq_prefill=is_seq_prefill,
-            is_mix=is_mix,
-            random_number_generators=random_number_generators
+            is_mix=is_mix
         )
         return sampling_metadata
 
@@ -617,7 +610,6 @@ class SamplingMetadata:
             to_tensor=to_tensor,
             is_seq_prefill=kwargs.get('is_seq_prefill'),
             is_mix=kwargs.get('is_mix'),
-            random_number_generators=kwargs.get('random_number_generators')
         )
         return sampling_metadata
 
