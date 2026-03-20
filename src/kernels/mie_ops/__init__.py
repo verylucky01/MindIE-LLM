@@ -17,9 +17,10 @@ __all__ = list(module for _, module, _ in pkgutil.iter_modules([os.path.dirname(
 
 # 导入so 和 python
 so_directory = os.path.dirname(os.path.abspath(__file__))
-
-os.environ['ASCEND_CUSTOM_OPP_PATH'] = so_directory + '/opp/vendors/customize/' + ':' + os.environ.get('ASCEND_CUSTOM_OPP_PATH', '')
-os.environ['LD_LIBRARY_PATH'] = so_directory + '/opp/vendors/customize/op_api/lib/' + ':' + os.environ.get('LD_LIBRARY_PATH', '')
+mie_ops_lib_path = os.path.join(so_directory, "opp", "vendors", "custom_transformer")
+mie_ops_api_lib_path = os.path.join(mie_ops_lib_path, "op_api", "lib")
+os.environ['ASCEND_CUSTOM_OPP_PATH'] = mie_ops_lib_path + ':' + os.environ.get('ASCEND_CUSTOM_OPP_PATH', '')
+os.environ['LD_LIBRARY_PATH'] = mie_ops_api_lib_path + ':' + os.environ.get('LD_LIBRARY_PATH', '')
 # 遍历目录，加载所有 .so 文件
 for filename in os.listdir(so_directory):
     if filename.endswith(".so"):

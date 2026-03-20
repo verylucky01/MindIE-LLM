@@ -15,6 +15,12 @@
 
 set -e
 
+if [ $# -eq 1 ]; then
+    ops=$1
+else
+    ops=$(python3 -c "import torch; import torch_npu; soc = torch_npu._C._npu_get_soc_version(); ops = 'ascend910b' if soc <= 250 else 'ascend910_93'; print(ops)")
+fi
+
 BASE_DIR=$(realpath "$(dirname "$0")")
 
 if ! python3 -c "import psutil" 2>/dev/null; then
@@ -26,36 +32,12 @@ export CXX=$(which g++)
 
 $CC --version
 $CXX --version
-# 移除历史编译结果
-rm -rf build
-rm -rf dist
 
-cd $BASE_DIR/mie_ops/ascendc
-rm -rf build
-rm -rf output
-ops=$(python3 -c "import torch; import torch_npu; soc = torch_npu._C._npu_get_soc_version(); ops = 'ascend910b' if soc <= 250 else 'ascend910_93'; print(ops)")
+cd $BASE_DIR/mie_ops
 echo "ascendc build ops: $ops"
-export SOC_VERSION=$ops
-if [[ "${SOC_VERSION}" =~ ^ascend910_93 ]]; then
-    CUSTOM_OPS_ARRAY=(
-        "lightning_indexer"
-        "dispatch_gmm_combine_decode"
-    )
-    CUSTOM_OPS=$(IFS=';'; echo "${CUSTOM_OPS_ARRAY[*]}")
-else
-    CUSTOM_OPS="lightning_indexer"
-fi
-bash build.sh -c $ops -n $CUSTOM_OPS
-mkdir output/__init__.py
-./output/CANN-custom_ops*.run --quiet --install-path=$BASE_DIR/mie_ops/opp
-rm -rf $BASE_DIR/mie_ops/opp/bin
-cd -
+bash csrc/build_aclnn.sh $BASE_DIR/mie_ops $ops
+./csrc/build/cann-ops-transformer-custom*.run --quiet -- --install-path=$BASE_DIR/mie_ops/opp
 
 # 编译wheel包
-python3 $BASE_DIR/setup.py build bdist_wheel
-
-cd $BASE_DIR/mie_ops/ascendc
-rm -rf build
-rm -rf output
 cd -
-rm -rf $BASE_DIR/mie_ops/opp
+python3 $BASE_DIR/setup.py build bdist_wheel
