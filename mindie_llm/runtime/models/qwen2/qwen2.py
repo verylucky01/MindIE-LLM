@@ -106,7 +106,8 @@ class Qwen2Attention(nn.Module):
             bias=False,
             quant_config=quant_config,
             prefix=f"{prefix}.o_proj",
-            parallel_info=attn_tp
+            parallel_info=attn_tp,
+            multiple_of=self.head_dim,
         )
 
         self.rope_emb = get_rope(

@@ -20,6 +20,7 @@ from mindie_llm.runtime.layers.linear.linear import (
     ColumnParallelLinear,
     MergedColumnParallelLinear,
     QKVParallelLinear,
+    _get_shard_offset_and_size,
 )
 from mindie_llm.runtime.layers.quantization.unquantized import UnquantizedLinearMethod
 from mindie_llm.runtime.layers.quantization.quantization_method_base import QuantizationMethodBase
@@ -439,12 +440,18 @@ class TestRowParallelLinear(unittest.TestCase):
         )
 
         param = RowParameter(torch.randn(512, 512))
-        loaded_weight = torch.randn(512, 512)
+        param.add_attrs({"input_dim": 1})
+        loaded_weight = torch.randn(512, 1024)
 
         # Mock the load_row_parallel_weight method
         with patch.object(param, 'load_row_parallel_weight') as mock_load:
             layer.weight_loader(param, loaded_weight)
-            mock_load.assert_called_once_with(loaded_weight=loaded_weight, tp_rank=0)
+            mock_load.assert_called_once_with(
+                loaded_weight,
+                0,  # tp_rank
+                0,  # loaded_weight_shard_offset
+                512,  # loaded_weight_shard_size
+            )
 
     def test_weight_loader_base_parameter(self):
         """Test weight loading with BaseParameter."""
@@ -537,6 +544,106 @@ class TestRowParallelLinear(unittest.TestCase):
         self.assertIn("output_features=512", repr_str)
         self.assertIn("tp_rank=0", repr_str)
         self.assertIn("tp_size=2", repr_str)
+
+    def test_init_with_multiple_of(self):
+        """Test initialization with multiple_of for uneven partitioning."""
+        self.mock_set_parallel_info_manager()
+
+        # 512 input, tp_size=2, multiple_of=64: ceil(512/64/2)*64 = ceil(4)*64 = 256 per rank
+        layer = RowParallelLinear(
+            input_size=512,
+            output_size=256,
+            parallel_info=self.mock_parallel_info,
+            multiple_of=64,
+        )
+
+        self.assertEqual(layer.multiple_of, 64)
+        # ceil(512/64/2)*64 = ceil(4)*64 = 256
+        self.assertEqual(layer.input_size_per_partition, 256)
+
+    def test_init_with_multiple_of_uneven_heads(self):
+        """Test multiple_of when num_heads (e.g. 6) not divisible by tp_size (2)."""
+        self.mock_set_parallel_info_manager()
+
+        # Simulate 6 heads * 64 dim = 384 total, tp_size=2, head_dim=64
+        # ceil(384/64/2)*64 = ceil(3)*64 = 192 per rank
+        layer = RowParallelLinear(
+            input_size=384,
+            output_size=256,
+            parallel_info=self.mock_parallel_info,
+            multiple_of=64,
+        )
+
+        self.assertEqual(layer.input_size_per_partition, 192)
+        self.assertEqual(layer.weight.data.shape, (256, 192))
+
+    def test_weight_loader_row_parameter_with_multiple_of(self):
+        """Test weight loading with RowParameter when multiple_of is set."""
+        self.mock_set_parallel_info_manager()
+
+        layer = RowParallelLinear(
+            input_size=384,  # 6 heads * 64
+            output_size=256,
+            parallel_info=self.mock_parallel_info,
+            multiple_of=64,
+        )
+
+        param = RowParameter(torch.randn(256, 192))
+        param.add_attrs({"input_dim": 1})
+        loaded_weight = torch.randn(256, 384)
+
+        with patch.object(param, 'load_row_parallel_weight') as mock_load:
+            layer.weight_loader(param, loaded_weight)
+            # For tp_rank=0, total=384, tp_size=2, multiple_of=64:
+            # unit_size=6, base=3, padding=0, each gets 3 units -> 192
+            # offset=0, size=192
+            mock_load.assert_called_once_with(
+                loaded_weight,
+                0,  # tp_rank
+                0,  # loaded_weight_shard_offset
+                192,  # loaded_weight_shard_size
+            )
+
+
+class TestGetShardOffsetAndSize(unittest.TestCase):
+    """Test cases for _get_shard_offset_and_size helper."""
+
+    def test_even_split(self):
+        """Test when total_size is evenly divisible."""
+        offset, size = _get_shard_offset_and_size(128, tp_rank=0, tp_size=2, multiple_of=1)
+        self.assertEqual(offset, 0)
+        self.assertEqual(size, 64)
+
+        offset, size = _get_shard_offset_and_size(128, tp_rank=1, tp_size=2, multiple_of=1)
+        self.assertEqual(offset, 64)
+        self.assertEqual(size, 64)
+
+    def test_uneven_split_two_ranks(self):
+        """Test uneven split: 6 units, 2 ranks -> 3 each."""
+        # total=384 (6*64), tp_size=2, multiple_of=64 -> unit_size=6
+        offset, size = _get_shard_offset_and_size(384, tp_rank=0, tp_size=2, multiple_of=64)
+        self.assertEqual(offset, 0)
+        self.assertEqual(size, 192)  # 3 units * 64
+
+        offset, size = _get_shard_offset_and_size(384, tp_rank=1, tp_size=2, multiple_of=64)
+        self.assertEqual(offset, 192)
+        self.assertEqual(size, 192)
+
+    def test_uneven_split_three_ranks(self):
+        """Test uneven split: 7 units, 3 ranks -> 2,2,3 or similar."""
+        # total=448 (7*64), tp_size=3, multiple_of=64 -> unit_size=7
+        # base=2, padding=1 -> one rank gets 3 units, others get 2
+        offset0, size0 = _get_shard_offset_and_size(448, tp_rank=0, tp_size=3, multiple_of=64)
+        offset1, size1 = _get_shard_offset_and_size(448, tp_rank=1, tp_size=3, multiple_of=64)
+        offset2, size2 = _get_shard_offset_and_size(448, tp_rank=2, tp_size=3, multiple_of=64)
+
+        # Sum of sizes should equal total
+        self.assertEqual(size0 + size1 + size2, 448)
+        # Offsets should be contiguous and cover full range
+        self.assertEqual(offset0, 0)
+        self.assertEqual(offset1, size0)
+        self.assertEqual(offset2, size0 + size1)
+        self.assertEqual(offset2 + size2, 448)
 
 
 class TestColumnParallelLinear(unittest.TestCase):
@@ -1049,6 +1156,7 @@ class TestQKVParallelLinear(unittest.TestCase):
         )
 
         param = ColumnParameter(torch.randn(256, 512))
+        param.add_attrs({"output_dim": 1})
         loaded_weight = torch.randn(256, 512)
         loaded_shard_id = 0  # Q projection
 
@@ -1058,10 +1166,10 @@ class TestQKVParallelLinear(unittest.TestCase):
             mock_load.assert_called_once()
             call_kwargs = mock_load.call_args[1]
             torch.testing.assert_close(call_kwargs['loaded_weight'], loaded_weight)
-            self.assertEqual(call_kwargs['tp_rank'], 0)
-            self.assertEqual(call_kwargs['shard_id'], 0)
             self.assertEqual(call_kwargs['shard_offset'], 0)  # Q offset
             self.assertEqual(call_kwargs['shard_size'], 256)  # 4 * 64
+            self.assertIn('loaded_weight_shard_offset', call_kwargs)
+            self.assertIn('loaded_weight_shard_size', call_kwargs)
 
     def test_weight_loader_k_proj(self):
         """Test weight loading for K projection (shard_id=1)."""
@@ -1076,6 +1184,7 @@ class TestQKVParallelLinear(unittest.TestCase):
         )
 
         param = ColumnParameter(torch.randn(128, 512))
+        param.add_attrs({"output_dim": 1})
         loaded_weight = torch.randn(128, 512)
         loaded_shard_id = 1  # K projection
 
@@ -1084,8 +1193,8 @@ class TestQKVParallelLinear(unittest.TestCase):
             layer.weight_loader(param, loaded_weight, loaded_shard_id=loaded_shard_id)
             mock_load.assert_called_once()
             call_kwargs = mock_load.call_args[1]
-            self.assertEqual(call_kwargs['shard_id'], 1)
             self.assertEqual(call_kwargs['shard_offset'], 256)  # K offset after Q
+            self.assertEqual(call_kwargs['shard_size'], 128)  # 2 * 64
 
     def test_weight_loader_v_proj(self):
         """Test weight loading for V projection (shard_id=2)."""
@@ -1100,6 +1209,7 @@ class TestQKVParallelLinear(unittest.TestCase):
         )
 
         param = ColumnParameter(torch.randn(128, 512))
+        param.add_attrs({"output_dim": 1})
         loaded_weight = torch.randn(128, 512)
         loaded_shard_id = 2  # V projection
 
@@ -1108,8 +1218,24 @@ class TestQKVParallelLinear(unittest.TestCase):
             layer.weight_loader(param, loaded_weight, loaded_shard_id=loaded_shard_id)
             mock_load.assert_called_once()
             call_kwargs = mock_load.call_args[1]
-            self.assertEqual(call_kwargs['shard_id'], 2)
             self.assertEqual(call_kwargs['shard_offset'], 384)  # V offset after Q+K
+            self.assertEqual(call_kwargs['shard_size'], 128)
+
+    def test_init_num_heads_not_divisible_by_tp_size(self):
+        """Test QKVParallelLinear when total_num_heads is not divisible by tp_size."""
+        self.mock_set_parallel_info_manager()
+
+        # 7 heads, tp_size=2 -> ceil(7/2)=4 heads per rank
+        layer = QKVParallelLinear(
+            hidden_size=512,
+            head_size=64,
+            total_num_heads=7,
+            total_num_kv_heads=4,
+            parallel_info=self.mock_parallel_info,
+        )
+
+        self.assertEqual(layer.num_heads, 4)  # ceil(7/2)
+        self.assertEqual(layer.output_partition_sizes[0], 256)  # 4 * 64
 
     def test_weight_loader_error_invalid_shard_id(self):
         """Test weight loading error with invalid shard_id."""

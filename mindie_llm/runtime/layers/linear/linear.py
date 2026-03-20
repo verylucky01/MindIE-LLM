@@ -8,12 +8,13 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 
+import math
 import torch
 from torch import nn
 import torch.distributed as dist
 from mindie_llm.runtime.utils.distributed.parallel_info_manager import ParallelInfo
 from mindie_llm.runtime.layers.custom_layer import CustomLayer
-from mindie_llm.runtime.layers.parameter import BaseParameter, RowParameter, ColumnParameter
+from mindie_llm.runtime.layers.parameter import BaseParameter, RowParameter, ColumnParameter, BiasParameter
 from mindie_llm.runtime.layers.quantization.quantization_config_base import QuantizationConfigBase
 from mindie_llm.runtime.layers.linear.linear_method_base import LinearMethodBase
 from mindie_llm.runtime.layers.linear.linear_op import get_linear_custom_op
@@ -208,13 +209,22 @@ class RowParallelLinear(LinearBase):
         parallel_info: ParallelInfo | None = None,
         input_is_parallel: bool = True,
         reduce_results: bool = True,
+        multiple_of: int = 1,
     ):
-        """
+        """Initialize RowParallelLinear layer.
+
+        Supports the case when input_size is not evenly divisible by tp_size.
+        When multiple_of > 1, input_size_per_partition is rounded up to the next
+        multiple of multiple_of to ensure proper alignment (e.g., for attention heads).
+
         Args:
             input_size: Total input dimension before splitting.
             output_size: Output dimension (not split).
             input_is_parallel: If True, input is assumed to be already split across devices.
             reduce_results: If True, performs all-reduce on the output to sum partial results.
+            multiple_of: Alignment constraint for input_size_per_partition. When not 1,
+                the partition size is rounded up to be a multiple of this value.
+                Used for models where num_heads is not divisible by tp_size (e.g., head_dim).
         """
         if not input_is_parallel:
             raise NotImplementedError("`RowParallelLinear` doesn't support setting `input_is_parallel` to False.")
@@ -231,6 +241,7 @@ class RowParallelLinear(LinearBase):
         self.parallel_info = parallel_info
         self.input_is_parallel = input_is_parallel
         self.reduce_results = reduce_results
+        self.multiple_of = multiple_of
 
         super().__init__(
             input_size,
@@ -246,8 +257,26 @@ class RowParallelLinear(LinearBase):
         )
 
     def weight_loader(self, param: BaseParameter, loaded_weight: torch.Tensor) -> None:
-        if isinstance(param, RowParameter):
-            param.load_row_parallel_weight(loaded_weight=loaded_weight, tp_rank=self.tp_rank)
+        """Load weight for row-parallel parameter with support for uneven partitioning."""
+        if isinstance(param, BiasParameter):
+            param.load_row_parallel_weight(loaded_weight, self.tp_rank)
+        elif isinstance(param, RowParameter):
+            # Default: uniform sharding when input_size is divisible by tp_size
+            loaded_weight_shard_offset = self.tp_rank * self.input_size_per_partition
+            loaded_weight_shard_size = self.input_size_per_partition
+
+            # Use non-uniform sharding when multiple_of alignment is required
+            # (e.g., num_heads not divisible by tp_size)
+            if self.multiple_of != 1:
+                loaded_weight_shard_offset, loaded_weight_shard_size = \
+                    _get_shard_offset_and_size(self.input_size, self.tp_rank, self.tp_size, self.multiple_of)
+
+            param.load_row_parallel_weight(
+                loaded_weight,
+                self.tp_rank,
+                loaded_weight_shard_offset,
+                loaded_weight_shard_size,
+            )
         else:
             param.load_weight(loaded_weight=loaded_weight)
 
@@ -288,7 +317,8 @@ class RowParallelLinear(LinearBase):
         return s
 
     def _post_init(self) -> None:
-        self.input_size_per_partition = even_divide(self.input_size, self.tp_size)
+        # Round up partition size to multiple_of for alignment (supports num_heads % tp_size != 0)
+        self.input_size_per_partition = math.ceil(self.input_size / self.multiple_of / self.tp_size) * self.multiple_of
         self.output_partition_sizes = [self.output_size]
 
         if self.parallel_info is not None:
@@ -610,7 +640,8 @@ class QKVParallelLinear(ColumnParallelLinear):
             tp_size = get_parallel_info_manager().world_size
         else:
             tp_size = parallel_info.group_size
-        self.num_heads = even_divide(self.total_num_heads, tp_size)
+        # Ceiling division to support total_num_heads not divisible by tp_size
+        self.num_heads = (self.total_num_heads + tp_size - 1) // tp_size
         if tp_size >= self.total_num_kv_heads:
             self.num_kv_heads = 1
             self.num_kv_head_replicas = even_divide(tp_size, self.total_num_kv_heads)
@@ -657,15 +688,23 @@ class QKVParallelLinear(ColumnParallelLinear):
 
         shard_offset = self._get_shard_offset_mapping(loaded_shard_id)
         shard_size = self._get_shard_size_mapping(loaded_shard_id)
+        # Q heads: each tp_rank gets its own shard; K/V: ranks share heads via num_kv_head_replicas
+        start_idx = self.tp_rank if loaded_shard_id == 0 else self.tp_rank // self.num_kv_head_replicas
+        loaded_weight_shard_offset = start_idx * shard_size
+        loaded_weight_shard_size = shard_size
+        # Non-uniform Q sharding when total_num_heads is not divisible by tp_size
+        if self.total_num_heads % self.tp_size != 0 and loaded_shard_id == 0:
+            loaded_weight_shard_offset, loaded_weight_shard_size = \
+                _get_shard_offset_and_size(
+                    self.total_num_heads * self.head_size, self.tp_rank, self.tp_size, self.head_size)
 
         if isinstance(param, ColumnParameter):
             param.load_qkv_weight(
                 loaded_weight=loaded_weight,
                 shard_offset=shard_offset,
                 shard_size=shard_size,
-                tp_rank=self.tp_rank,
-                shard_id=loaded_shard_id,
-                num_kv_head_replicas=self.num_kv_head_replicas,
+                loaded_weight_shard_offset=loaded_weight_shard_offset,
+                loaded_weight_shard_size=loaded_weight_shard_size,
             )
         else:
             param.load_weight(loaded_weight=loaded_weight)
@@ -695,3 +734,37 @@ class QKVParallelLinear(ColumnParallelLinear):
             2: self.num_kv_heads * self.head_size,
         }
         return shard_size_mapping.get(loaded_shard_id)
+
+
+def _get_shard_offset_and_size(total_size: int, tp_rank: int, tp_size: int, multiple_of: int) -> tuple[int, int]:
+    """Compute shard offset and size for uneven tensor parallel partitioning.
+
+    When total_size is not evenly divisible by tp_size * multiple_of, evenly distributes
+    padding units across the all ranks. For example, if total_size is 3584, tp_size is 8, and multiple_of is 128,
+    then the padding units are 512 (i.e. 4 * 128). All ranks chunks to the size of 512 (i.e. 4 * 128),
+    while rank 1, 3, 5, 7 get the extra padding units.
+
+    Each rank gets a contiguous slice of size that is a multiple of multiple_of (for head alignment).
+
+    Args:
+        total_size: Total number of elements to partition (must be divisible by multiple_of).
+        tp_rank: Tensor parallel rank of the current process (0-indexed).
+        tp_size: Total number of tensor parallel workers.
+        multiple_of: Alignment constraint; each shard size is a multiple of this value.
+
+    Returns:
+        Tuple of (offset, size): The offset into the full tensor and the shard size
+        for the given tp_rank, both in element count.
+    """
+    # Express total as number of base units (each of size multiple_of)
+    unit_size = even_divide(total_size, multiple_of)
+    base_unit_size = unit_size // tp_size
+    padding_unit_size = unit_size % tp_size
+    # Distribute remainder units
+    unit_size_per_tp_rank = [base_unit_size] * tp_size
+    for i in range(padding_unit_size):
+        idx = (i * tp_size) // padding_unit_size
+        unit_size_per_tp_rank[idx] += 1
+    offset = sum(unit_size_per_tp_rank[:tp_rank]) * multiple_of
+    size = unit_size_per_tp_rank[tp_rank] * multiple_of
+    return offset, size
