@@ -67,6 +67,7 @@ class TestLoraManager(unittest.TestCase):
         base_model.soc_info.need_nz = False
         lora_model_config = LoraModelConfig(max_loras=self.max_loras, max_lora_rank=self.max_lora_rank)
         self.adapter_manager = LoraManager(base_model, lora_model_config)
+        self.adapter_manager.wrap_get_base_weight_shape_for_atb_graph()
         self.mock_parallel_info_manager = MagicMock()
         self.mock_parallel_info_manager.rank = self.rank
         self.mock_parallel_info_manager.world_size = self.world_size

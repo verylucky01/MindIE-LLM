@@ -431,8 +431,9 @@ class ModelRunner:
         if not enable_v3: # FlashForCausalLM
             if self.prealloc_weight_mem_on_npu and self.lora_model_config is not None:
                 self.model.adapter_manager = self.model.lora_modifier.adapter_manager
-                self.model.adapter_manager.preload_adapter(self.lora_adapter)
                 self.adapter_manager = self.model.adapter_manager
+                self.adapter_manager.wrap_get_base_weight_shape_for_atb_graph()
+                self.adapter_manager.preload_adapter(self.lora_adapter)
                 self.adapter_manager.wrap_lora_module_for_atb_graph()
 
         if self.enable_atb_torch:

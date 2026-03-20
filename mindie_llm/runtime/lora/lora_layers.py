@@ -17,7 +17,6 @@ import torch_npu
 import torch.nn.functional as F
 from torch.nn import Parameter
 
-
 from mindie_llm.runtime.utils.npu.device_utils import get_npu_node_info, DeviceType
 from mindie_llm.runtime.layers.custom_layer import CustomLayer
 from mindie_llm.runtime.config.mindie_llm_config import LoraModelConfig
@@ -72,13 +71,18 @@ class ParallelLinearWithLoRA(BaseLayerWithLoRA):
         self.base_layer_prefixes = [self.base_layer.prefix] if isinstance(self.base_layer.prefix, str) \
             else self.base_layer.prefix
         self.pack_num = len(self.base_layer_prefixes)
-        self.base_weight_shape = self.base_layer.weight.shape
+        self.base_weight_shape = self.get_base_weight_shape(base_layer)
         self.need_nz = False
         self.tp_rank = self.base_layer.tp_rank
         self.base_input_size_per_partition = self.base_layer.input_size_per_partition
         self.base_output_partition_sizes = self.base_layer.output_partition_sizes
         self.lora_a_stacked = Parameter(torch.tensor([]))
         self.lora_b_stacked = Parameter(torch.tensor([]))
+
+    @staticmethod
+    def get_base_weight_shape(base_layer: LinearBase):
+        k, n = base_layer.weight.shape
+        return n, k
 
     @staticmethod
     def weight_format_cast(tensor: torch.Tensor):

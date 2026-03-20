@@ -15,6 +15,7 @@ import torch
 from atb_llm.utils.quantize.pack_type import TransposeType
 from atb_llm.utils.quantize.quant_type import LinearTypeV2, QuantType
 from mindie_llm.runtime.layers.custom_layer import CustomLayer
+from mindie_llm.runtime.layers.linear.linear import LinearBase
 from mindie_llm.runtime.lora.lora_layers import ParallelLinearWithLoRA
 from mindie_llm.runtime.lora.lora_manager import (
     LoraManager as LoraManagerAdaptee,
@@ -48,6 +49,22 @@ class LoraManager(LoraManagerAdaptee):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+    @staticmethod
+    def get_base_weight_shape(base_layer: LinearBase):
+        weight_shape = base_layer.weight.shape
+        if base_layer.get_weight_transpose_type()[0] == TransposeType.TRANSPOSE:
+            n, k = weight_shape
+        else:
+            k, n = weight_shape
+        return n, k
+
+    def wrap_get_base_weight_shape_for_atb_graph(self):
+        ParallelLinearWithLoRA.get_base_weight_shape = staticmethod(LoraManager.get_base_weight_shape)
+
+    def wrap_lora_module_for_atb_graph(self):
+        for module_name, lora_module in self.lora_modules.items():
+            replace_submodule(self.base_model, module_name, ParallelLinearWithLoRAAdaptee(lora_module))
+
     def get_adapters(self, adapter_ids: List[str]) -> List[torch.Tensor]:
         """Retrieve adapter weights based on current configuration.
         Args:
@@ -62,10 +79,6 @@ class LoraManager(LoraManagerAdaptee):
         else:
             adapter_weights = self._get_mixed_adapter(adapter_ids)
         return adapter_weights
-
-    def wrap_lora_module_for_atb_graph(self):
-        for module_name, lora_module in self.lora_modules.items():
-            replace_submodule(self.base_model, module_name, ParallelLinearWithLoRAAdaptee(lora_module))
 
     def _get_single_adapter(self, adapter_ids: List[str]) -> List[torch.Tensor]:
         adapter_info = self.adapter_info_registry.get(adapter_ids[0])
