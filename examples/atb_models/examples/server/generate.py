@@ -1332,7 +1332,7 @@ def generate_req(req_list, model, max_batch_size, max_prefill_tokens, cache_mana
             logger.info(df.to_markdown(index=False))
 
 
-def decode_token(req_list, tokenizer, skip_special_tokens=False):
+def decode_token(req_list, tokenizer, skip_special_tokens=True):
     decode_res_list = []
     token_num_list = []
     request_id = 0
