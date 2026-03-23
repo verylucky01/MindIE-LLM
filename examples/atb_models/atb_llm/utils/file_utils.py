@@ -149,7 +149,7 @@ def check_other_write_permission(file_path: str):
     if perm & stat.S_IWOTH:
         required_perm = perm & ~stat.S_IWOTH
         raise PermissionError(
-            "The file should not be writable by others who are neither the owner nor in the group. "
+            f"The file {file_path} should not be writable by others who are neither the owner nor in the group. "
             f"Current permission: {oct(perm)}. "
             f"Permission after removal: {oct(required_perm)}."
         )
@@ -167,14 +167,14 @@ def check_file_safety(file_path: str, mode='r', is_exist_ok=True,
                       max_file_size=MAX_FILE_SIZE, is_check_file_size=True):
     if is_path_exists(file_path):
         if not is_exist_ok:
-            raise FileExistsError("The file is expected not to exist, but it already does. "
+            raise FileExistsError(f"The file {file_path} is expected not to exist, but it already does. "
                                   "Please check the input path.")
         if is_check_file_size:
             check_file_size_lt(file_path, max_file_size)
         file_dir = file_path
     else:
         if mode == 'r' or mode == 'r+':
-            raise FileNotFoundError("The file is expected to exist, but it does not. "
+            raise FileNotFoundError(f"The file {file_path} is expected to exist, but it does not. "
                                     "Please check the input path.")
         file_dir = os.path.dirname(file_path)
 
