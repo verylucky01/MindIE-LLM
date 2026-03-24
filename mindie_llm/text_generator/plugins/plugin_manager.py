@@ -131,7 +131,10 @@ class PluginManager:
         for field in fields(new_instance):
             field_value = getattr(new_instance, field.name)
             if isinstance(field_value, torch.Tensor):
-                host_array = field_value.cpu().numpy()
+                if field_value.dtype == torch.bfloat16:
+                    host_array = field_value.cpu().float().numpy()
+                else:
+                    host_array = field_value.cpu().numpy()
                 setattr(new_instance, field.name, host_array)
         return new_instance
         
@@ -176,7 +179,7 @@ class PluginManager:
             self.mem_det_trigger_counter = 0
 
     @timer.track_time_async('generate_token')
-    def generate_token(self, input_metadata: InputMetadata, warmup=False):
+    def generate_token(self, input_metadata: InputMetadata, warmup=False) -> GenerationOutput:
         try:
             prof = span_start("preprocess")
             cache_ids, model_inputs, sampling_metadata, trace_ids = self.preprocess(input_metadata, warmup=warmup)
