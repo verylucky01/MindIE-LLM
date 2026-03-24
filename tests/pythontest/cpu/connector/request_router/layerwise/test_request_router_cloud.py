@@ -45,7 +45,7 @@ class TestRequestRouterCloud(unittest.TestCase):
     def test_init(self):
         self.assertIsInstance(self.router.inference_queue, queue.Queue)
         self.assertIsInstance(self.router.transfer_queue, queue.Queue)
-        self.assertIsInstance(self.router.link_queue, queue.Queue)
+        self.assertIsInstance(self.router.pdlink_queue, queue.Queue)
         self.assertIsInstance(self.router.prefill_queue, queue.Queue)
         self.assertIsInstance(self.router.decode_queue, queue.Queue)
         self.assertIsInstance(self.router.clean_up_queue, queue.Queue)

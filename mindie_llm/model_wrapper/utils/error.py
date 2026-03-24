@@ -23,3 +23,4 @@ class ModelWrapperErrorCode(Enum):
     PD_UNKNOWN_ERROR = 2005
     TRANSFER_KV_ERROR = 2006
     CLEAR_KV_ERROR = 2007
+    PD_Link_QUERY_ERROR = 2008

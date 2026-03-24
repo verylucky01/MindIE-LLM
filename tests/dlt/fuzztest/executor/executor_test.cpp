@@ -350,15 +350,35 @@ TEST_F(ExecutorFuzzTest, FuzzSetupPDLink)
         bool retSend = *(int *)DT_SetGetNumberRange(&g_Element[0], 0, 0, 1);
         bool retHandle = *(int *)DT_SetGetNumberRange(&g_Element[1], 0, 0, 1);
 
-        MOCKER_CPP(&Communicator::SendSharedSyncLinkRequestAndReceive, bool (*)(ExecuteRequest &, ExecuteResponse &))
+        MOCKER_CPP(&Communicator::SendSharedSyncLinkRequest, bool (*)(ExecuteRequest &))
             .stubs()
             .will(returnValue(retSend));
-
-        MOCKER_CPP(&Executor::HandlePDLinkResponse, bool (*)(ExecuteResponse &)).stubs().will(returnValue(retHandle));
 
         PDLinkRequest pdLinkRequest;
 
         bool ret = executor->SetupPDLink(pdLinkRequest);
+    }
+    DT_FUZZ_END()
+    SUCCEED();
+}
+TEST_F(ExecutorFuzzTest, FuzzQueryPDLinkStatus)
+{
+    DT_SetEnableFork(0);
+    DT_FUZZ_START(seed, repeat, GetFuzzName(), 0)
+    {
+        MOCKCPP_NS::GlobalMockObject::reset();
+        bool retSend = *(int *)DT_SetGetNumberRange(&g_Element[0], 0, 0, 1);
+        bool retHandle = *(int *)DT_SetGetNumberRange(&g_Element[1], 0, 0, 1);
+
+        MOCKER_CPP(&Communicator::SendSharedSyncLinkRequestAndReceive, bool (*)(ExecuteRequest &, ExecuteResponse &))
+            .stubs()
+            .will(returnValue(retSend));
+
+        MOCKER_CPP(&Executor::HandlePDLinkStatusResponse, bool (*)(ExecuteResponse &)).stubs().will(returnValue(retHandle));
+
+        PDLinkStatusRequest pdLinkStatusRequest;
+
+        bool ret = executor->QueryPDLinkStatus(pdLinkStatusRequest);
     }
     DT_FUZZ_END()
     SUCCEED();

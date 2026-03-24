@@ -102,6 +102,8 @@ public:
 
     Status AssignDmiRole(GlobalIpInfo &globalIpInfo);
 
+    Status QueryPDLinkStatus(model_execute_data::PDLinkStatusResponse &response);
+
     Status ForcePRelease();
 
     Status GetBatchSchedulerMetrics(std::map<std::string, uint64_t> &batchSchedulerMetrics);

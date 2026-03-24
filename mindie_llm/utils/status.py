@@ -38,5 +38,5 @@ class CoreThread(threading.Thread):
 
 class MindieLlmStatusCode(Enum):
     SUCCESS = 0
-    TEXT_GENERATOR_PD_RETRY_LINK = 1
+    TEXT_GENERATOR_PD_RETRY_QUERY = 1
     TEXT_GENERATOR_PD_ALREADY_LINK = 2

@@ -343,7 +343,7 @@ class TestSharedMemCommunication(unittest.TestCase):
         comm._channels["transfer"]["response"] = mock_transfer_channel
 
         mock_response = MagicMock(spec=ExecuteResponse)
-        mock_response.HasField.side_effect = lambda x: x == "pd_link_response"
+        mock_response.HasField.side_effect = lambda x: x == "pd_link_status_response"
         comm.send_response(mock_response, is_transfer=True)
         mock_pd_link_channel.send_message.assert_called_once_with(
             mock_response, buffer_offset=0

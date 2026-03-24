@@ -43,6 +43,14 @@ public:
     }
     bool MasterAndSlaveModelInit(const std::map<std::string, std::string> &pdInfo) override { return true; }
     bool SetupPDLink(model_execute_data::PDLinkRequest &pdLinkRequest) override { return true; }
+    bool QueryPDLinkStatus(model_execute_data::PDLinkStatusRequest &pdLinkStatusRequest) override
+    {
+        return true;
+    }
+    model_execute_data::PDLinkStatusResponse GetPDLinkStatusResponse() const override
+    {
+        return model_execute_data::PDLinkStatusResponse();
+    }
     bool ExecuteKVTransfer(PullKVRequestPtr &pullKVRequest,
                            std::function<void(PullKVResponseSPtr)> callback = nullptr) override
     {
@@ -57,10 +65,6 @@ public:
     {
         ThinkingConfig conf;
         return conf;
-    }
-    model_execute_data::PDLinkResponse GetPDLinkResponse() const override
-    {
-        return model_execute_data::PDLinkResponse();
     }
     bool ExecutLoraRequest(LoraOperationRequest &loraOperationRequest) override
     {

@@ -80,7 +80,8 @@ public:
 
     uint32_t GetMaxPositionEmbeddings() const override;
 
-    PDLinkResponse GetPDLinkResponse() const override;
+    PDLinkStatusResponse GetPDLinkStatusResponse() const override;
+    bool QueryPDLinkStatus(PDLinkStatusRequest &pdLinkStatusRequest) override;
 
     ThinkingConfig GetThinkingConfig() const override;
 
@@ -108,9 +109,9 @@ private:
     bool HandleThinkingConfig(std::vector<ExecuteResponse> &responses);
     void HandleExecuteModelResponse(ExecuteResponse &modelExecuteResponse);
     bool HandleRecoverCommandResult(RecoverCommandInfo &commandInfo, std::vector<ExecuteResponse> &responses) const;
-    bool AggregatePDLinkResponses(const std::vector<ExecuteResponse> &responseVec,
+    bool AggregatePDLinkStatusResponses(const std::vector<ExecuteResponse> &responseVec,
                                   ExecuteResponse &aggregatedResponse) const;
-    bool HandlePDLinkResponse(ExecuteResponse &executeResponse);
+    bool HandlePDLinkStatusResponse(ExecuteResponse &executeResponse);
     void HandleKVTransferResponse(ExecuteResponse &executeResponse);
     std::vector<std::string> BuildConnectorCommand(const ModelLaunchConfig &modelConfig, const std::string &sharedMemPrefix,
         uint32_t rankInDP) const;
@@ -132,7 +133,7 @@ private:
     ExecuteModelResponseHandler executeModelResponseHandler_{nullptr};
     PullKVResponseHandler pullKVResponseHandler_{nullptr};
     std::map<RequestId, Role> requestId2Role_;
-    PDLinkResponse pdLinkResponse_;
+    PDLinkStatusResponse pdLinkStatusResponse_;
     std::vector<std::thread> pipeThreads_;
     LoraOperationResponse loraOperationResponse_;
     ThinkingConfig thinkingConfig_;

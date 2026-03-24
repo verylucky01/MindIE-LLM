@@ -180,28 +180,25 @@ def test_separate_deployment_engine(role: str, queue):
 
     if generator_runner.generator.pd_config.model_role == prefill:
         target_role = decoder
-        link_result = generator_runner.generator.link(
+        generator_runner.generator.link(
             remote_cluster_ids={0: [decoder_model_instance_id]},
             remote_physical_device_ids={0: [decoder_physical_device_id]},
             remote_device_ips={0: [remote_device_ip]},
-            host_ips={0: [decoder_host_ip]}
+            host_ips={0: [decoder_host_ip]},
+            remote_dp_instance_ids={0: [decoder_model_instance_id]},
+            local_dp_instance_id=prefill_model_instance_id
         )
-        if link_result != MindieLlmStatusCode.SUCCESS:
-            logger.error(f"{role}:link operation faild with the error code {link_result}")
-            raise Exception(f"{role}:link operation faild with the error code {link_result}")
-        logger.info(f"{role} link success to remote cluster {decoder_model_instance_id}")    
+ 
     elif generator_runner.generator.pd_config.model_role == decoder:
         target_role = prefill
-        link_result = generator_runner.generator.link(
+        generator_runner.generator.link(
             remote_cluster_ids={0: [prefill_model_instance_id]},
             remote_physical_device_ids={0: [prefill_physical_device_id]},
             remote_device_ips={0: [remote_device_ip]},
-            host_ips={0: [prefill_host_ip]}
-        )
-        if link_result != MindieLlmStatusCode.SUCCESS:
-            logger.error(f"{role}:link operation faild with the error code {link_result}")
-            raise Exception(f"{role}:link operation faild with the error code {link_result}")
-        logger.info(f"{role} link success to remote cluster {prefill_model_instance_id}")   
+            host_ips={0: [prefill_host_ip]},
+            remote_dp_instance_ids={0: [prefill_model_instance_id]},
+            local_dp_instance_id=decoder_model_instance_id
+        ) 
         
     if role == decoder:
         sampling_params_ins = None

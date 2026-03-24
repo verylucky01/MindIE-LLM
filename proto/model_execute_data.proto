@@ -18,8 +18,9 @@ enum ExecuteType {
   CLEAR_COMMAND_EXEC = 11;
   RECOVER_COMMAND_EXEC = 12;
   START_COMMAND_EXEC = 13;
-  EXECUTE_ERROR = 14;
-  PAUSE_COMMAND_EXEC_ROCE = 15;
+  PD_LINK_STATUS_QUERY = 14;
+  EXECUTE_ERROR = 15;
+  PAUSE_COMMAND_EXEC_ROCE = 16;
 }
 
 enum ForwardType {
@@ -229,6 +230,11 @@ message PDLinkRequest {
   repeated PDLinkInfo pd_link_info = 1;
 }
 
+// PD status query request: query the status of P and D instances
+message PDLinkStatusRequest {
+  optional bool placeholder = 1;
+}
+
 // PD disaggregation: publish KV Cache (request message for P instance)
 message PublishKVRequest {
   message PublishKVInfo {
@@ -273,6 +279,7 @@ message ExecuteRequest {
     LoraOperationRequest lora_operation_request = 8;
     RemoteModelInitRequest remote_model_init_request = 9;
     RecoverCommandRequest recover_command_request = 10;
+    PDLinkStatusRequest pd_link_status_request = 11;
   }
 }
 
@@ -318,13 +325,16 @@ message ExecuteModelResponse {
   optional string err_msg = 5;
 }
 
-// PD disaggregation response: establish/remove linking between P and D instances
-message PDLinkResponse {
+// PD disaggregation response: failed\success\running\waitting links between P and D instances
+message PDLinkStatusResponse {
   message FailedLinkInfo {
     string cluster_id = 1;
     PDErrorCode pd_error_code = 2;
   }
   repeated FailedLinkInfo failed_link_info = 1;
+  repeated string success_link_info = 2;
+  repeated string running_link_info = 3;
+  repeated string waitting_link_info = 4;
 }
 
 // PD disaggregation: publish KV Cache (response message for P instance)
@@ -381,7 +391,7 @@ message ExecuteResponse {
     // ExecutorInstanceInit response.
     InitResults init_results = 5;
     // SetPDLink response
-    PDLinkResponse pd_link_response = 6;
+    PDLinkStatusResponse pd_link_status_response = 6;
     // ExecuteKVTransfer response
     PublishKVResponse publish_kv_response = 7;
     PullKVResponse pull_kv_response = 8;

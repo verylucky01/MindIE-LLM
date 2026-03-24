@@ -19,6 +19,9 @@
 #include <mutex>
 #include <memory>
 #include <atomic>
+#include <boost/asio.hpp>
+#include <boost/asio/steady_timer.hpp>
+#include <boost/bind/bind.hpp>
 
 #include "httplib.h"
 #include "config_manager.h"

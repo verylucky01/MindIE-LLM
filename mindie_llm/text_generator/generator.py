@@ -111,20 +111,30 @@ class PDInterface:
         self.input_metadata_queue = queue.Queue()
         self.dst_block_table = []
 
-    def link(self, **kwargs) -> List[Tuple[str, ErrorCode]]:
+    def link(self, **kwargs) -> None:
         """创建与远端设备的链接。"""
         params = LinkParams(**kwargs)
-        return self.separate_deployment_worker.link(remote_cluster_ids=params.remote_cluster_ids, 
-                                                    remote_physical_device_ids=params.remote_physical_device_ids, 
-                                                    remote_device_ips=params.remote_device_ips, 
-                                                    host_ips=params.host_ips, 
-                                                    remote_super_device_ids=params.remote_super_device_ids,
-                                                    remote_super_pod_ids=params.remote_super_pod_ids
-                                                    )
+        self.separate_deployment_worker.link(remote_cluster_ids=params.remote_cluster_ids, 
+                                            remote_physical_device_ids=params.remote_physical_device_ids, 
+                                            remote_device_ips=params.remote_device_ips, 
+                                            host_ips=params.host_ips, 
+                                            remote_super_device_ids=params.remote_super_device_ids,
+                                            remote_super_pod_ids=params.remote_super_pod_ids,
+                                            remote_dp_instance_ids=params.remote_dp_instance_ids,
+                                            local_dp_instance_id=params.local_dp_instance_id
+                                            )
 
     def unlink(self, remote_cluster_id: int) -> Union[MindieLlmStatusCode, ErrorCode]:
         """断开与远端设备的链接。"""
         return self.separate_deployment_worker.unlink(remote_cluster_id)
+    
+    def unlink_batch(self, remote_cluster_ids: List[int]) -> Dict[int, Union[MindieLlmStatusCode, ErrorCode]]:
+        """批量断开与远端设备的链接。"""
+        return self.separate_deployment_worker.unlink_batch(remote_cluster_ids)
+    
+    def query_link_status(self) -> Union[MindieLlmStatusCode, ErrorCode]:
+        """查询链接状态。"""
+        return self.separate_deployment_worker.query_link_status()
 
     def switch_role(self, role: str) -> None:
         self.pd_config.model_role = role
@@ -990,14 +1000,13 @@ class Generator(PDInterface):
                 if kvcache_settings.kvcache_quant_layers:
                     num_quant_layers = kvcache_settings.kvcache_quant_layers.count(True)
                 if kvcache_settings.k_head_size > 0:
-                    if kvcache_settings.num_layers - num_quant_layers > 0:
-                        self.separate_deployment_worker.build(
-                            model_id=0,
-                            num_tensors=kvcache_settings.num_layers - num_quant_layers,
-                            num_blocks=kvcache_settings.num_npu_blocks,
-                            blockshape=kvcache_settings.k_block_shape,
-                            dtype=kvcache_settings.dtype_str,
-                        )
+                    self.separate_deployment_worker.build(
+                        model_id=0,
+                        num_tensors=kvcache_settings.num_layers - num_quant_layers,
+                        num_blocks=kvcache_settings.num_npu_blocks,
+                        blockshape=kvcache_settings.k_block_shape,
+                        dtype=kvcache_settings.dtype_str,
+                    )
                     if num_quant_layers > 0:
                         self.separate_deployment_worker.build(
                             model_id=2,

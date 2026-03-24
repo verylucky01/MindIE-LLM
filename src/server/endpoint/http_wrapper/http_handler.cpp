@@ -512,7 +512,8 @@ int HttpHandler::ManagementInitialize(HttpsServerHelper &server)
     InitializeServiceMgmtV1(server);
     InitializeServiceMgmtV2(server);
     if (GetServerConfig().inferMode == "dmi") {
-        DmiRole::GetInstance()->RunThread();
+        DmiRole::GetInstance()->RunTaskThread();
+        DmiRole::GetInstance()->RunQueryThread();
     }
     return 0;
 }
@@ -1002,23 +1003,6 @@ void HttpHandler::GetPrometheusMetrics(const ReqCtxPtr &requestContext)
         prometheusMetricsRes);
 }
 
-bool CanDmiRoleReqProcess()
-{
-    const std::string inferMode = GetServerConfig().inferMode;
-    if (inferMode == "standard") {
-        ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SPLITWISE,
-            CHECK_ERROR), "Dmi role request is forbidden in standard mode.");
-        return false;
-    }
-    // Check if need update
-    if (GetInferInstance()->GetPDRoleStatus() == PDRoleStatus::SWITCHING) {
-        ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SPLITWISE,
-            CHECK_ERROR), "In dmi mode, this node is initializing.");
-        return false;
-    }
-    return true;
-}
-
 void HttpHandler::InitializeServiceMgmtV1(HttpsServerHelper &server)
 {
     /// Self-developed config query interface.
@@ -1076,12 +1060,6 @@ void HttpHandler::InitializeServiceMgmtV1(HttpsServerHelper &server)
     server.Post(R"(/v1/role/(prefill|decode|flex))", [](const httplib::Request &request, httplib::Response &response) {
         std::shared_ptr<RequestContext> context = std::make_shared<RequestContext>(request, response);
         std::lock_guard<std::mutex> lock(dmiRoleMutex_);
-        if (!CanDmiRoleReqProcess()) {
-            OrderedJson jsonObj;
-            jsonObj["result"] = "Can't assign DMI role because status is switching.";
-            HttpRestResource::ResponseJsonBody(context, httplib::StatusCode::OK_200, jsonObj.dump());
-            return;
-        }
         std::string roleName = GetUriParameters(context->Req(), 1);
         DmiRole::GetInstance()->HandlePDRoleV1(context, roleName);
         HandlePDWiseUpdateNpuDeviceIds(context);
@@ -1192,12 +1170,6 @@ void HttpHandler::InitializeServiceMgmtV2(HttpsServerHelper &server)
     server.Post(R"(/v2/role/(prefill|decode))", [](const httplib::Request &request, httplib::Response &response) {
         std::shared_ptr<RequestContext> context = std::make_shared<RequestContext>(request, response);
         std::lock_guard<std::mutex> lock(dmiRoleMutex_);
-        if (!CanDmiRoleReqProcess()) {
-            OrderedJson jsonObj;
-            jsonObj["result"] = "Can't assign DMI role because status is switching.";
-            HttpRestResource::ResponseJsonBody(context, httplib::StatusCode::OK_200, jsonObj.dump());
-            return;
-        }
         std::string roleName = GetUriParameters(context->Req(), 1);
         DmiRole::GetInstance()->HandlePDRoleV2(context, roleName);
         HandleUpdateNpuDeviceIds(context);

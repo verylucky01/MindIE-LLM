@@ -169,18 +169,13 @@ def test_separate_deployment_engine(role: str, proc_id: int, link_barrier: multi
         logger.info(f"{config_key}: Starting link operation.")
         
         # 调用批量建链接口
-        link_result = worker.link(
+        worker.link(
             remote_cluster_ids=remote_config['remote_cluster_ids'],
             remote_physical_device_ids=remote_config['remote_physical_device_ids'],
             remote_device_ips=remote_config['remote_device_ips'],
             host_ips=remote_config['host_ips'],
         )
-
-        # 检查建链结果
-        if link_result:  # 返回的失败链路列表不为空
-            logger.error(f"{config_key}: Link operation failed with error: {link_result}")
-            raise Exception(f"{config_key} link failed with error {link_result}")
-        
+       
         remote_clusters = remote_config['remote_cluster_ids'][0]
         logger.info(f"==> {config_key} linked successfully to remote clusters {remote_clusters}")
         

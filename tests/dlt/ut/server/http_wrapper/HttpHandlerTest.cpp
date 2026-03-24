@@ -313,7 +313,6 @@ TEST_F(HttpHandlerTest, ManagementInitialize)
     MockScheduleConfig();
     MockLoraConfig();
     MockRanktableParam();
-    MOCKER_CPP(&DmiRole::RunThread, void (*)()).stubs();
     EXPECT_EQ(handler.ManagementInitialize(*server), 0);
 }
 
@@ -415,20 +414,6 @@ TEST_F(HttpHandlerTest, HandlePostGenerateVllm)
     MOCKER_CPP(JsonParse::GetInferTypeFromJsonStr, uint32_t(*)(const std::string&, uint16_t&))
         .stubs().will(invoke(MockGetInferTypeFromJsonStrVllm));
     EXPECT_EQ(handler.HandlePostGenerate(requestContext), true);
-}
-
-TEST_F(HttpHandlerTest, CanDmiRoleReqProcess)
-{
-    EXPECT_FALSE(CanDmiRoleReqProcess());
-    GlobalMockObject::verify();
-    serverConfig_.inferMode = "dmi";
-    MOCKER_CPP(GetServerConfig, const ServerConfig& (*)())
-            .stubs()
-            .will(returnValue(serverConfig_));
-    InferInstance::GetInstance()->SetPDRoleStatus(PDRoleStatus::SWITCHING);
-    EXPECT_FALSE(CanDmiRoleReqProcess());
-    InferInstance::GetInstance()->SetPDRoleStatus(PDRoleStatus::READY);
-    EXPECT_TRUE(CanDmiRoleReqProcess());
 }
 
 TEST_F(HttpHandlerTest, HandleGetSlotCount)

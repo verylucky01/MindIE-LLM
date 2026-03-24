@@ -538,7 +538,7 @@ grpc::Status MasterServiceImpl::RegisterAndCommunicate(ServerContext *context, S
             int targetDPRank = client_msg.target_dp_rank();
             ExecuteResponse executeResponse = client_msg.execute_response();
             // If the response type is REMOTE_MODEL_INIT, PD_LINK, LORA_OPERATION, RECOVER_COMMAND_EXEC, push to queue
-            if (executeResponse.msg_type() == REMOTE_MODEL_INIT || executeResponse.msg_type() == PD_LINK ||
+            if (executeResponse.msg_type() == REMOTE_MODEL_INIT || executeResponse.msg_type() == PD_LINK_STATUS_QUERY ||
                 executeResponse.msg_type() == LORA_OPERATION ||
                 executeResponse.msg_type() == RECOVER_COMMAND_EXEC ||
                 executeResponse.msg_type() == START_COMMAND_EXEC ||

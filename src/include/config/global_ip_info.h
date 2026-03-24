@@ -67,7 +67,6 @@ struct GlobalIpInfo {
     // key ---> dpInstanceId, value ---> [device_ip.device_id, ...]
     std::map<uint64_t, std::vector<DeviceInfo>> linkIpInfo;
     std::map<uint64_t, std::vector<DeviceInfo>> unlinkIpInfo;
-    std::map<uint64_t, std::vector<DeviceInfo>> retryLinkIpInfo;
     // in each map, key --> dpInstanceId, value --> <deviceIp1, physical_device_id1, deviceIp2, ...>
     std::map<uint64_t, std::vector<std::string>> hostIpInfo; // key ---> dpInstanceId, value ---> [hostIp1,...]
     std::map<uint64_t, std::vector<std::string>> unlinkHostIpInfo;
@@ -75,7 +74,6 @@ struct GlobalIpInfo {
     {
         linkIpInfo.clear();
         unlinkIpInfo.clear();
-        retryLinkIpInfo.clear();
     }
 
     void ResetRetryState()
@@ -103,8 +101,7 @@ struct GlobalIpInfo {
             << "spSize: " << MapToString(spInfo) << "\n"
             << "cpSize: " << MapToString(cpInfo) << "\n"
             << "linkIpInfo: " << MapToString(linkIpInfo) << "\n"
-            << "unlinkIpInfo: " << MapToString(unlinkIpInfo) << "\n"
-            << "retryLinkIpInfo: " << MapToString(retryLinkIpInfo) << "\n";
+            << "unlinkIpInfo: " << MapToString(unlinkIpInfo) << "\n";
 
         return oss.str();
     }
