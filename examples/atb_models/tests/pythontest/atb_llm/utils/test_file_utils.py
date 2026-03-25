@@ -264,7 +264,7 @@ class TestFileUtils(unittest.TestCase):
             check_other_write_permission(file_path)
         
         os.chmod(file_path, 0o640)
-        self.assertIn("The file should not be writable by others who are neither the owner nor in the group.", \
+        self.assertIn(f"The file {file_path} should not be writable by others who are neither the owner nor in the group.", \
                       str(context.exception))
     
     def test_check_path_permission_case_do_check_result_success(self):
@@ -291,7 +291,7 @@ class TestFileUtils(unittest.TestCase):
         with self.assertRaises(FileExistsError) as context:
             check_file_safety(file_path, mode, is_exist_ok, max_file_size, is_check_file_size)
         
-        self.assertIn("The file is expected not to exist, but it already does.", str(context.exception))
+        self.assertIn(f"The file {file_path} is expected not to exist, but it already does.", str(context.exception))
     
     def test_check_file_safety_case_file_not_exists_result_success(self):
         file_path = os.path.join(self.test_dir, "a_not_exists_file.txt")
@@ -312,7 +312,7 @@ class TestFileUtils(unittest.TestCase):
         with self.assertRaises(FileNotFoundError) as context:
             check_file_safety(file_path, mode, is_exist_ok, max_file_size, is_check_file_size)
         
-        self.assertIn("The file is expected to exist, but it does not.", str(context.exception))
+        self.assertIn(f"The file {file_path} is expected to exist, but it does not.", str(context.exception))
     
     def test_safe_listdir_case_file_num_not_exceeds_result_success(self):
         file_path = self.test_dir

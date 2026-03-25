@@ -55,7 +55,7 @@ class Postprocessor:
                 split_parts = ENV.modeltest_dataset_specified.split('_')
                 if len(split_parts) >= 3 and "HumanEval" in split_parts[0]:
                     from tests.modeltest.modeltest.task.humanevalx import is_code_generation_finished
-                    text = self.tokenizer.decode(output_ids, skip_special_tokens=False)
+                    text = self.tokenizer.decode(output_ids, skip_special_tokens=True)
                     ret = is_code_generation_finished(
                         text,
                         language_type=split_parts[2],

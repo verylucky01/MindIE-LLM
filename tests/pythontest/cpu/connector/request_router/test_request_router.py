@@ -23,7 +23,7 @@ class TestRequestRouter(unittest.TestCase):
     def test_init(self):
         self.assertIsInstance(self.router.inference_queue, queue.Queue)
         self.assertIsInstance(self.router.transfer_queue, queue.Queue)
-        self.assertIsInstance(self.router.link_queue, queue.Queue)
+        self.assertIsInstance(self.router.pdlink_queue, queue.Queue)
         self.assertTrue(self.router.inference_related_thread.is_alive())
         self.assertTrue(self.router.trans_related_thread.is_alive())
         self.assertIsNone(self.router.enable_dp_distributed)
@@ -103,7 +103,7 @@ class TestRequestRouter(unittest.TestCase):
         self.router.accept(mock_request)
         self.assertEqual(self.router.inference_queue.qsize(), 1)
         self.assertEqual(self.router.transfer_queue.qsize(), 0)
-        self.assertEqual(self.router.link_queue.qsize(), 0)
+        self.assertEqual(self.router.pdlink_queue.qsize(), 0)
 
     def test_accept_transfer_request(self):
         kv_request = Mock(spec=ExecuteRequest)
@@ -117,7 +117,7 @@ class TestRequestRouter(unittest.TestCase):
         link_request.execute_type = ExecuteType.PD_LINK
         self.router.accept(link_request)
 
-        self.assertEqual(self.router.link_queue.qsize(), 1)
+        self.assertEqual(self.router.pdlink_queue.qsize(), 1)
         self.assertEqual(self.router.transfer_queue.qsize(), 0)
 
     def test_accept_command_request(self):

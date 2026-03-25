@@ -158,6 +158,50 @@ class TestRowParameter(unittest.TestCase):
         expected = full_weight[256:512, :]
         self.assertTrue(torch.allclose(param.data, expected))
 
+    def test_load_row_parallel_weight_with_custom_offset_and_size(self):
+        """Test load_row_parallel_weight with explicit shard offset and size."""
+        param = RowParameter(torch.randn(256, 1000))
+        param.add_attrs({"input_dim": 0})
+
+        full_weight = torch.randn(512, 1000)
+        tp_rank = 0
+        loaded_weight_shard_offset = 128  # Custom offset (e.g., uneven split)
+        loaded_weight_shard_size = 192
+
+        param.load_row_parallel_weight(
+            full_weight, tp_rank,
+            loaded_weight_shard_offset=loaded_weight_shard_offset,
+            loaded_weight_shard_size=loaded_weight_shard_size,
+        )
+
+        # First 192 rows of param should match loaded slice
+        expected_slice = full_weight[128:320, :]
+        self.assertTrue(torch.allclose(param.data[:192, :], expected_slice))
+        # Remaining 64 rows should be zero-padded
+        self.assertTrue(torch.allclose(param.data[192:256, :], torch.zeros(64, 1000)))
+
+    def test_load_row_parallel_weight_with_padding(self):
+        """Test load_row_parallel_weight when param is larger than loaded shard."""
+        param = RowParameter(torch.randn(256, 1000))
+        param.add_attrs({"input_dim": 0})
+
+        full_weight = torch.randn(512, 1000)
+        tp_rank = 0
+        loaded_weight_shard_offset = 0
+        loaded_weight_shard_size = 192  # Smaller than param's 256
+
+        param.data.fill_(1.0)
+        param.load_row_parallel_weight(
+            full_weight, tp_rank,
+            loaded_weight_shard_offset=loaded_weight_shard_offset,
+            loaded_weight_shard_size=loaded_weight_shard_size,
+        )
+
+        # First 192 rows match
+        self.assertTrue(torch.allclose(param.data[:192, :], full_weight[:192, :]))
+        # Last 64 rows zero-padded
+        self.assertTrue(torch.allclose(param.data[192:256, :], torch.zeros(64, 1000)))
+
     def test_load_row_parallel_weight_missing_attr(self):
         """Test load_row_parallel_weight raises AttributeError without input_dim."""
         param = RowParameter(torch.randn(256, 1000))
@@ -225,41 +269,73 @@ class TestColumnParameter(unittest.TestCase):
         self.assertTrue(torch.allclose(param.data[:, shard_offset:shard_offset+shard_size], expected))
 
     def test_load_qkv_weight_q_shard(self):
-        """Test load_qkv_weight with Q shard (shard_id=0)."""
+        """Test load_qkv_weight with Q shard."""
         param = ColumnParameter(torch.randn(1000, 256))
         param.add_attrs({"output_dim": 1})
 
         full_weight = torch.randn(1000, 768)  # QKV combined
-        tp_rank = 1
         shard_offset = 0
         shard_size = 256
-        shard_id = 0  # Q
-        num_kv_head_replicas = 1
+        loaded_weight_shard_offset = 256  # Rank 1's slice
+        loaded_weight_shard_size = 256
 
-        param.load_qkv_weight(full_weight, tp_rank, shard_offset, shard_size, shard_id, num_kv_head_replicas)
+        param.load_qkv_weight(
+            full_weight,
+            shard_offset=shard_offset,
+            shard_size=shard_size,
+            loaded_weight_shard_offset=loaded_weight_shard_offset,
+            loaded_weight_shard_size=loaded_weight_shard_size,
+        )
 
-        # For Q (shard_id=0), should use tp_rank directly
-        expected = full_weight[:, tp_rank * shard_size:(tp_rank + 1) * shard_size]
-        self.assertTrue(torch.allclose(param.data[:, shard_offset:shard_offset+shard_size], expected))
+        expected = full_weight[:, loaded_weight_shard_offset:loaded_weight_shard_offset + loaded_weight_shard_size]
+        self.assertTrue(torch.allclose(param.data[:, shard_offset:shard_offset + shard_size], expected))
+
+    def test_load_qkv_weight_with_padding(self):
+        """Test load_qkv_weight when param shard is larger than loaded shard (zero-padding)."""
+        param = ColumnParameter(torch.randn(1000, 256))
+        param.add_attrs({"output_dim": 1})
+
+        full_weight = torch.randn(1000, 192)  # Smaller loaded shard (e.g., uneven head split)
+        shard_offset = 0
+        shard_size = 256
+        loaded_weight_shard_offset = 0
+        loaded_weight_shard_size = 192
+
+        param.data.fill_(1.0)  # Fill with non-zero to verify padding is zeros
+        param.load_qkv_weight(
+            full_weight,
+            shard_offset=shard_offset,
+            shard_size=shard_size,
+            loaded_weight_shard_offset=loaded_weight_shard_offset,
+            loaded_weight_shard_size=loaded_weight_shard_size,
+        )
+
+        # First 192 columns should match loaded weight
+        self.assertTrue(torch.allclose(param.data[:, :192], full_weight))
+        # Last 64 columns should be zero (padding)
+        self.assertTrue(torch.allclose(param.data[:, 192:256], torch.zeros(1000, 64)))
 
     def test_load_qkv_weight_kv_shard(self):
-        """Test load_qkv_weight with K/V shard (shard_id=1 or 2)."""
+        """Test load_qkv_weight with K/V shard."""
         param = ColumnParameter(torch.randn(1000, 256))
         param.add_attrs({"output_dim": 1})
 
         full_weight = torch.randn(1000, 768)  # QKV combined
-        tp_rank = 2
         shard_offset = 0
         shard_size = 256
-        shard_id = 1  # K
-        num_kv_head_replicas = 2
+        loaded_weight_shard_offset = 256  # Effective rank 1's slice
+        loaded_weight_shard_size = 256
 
-        param.load_qkv_weight(full_weight, tp_rank, shard_offset, shard_size, shard_id, num_kv_head_replicas)
+        param.load_qkv_weight(
+            full_weight,
+            shard_offset=shard_offset,
+            shard_size=shard_size,
+            loaded_weight_shard_offset=loaded_weight_shard_offset,
+            loaded_weight_shard_size=loaded_weight_shard_size,
+        )
 
-        # For K/V, should use tp_rank // num_kv_head_replicas
-        effective_rank = tp_rank // num_kv_head_replicas  # 2 // 2 = 1
-        expected = full_weight[:, effective_rank * shard_size:(effective_rank + 1) * shard_size]
-        self.assertTrue(torch.allclose(param.data[:, shard_offset:shard_offset+shard_size], expected))
+        expected = full_weight[:, loaded_weight_shard_offset:loaded_weight_shard_offset + loaded_weight_shard_size]
+        self.assertTrue(torch.allclose(param.data[:, shard_offset:shard_offset + shard_size], expected))
 
 
 class TestModelWeightParameter(unittest.TestCase):
@@ -329,6 +405,29 @@ class TestBiasParameter(unittest.TestCase):
 
         # Non-zero rank should zero out the bias
         self.assertTrue(torch.allclose(param.data, torch.zeros_like(param.data)))
+
+    def test_load_row_parallel_weight_rank_0_with_custom_offset_size(self):
+        """Test BiasParameter passes custom offset/size to parent when rank 0."""
+        param = BiasParameter(torch.randn(256))
+        param.add_attrs({"input_dim": 0})
+
+        full_weight = torch.randn(512)
+        tp_rank = 0
+        loaded_weight_shard_offset = 64
+        loaded_weight_shard_size = 192
+
+        param.data.fill_(1.0)
+        param.load_row_parallel_weight(
+            full_weight, tp_rank,
+            loaded_weight_shard_offset=loaded_weight_shard_offset,
+            loaded_weight_shard_size=loaded_weight_shard_size,
+        )
+
+        # First 192 elements from loaded slice
+        expected = full_weight[64:256]
+        self.assertTrue(torch.allclose(param.data[:192], expected))
+        # Remainder zero-padded
+        self.assertTrue(torch.allclose(param.data[192:256], torch.zeros(64)))
 
     def test_inherits_column_methods(self):
         """Test that BiasParameter also inherits column methods."""

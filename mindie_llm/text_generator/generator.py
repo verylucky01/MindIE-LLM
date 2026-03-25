@@ -111,20 +111,30 @@ class PDInterface:
         self.input_metadata_queue = queue.Queue()
         self.dst_block_table = []
 
-    def link(self, **kwargs) -> List[Tuple[str, ErrorCode]]:
+    def link(self, **kwargs) -> None:
         """创建与远端设备的链接。"""
         params = LinkParams(**kwargs)
-        return self.separate_deployment_worker.link(remote_cluster_ids=params.remote_cluster_ids, 
-                                                    remote_physical_device_ids=params.remote_physical_device_ids, 
-                                                    remote_device_ips=params.remote_device_ips, 
-                                                    host_ips=params.host_ips, 
-                                                    remote_super_device_ids=params.remote_super_device_ids,
-                                                    remote_super_pod_ids=params.remote_super_pod_ids
-                                                    )
+        self.separate_deployment_worker.link(remote_cluster_ids=params.remote_cluster_ids, 
+                                            remote_physical_device_ids=params.remote_physical_device_ids, 
+                                            remote_device_ips=params.remote_device_ips, 
+                                            host_ips=params.host_ips, 
+                                            remote_super_device_ids=params.remote_super_device_ids,
+                                            remote_super_pod_ids=params.remote_super_pod_ids,
+                                            remote_dp_instance_ids=params.remote_dp_instance_ids,
+                                            local_dp_instance_id=params.local_dp_instance_id
+                                            )
 
     def unlink(self, remote_cluster_id: int) -> Union[MindieLlmStatusCode, ErrorCode]:
         """断开与远端设备的链接。"""
         return self.separate_deployment_worker.unlink(remote_cluster_id)
+    
+    def unlink_batch(self, remote_cluster_ids: List[int]) -> Dict[int, Union[MindieLlmStatusCode, ErrorCode]]:
+        """批量断开与远端设备的链接。"""
+        return self.separate_deployment_worker.unlink_batch(remote_cluster_ids)
+    
+    def query_link_status(self) -> Union[MindieLlmStatusCode, ErrorCode]:
+        """查询链接状态。"""
+        return self.separate_deployment_worker.query_link_status()
 
     def switch_role(self, role: str) -> None:
         self.pd_config.model_role = role
@@ -238,6 +248,8 @@ class Generator(PDInterface):
         self.inference_mode = model_config['inference_mode']
 
         self.backend_type = parse_config(model_config, 'backend_type', required=True, default_value='atb')
+        if self.backend_type == "torch":
+            ENV.model_runner_exp = True
         self.rank = parse_config(model_config, 'rank', required=True, parse_type=ParseType.TO_INT)
         self.world_size = parse_config(model_config, 'world_size', required=True, parse_type=ParseType.TO_INT)
         self.local_rank = parse_config(model_config, 'local_rank', required=True, parse_type=ParseType.TO_INT)
@@ -374,7 +386,10 @@ class Generator(PDInterface):
                 max_prefill_tokens = min(max_prefill_tokens, LWD_MAX_CHUNK_SIZE)
                 max_seq_len = min(max_seq_len, LWD_MAX_CHUNK_SIZE)
                 max_input_len = min(max_input_len, LWD_MAX_CHUNK_SIZE)
-                
+
+            if self.backend_type == "torch":
+                self.generator_backend.model_wrapper.model_runner.set_eager_mode_with_padding(True)
+
             warmup_param = WarmupParams(max_prefill_tokens, max_seq_len, max_input_len, max_iter_times)
             npu_mem = self.warm_up(warmup_param)
 
@@ -386,6 +401,10 @@ class Generator(PDInterface):
         self.watcher._set_warmup_mem(warmup_mem)
 
         self._init_plugin_manager(self.kvcache_settings, plugin_list, plugin_config)
+
+        if self.backend_type == "torch":
+            self.generator_backend.model_wrapper.model_runner.set_eager_mode_with_padding(False)
+            self.generator_backend.compile()
 
         if (
             self.pd_config.model_role == DmiModeNodeRole.DECODER
@@ -400,6 +419,8 @@ class Generator(PDInterface):
                 device_id=self.model_wrapper.device.index,
                 kv_caches=self.generator_backend.cache_pool.npu_cache
             )
+        # Ensure that the auxiliary stream waits main stream(device operation) finish
+        torch.npu.current_stream().synchronize()
 
     def __del__(self):
         if self.separate_deployment_worker is not None:
@@ -446,7 +467,7 @@ class Generator(PDInterface):
             input_metadata: The input metadata constructed by the `BatchScheduler` includes request data such as input
                 ids, post-processing parameters, etc.
         """
-        if self.backend_type == 'atb' and not warmup and input_metadata.batch_seq_len.any():
+        if not warmup and input_metadata.batch_seq_len.any():
             cur_dp_rank_id_mask = self.model_wrapper.mapping.attn_dp.rank
             mask = input_metadata.batch_dp_rank_ids == cur_dp_rank_id_mask
             if len(input_metadata.batch_seq_len) != len(input_metadata.batch_dp_rank_ids): 
@@ -520,7 +541,19 @@ class Generator(PDInterface):
                 raise e
         except Exception as e:
             error_code = convert_exception_to_error_code(str(e))
-            if isinstance(e, RuntimeError) and error_code is not None:
+
+            # Handle PyTorch OOM(Only supports Torch 2.6+ native exception)
+            # If torch version is 2.1 or lower, please check exception message directly.
+            if hasattr(torch, "OutOfMemoryError") and isinstance(e, torch.OutOfMemoryError):
+                error_msg = (
+                        "Device out of memory (OOM) reported by PyTorch, but it can possibly triggered by HCCL. "
+                        "Enable logs: export ASCEND_SLOG_PRINT_TO_STDOUT=1, "
+                        "export ASCEND_GLOBAL_LOG_LEVEL=3 to check if there's HCCL error messages"
+                    )
+                logger.error(error_msg)
+                error_code = ErrorCode.TEXT_GENERATOR_OUT_OF_MEMORY
+
+            if error_code is not None:
                 message = (
                     f'{error_code.name} fault happened in generate_token, error code: {error_code.value}.'
                 )
@@ -617,7 +650,8 @@ class Generator(PDInterface):
 
             with memory_profiling(
                 baseline_non_torch=0,
-                weights_memory=self.model_memory_usage
+                weights_memory=self.model_memory_usage,
+                backend_type=self.backend_type
             ) as profile_result:
                 if self.pd_config.model_role in {STANDARD_TAG, DmiModeNodeRole.FLEX}:
                     self._warmup_standard(warmup_params)
@@ -786,7 +820,7 @@ class Generator(PDInterface):
         try:
             if dap:
                 self.generator_backend.enable_dap = False
-            if async_inference:
+            if async_inference and not self.backend_type == "torch":
                 self.async_inference = False
             yield
         finally:
@@ -931,11 +965,15 @@ class Generator(PDInterface):
 
     def _warmup_prefill(self, warmup_params: WarmupParams):
         self._auto_warmup_prefill(warmup_params)
-        if self.enable_prefix_cache:
+        if self.enable_prefix_cache and self.backend_type != "torch":
             self._auto_warmup_prefill(warmup_params, do_prefix_cache_warmup=True)
+        if self.backend_type == "torch":
+            self._auto_warmup_prefill(warmup_params)
 
     def _warmup_decode(self, warmup_params: WarmupParams):
         self._auto_warmup_decode(warmup_params)
+        if self.backend_type == "torch":
+            self._auto_warmup_decode(warmup_params)
 
     def _warmup_standard(self, warmup_params: WarmupParams):
         if self.enable_dap:
@@ -944,18 +982,11 @@ class Generator(PDInterface):
             dap=self.enable_dap
         ):
             self._auto_warmup(warmup_params)
-        if self.enable_prefix_cache:
+        if self.enable_prefix_cache and self.backend_type != "torch":
             self._auto_warmup(warmup_params, do_prefix_cache_warmup=True)
 
     def _warmup_specified(self, warmup_params: WarmupParams):
-        prefill_reqs = self._get_warm_up_reqs(warmup_params)
-
-        _ = self._execute_warm_up(
-            requests=prefill_reqs,
-            is_prefill=True
-        )
-
-        self.watcher.watch_npu_mem(self.rank, 'warmup specified success', self.is_multimodal, self.max_input_len)
+        self._auto_warmup(warmup_params)
 
     def _update_kvcache_settings(self, npu_mem):
         kvcache_settings = KVCacheSettings(
@@ -969,20 +1000,23 @@ class Generator(PDInterface):
             self.num_speculative_tokens,
         )
         if self.separate_deployment_worker is not None:
-            # K npu_cache model_id = 0, V npu_cache model_id = 1, K int8 npu_cache model_id = 2
+            # model_id mapping for npu_cache:
+            #   0 -> K cache (Key cache)
+            #   1 -> V cache (Value cache)
+            #   2 -> K int8 cache (Quantized Key cache)
+            #   3 -> Index cache
             if kvcache_settings.k_head_size != kvcache_settings.v_head_size:
                 num_quant_layers = 0
                 if kvcache_settings.kvcache_quant_layers:
                     num_quant_layers = kvcache_settings.kvcache_quant_layers.count(True)
                 if kvcache_settings.k_head_size > 0:
-                    if kvcache_settings.num_layers - num_quant_layers > 0:
-                        self.separate_deployment_worker.build(
-                            model_id=0,
-                            num_tensors=kvcache_settings.num_layers - num_quant_layers,
-                            num_blocks=kvcache_settings.num_npu_blocks,
-                            blockshape=kvcache_settings.k_block_shape,
-                            dtype=kvcache_settings.dtype_str,
-                        )
+                    self.separate_deployment_worker.build(
+                        model_id=0,
+                        num_tensors=kvcache_settings.num_layers - num_quant_layers,
+                        num_blocks=kvcache_settings.num_npu_blocks,
+                        blockshape=kvcache_settings.k_block_shape,
+                        dtype=kvcache_settings.dtype_str,
+                    )
                     if num_quant_layers > 0:
                         self.separate_deployment_worker.build(
                             model_id=2,
@@ -994,6 +1028,14 @@ class Generator(PDInterface):
                 if kvcache_settings.v_head_size > 0:
                     self.separate_deployment_worker.build(
                         model_id=1,
+                        num_tensors=kvcache_settings.num_layers,
+                        num_blocks=kvcache_settings.num_npu_blocks,
+                        blockshape=kvcache_settings.v_block_shape,
+                        dtype=kvcache_settings.dtype_str,
+                    )
+                if kvcache_settings.index_head_dim is not None:
+                    self.separate_deployment_worker.build(
+                        model_id=3,
                         num_tensors=kvcache_settings.num_layers,
                         num_blocks=kvcache_settings.num_npu_blocks,
                         blockshape=kvcache_settings.v_block_shape,
@@ -1061,7 +1103,7 @@ class Generator(PDInterface):
             is_prefill=False
         )
         remaining_reqs, _ = self._filter_end_reqs(decode_reqs, generation_output)
-        if remaining_reqs:
+        if remaining_reqs and self.backend_type != "torch":
             raise RuntimeError(
                 f"Decode warmup did not finish all requests: {len(remaining_reqs)} remaining."
             )
@@ -1091,7 +1133,7 @@ class Generator(PDInterface):
         )
         
         remaining_reqs, _ = self._filter_end_reqs(requests, decode_output)
-        if remaining_reqs:
+        if remaining_reqs and self.backend_type != "torch":
             raise RuntimeError(
                 f"Decode warmup did not finish all requests: {len(remaining_reqs)} remaining."
             )

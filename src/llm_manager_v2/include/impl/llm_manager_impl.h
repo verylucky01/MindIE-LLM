@@ -51,6 +51,8 @@ public:
 
     bool UpdateEngineInfo(RequestSPtr &runtimeRequest, bool isForceRelease);
 
+    bool QueryPDLinkStatus(model_execute_data::PDLinkStatusResponse &response);
+    
     static std::map<std::string, std::string> GetModelParams();
 
     void Step();

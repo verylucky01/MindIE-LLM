@@ -57,17 +57,11 @@ void HandleResponse(ResponseSPtr response)
     // EOS or PUBLISH_KV_COMPLETE时，删除callback
     if (response->isEos || response->transferStatusFlag == TransferStatusType::PUBLISH_KV_COMPLETE) {
         InferInstance::GetCallbackMap().Erase(response->reqId);
-        MINDIE_LLM_LOG_INFO_REQUEST("[LlmManagerImpl] Remove SendResponsesCallback requestId: " + response->reqId +
-                            " when encountering EOS or PUBLISH_KV_COMPLETE.");
     }
 
     if (serverResponseCallback.has_value()) {
         serverResponseCallback.value()(response);
-    } else if (!InferInstance::IsPaused()) {
-        MINDIE_LLM_LOG_INFO_REQUEST("[LlmManagerImpl] SendResponsesCallback of requestId: " + response->reqId +
-                            " is not exist.");
     }
-    
     PROF(spanHandleResponse.SpanEnd());
 }
 
@@ -220,26 +214,6 @@ bool SafeStoull(const std::string &str, uint64_t &outValue)
         outValue = UINT64_MAX;
         return false;
     }
-}
-
-bool AddFailedLinkToReq(RequestSPtr &runtimeRequest, const PDLinkResponse &response)
-{
-    FailedLinkInfo failedLinkInfo;
-
-    int64_t failedLinkNum = response.failed_link_info_size();
-    for (int64_t i = 0; i < failedLinkNum; ++i) {
-        uint64_t clusterId;
-        if (!SafeStoull(response.failed_link_info(i).cluster_id(), clusterId)) {
-            MINDIE_LLM_LOG_ERROR("Failed to parse cluster_id for failed link info at index " << i
-                << ", invalid cluster_id: " << response.failed_link_info(i).cluster_id());
-            return false;
-        }
-        failedLinkInfo.cluster_id = clusterId;
-        failedLinkInfo.failReason = response.failed_link_info(i).pd_error_code();
-        runtimeRequest->failedLinkInfos.emplace_back(failedLinkInfo);
-    }
-
-    return true;
 }
 } // namespace mindie_llm
 
@@ -600,6 +574,11 @@ static void UpdateEngineConfig(EngineConfig &engineConfig)
         maxPrefillTokens = (base + 1) * loadBalanceCpSize;
         MINDIE_LLM_LOG_INFO("CP enabled: maxPrefillTokens increased to multiple of 2 * cpsize. " <<
                             "New value: " << maxPrefillTokens);
+    }
+
+    if (engineConfig.maxBatchSize > maxPrefillTokens) {
+        engineConfig.maxBatchSize = maxPrefillTokens;
+        MINDIE_LLM_LOG_INFO("maxBatchSize is greater than maxPrefillTokens. It will be replaced by maxPrefillTokens.");
     }
     
     engineConfig.maxPrefillTokens = maxPrefillTokens;
@@ -1437,7 +1416,6 @@ Status LlmManagerImpl::Init(uint32_t modelInstanceId, std::set<size_t> npuDevice
 
 Status LlmManagerImpl::ProcessRequests(RequestSPtr request)
 {
-    MINDIE_LLM_LOG_WARN_REQUEST("Get a new inferRequest from server, requestId: " << request->requestId);
     return ForwardRequest(request);
 }
 
@@ -1454,7 +1432,6 @@ Status LlmManagerImpl::ProcessRequests()
             MINDIE_LLM_LOG_ERROR("Error: Request is null!");
             continue;
         }
-        MINDIE_LLM_LOG_INFO("Get a new inferRequest from server, requestId: " << req->requestId);
 
         Status ret = ForwardRequest(req);
         if (!ret.IsOk()) {
@@ -1477,8 +1454,6 @@ Status LlmManagerImpl::ForwardRequest(RequestSPtr request)
     if (!llmEnginePtr_->AddRequest(request)) {
         return Status(Error::Code::ERROR, "Engine has been stopped. Cannot add request.");
     }
-
-    MINDIE_LLM_LOG_INFO_REQUEST("Insert a new inferRequest, requestId: " << request->requestId);
     return Status(Error::Code::OK, "Success");
 }
 
@@ -1590,8 +1565,6 @@ void LlmManagerImpl::ControlRequest(const RequestIdNew &requestId, OperationV2 o
 {
     RequestId reqId = requestId;
     std::unordered_set<RequestId> reqIds = {reqId};
-    MINDIE_LLM_LOG_INFO_REQUEST("Get a new ControlRequest from server, requestId: " << reqId << ", with operation:"
-                                                                            << static_cast<int>(operation));
     if (operation == OperationV2::STOP) {
         llmEnginePtr_->AbortRequests(reqIds);
     } else if (operation == OperationV2::RELEASE_KV) {
@@ -1606,8 +1579,6 @@ void LlmManagerImpl::ControlRequest()
     auto stopReqPairs = controlCallback_();
     for (auto reqPair : stopReqPairs) {
         RequestId reqId = reqPair.first;
-        MINDIE_LLM_LOG_INFO("Get a new ControlRequest from server, requestId: "
-                    << reqId << ", with operation:" << static_cast<int>(reqPair.second));
         std::unordered_set<RequestId> reqIds = {reqId};
         if (reqPair.second == OperationV2::STOP) {
             llmEnginePtr_->AbortRequests(reqIds);
@@ -1793,22 +1764,45 @@ bool LlmManagerImpl::UpdateEngineInfo(RequestSPtr &runtimeRequest, bool isForceR
         }
     }
 
-    PDLinkResponse allDpPDLinkResponse;
-    for (size_t i = 0; i < iExecutorSPtrs_.size(); i++) {
-        allDpPDLinkResponse.mutable_failed_link_info()->MergeFrom(
-            iExecutorSPtrs_[i]->GetPDLinkResponse().failed_link_info());
+    MINDIE_LLM_LOG_INFO("[LlmManagerV2::LlmManagerImpl::UpdateEngineInfo] Success.");
+    return true;
+}
+
+bool LlmManagerImpl::LlmManagerImpl::QueryPDLinkStatus(model_execute_data::PDLinkStatusResponse &response)
+{
+    if (pdRole_ == Role::FlexP && isFlexInitialized_) {
+        MINDIE_LLM_LOG_INFO("[LlmManager::LlmManagerImpl::QueryPDLinkStatus] Flex mode, skipping query.");
+        return true;
     }
-    if (!isForceRelease) {
-        if (!AddFailedLinkToReq(runtimeRequest, allDpPDLinkResponse)) {
-            return false;
+
+    PDLinkStatusRequest pdLinkStatusRequest;
+    // Query all executors for link status
+    std::vector<std::thread> threads;
+    threads.reserve(iExecutorSPtrs_.size());
+    for (size_t i = 0; i < iExecutorSPtrs_.size(); i++) {
+        threads.emplace_back([&, i]() {
+            if (!iExecutorSPtrs_[i]->QueryPDLinkStatus(pdLinkStatusRequest)) {
+                throw std::runtime_error("QueryPDLinkStatus failed for executor idx " + std::to_string(i));
+            }
+        });
+    }
+    // Wait for all threads to complete
+    for (auto &thread : threads) {
+        if (thread.joinable()) {
+            thread.join();
         }
     }
 
-    if (pdRole_ == Role::FlexP) {
-        isFlexInitialized_ = true;
+    // Aggregate responses from all executors
+    for (size_t i = 0; i < iExecutorSPtrs_.size(); i++) {
+        const auto& executorResponse = iExecutorSPtrs_[i]->GetPDLinkStatusResponse();
+        response.mutable_failed_link_info()->MergeFrom(executorResponse.failed_link_info());
+        response.mutable_success_link_info()->MergeFrom(executorResponse.success_link_info());
+        response.mutable_running_link_info()->MergeFrom(executorResponse.running_link_info());
+        response.mutable_waitting_link_info()->MergeFrom(executorResponse.waitting_link_info());
     }
 
-    MINDIE_LLM_LOG_INFO("[LlmManagerV2::LlmManagerImpl::UpdateEngineInfo] Success.");
+    MINDIE_LLM_LOG_INFO("[LlmManager::LlmManagerImpl::QueryPDLinkStatus] Query completed successfully.");
     return true;
 }
 

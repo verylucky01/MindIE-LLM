@@ -18,6 +18,7 @@ from mindie_llm.runtime.layers.linear.linear import RowParallelLinear, MergedCol
     ColumnParallelLinear, ReplicatedLinear
 from mindie_llm.runtime.layers.embedding.embedding import VocabParallelEmbedding, ParallelLMHead
 from mindie_llm.runtime.layers.attention.sparse_attention_layer import SFA
+from mindie_llm.runtime.layers.attention.attention_mask import AttentionMask
 from mindie_llm.runtime.layers.fused_moe.experts_selector import select_experts
 from mindie_llm.runtime.layers.fused_moe.fused_moe import FusedMoE, assign_experts
 from mindie_llm.runtime.model_runner.forward_context import get_forward_context
@@ -58,7 +59,6 @@ class DeepseekV3Moe(nn.Module):
         self.expert_num = config.n_routed_experts
         self.expert_list = assign_experts(config.n_routed_experts,
             parallel_info.moe_ep.group_size)[parallel_info.moe_ep.rank]
-
         self.experts = FusedMoE(
             num_experts=config.n_routed_experts,
             topk_num=self.topk_num,
@@ -126,7 +126,7 @@ class DeepseekV3Moe(nn.Module):
         )
 
         final_hidden_states = self.experts(hidden_states, topk_weights, topk_ids)
-        return final_hidden_states + shared_expert_out
+        return final_hidden_states * self.config.routed_scaling_factor + shared_expert_out
 
 
 class Indexer(nn.Module):
@@ -544,6 +544,7 @@ class DeepseekV3Model(nn.Module):
             residual, hidden_states = layer(hidden_states, residual)
 
         hidden_states, _ = self.norm(hidden_states, residual)
+        forward_context = get_forward_context()
         if not forward_context.is_prefill and weight_prefetcher.is_prefetch_enabled():
             weight_prefetcher.prefetch_weight_postprocess()
         return hidden_states
@@ -583,6 +584,7 @@ class DeepseekV3ForCausalLM(BaseModelForCausalLM):
         self.softmax_scale = (self.config.qk_nope_head_dim + self.config.qk_rope_head_dim) ** (-0.5)
         self.kv_lora_rank = self.config.kv_lora_rank
         self.qk_rope_head_dim = self.config.qk_rope_head_dim
+        self.attn_mask = AttentionMask()
 
     def forward(self, input_ids, positions) -> torch.Tensor:
         """

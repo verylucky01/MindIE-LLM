@@ -259,7 +259,7 @@ class SharedMemCommunication:
 
         # Determine the correct channel based on response content
         if is_transfer:
-            target_channel = shared_sync_link_key if response.HasField("pd_link_response") else "transfer"
+            target_channel = shared_sync_link_key if response.HasField("pd_link_status_response") else "transfer"
         elif is_command:
             target_channel = shared_sync_link_key
         else:

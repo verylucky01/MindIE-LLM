@@ -74,7 +74,7 @@ class TestDmiConfig(unittest.TestCase):
             "local_device_ip": "192.168.0.1,192.168.0.2",
             "local_host_ip": "10.0.0.1,10.0.0.2",
             "tp": "1",
-            "local_instance_id": "instance_0"
+            "local_instance_id": "1"
         }
 
     def test_dmi_config_init_success(self):
@@ -151,9 +151,9 @@ class TestDmiConfig(unittest.TestCase):
         dp_config = self.dmi_config.copy()
         dp_config["dp"] = "2"
         with patch("mindie_llm.model_wrapper.utils.config.generate_dp_inst_id",
-                   return_value=["dp_inst_0", "dp_inst_1"]):
+                   return_value=["10", "11"]):
             config = DmiConfig(dp_config)
-            self.assertEqual(config.model_config["local_instance_id"], "dp_inst_0")
+            self.assertEqual(config.model_config["local_instance_id"], "10")
 
     def test_set_pd_link_info_with_unlink(self):
         full_config = self.dmi_config.copy()

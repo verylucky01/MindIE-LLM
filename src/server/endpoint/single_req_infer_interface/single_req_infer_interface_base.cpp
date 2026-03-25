@@ -956,7 +956,7 @@ bool SingleReqInferInterfaceBase::PostProcess(const std::vector<int64_t> &tokenI
     if (decodeOneToken) {
         if (detokenizeExtraInfo[seqId].has_value()) {
             status = pool.DecodeOne(copyTokens, inferResult, prevDecodeIndexLocal, currentDecodeIndexLocal, timestamp,
-                                    inputParam->useToolsCall, request_->skipSpecialTokens.value_or(false),
+                                    inputParam->useToolsCall, request_->skipSpecialTokens.value_or(true),
                                     requestEndFlag,
                                     {detokenizeExtraInfo[seqId].value().isCurrentToolNameSent,
                                      detokenizeExtraInfo[seqId].value().isCurrentArgumentSent,
@@ -964,14 +964,14 @@ bool SingleReqInferInterfaceBase::PostProcess(const std::vector<int64_t> &tokenI
                                      inputParam->enableThinking, inputParam->toolCallsJson});
         } else {
             status = pool.DecodeOne(copyTokens, inferResult, prevDecodeIndexLocal, currentDecodeIndexLocal, timestamp,
-                                    inputParam->useToolsCall, request_->skipSpecialTokens.value_or(false),
+                                    inputParam->useToolsCall, request_->skipSpecialTokens.value_or(true),
                                     requestEndFlag,
                                     {std::nullopt, std::nullopt, std::nullopt, inputParam->isChatReq,
                                     inputParam->enableThinking, inputParam->toolCallsJson});
         }
     } else {
         status = pool.Decode(copyTokens, inferResult, timestamp, inputParam->useToolsCall,
-                             request_->skipSpecialTokens.value_or(false),
+                             request_->skipSpecialTokens.value_or(true),
                              {std::nullopt, std::nullopt, std::nullopt, inputParam->isChatReq,
                              inputParam->enableThinking, inputParam->toolCallsJson});
     }

@@ -133,6 +133,7 @@ bool Executor::ExecutorParseConfigAndInitGRPC(std::map<std::string, std::string>
     // - 1 master + N slaves: Master uses 1/(N+1) ranks for IPC, rest for gRPC
     // - Slaves always use all ranks for IPC + gRPC
     bool intraNodeTP = (isMultiNodesInfer_ && modelLaunchConfig_.npuNumPerDP > modelLaunchConfig_.npuNumPerNode);
+    modelLaunchConfig_.intraNodeTP = intraNodeTP;
     int remoteDPRankIdx = GetRemoteDPRankIdx(modelLaunchConfig_, rankIdx, intraNodeTP);
     communicator_ =
         std::make_unique<Communicator>(configFromManager_, isMultiNodesInfer_, rankIdx, remoteDPRankIdx, intraNodeTP);
@@ -176,11 +177,17 @@ bool Executor::ExecutorModelInitAndSync()
                                 <<"Start to synchronize model initialization between Master and Slave nodes.");
         }
         if (modelLaunchConfig_.isMasterNode) { // Master node receives init response from slave
-            ExecuteResponse rawSlaveResponse;
-            communicator_->GRPCGetSyncResponse(rawSlaveResponse);
-            if (!MasterHandleSlaveInitResponse(rawSlaveResponse)) {
-                MINDIE_LLM_LOG_ERROR("Failed to handle slave initialization response.");
-                return false;
+            // For intraNodeTP scenario(where one GRPC message is broadcasted to multiple slaves),
+            // master needs to receive responses from all slaves and aggregate the results.
+            // Otherwise, one executor instance corresponds to one slave and only one response is expected.
+            size_t numExpectedResponses = modelLaunchConfig_.intraNodeTP ? modelLaunchConfig_.slaveIPs.size() : 1;
+            for (int i = 0; i < numExpectedResponses; ++i) {
+                ExecuteResponse rawSlaveResponse;
+                communicator_->GRPCGetSyncResponse(rawSlaveResponse);
+                if (!MasterHandleSlaveInitResponse(rawSlaveResponse)) {
+                    MINDIE_LLM_LOG_ERROR("Failed to handle slave initialization response.");
+                    return false;
+                }
             }
         } else { // Slave node sends init response to master
             if (!SlaveSendInitResponseToMaster()) {
@@ -402,21 +409,35 @@ bool Executor::SetupPDLink(PDLinkRequest &pdLinkRequest)
     request.set_execute_type(PD_LINK);
     request.mutable_pd_link_request()->CopyFrom(pdLinkRequest);
 
-    // Wait for PDLink response from local and/or remote workers.
-    std::vector<ExecuteResponse> pdLinkResponses;
-    if (!communicator_->SendSharedSyncRequestAndReceive(request, pdLinkResponses)) {
+    // No need to Wait for PDLink response.
+    if (!communicator_->SendSharedSyncRequest(request)) {
         MINDIE_LLM_LOG_ERROR("Failed to send PDLink request to worker.");
         return false;
     }
+    return true;
+}
 
-    // Aggregate PDLink responses from Master and Slaves if needed.
-    ExecuteResponse aggregatedResponse;
-    if (!AggregatePDLinkResponses(pdLinkResponses, aggregatedResponse)) {
-        MINDIE_LLM_LOG_ERROR("Failed to aggregate PDLink responses.");
+bool Executor::QueryPDLinkStatus(PDLinkStatusRequest &pdLinkStatusRequest)
+{
+    ExecuteRequest request;
+    request.set_execute_type(model_execute_data::PD_LINK_STATUS_QUERY);
+    request.mutable_pd_link_status_request()->CopyFrom(pdLinkStatusRequest);
+
+    // Wait for PDLink response from local and/or remote workers.
+    std::vector<ExecuteResponse> pdLinkQueryResponses;
+    if (!communicator_->SendSharedSyncRequestAndReceive(request, pdLinkQueryResponses)) {
+        MINDIE_LLM_LOG_ERROR("Failed to send PDLinkStatus request to worker.");
         return false;
     }
-    if (!HandlePDLinkResponse(aggregatedResponse)) {
-        MINDIE_LLM_LOG_ERROR("Failed to handle a PDLink response.");
+
+    // Aggregate PDLink Status responses from Master and Slaves if needed.
+    ExecuteResponse aggregatedResponse;
+    if (!AggregatePDLinkStatusResponses(pdLinkQueryResponses, aggregatedResponse)) {
+        MINDIE_LLM_LOG_ERROR("Failed to aggregate PDLinkStatus responses.");
+        return false;
+    }
+    if (!HandlePDLinkStatusResponse(aggregatedResponse)) {
+        MINDIE_LLM_LOG_ERROR("Failed to handle a PDLinkStatus response.");
         return false;
     }
     return true;
@@ -575,36 +596,49 @@ void Executor::HandleExecuteModelResponse(ExecuteResponse &modelExecuteResponse)
     executeModelResponseHandler_(modelBatchResultSPtr);
 }
 
-bool Executor::AggregatePDLinkResponses(const std::vector<ExecuteResponse> &responseVec,
-                                        ExecuteResponse &aggregatedResponse) const
+bool Executor::AggregatePDLinkStatusResponses(const std::vector<ExecuteResponse> &responseVec,
+                                              ExecuteResponse &aggregatedResponse) const
 {
-    aggregatedResponse.set_msg_type(PD_LINK);
-    auto *aggregatedPDLink = aggregatedResponse.mutable_pd_link_response();
+    aggregatedResponse.set_msg_type(PD_LINK_STATUS_QUERY);
+    auto *aggregatedPDLinkStatus = aggregatedResponse.mutable_pd_link_status_response();
 
     for (const auto &singleResponse : responseVec) {
-        if (singleResponse.msg_type() != PD_LINK || !singleResponse.has_pd_link_response()) {
-            MINDIE_LLM_LOG_ERROR("AggregatePDLinkResponses: invalid response type or missing PDLinkResponse field.");
+        if (singleResponse.msg_type() != PD_LINK_STATUS_QUERY || !singleResponse.has_pd_link_status_response()) {
+            MINDIE_LLM_LOG_ERROR("AggregatePDLinkStatusResponses: invalid response type or missing"
+                << " PDLinkStatusResponse field.");
             aggregatedResponse.Clear();
             return false;
         }
 
-        const auto &failedLinkInfoItems = singleResponse.pd_link_response().failed_link_info();
+        const auto &failedLinkInfoItems = singleResponse.pd_link_status_response().failed_link_info();
         for (const auto &failedLinkInfo : failedLinkInfoItems) {
-            auto *newFailedLinkInfo = aggregatedPDLink->add_failed_link_info();
+            auto *newFailedLinkInfo = aggregatedPDLinkStatus->add_failed_link_info();
             newFailedLinkInfo->set_cluster_id(failedLinkInfo.cluster_id());
             newFailedLinkInfo->set_pd_error_code(failedLinkInfo.pd_error_code());
+        }
+        const auto &successLinkInfoItems = singleResponse.pd_link_status_response().success_link_info();
+        for (const auto &successLinkInfo : successLinkInfoItems) {
+            aggregatedPDLinkStatus->add_success_link_info(successLinkInfo);
+        }
+        const auto &runningLinkInfoItems = singleResponse.pd_link_status_response().running_link_info();
+        for (const auto &runningLinkInfo : runningLinkInfoItems) {
+            aggregatedPDLinkStatus->add_running_link_info(runningLinkInfo);
+        }
+        const auto &waittingLinkInfoItems = singleResponse.pd_link_status_response().waitting_link_info();
+        for (const auto &waittingLinkInfo : waittingLinkInfoItems) {
+            aggregatedPDLinkStatus->add_waitting_link_info(waittingLinkInfo);
         }
     }
     return true;
 }
 
-bool Executor::HandlePDLinkResponse(ExecuteResponse &executeResponse)
+bool Executor::HandlePDLinkStatusResponse(ExecuteResponse &executeResponse)
 {
-    if (!executeResponse.has_pd_link_response()) {
-        MINDIE_LLM_LOG_ERROR("Invalid response: missing PDLinkResponse field.");
+    if (!executeResponse.has_pd_link_status_response()) {
+        MINDIE_LLM_LOG_ERROR("Invalid response: missing PDLinkStatusResponse field.");
         return false;
     }
-    pdLinkResponse_ = executeResponse.pd_link_response();
+    pdLinkStatusResponse_ = executeResponse.pd_link_status_response();
     return true;
 }
 
@@ -696,7 +730,7 @@ uint32_t Executor::GetMaxPositionEmbeddings() const
     return IExecutor::kvCacheOverview_.maxPositionEmbeddings;
 }
 
-PDLinkResponse Executor::GetPDLinkResponse() const { return pdLinkResponse_; };
+PDLinkStatusResponse Executor::GetPDLinkStatusResponse() const { return pdLinkStatusResponse_; };
 
 std::vector<std::string> Executor::BuildConnectorCommand(const ModelLaunchConfig &modelConfig, const std::string &sharedMemPrefix,
                                                          uint32_t rankInDP) const

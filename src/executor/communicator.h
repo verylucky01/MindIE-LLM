@@ -40,6 +40,8 @@ public:
 
     bool SendModelInitRequestAndReceive(ExecuteRequest &request, std::vector<ExecuteResponse> &responses);
 
+    bool SendSharedSyncRequest(ExecuteRequest &request);
+
     bool SendSharedSyncRequestAndReceive(ExecuteRequest &request, std::vector<ExecuteResponse> &responses);
 
     bool SendRecoverCommandRequestAndReceive(ExecuteRequest &request, std::vector<ExecuteResponse> &responses);

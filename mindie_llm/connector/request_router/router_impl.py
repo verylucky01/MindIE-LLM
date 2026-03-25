@@ -32,9 +32,11 @@ from mindie_llm.connector.common.model_execute_data_pb2 import (
     ExecuteType,
     ForwardType,
     PDErrorCode,
-    LoraOperationType
+    LoraOperationType,
+    ExecuteResponse, 
+    LoraOperationResponse, 
+    PDLinkStatusResponse
 )
-from mindie_llm.connector.common.model_execute_data_pb2 import ExecuteResponse, PDLinkResponse, LoraOperationResponse
 
 from mindie_llm.connector.common.input_metadata_composite import InputMetadataComposite
 from mindie_llm.model_wrapper.utils.config import DmiConfig
@@ -345,6 +347,44 @@ class RouterImpl:
         proto = ExecuteResponseBuilder.build_from_transfer_result(result_code.value, responses)
         send_transfer_response(proto)
 
+    def query_link_status(self, execute_request=None):
+
+        logger.info("[Model]\t>>> global rank-%s enter query link status", self.rank)
+        try:
+            link_status = self.generator.query_link_status()
+            logger.info(f"[Config]\t>>> rank: {self.rank} query link status result: {link_status}")
+
+            pd_link_status_response = PDLinkStatusResponse()
+            
+            if isinstance(link_status, dict):
+                if "waitting" in link_status:
+                    pd_link_status_response.waitting_link_info.extend(link_status["waitting"])
+                if "running" in link_status:
+                    pd_link_status_response.running_link_info.extend(link_status["running"])
+                if "success" in link_status:
+                    pd_link_status_response.success_link_info.extend(link_status["success"])
+                if "failed" in link_status:
+                    for failed_link in link_status["failed"]:
+                        failed_info = PDLinkStatusResponse.FailedLinkInfo(
+                            cluster_id=failed_link,
+                            pd_error_code=PDErrorCode.PD_LINK_ERROR
+                        )
+                        pd_link_status_response.failed_link_info.append(failed_info)
+            
+            return send_transfer_response(
+                ExecuteResponse(msg_type=ExecuteType.PD_LINK_STATUS_QUERY, 
+                            pd_link_status_response=pd_link_status_response)
+            )
+        except Exception as e:
+            _print_component_error_log(e)
+            logger.error("[Model]\t>>> query link status failed.")
+            logger.exception(f"[Model]\t>>> Exception:{e}")
+            return send_transfer_response(
+                ExecuteResponse(msg_type=ExecuteType.PD_LINK_STATUS_QUERY,
+                                status=ModelWrapperErrorCode.PD_Link_QUERY_ERROR.value,
+                                pd_link_status_response=PDLinkStatusResponse())
+            )
+
     def pd_role(self, execute_request):
         logger.info("[Model]\t>>>global rank-%s enter process pdRole", self.rank)
         self.config.set_pd_link_info(get_attribute_info(execute_request.pd_link_request))
@@ -352,25 +392,36 @@ class RouterImpl:
         logger.info("[Config]\t>>> start to process DMI link scenario.")
         # unlink
         logger.info(f"[Config] rank: {self.rank} Destroy all clusters kvcache link start...")
-        for unlink_inst_cluster in set(self.config.remote_unlink_cluster_id):
-            for unlink_cluster_item in self.config.remote_unlink_cluster_id[unlink_inst_cluster]:
-                try:
-                    logger.info(
-                        f"[Config]\t>>> rank: {self.rank} " f"Destroy cluster id:{unlink_cluster_item} link start..."
-                    )
-                    self.generator.unlink(unlink_cluster_item)
-                    logger.info(
-                        f"[Config]\t>>> rank: {self.rank} " f"Destroy cluster id:{unlink_cluster_item} link finish..."
-                    )
-                except Exception as e:
-                    _print_component_error_log(e)
-                    logger.error("[Model]\t>>> process DMI unlink failed.")
-                    logger.exception(f"[Model]\t>>> Exception:{e}")
-                    return send_transfer_response(
-                        ExecuteResponse(msg_type=ExecuteType.PD_LINK,
-                                        status=ModelWrapperErrorCode.PD_UNLINK_ERROR.value,
-                                        pd_link_response=PDLinkResponse())
-                    )
+        
+        unlink_cluster_ids = set()
+        if self.config.remote_unlink_cluster_id:
+            for unlink_inst_cluster in set(self.config.remote_unlink_cluster_id):
+                unlink_cluster_ids.update(self.config.remote_unlink_cluster_id[unlink_inst_cluster])
+        unlink_cluster_ids = list(unlink_cluster_ids)
+
+        if unlink_cluster_ids:
+            try:
+                logger.info(
+                    f"[Config]\t>>> rank: {self.rank} "
+                    f"Batch destroy clusters start... cluster_ids: {unlink_cluster_ids}"
+                )
+
+                batch_results = self.generator.unlink_batch(unlink_cluster_ids)  
+
+                logger.info(
+                    f"[Config]\t>>> rank: {self.rank} "
+                    f"Batch unlink results: {batch_results}"
+                )
+
+                logger.info(
+                    f"[Config]\t>>> rank: {self.rank} "
+                    f"Batch destroy clusters finish... cluster_ids: {unlink_cluster_ids}"
+                )
+            except Exception as e:
+                _print_component_error_log(e)
+                logger.error("[Model]\t>>> process DMI unlink failed.")
+                logger.exception(f"[Model]\t>>> Exception:{e}")
+                return
 
         logger.info(f"[Config]\t>>> rank: {self.rank} Destroy all clusters kvcache link finish...")
 
@@ -379,48 +430,17 @@ class RouterImpl:
 
         # link
         logger.info(f"[Config]\t>>> rank: {self.rank} Create all clusters kvcache links start...")
-        failed_list = self.generator.link(
+        self.generator.link(
             remote_cluster_ids=self.config.remote_link_cluster_id,
             remote_physical_device_ids=self.config.remote_link_device_physical_id,
             remote_device_ips=self.config.remote_link_device_ips,
             host_ips=self.config.remote_link_host_ip,
             remote_super_device_ids=self.config.remote_super_device_id if self.config.remote_super_device_id else None,
             remote_super_pod_ids=self.config.remote_super_pod_id if self.config.remote_super_pod_id else None,
+            remote_dp_instance_ids=self.config.remote_dp_instance_ids,
+            local_dp_instance_id=self.config.local_dp_instance_id,
         )
         logger.debug(f"[Config]\t>>> rank: {self.rank} Create all clusters kvcache links finish...")
-
-        if len(failed_list) == 0:
-            # 处理成功，直接返回
-            return send_transfer_response(
-                ExecuteResponse(msg_type=ExecuteType.PD_LINK, pd_link_response=PDLinkResponse()))
-
-        device_id_dict = {}
-        for instance_id in self.config.remote_link_cluster_id.keys():
-            id_unit = zip(
-                self.config.remote_link_device_ips[instance_id], self.config.remote_link_cluster_id[instance_id]
-            )
-            device_id_dict.update({device_ip: cluster_id for device_ip, cluster_id in id_unit})
-        link_fail_ip_list = []
-        for device_ip, status in failed_list:
-            if device_ip not in device_id_dict:
-                logger.error(f"""[Config]\t>>> unknown device_ip '{device_ip}' in failed list.""")
-                continue
-            cluster_id = device_id_dict[device_ip]
-            link_fail_ip_list.append([cluster_id, status.value])
-            logger.error(f"""[Config]\t>>> global rank-{self.rank} cluster_id: {cluster_id} link fail.""")
-
-        logger.info("[Model]\t>>>global rank-%s the total failed link server ip : %s", self.rank, link_fail_ip_list)
-
-        proto_response = ExecuteResponse(msg_type=ExecuteType.PD_LINK, status=ModelWrapperErrorCode.PD_LINK_ERROR.value,
-                                         pd_link_response=PDLinkResponse())
-
-        for link_fail_ip in link_fail_ip_list:
-            proto_response.pd_link_response.failed_link_info.append(PDLinkResponse.FailedLinkInfo(
-                cluster_id=str(link_fail_ip[0]),
-                pd_error_code=PDErrorCode.PD_LINK_ERROR
-            ))
-
-        return send_transfer_response(proto_response)
 
     def process_lora_operation(self, execute_request):
         lora_operation_type = execute_request.lora_operation_request.lora_op_type

@@ -61,6 +61,14 @@ bool LlmManagerV2::UpdateEngineInfo(RequestSPtr &runtimeRequest, bool isForceRel
     return true;
 }
 
+bool LlmManagerV2::QueryPDLinkStatus(model_execute_data::PDLinkStatusResponse &response)
+{
+    if (impl_ == nullptr) {
+        return false;
+    }
+    return impl_->QueryPDLinkStatus(response);
+}
+
 bool LlmManagerV2::UpdateFlexSwitchInfo(const std::shared_ptr<FlexSwitchInfo> flexSwitchInfo)
 {
     if (impl_ == nullptr || flexSwitchInfo == nullptr) {

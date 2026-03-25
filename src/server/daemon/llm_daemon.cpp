@@ -30,7 +30,6 @@
 #include "config_manager.h"
 #include "endpoint.h"
 #include "msServiceProfiler/Tracer.h"
-#include "system_log.h"
 
 using namespace mindie_llm;
 static std::mutex g_exitMtx;
@@ -220,20 +219,15 @@ void SignalInterruptHandler(int sig)
 
 void SignalChldHandler(int sig)
 {
-    ULOG_WARN(SUBMODLE_NAME_DAEMON, GenerateDaemonErrCode(WARNING, SUBMODLE_FEATURE_INIT, EXIT_SUBPROCESS_WARNING),
-        "Received exit signal[" << sig << "], Process " << getpid() << ", Thread " << std::this_thread::get_id());
     int status = 0;
     pid_t pid = 0;
     bool exitFlag = false;
     while ((pid = waitpid(0, &status, WNOHANG)) > 0) {
-        ULOG_WARN(SUBMODLE_NAME_DAEMON, GenerateDaemonErrCode(WARNING, SUBMODLE_FEATURE_INIT, EXIT_SUBPROCESS_WARNING),
-                  "Process " << pid << " exited");
         unsigned int ustatus = static_cast<unsigned int>(status);
         if (WIFEXITED(ustatus)) {
             // Exited normally
             exitFlag = false;
             int exitCode = WEXITSTATUS(ustatus);
-            ULOG_INFO(SUBMODLE_NAME_DAEMON, "Process " << pid << " exited normally with status " << exitCode);
             if (exitCode != 0) {
                 exitFlag = true;
             }
@@ -390,7 +384,6 @@ bool ParseCommandLineArgs(int &argc, char **argv, std::unordered_map<std::string
 int main(int argc, char *argv[])
 {
     Py_Initialize();
-    InitSystemLog();
     static_assert(std::atomic<bool>::is_always_lock_free, "Bool type should be lock-free.");
     g_mainPid = getpid();
     std::cerr << "g_mainPid = " << g_mainPid << std::endl;

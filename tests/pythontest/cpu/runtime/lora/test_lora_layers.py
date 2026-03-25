@@ -103,13 +103,16 @@ class TestLoraLayers(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             lora_layer.create_lora_weights(self.lora_model_config, dtype, self.device)
 
+    @patch.object(ParallelLinearWithLoRA, "get_base_weight_shape")
     @patch.object(ParallelLinearWithLoRA, "weight_format_cast")
     @patch("mindie_llm.runtime.layers.linear.linear.get_parallel_info_manager")
-    def test_parallel_linear_with_lora_create_weights(self, mock_get_parallel_info_manager, mock_weight_format_cast):
+    def test_parallel_linear_with_lora_create_weights(self, mock_get_parallel_info_manager, mock_weight_format_cast,
+                                                        mock_get_base_weight_shape):
         mock_get_parallel_info_manager.return_value = self.mock_parallel_info_manager
         mock_weight_format_cast.side_effect = lambda x: x
         linear_layer = FakeColumnParallelLinear(["linear"], self.parallel_info)
         n, k = sum(linear_layer.output_partition_sizes), linear_layer.input_size_per_partition
+        mock_get_base_weight_shape.return_value = {n, k}
         lora_layer = ColumnParallelLinearWithLoRA(linear_layer)
         lora_layer.create_lora_weights(self.lora_model_config, self.dtype, self.device)
         dim_r = math.ceil(self.max_lora_rank / 16) * 16 if self.soc_info.need_nz \

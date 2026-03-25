@@ -98,7 +98,7 @@ struct SharedMemoryHeader {
     uint64_t size = 0;
     uint64_t timestamp = 0;
     bool requestEndFlag = false;
-    bool skipSpecialTokens = false;
+    bool skipSpecialTokens = true;
     uint32_t useToolsCall = 0;
     std::optional<bool> enableThinking = true;
     char chatTemplate[TOOL_CALLS_JSON_MAX_SIZE] = {0};

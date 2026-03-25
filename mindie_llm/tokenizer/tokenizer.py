@@ -385,7 +385,7 @@ class IbisTokenizer:
         """
         output_content = dict()
         use_tool_call = kwargs.get("use_tool_call", False)
-        skip_special_tokens = kwargs.get("skip_special_tokens", False)
+        skip_special_tokens = kwargs.get("skip_special_tokens", True)
         is_chat_req = kwargs.get("is_chat_req", False)
         tool_calls_json = kwargs.get("tool_calls_json", None)
         try:
@@ -433,7 +433,7 @@ class IbisTokenizer:
         """
         output_content = dict()
         use_tool_call = kwargs.get("use_tool_call", False)
-        skip_special_tokens = kwargs.get("skip_special_tokens", False)
+        skip_special_tokens = kwargs.get("skip_special_tokens", True)
         is_chat_req = kwargs.get("is_chat_req", False)
         pre_index = kwargs.get("prev_decode_index", -1)
         current_index = kwargs.get("curr_decode_index", -1)

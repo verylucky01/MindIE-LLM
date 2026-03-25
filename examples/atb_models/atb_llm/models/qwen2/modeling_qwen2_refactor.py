@@ -54,6 +54,7 @@ class Qwen2Attention(nn.Module):
             bias=False,
             quant_config=quant_config,
             prefix=f"{prefix}.o_proj",
+            multiple_of=self.head_dim,
         )
 
         if config.use_qk_norm:

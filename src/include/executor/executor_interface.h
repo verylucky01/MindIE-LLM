@@ -30,10 +30,11 @@ namespace mindie_llm {
 
 using model_execute_data::ExecuteRequest;
 using model_execute_data::PDLinkRequest;
+using model_execute_data::PDLinkStatusRequest;
 using model_execute_data::TGCleanupRequest;
 using model_execute_data::ExecuteResponse;
 using model_execute_data::ExecuteModelResponse;
-using model_execute_data::PDLinkResponse;
+using model_execute_data::PDLinkStatusResponse;
 using model_execute_data::PullKVResponse;
 using model_execute_data::ExecuteType;
 using model_execute_data::MODEL_INIT;
@@ -41,6 +42,7 @@ using model_execute_data::MODEL_INFER;
 using model_execute_data::MODEL_FINALIZE;
 using model_execute_data::REMOTE_MODEL_INIT;
 using model_execute_data::PD_LINK;
+using model_execute_data::PD_LINK_STATUS_QUERY;
 using model_execute_data::KV_TRANSFER;
 using model_execute_data::TEXT_GENERATOR_CLEANUP;
 using model_execute_data::EOS_CLEANUP;
@@ -65,7 +67,7 @@ using RequestHandler = std::function<void(ExecuteRequest &)>;
 // response
 using ModelBatchResultSPtr = std::shared_ptr<model_execute_data::ExecuteModelResponse>;
 using ModelBatchResultPtr = std::unique_ptr<model_execute_data::ExecuteModelResponse>;
-using PDLinkResponseSPtr = std::shared_ptr<model_execute_data::PDLinkResponse>;
+using PDLinkStatusResponseSPtr = std::shared_ptr<model_execute_data::PDLinkStatusResponse>;
 using PullKVResponseSPtr = std::shared_ptr<model_execute_data::PullKVResponse>;
 
 // response handler
@@ -167,6 +169,8 @@ public:
 
     virtual bool SetupPDLink(model_execute_data::PDLinkRequest &pdLinkRequest) = 0;
 
+    virtual bool QueryPDLinkStatus(model_execute_data::PDLinkStatusRequest &pdLinkStatusRequest) = 0;
+
     virtual bool ExecuteKVTransfer(PullKVRequestPtr &pullKVRequest, PullKVResponseHandler callback = nullptr) = 0;
 
     virtual bool ExecutorInstanceFinalize() = 0;
@@ -179,9 +183,9 @@ public:
 
     virtual uint32_t GetMaxPositionEmbeddings() const = 0;
 
-    virtual ThinkingConfig GetThinkingConfig() const = 0;
+    virtual model_execute_data::PDLinkStatusResponse GetPDLinkStatusResponse() const = 0;
 
-    virtual model_execute_data::PDLinkResponse GetPDLinkResponse() const = 0;
+    virtual ThinkingConfig GetThinkingConfig() const = 0;
 
     // Static member to hold the KV cache overview, shared across all executor instances
     inline static KVCacheOverview kvCacheOverview_;

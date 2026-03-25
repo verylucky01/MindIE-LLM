@@ -38,6 +38,7 @@ class ParallelType(str, Enum):
     LM_HEAD_TP = "lm_head_tp"
     MOE_TP = "moe_tp"
     MOE_EP = "moe_ep"
+    MOE_EP_MC2 = "moe_ep_mc2"
 
 
 @dataclass
@@ -147,6 +148,7 @@ class ParallelInfoManager:
             ParallelType.MOE_TP: self.moe_tp,
             ParallelType.MOE_EP: self.moe_ep,
             ParallelType.WORLD: self.world,
+            ParallelType.MOE_EP_MC2: self.moe_ep_mc2,
         }
 
     @staticmethod
@@ -174,7 +176,7 @@ class ParallelInfoManager:
         return None
 
     @staticmethod
-    def _create_npu_process_group(parallel_info: ParallelInfo) -> ProcessGroup: 
+    def _create_npu_process_group(parallel_info: ParallelInfo, is_all_reduce: bool = False) -> ProcessGroup: 
         """Creates an HCCL process group with custom buffer size.
            Need to traverse all groups to establish communication domains, 
         even if your rank is not present within them, otherwise it will 
@@ -183,7 +185,11 @@ class ParallelInfoManager:
         cur_process_group = None
         for group_idx, group_ranks in enumerate(parallel_info.rank_per_group):
             options = dist_c.ProcessGroupHCCL.Options()
-            options.hccl_config = {"hccl_buffer_size": parallel_info.buffer_size}
+            if is_all_reduce:
+                options.hccl_config = {"hccl_buffer_size": parallel_info.buffer_size, 
+                                    "hccl_op_expansion_mode": 1}
+            else:
+                options.hccl_config = {"hccl_buffer_size": parallel_info.buffer_size}
             process_group = dist.new_group(ranks=group_ranks, pg_options=options)
             if group_idx == parallel_info.current_group_id:
                 cur_process_group = process_group
@@ -279,5 +285,5 @@ class ParallelInfoManager:
         parallel_info.rank = parallel_info.rank_per_group[parallel_info.current_group_id].index(self.rank)
 
         parallel_info.process_group = self._create_npu_process_group(parallel_info)
-        parallel_info.preprocess_group = self._create_npu_process_group(parallel_info)
+        parallel_info.preprocess_group = self._create_npu_process_group(parallel_info, is_all_reduce=True)
         return parallel_info

@@ -51,6 +51,10 @@ download_copy_pkg("http" "httplib.h" "${THIRD_PARTY_OUTPUT_DIR}/http/httplib.h"
     "${THIRD_PARTY_SRC_DIR}/http" "${THIRD_PARTY_OUTPUT_DIR}"
 )
 
+download_copy_pkg("catlass" "include/catlass/catlass.hpp" "${THIRD_PARTY_OUTPUT_DIR}/catlass/include/catlass/catlass.hpp"
+    "${THIRD_PARTY_SRC_DIR}/catlass" "${THIRD_PARTY_OUTPUT_DIR}"
+)
+
 if(NOT (DEFINED ENV{BUILD_ZONE} AND "$ENV{BUILD_ZONE}" STREQUAL "yellow"))
     download_copy_pkg("hseceasy_${PLATFORM}" "lib/libsecurec.so"
         "${THIRD_PARTY_OUTPUT_DIR}/hseceasy_${PLATFORM}/lib/libsecurec.so"

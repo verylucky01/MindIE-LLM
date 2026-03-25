@@ -22,6 +22,7 @@
 #include "request_response/request.h"
 #include "request_response/response.h"
 #include "metric.h"
+#include "model_execute_data.pb.h"
 
 namespace mindie_llm {
 class LlmManagerImpl;
@@ -81,6 +82,8 @@ public:
 
     // 更新flex节点信息
     bool UpdateFlexSwitchInfo(const std::shared_ptr<FlexSwitchInfo> flexSwitchInfo);
+
+    bool QueryPDLinkStatus(model_execute_data::PDLinkStatusResponse &response);
 
     /// This function initializes the LLM manager with the specified model instance ID and NPU device IDs.
     /// \param modelInstanceId The model instance ID used to initialize the LLM manager

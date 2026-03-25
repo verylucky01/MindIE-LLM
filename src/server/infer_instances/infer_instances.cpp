@@ -385,7 +385,6 @@ static bool ProcessFailLinkIp(RequestSPtr request, GlobalIpInfo &globalIpInfo)
     for (auto &failedLinkInfo : request->failedLinkInfos) {
         failInstanceIdVec.emplace_back(failedLinkInfo.cluster_id);
         globalIpInfo.failLinkInstanceIDAndReason[failedLinkInfo.cluster_id] = failedLinkInfo.failReason;
-        globalIpInfo.retryLinkIpInfo[failedLinkInfo.cluster_id] = globalIpInfo.linkIpInfo[failedLinkInfo.cluster_id];
         ULOG_INFO(SUBMODLE_NAME_INFERINSTANCE,
                   "[ProcessFailLinkIp] add retry link instance id : " + std::to_string(failedLinkInfo.cluster_id));
     }
@@ -596,6 +595,19 @@ Status InferInstance::AssignDmiRole(GlobalIpInfo &globalIpInfo)
     return Status(Error::Code::OK, "Success");
 }
 
+Status InferInstance::QueryPDLinkStatus(model_execute_data::PDLinkStatusResponse &response)
+{
+    for (auto &llmManager : llmManagers_) {
+        if (!llmManager->QueryPDLinkStatus(response)) {
+            ULOG_ERROR(SUBMODLE_NAME_INFERINSTANCE, "[MIE05E040001]",
+                       "[LLMQueryPDLinkStatus] QueryPDLinkStatus failed on one instance.");
+            return Status(Error::Code::ERROR, "QueryPDLinkStatus failed.");
+        }
+    }
+    return Status(Error::Code::OK, "Success");
+}
+
+
 Status InferInstance::InitPDNode(GlobalIpInfo &globalIpInfo)
 {
     std::map<std::string, std::string> ipInfo;
@@ -653,7 +665,6 @@ Status InferInstance::HandleLora(
     std::vector<LoraParamSPtr>& loraInfo
 )
 {
-    ULOG_INFO(SUBMODLE_NAME_INFERINSTANCE, "Start HandleLora");
     if (llmManagers_[0] == nullptr) {
         ULOG_ERROR(SUBMODLE_NAME_INFERINSTANCE, "[MIE05E040001]", "llmManager is nullptr");
         return Status(Error::Code::ERROR, "llmManager is nullptr");

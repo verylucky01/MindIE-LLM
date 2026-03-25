@@ -112,5 +112,10 @@
         "type": "file",
         "fileName": "libboundscheck.zip",
         "sha256": "5119bda1ee96440c1a45e23f0cb8b079cc6697e052c4a78f27d0869f84ba312b"
+    },
+    "catlass": {
+        "url": "https://gitcode.com/cann/catlass.git",
+        "type": "git",
+        "tag": "v1.0.1"
     }
 }

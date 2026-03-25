@@ -13,7 +13,7 @@ from unittest.mock import MagicMock, patch, call
 
 from llm_datadist import DataType, RegisterMemStatus, LLMStatusCode, LLMException
 from mindie_llm.text_generator.utils.separate_deployment_engine import (
-    SeparateDeploymentWorker, SeparateDeploymentEngine
+    SeparateDeploymentWorker, SeparateDeploymentEngine, LinkResult
 )
 from mindie_llm.utils.log.logging import logger
 from mindie_llm.utils.log.error_code import ErrorCode
@@ -69,6 +69,8 @@ class TestSeparateDeploymentWorker(unittest.TestCase):
         )
         # 保证 worker 内部使用的是我们的 mock 实例
         self.worker.separate_deployment_engine = self.mock_llm_data_dist_instance
+        # 核心：保证LinkResult实例正常初始化，用于状态断言
+        self.worker.link_result = LinkResult()
 
     def test_init_invalid_role(self):
         with self.assertRaises(Exception) as context:
@@ -156,14 +158,22 @@ class TestSeparateDeploymentWorker(unittest.TestCase):
             'remote_device_ips': {0: ['192.168.1.0']},
             'host_ips': {0: ['192.168.1.100']},
             'remote_super_device_ids': {0: [8650754]},
-            'remote_super_pod_ids': {0: [0]}
+            'remote_super_pod_ids': {0: [0]},
+            'remote_dp_instance_ids': {0: 1},  # 远端dp id = 1
+            'local_dp_instance_id': 0           # 本地dp id = 0 【不同值】
         }
 
-        ret = self.worker.link(**link_params)
-        self.assertEqual(ret, [])
-        # 检查 cluster_comm_map 中已记录该连接信息
+        self.worker.link(**link_params)
+        time.sleep(0.2) # 等待异步线程执行完成
+        link_status = self.worker.query_link_status()
+
         self.assertIn(1, self.worker.cluster_comm_map)
         self.assertEqual(self.worker.cluster_comm_map[1], 200)
+
+        self.assertIn('192.168.1.0', link_status['success'])
+        self.assertEqual(len(link_status['waitting']), 0)
+        self.assertEqual(len(link_status['running']), 0)
+        self.assertEqual(len(link_status['failed']), 0)
 
     def test_link_success_with_different_host_ip(self):
         """测试 link 方法，当远程主机 IP 与本地不同时的连接情况"""
@@ -180,15 +190,20 @@ class TestSeparateDeploymentWorker(unittest.TestCase):
             'remote_device_ips': {0: ['192.168.1.2']},
             'host_ips': {0: ['127.0.0.2']},  # 远程主机 IP 与本地的不同
             'remote_super_device_ids': {0: [8650754]},
-            'remote_super_pod_ids': {0: [0]}
+            'remote_super_pod_ids': {0: [0]},
+            'remote_dp_instance_ids': {0: 2},  # 远端dp id =2
+            'local_dp_instance_id': 0           # 本地dp id =0
         }
         
-        ret = self.worker.link(**link_params)
-        # 验证返回值应为 SUCCESS
-        self.assertEqual(ret, [])
+        self.worker.link(**link_params)
+        time.sleep(0.2)
+        link_status = self.worker.query_link_status()
+        
         # 检查连接信息是否正确记录
         self.assertIn(1, self.worker.cluster_comm_map)
         self.assertEqual(self.worker.cluster_comm_map[1], 200)
+        self.assertIn('192.168.1.2', link_status['success'])
+        self.assertEqual(len(link_status['failed']), 0)
 
     def test_link_summary_multiple_success(self):
         """测试多条链路全部成功时 [Link_Summary] 日志输出（INFO级）"""
@@ -208,20 +223,25 @@ class TestSeparateDeploymentWorker(unittest.TestCase):
             'remote_device_ips': {0: ['192.168.1.2', '192.168.1.3', '192.168.1.4']},
             'host_ips': {0: ['192.168.1.100', '192.168.1.101', '192.168.1.102']},
             'remote_super_device_ids': {0: [8650754, 8650755, 8650756]},
-            'remote_super_pod_ids': {0: [0, 0, 0]}
+            'remote_super_pod_ids': {0: [0, 0, 0]},
+            'remote_dp_instance_ids': {0: 3},  # 远端dp id=3
+            'local_dp_instance_id': 0           # 本地dp id=0
         }
 
-        # 3. 执行 link 方法
-        ret = self.worker.link(**link_params)
+        self.worker.link(**link_params)
+        time.sleep(0.3)
+        link_status = self.worker.query_link_status()
 
-        # 4. 核心断言：失败链路为空（所有链路成功）
-        self.assertEqual(ret, [])
-        
-        # 5. 断言 cluster_comm_map 中记录了所有成功链路的 comm_id（验证链路真的建立成功）
+        # 断言 cluster_comm_map 中记录了所有成功链路的 comm_id（验证链路真的建立成功）
         self.assertEqual(self.worker.cluster_comm_map.get(1), 200)  # 第1条链路 comm_id
         self.assertEqual(self.worker.cluster_comm_map.get(2), 201)  # 第2条链路 comm_id
         self.assertEqual(self.worker.cluster_comm_map.get(3), 202)  # 第3条链路 comm_id
         
+        #  断言三个IP全部在success队列
+        self.assertIn('192.168.1.2', link_status['success'])
+        self.assertIn('192.168.1.3', link_status['success'])
+        self.assertIn('192.168.1.4', link_status['success'])
+        self.assertEqual(len(link_status['success']), 3)
 
     def test_link_failed(self):
         """测试 link 方法失败的情况"""
@@ -230,6 +250,7 @@ class TestSeparateDeploymentWorker(unittest.TestCase):
             "status": ErrorCode.TEXT_GENERATOR_PD_LINK_ERROR,
             "comm_id": None
         }
+        self.mock_llm_data_dist_instance.query_register_mem_status.return_value = RegisterMemStatus.FAILED
 
         link_params = {
             'remote_cluster_ids': {0: [1]},
@@ -237,145 +258,29 @@ class TestSeparateDeploymentWorker(unittest.TestCase):
             'remote_device_ips': {0: ['192.168.1.2']},
             'host_ips': {0: ['192.168.1.100']},
             'remote_super_device_ids': {0: [8650754]},
-            'remote_super_pod_ids': {0: [0]}
+            'remote_super_pod_ids': {0: [0]},
+            'remote_dp_instance_ids': {0: 5},  # 远端dp id=5
+            'local_dp_instance_id': 1           # 本地dp id=1 
         }
 
-        ret = self.worker.link(**link_params)
-        # 验证返回的是失败链路列表
-        self.assertIsInstance(ret, list)
-        self.assertEqual(len(ret), 1)
-        self.assertEqual(ret[0][0], '192.168.1.2')
-        self.assertEqual(ret[0][1], ErrorCode.TEXT_GENERATOR_PD_LINK_ERROR)
+        self.worker.link(**link_params)
+        time.sleep(0.8)  # 保留你之前改的等待时间
+        link_status = self.worker.query_link_status()
+
         # 验证连接信息未被记录
         self.assertNotIn(1, self.worker.cluster_comm_map)
-
-    def test_link_timeout(self):
-        """测试 link 方法因查询注册内存状态超时而失败的情况"""
-        # 1. 模拟底层 link 调用成功，返回一个 comm_id
-        self.mock_llm_data_dist_instance.link.return_value = {
-            "status": MindieLlmStatusCode.SUCCESS,
-            "comm_id": 200  # 一个有效的 comm_id
-        }
-
-        # 2. 模拟 query_register_mem_status 持续返回 QUERYING 状态，
-        #    这将导致 worker.link 内部的轮询逻辑因超时而失败。
-        self.mock_llm_data_dist_instance.query_register_mem_status.return_value = None
-        self.worker.link_time_out = 0.1
-
-        link_params = {
-            'remote_cluster_ids': {0: [1, 2]},
-            'remote_physical_device_ids': {0: [2, 3]},
-            'remote_device_ips': {0: ['192.168.1.2', '192.168.1.3']},
-            'host_ips': {0: ['192.168.1.100', '192.168.1.101']},
-            'remote_super_device_ids': {0: [8650754, 8650755]},
-            'remote_super_pod_ids': {0: [0, 0]}
-        }
-
-        ret = self.worker.link(**link_params)
         
-        # 验证返回的是失败链路列表
-        self.assertIsInstance(ret, list)
-        self.assertEqual(len(ret), 2)
-        self.assertEqual(ret[0][0], '192.168.1.2') # 发生超时的IP
-        self.assertEqual(ret[0][1], ErrorCode.TEXT_GENERATOR_PD_LINK_OUT_OF_TIME) # 期望的超时错误码
-        self.assertEqual(ret[1][0], '192.168.1.3') # 发生超时的IP
-        self.assertEqual(ret[1][1], ErrorCode.TEXT_GENERATOR_PD_LINK_OUT_OF_TIME) # 期望的超时错误码
-        
-        # 验证连接信息未被记录在 cluster_comm_map 中
-        self.assertNotIn(1, self.worker.cluster_comm_map)
-        
-        # 验证 query_register_mem_status 方法被调用过 (可能多次)
-        self.mock_llm_data_dist_instance.query_register_mem_status.assert_called()
-
-    def test_link_summary_all_success(self):
-        """测试所有链路成功时 [Link_Summary] 日志输出（INFO级）"""
-        # 1. Mock 链路建立成功
-        self.mock_llm_data_dist_instance.link.return_value = {
-            "status": MindieLlmStatusCode.SUCCESS,
-            "comm_id": 200
-        }
-        self.mock_llm_data_dist_instance.query_register_mem_status.return_value = RegisterMemStatus.OK
-
-        # 2. 构造链路参数（1条链路）
-        link_params = {
-            'remote_cluster_ids': {0: [1]},
-            'remote_physical_device_ids': {0: [2]},
-            'remote_device_ips': {0: ['192.168.1.2']},
-            'host_ips': {0: ['192.168.1.100']},
-            'remote_super_device_ids': {0: [8650754]},
-            'remote_super_pod_ids': {0: [0]}
-        }
-
-        # 3. 执行 link 方法
-        ret = self.worker.link(**link_params)
-
-        # 4. 断言结果
-        self.assertEqual(ret, [])  # 失败链路为空
-
-    def test_link_summary_partial_failed(self):
-        """测试部分链路失败时 [Link_Summary] 日志输出（ERROR级）"""
-        # 1. Mock 部分链路失败（第一条失败，第二条成功）
-        link_responses = [
-            {"status": ErrorCode.TEXT_GENERATOR_PD_LINK_ERROR, "comm_id": None},  # 第一条链路（192.168.1.2）失败
-            {"status": MindieLlmStatusCode.SUCCESS, "comm_id": 201}               # 第二条链路（192.168.1.3）成功
-        ]
-
-        self.mock_llm_data_dist_instance.link.side_effect = link_responses
-        self.mock_llm_data_dist_instance.query_register_mem_status.return_value = RegisterMemStatus.OK
-
-        # 2. 构造2条链路参数
-        link_params = {
-            'remote_cluster_ids': {0: [1, 2]},
-            'remote_physical_device_ids': {0: [2, 3]},
-            'remote_device_ips': {0: ['192.168.1.2', '192.168.1.3']},
-            'host_ips': {0: ['192.168.1.100', '192.168.1.101']},
-            'remote_super_device_ids': {0: [8650754, 8650755]},
-            'remote_super_pod_ids': {0: [0, 0]}
-        }
-
-        # 3. 执行 link 方法
-        ret = self.worker.link(**link_params)
-
-        # 4. 断言结果
-        self.assertEqual(len(ret), 1)  # 1条失败链路
-        self.assertEqual(ret[0][0], '192.168.1.2')
-        self.assertEqual(ret[0][1], ErrorCode.TEXT_GENERATOR_PD_LINK_ERROR)
-
-    def test_link_summary_global_timeout(self):
-        """测试全局超时导致失败时 [Link_Summary] 日志输出"""
-        # 1. Mock 链路建立成功，但查询状态时触发全局超时
-        self.mock_llm_data_dist_instance.link.return_value = {
-            "status": MindieLlmStatusCode.SUCCESS,
-            "comm_id": 200
-        }
-        self.mock_llm_data_dist_instance.query_register_mem_status.return_value = None  # 模拟查询中
-        self.worker.link_time_out = 0.1  # 缩短超时时间
-        self.worker.link_start_time = time.time() - 0.2  # 篡改开始时间，触发超时
-
-        # 2. 构造链路参数
-        link_params = {
-            'remote_cluster_ids': {0: [1]},
-            'remote_physical_device_ids': {0: [2]},
-            'remote_device_ips': {0: ['192.168.1.2']},
-            'host_ips': {0: ['192.168.1.100']},
-            'remote_super_device_ids': {0: [8650754]},
-            'remote_super_pod_ids': {0: [0]}
-        }
-
-        # 3. 执行 link 方法
-        ret = self.worker.link(**link_params)
-
-        # 4. 断言结果
-        self.assertEqual(len(ret), 1)
-        self.assertEqual(ret[0][1], ErrorCode.TEXT_GENERATOR_PD_LINK_OUT_OF_TIME)
+        # 断言IP在失败队列，成功队列为空
+        self.assertIn('192.168.1.2', link_status['failed'])
+        self.assertEqual(len(link_status['success']), 0)
 
     def test_link_summary_multiple_failed(self):
-        """测试多链路失败时 [Link_Summary] 日志逐条输出"""
-        # 1. Mock 所有链路失败
+        """测试多链路全部失败 - LinkResult多IP失败断言"""
         self.mock_llm_data_dist_instance.link.return_value = {
             "status": ErrorCode.TEXT_GENERATOR_PD_LINK_ERROR,
             "comm_id": None
         }
+        self.mock_llm_data_dist_instance.query_register_mem_status.return_value = RegisterMemStatus.FAILED
 
         # 2. 构造3条链路参数
         link_params = {
@@ -384,48 +289,19 @@ class TestSeparateDeploymentWorker(unittest.TestCase):
             'remote_device_ips': {0: ['192.168.1.10', '192.168.1.11', '192.168.1.12']},
             'host_ips': {0: ['192.168.1.100', '192.168.1.101', '192.168.1.102']},
             'remote_super_device_ids': {0: [8650754, 8650755, 8650756]},
-            'remote_super_pod_ids': {0: [0, 0, 0]}
+            'remote_super_pod_ids': {0: [0, 0, 0]},
+            'remote_dp_instance_ids': {0: 8},
+            'local_dp_instance_id': 0
         }
 
-        # 3. 执行 link 方法
-        ret = self.worker.link(**link_params)
-
-        # 4. 断言结果
-        self.assertEqual(len(ret), 3)
-
-
-
-
-    def test_link_summary_logs_multiple_failures(self):
-        """测试多个链路失败时的 [Link_Summary] 日志输出"""
-        # 模拟多个链路失败的情况
-        self.mock_llm_data_dist_instance.link.return_value = {
-            "status": ErrorCode.TEXT_GENERATOR_PD_LINK_ERROR,
-            "comm_id": None
-        }
-
-        # 构造多个远程设备参数
-        link_params = {
-            'remote_cluster_ids': {0: [1, 2, 3]},
-            'remote_physical_device_ids': {0: [2, 3, 4]},
-            'remote_device_ips': {0: ['192.168.1.10', '192.168.1.11', '192.168.1.12']},
-            'host_ips': {0: ['192.168.1.100', '192.168.1.101', '192.168.1.102']},
-            'remote_super_device_ids': {0: [8650754, 8650755, 8650756]},
-            'remote_super_pod_ids': {0: [0, 0, 0]}
-        }
-
-        ret = self.worker.link(**link_params)
+        self.worker.link(**link_params)
+        time.sleep(0.2)
+        link_status = self.worker.query_link_status()
         
-        # 验证返回的是失败链路列表，包含3个失败的链路
-        self.assertIsInstance(ret, list)
-        self.assertEqual(len(ret), 3)
-        
-        # 验证每个失败的IP都正确记录
-        failed_ips = [link[0] for link in ret]
-        expected_ips = ['192.168.1.10', '192.168.1.11', '192.168.1.12']
-        for ip in expected_ips:
-            self.assertIn(ip, failed_ips)
-        
+        self.assertIn('192.168.1.10', link_status['failed'])
+        self.assertIn('192.168.1.11', link_status['failed'])
+        self.assertIn('192.168.1.12', link_status['failed'])
+        self.assertEqual(len(link_status['failed']), 3)
 
     def test_unlink(self):
         """测试 unlink 方法，确保调用了引擎的 unlink 方法，并清除 cluster_comm_map 中对应记录"""
@@ -549,38 +425,30 @@ class TestSeparateDeploymentEngine(unittest.TestCase):
     
     def test_link(self):
         cluster_rank_info = {0: 0}
-        rank_table = \
-            '{"server_count": "1", ' \
-            '"server_list": [{"device": [{"device_ip": "192.168.1.1"}, {"device_ip": "192.168.1.2"}]}]}'
+        rank_table = '{"server_count": "1", "server_list": [{"device": [{"device_ip": "192.168.1.1"}, {"device_ip": "192.168.1.2"}]}]}'
         self.engine.separate_deployment_engine.link.return_value = 12345
-        result = self.engine.link(cluster_rank_info, rank_table)
+        result = self.engine.link(cluster_rank_info, rank_table, 1, 0)
         self.assertEqual(result, {'status': MindieLlmStatusCode.SUCCESS, 'comm_id': 12345})
     
     def test_link_server_count_2(self):
         cluster_rank_info = {0: 0}
-        rank_table = \
-            '{"server_count": "2", ' \
-            '"server_list": [{"device": [{"device_ip": "192.168.1.2"}]}, {"device": [{"device_ip": "192.168.1.1"}]}]}'
+        rank_table = '{"server_count": "2", "server_list": [{"device": [{"device_ip": "192.168.1.2"}]}, {"device": [{"device_ip": "192.168.1.1"}]}]}'
         self.engine.separate_deployment_engine.link.return_value = 12345
-        result = self.engine.link(cluster_rank_info, rank_table)
+        result = self.engine.link(cluster_rank_info, rank_table, 2, 0)
         self.assertEqual(result, {'status': MindieLlmStatusCode.SUCCESS, 'comm_id': 12345})
     
     def test_link_already_linked(self):
         cluster_rank_info = {0: 0}
-        rank_table = \
-            '{"server_count": "1", ' \
-            '"server_list": [{"device": [{"device_ip": "192.168.1.1"}, {"device_ip": "192.168.1.2"}]}]}'
+        rank_table = '{"server_count": "1", "server_list": [{"device": [{"device_ip": "192.168.1.1"}, {"device_ip": "192.168.1.2"}]}]}'
         self.engine.separate_deployment_engine.link.return_value = LLMStatusCode.LLM_ALREADY_LINK
-        result = self.engine.link(cluster_rank_info, rank_table)
+        result = self.engine.link(cluster_rank_info, rank_table, 3, 1)
         self.assertEqual(result, {'status': MindieLlmStatusCode.TEXT_GENERATOR_PD_ALREADY_LINK, 'comm_id': None})
     
     def test_link_exception(self):
         cluster_rank_info = {0: 0}
-        rank_table = \
-            '{"server_count": "1", ' \
-            '"server_list": [{"device": [{"device_ip": "192.168.1.1"}, {"device_ip": "192.168.1.2"}]}]}'
-        self.engine.separate_deployment_engine.link.side_effect = LLMException("Link failed")
-        result = self.engine.link(cluster_rank_info, rank_table)
+        rank_table = '{"server_count": "1", "server_list": [{"device": [{"device_ip": "192.168.1.1"}, {"device_ip": "192.168.1.2"}]}]}'
+        self.engine.separate_deployment_engine.link.side_effect = LLMException("Link failed", status_code=100)
+        result = self.engine.link(cluster_rank_info, rank_table, 4, 0)
         self.assertEqual(result, {'status': ErrorCode.TEXT_GENERATOR_PD_LINK_ERROR, 'comm_id': None})
     
     def test_unlink(self):

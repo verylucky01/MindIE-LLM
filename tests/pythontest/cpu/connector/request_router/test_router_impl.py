@@ -21,7 +21,8 @@ from mindie_llm.connector.common.model_execute_data_pb2 import (
     ExecuteType,
     LoraOperationType,
     LoraOperationStatus,
-    PDErrorCode,
+    PDLinkStatusResponse,
+    PDErrorCode
 )
 from mindie_llm.model_wrapper.utils.config import DmiConfig
 from mindie_llm.model_wrapper.utils.error import ModelWrapperErrorCode
@@ -63,6 +64,13 @@ class TestRouterImpl(unittest.TestCase):
         self.router.generator = self.mock_generator
         self.router.config = Mock(spec=DmiConfig)
         self.router.config.distributed_enable = False
+        self.router.config.remote_dp_instance_ids = {}
+        self.router.config.remote_link_device_physical_id = {}
+        self.router.config.remote_link_host_ip = {}
+        self.router.config.remote_link_device_ips = {}
+        self.router.config.remote_super_device_id = None
+        self.router.config.remote_super_pod_id = None
+        self.router.config.local_dp_instance_id = 0
 
     def test_init(self):
         test_router = RouterImpl()
@@ -313,40 +321,50 @@ class TestRouterImpl(unittest.TestCase):
         self.router.config.remote_link_host_ip = []
         self.router.config.remote_super_device_id = None
         self.router.config.remote_super_pod_id = None
+        self.router.config.remote_dp_instance_ids = []
+        self.router.config.local_dp_instance_id = None
         self.mock_generator.link.return_value = []
         self.router.pd_role(mock_request)
 
     @patch('mindie_llm.connector.request_router.router_impl.get_attribute_info')
     @patch('mindie_llm.connector.request_router.router_impl.send_transfer_response')
     def test_pd_role_unlink_exception(self, mock_send_response, mock_attribute_info):
-        """unlink 抛出 HCCL 异常时，_print_component_error_log 会抛出 RuntimeError"""
+        """unlink_batch 抛出 HCCL 异常时，_print_component_error_log 会抛出 RuntimeError"""
         mock_request = Mock(spec=ExecuteRequest)
         mock_request.pd_link_request = MagicMock()
-        self.router.config.remote_unlink_cluster_id = {0: [1001]}
+        
+        # 设置配置
+        self.router.config.remote_unlink_cluster_id = {0: [1001, 1002]}
         self.router.config.need_switch = False
         self.router.config.remote_link_cluster_id = {}
-        self.mock_generator.unlink.side_effect = Exception("ACL stream synchronize failed")
-
+        self.router.config.local_dp_instance_id = 0 
+        
+        self.mock_generator.unlink_batch.side_effect = Exception("ACL stream synchronize failed")
+        
         with self.assertRaises(RuntimeError) as ctx:
             self.router.pd_role(mock_request)
         self.assertIn("HCCL execute error", str(ctx.exception))
+        
+        mock_send_response.assert_not_called()
 
     @patch('mindie_llm.connector.request_router.router_impl.get_attribute_info')
     @patch('mindie_llm.connector.request_router.router_impl.send_transfer_response')
     def test_pd_role_unlink_other_exception_returns_error(self, mock_send_response, mock_attribute_info):
-        """unlink 抛出非 HCCL/CANN 异常时，应返回 PD_UNLINK_ERROR 而非抛出"""
+        """unlink_batch 抛出非 HCCL/CANN 异常时，应该直接 return（不发送响应）"""
         mock_request = Mock(spec=ExecuteRequest)
         mock_request.pd_link_request = MagicMock()
+        
+        # 设置配置
         self.router.config.remote_unlink_cluster_id = {0: [1001]}
         self.router.config.need_switch = False
         self.router.config.remote_link_cluster_id = {}
-        self.mock_generator.unlink.side_effect = ValueError("some other error")
-
+        self.router.config.local_dp_instance_id = 0
+        
+        self.mock_generator.unlink_batch.side_effect = ValueError("some other error")
+        
         self.router.pd_role(mock_request)
-
-        mock_send_response.assert_called_once()
-        proto = mock_send_response.call_args[0][0]
-        self.assertEqual(proto.status, ModelWrapperErrorCode.PD_UNLINK_ERROR.value)
+        
+        mock_send_response.assert_not_called()
 
     @patch('mindie_llm.connector.request_router.router_impl.get_attribute_info')
     @patch('mindie_llm.connector.request_router.router_impl.send_transfer_response')
@@ -369,33 +387,6 @@ class TestRouterImpl(unittest.TestCase):
 
         self.mock_generator.switch_role.assert_called_once_with("encoder")
 
-    @patch('mindie_llm.connector.request_router.router_impl.get_attribute_info')
-    @patch('mindie_llm.connector.request_router.router_impl.send_transfer_response')
-    def test_pd_role_link_failed(self, mock_send_response, mock_attribute_info):
-        """link 返回失败列表时，应构造 failed_link_info 并返回"""
-        mock_request = Mock(spec=ExecuteRequest)
-        mock_request.pd_link_request = MagicMock()
-        self.router.config.remote_unlink_cluster_id = []
-        self.router.config.need_switch = False
-        self.router.config.remote_link_cluster_id = {1: [1001]}
-        self.router.config.remote_link_device_ips = {1: ["10.0.0.1"]}
-        self.router.config.remote_link_device_physical_id = {}
-        self.router.config.remote_link_host_ip = {}
-        self.router.config.remote_super_device_id = None
-        self.router.config.remote_super_pod_id = None
-        self.mock_generator.link.return_value = [
-            ("10.0.0.1", ModelWrapperErrorCode.PD_LINK_ERROR)
-        ]
-
-        self.router.pd_role(mock_request)
-
-        mock_send_response.assert_called_once()
-        proto = mock_send_response.call_args[0][0]
-        self.assertEqual(proto.status, ModelWrapperErrorCode.PD_LINK_ERROR.value)
-        self.assertEqual(len(proto.pd_link_response.failed_link_info), 1)
-        self.assertEqual(proto.pd_link_response.failed_link_info[0].cluster_id, "1001")
-        self.assertEqual(proto.pd_link_response.failed_link_info[0].pd_error_code, PDErrorCode.PD_LINK_ERROR)
-
     @patch('mindie_llm.connector.request_router.router_impl.send_command_response')
     def test_load_lora(self, mock_send_response):
         mock_request = Mock(spec=ExecuteRequest)
@@ -415,6 +406,77 @@ class TestRouterImpl(unittest.TestCase):
         mock_request.lora_operation_request.lora_path = "fake_path"
         self.mock_generator.unload_lora.return_value = LoraOperationStatus.LORA_CMD_SUCCESS
         self.router.process_lora_operation(mock_request)
+    
+    @patch('mindie_llm.connector.request_router.router_impl.send_transfer_response')
+    def test_query_link_status_normal(self, mock_send_response):
+        # 测试正常情况：包含所有状态的链接信息
+        mock_link_status = {
+            "waitting": ["cluster_1", "cluster_2"],
+            "running": ["cluster_3"],
+            "success": ["cluster_4", "cluster_5"],
+            "failed": ["cluster_6"]
+        }
+        self.mock_generator.query_link_status.return_value = mock_link_status
+        
+        self.router.query_link_status()
+        
+        # 验证generator.query_link_status被调用
+        self.mock_generator.query_link_status.assert_called_once()
+        
+        # 验证send_transfer_response被调用，且参数正确
+        self.assertEqual(mock_send_response.call_count, 1)
+        call_args = mock_send_response.call_args[0][0]
+        self.assertEqual(call_args.msg_type, ExecuteType.PD_LINK_STATUS_QUERY)
+        self.assertEqual(call_args.pd_link_status_response.waitting_link_info, ["cluster_1", "cluster_2"])
+        self.assertEqual(call_args.pd_link_status_response.running_link_info, ["cluster_3"])
+        self.assertEqual(call_args.pd_link_status_response.success_link_info, ["cluster_4", "cluster_5"])
+        self.assertEqual(len(call_args.pd_link_status_response.failed_link_info), 1)
+        self.assertEqual(call_args.pd_link_status_response.failed_link_info[0].cluster_id, "cluster_6")
+        self.assertEqual(call_args.pd_link_status_response.failed_link_info[0].pd_error_code, PDErrorCode.PD_LINK_ERROR)
+    
+    @patch('mindie_llm.connector.request_router.router_impl.send_transfer_response')
+    def test_query_link_status_partial(self, mock_send_response):
+        # 测试部分状态的链接信息
+        mock_link_status = {
+            "running": ["cluster_1"],
+            "success": ["cluster_2"]
+        }
+        self.mock_generator.query_link_status.return_value = mock_link_status
+        
+        self.router.query_link_status()
+        
+        call_args = mock_send_response.call_args[0][0]
+        self.assertEqual(call_args.pd_link_status_response.waitting_link_info, [])
+        self.assertEqual(call_args.pd_link_status_response.running_link_info, ["cluster_1"])
+        self.assertEqual(call_args.pd_link_status_response.success_link_info, ["cluster_2"])
+        self.assertEqual(len(call_args.pd_link_status_response.failed_link_info), 0)
+    
+    @patch('mindie_llm.connector.request_router.router_impl.send_transfer_response')
+    def test_query_link_status_empty(self, mock_send_response):
+        # 测试空的链接信息
+        mock_link_status = {}
+        self.mock_generator.query_link_status.return_value = mock_link_status
+        
+        self.router.query_link_status()
+        
+        call_args = mock_send_response.call_args[0][0]
+        self.assertEqual(call_args.pd_link_status_response.waitting_link_info, [])
+        self.assertEqual(call_args.pd_link_status_response.running_link_info, [])
+        self.assertEqual(call_args.pd_link_status_response.success_link_info, [])
+        self.assertEqual(len(call_args.pd_link_status_response.failed_link_info), 0)
+    
+    @patch('mindie_llm.connector.request_router.router_impl.send_transfer_response')
+    def test_query_link_status_exception(self, mock_send_response):
+        # 测试异常情况
+        self.mock_generator.query_link_status.side_effect = Exception("Test exception")
+        
+        self.router.query_link_status()
+        
+        # 验证异常情况下仍调用send_transfer_response，且状态为错误
+        self.assertEqual(mock_send_response.call_count, 1)
+        call_args = mock_send_response.call_args[0][0]
+        self.assertEqual(call_args.msg_type, ExecuteType.PD_LINK_STATUS_QUERY)
+        self.assertEqual(call_args.status, ModelWrapperErrorCode.PD_Link_QUERY_ERROR.value)
 
     def test_process_lora_operation_unknown_type(self):
         mock_request = Mock(spec=ExecuteRequest)

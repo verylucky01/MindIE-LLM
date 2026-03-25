@@ -21,10 +21,9 @@
 #include "config_manager.h"
 #include "http_rest_resource.h"
 #include "infer_instances.h"
-#include "../utils/retry_task.h"
 #include "blocking_queue.h"
 #include "global_ip_info.h"
-#include "dmi_role.h"
+
 using ordered_json = nlohmann::ordered_json;
 
 namespace mindie_llm {
@@ -58,12 +57,17 @@ public:
     void HandlePDRoleV2(const ReqCtxPtr &ctx, const std::string &roleName);
     const std::map<uint64_t, std::vector<DeviceInfo>> &GetSuccessLinkIp();
     const std::map<uint64_t, std::vector<std::string>> &GetSuccessHostIp();
+    const std::map<uint64_t, std::vector<DeviceInfo>> &GetLinkingLinkIp();
+    const std::map<uint64_t, std::vector<std::string>> &GetLinkingHostIp();
     const std::map<uint64_t, std::pair<std::string, bool>> &GetRemoteNodeLinkStatus();
     std::map<uint64_t, std::pair<std::string, bool>> GetRemoteNodeLinkStatusV2();
     const std::map<uint32_t, std::string> &GetInstanceIdToServerIp();
     const uint32_t &GetLocalInstanceId();
     void ModifyPullKVFailId(const uint32_t &instanceId);
-    void RunThread();
+    void RunTaskThread();
+    void StopCurrentTask();
+    void RunQueryThread();
+    void QueryLinkStatus();
     bool IsHealthy();
     static std::shared_ptr<DmiRole> GetInstance();
 private:
@@ -77,33 +81,51 @@ private:
         bool needInit);
     bool UpdatePDNotSwitchInfo(const std::string &roleName, const ordered_json &body, GlobalIpInfo &globalIpInfo);
     bool UpdatePDNotSwitchInfoV2(const std::string &roleName, const ordered_json &body, GlobalIpInfo &globalIpInfo);
-    void UpdateSuccessLinkIp(GlobalIpInfo &globalIpInfo);
-    void UpdateSuccessHostIp(GlobalIpInfo &globalIpInfo);
-    void RetryThread();
-    void ResetContext(boost::system::error_code ec);
-    void RetryLinkCallback(GlobalIpInfo &globalIpInfo);
     bool PDParseRequestBodyToJson(const ReqCtxPtr &reqCtx, ordered_json &body) const noexcept;
     void ProcessInitInfo(const ordered_json &body, GlobalIpInfo &globalIpInfo);
     void ProcessInitInfoV2(const ordered_json &body, GlobalIpInfo &globalIpInfo);
-    void UpdateIpInfo(std::map<uint64_t, std::vector<DeviceInfo>>& currentLinkIpInfo,
-        GlobalIpInfo &globalIpInfo, std::string &superPodId);
-    void UpdateHostIpInfo(std::map<uint64_t, std::vector<std::string>>& currentLinkHostIpInfo,
-        GlobalIpInfo &globalIpInfo);
+    void UpdateIpInfo(GlobalIpInfo &globalIpInfo, std::map<uint64_t, std::vector<DeviceInfo>>& currentLinkIpInfo,
+        std::string &superPodId);
+    void ProcessAllUnlinks(GlobalIpInfo &globalIpInfo,
+        const std::map<uint64_t, std::vector<DeviceInfo>>& currentLinkIpInfo,
+        const std::string& superPodId);
+    void ProcessNewLinks(GlobalIpInfo &globalIpInfo,
+        const std::map<uint64_t, std::vector<DeviceInfo>>& currentLinkIpInfo);
+    void CleanupLinkingLinks(const std::map<uint64_t, std::vector<DeviceInfo>>& currentLinkIpInfo);
+    void CleanupRemoteNodeStatus();
+    void UpdateHostIpInfo(GlobalIpInfo &globalIpInfo,
+        std::map<uint64_t, std::vector<std::string>>& currentLinkHostIpInfo);
     void ProcessPDRoleSwitch(const ReqCtxPtr &ctx, const std::string &roleName,
         GlobalIpInfo &globalIpInfo);
+    template<typename T>
+    void ProcessFailedLinks(const T& failedLinks);
+    template<typename T>
+    void ProcessSuccessfulLinks(const T& successLinks);
+    void CheckAllLinksCompleted();
+    void TaskThread();
+    void ExecuteLinkTask(GlobalIpInfo globalIpInfo);
+
     // already successful linked server ip address
     std::map<uint64_t, std::vector<DeviceInfo>> successLinkIP_;
     std::map<uint64_t, std::vector<std::string>> successHostIP_;
+    // currently linking server ip address
+    std::map<uint64_t, std::vector<DeviceInfo>> linkingLinkIP_;
+    std::map<uint64_t, std::vector<std::string>> linkingHostIP_;
+
+    std::vector<std::string> runningLinkIP_;
+    std::vector<std::string> waittingLinkIP_;
 
     // [key] is <localDpInstanceId, remoteDpInstanceId> and [value] is {linkStatus, isProcessed}
     // [record remote node status]: key is instanceId, [value] is {linkStatus, isProcessed}
     std::map<uint64_t, std::pair<std::string, bool>> remoteNodeLinkStatus_;
     // example: [10001, 0k] [10002, not ok] will cause [1: not ok]
     std::map<uint32_t, std::string> instanceIdToServerIp_;
-    std::atomic<bool> retryTerminate_{false};
-    std::shared_ptr<boost::asio::io_context> ioContext_{nullptr};
-    std::thread retryThread_;
-    BlockingQueue<std::unique_ptr<RetryTask>> taskQueue_;
+    std::thread taskThread_;
+    std::atomic<bool> taskTerminate_{false};
+    std::atomic<bool> taskRunning_{false};
+    BlockingQueue<std::function<void()>> taskQueue_;
+    std::thread queryThread_;
+    std::atomic<bool> queryTerminate_{false};
     std::mutex mtx_;
     // Attention: localInstanceId_ will be updated by [DmiRole::ProcessInitInfo]
     uint32_t localInstanceId_{0};
@@ -111,6 +133,10 @@ private:
     std::vector<uint64_t> localDpInstanceIds_;
     bool abnormalLink_{false};
     std::vector<uint64_t> dpInstanceList;
+    // Flag to indicate if assignDmiRole has been called at least once
+    bool assignedRole_{false};
+    int32_t cpSize{1};
+    int32_t spSize{1};
 };
 extern std::atomic<bool> keepAlive;
 } // namespace mindie_llm

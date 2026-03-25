@@ -863,7 +863,7 @@ bool SingleReqVllmOpenAiInferInterface::EncodeLogprobsFullText(OrderedJson &choi
                                                "PostTokenIdMap")) {
             return false;
         }
-        if (!DecodeSingleToken(oneToken, curToken, 0, 0, request_->skipSpecialTokens.value_or(false))) {
+        if (!DecodeSingleToken(oneToken, curToken, 0, 0, request_->skipSpecialTokens.value_or(true))) {
             ULOG_ERROR(SUBMODLE_NAME_ENDPOINT,
                        GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SINGLE_INFERENCE, ABNORMAL_TRANSMISSION_ERROR),
                        "Convert logprobs token to string failed. LogId is " << requestId_);
@@ -916,7 +916,7 @@ bool SingleReqVllmOpenAiInferInterface::EncodeLogprobsStream(OrderedJson &choice
                                            "PostTokenIdMap")) {
         return false;
     }
-    if (!DecodeSingleToken(oneToken, curToken, 0, 0, request_->skipSpecialTokens.value_or(false))) {
+    if (!DecodeSingleToken(oneToken, curToken, 0, 0, request_->skipSpecialTokens.value_or(true))) {
         ULOG_ERROR(SUBMODLE_NAME_ENDPOINT,
                    GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SINGLE_INFERENCE, ABNORMAL_TRANSMISSION_ERROR),
                    "Convert logprobs token to string failed. LogId is " << requestId_);

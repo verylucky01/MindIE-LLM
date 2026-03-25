@@ -9,8 +9,10 @@
 # See the Mulan PSL v2 for more details.
 import json
 import time
+import threading
+from collections import deque
 
-from typing import List, Dict
+from typing import List, Dict, Optional, Union
 from dataclasses import dataclass
 from enum import Enum
 from llm_datadist import LLMRole, BlocksCacheKey, LLMStatusCode
@@ -30,6 +32,64 @@ STR_DTYPE_TO_DTYPE = {
     "int8": DataType.DT_INT8,
 }
 
+
+class LinkResult:
+    def __init__(self):
+        self._waitting_links = []
+        self._running_links = []
+        self._failed_links = []
+        self._success_links = []
+        self._lock = threading.Lock()
+            
+    def add_to_waitting(self, link_ip):
+        with self._lock:  
+            self.remove_from_current_list(link_ip)
+            self._waitting_links.append(link_ip)
+            
+    def add_to_running(self, link_ip):
+        with self._lock:  
+            self.remove_from_current_list(link_ip)
+            self._running_links.append(link_ip)
+
+    def add_to_failed(self, link_ip):
+        with self._lock:  
+            self.remove_from_current_list(link_ip)
+            self._failed_links.append(link_ip)
+
+    def add_to_success(self, link_ip):
+        with self._lock:  
+            self.remove_from_current_list(link_ip)
+            self._success_links.append(link_ip)
+
+    def get_all_status(self) -> Dict[str, List[str]]:
+        """获取所有链接的状态汇总"""
+        with self._lock:
+            return {
+                "waitting": self._waitting_links.copy(),
+                "running": self._running_links.copy(),
+                "success": self._success_links.copy(),
+                "failed": self._failed_links.copy()
+            }
+    
+    def remove_from_current_list(self, link_ip):
+        current_list = self._get_current_list(link_ip)
+        if current_list is not None and link_ip in current_list:
+            current_list.remove(link_ip)
+
+    def _get_current_list(self, link_ip) -> Optional[list]:
+        """
+        查找元素当前所在的链表，返回该链表，无则返回None。
+        """
+        if link_ip in self._waitting_links:
+            return self._waitting_links
+        elif link_ip in self._running_links:
+            return self._running_links
+        elif link_ip in self._failed_links:
+            return self._failed_links
+        elif link_ip in self._success_links:
+            return self._success_links
+        return None
+    
 
 class DmiModeNodeRole(str, Enum):
     '''
@@ -55,6 +115,8 @@ class LinkParams:
     host_ips: Dict[int, List[str]]
     remote_super_device_ids: Dict[int, List[int]] | None = None
     remote_super_pod_ids: Dict[int, List[int]] | None = None
+    remote_dp_instance_ids: Dict[int, int] | None = None
+    local_dp_instance_id: int | None = None
 
 
 class RankInfo:
@@ -224,8 +286,8 @@ class SeparateDeploymentEngine:
         llm_config.device_id = local_logic_device_id
         llm_config.enable_cache_manager = True
         llm_config.enable_remote_cache_accessible = True
-        llm_config.link_total_time = int(max(120, kv_link_timeout/8))
-        llm_config.link_retry_count = 10
+        llm_config.link_total_time = int(kv_link_timeout)
+        llm_config.link_retry_count = 80
         #配置pull kv 超时时间，默认为1秒，sync_kv_timeout单位为ms。
         if kv_trans_timeout <= 0:
             kv_trans_timeout = 1
@@ -247,7 +309,12 @@ class SeparateDeploymentEngine:
         self.npu_tensors = []
         self.npu_cache_map = {}
 
-    def link(self, cluster_rank_info: Dict[int, int], rank_table: str):
+    def link(self, 
+             cluster_rank_info: Dict[int, int], 
+             rank_table: str, 
+             remote_dp_instance_id: int, 
+             local_dp_instance_id: int
+             ):
         rank_table_dict = json.loads(rank_table)
         server_count = rank_table_dict.get("server_count")
         server_list = rank_table_dict.get("server_list", [])
@@ -272,6 +339,11 @@ class SeparateDeploymentEngine:
             link_name = f"link{device_ip1}:{device_ip2}"
         else:
             link_name = f"link{device_ip2}:{device_ip1}"
+
+        if remote_dp_instance_id < local_dp_instance_id:
+            link_name = link_name + f"_{remote_dp_instance_id}:{local_dp_instance_id}"
+        else:
+            link_name = link_name + f"_{local_dp_instance_id}:{remote_dp_instance_id}"
 
         logger.info(f"Link params cluster_rank_info: {cluster_rank_info}, rank_table: {rank_table}, "
                     f"link_name: {link_name}.")
@@ -330,7 +402,6 @@ class SeparateDeploymentEngine:
         self.separate_deployment_engine.finalize()
 
 
-
 class SeparateDeploymentWorker:
     def __init__(self, role: str, local_logic_device_id: int,
                  local_physical_device_id: int, 
@@ -356,7 +427,18 @@ class SeparateDeploymentWorker:
         if self.link_time_out <= 0:
             self.link_time_out = 1080
         logger.info(f"kv_link_timeout: {self.link_time_out}.")
+        self.try_create_link_time_out = 5 * 60
         self.link_start_time = 0
+
+        self.window_size = 16
+        self.window = deque() # 将window声明为成员变量
+        self.link_queue = deque()
+        
+        self.link_queue_cond = threading.Condition()  # 保护link_queue
+        self.window_cond = threading.Condition()      # 保护window
+        self.cluster_map_lock = threading.Lock()      # 保护cluster相关映射
+
+        self.link_result = LinkResult()
         self.cache_desc_map = {}       
         self.max_block_nums_map = {}
         if role in [DmiModeNodeRole.DECODER, DmiModeNodeRole.PREFILL, DmiModeNodeRole.FLEX]:
@@ -371,38 +453,14 @@ class SeparateDeploymentWorker:
         else:
             raise Exception("SeparateDeploymentEngine: not support role.")
         
-    @staticmethod
-    def _collect_remaining_failed_links(instance_ids, 
-                                        instance_idx, 
-                                        link_idx, 
-                                        params, 
-                                        failed_links,
-                                        window=None):
-        """
-        收集所有未处理的链接并标记为超时失败
+        # 启动两个工作线程
+        self._fill_thread = threading.Thread(
+            target=self._fill_window_worker, name="fill_window_thread", daemon=True)
+        self._process_thread = threading.Thread(
+            target=self._process_window_worker, name="process_window_thread", daemon=True)
+        self._fill_thread.start()
+        self._process_thread.start()
         
-        参数:
-            instance_ids: 实例ID列表
-            instance_idx: 当前处理的实例索引
-            link_idx: 当前处理的链接索引
-            params: 链接参数
-            failed_links: 失败链接列表
-            window: 滑动窗口，包含尚未处理的链接
-        """
-        # 首先收集窗口中所有尚未处理的链接
-        if window is not None:
-            for item in window:
-                failed_links.append([item['link_params']['remote_device_ip'], 
-                                    ErrorCode.TEXT_GENERATOR_PD_LINK_OUT_OF_TIME])
-        
-        # 添加所有未处理的IP到失败列表
-        for idx in range(instance_idx, len(instance_ids)):
-            instance_id = instance_ids[idx]
-            start_idx = 0 if idx != instance_idx else link_idx
-            for j in range(start_idx, len(params.remote_device_ips[instance_id])):
-                failed_links.append([params.remote_device_ips[instance_id][j], 
-                                    ErrorCode.TEXT_GENERATOR_PD_LINK_OUT_OF_TIME])
-
     @staticmethod
     def _create_link_params(instance_id, index, params):
         single_link_params = {
@@ -410,6 +468,9 @@ class SeparateDeploymentWorker:
             'remote_physical_device_id': params.remote_physical_device_ids[instance_id][index],
             'remote_device_ip': params.remote_device_ips[instance_id][index],
             'remote_host_ip': params.host_ips[instance_id][index],
+            'retry_count': 0,
+            'remote_dp_instance_id': params.remote_dp_instance_ids[instance_id],
+            'local_dp_instance_id': params.local_dp_instance_id,
         }
         if params.remote_super_device_ids is not None:
             single_link_params['remote_super_device_id'] = params.remote_super_device_ids[instance_id][index]
@@ -439,9 +500,10 @@ class SeparateDeploymentWorker:
 
     def pull_blocks(self, remote_model_instance_id: int,
                     src_block_table: List[int], dst_block_table: List[int]):
-        if remote_model_instance_id not in self.cluster_comm_map:
-            logger.error(f"Pull_kv error: remote_model_instance_id: {remote_model_instance_id} is not linked.")
-            return ErrorCode.TEXT_GENERATOR_PD_MODEL_INSTANCE_ID_ERROR
+        with self.cluster_map_lock:
+            if remote_model_instance_id not in self.cluster_comm_map:
+                logger.error(f"Pull_kv error: remote_model_instance_id: {remote_model_instance_id} is not linked.")
+                return ErrorCode.TEXT_GENERATOR_PD_MODEL_INSTANCE_ID_ERROR
         
         # 遍历所有注册的model_id,检查block的范围并拉取对应kv cache
         for model_id in self.cache_desc_map:
@@ -452,196 +514,123 @@ class SeparateDeploymentWorker:
                                         dst_block_table=dst_block_table, remote_cluster_id=remote_model_instance_id)
             if rt != MindieLlmStatusCode.SUCCESS:
                 # 获取对端device_ip进行详细日志记录
-                remote_device_ip = self.cluster_device_ip_map.get(remote_model_instance_id, "unknown")
+                with self.cluster_map_lock:
+                    remote_device_ip = self.cluster_device_ip_map.get(remote_model_instance_id, "unknown")
                 logger.error(f"{self.local_device_ip} pull kv from {remote_device_ip} failed, error code is {rt}.")
                 return rt
         return MindieLlmStatusCode.SUCCESS
-
+    
+    def query_link_status(self):
+        return self.link_result.get_all_status()
+    
     def link(self, **kwargs):
         """
-        使用滑动窗口建立多个链路。
-        使用大小为16的滑动窗口批量建立链路，然后依次检查链路状态。
+        外部调用接口，将链接任务添加到队列，不阻塞
         """
-        window_size = 16     # 滑动窗口大小
-        remote_device_ip = 'remote_device_ip'
-        link_params = 'link_params'
-        remote_cluster_id = 'remote_cluster_id'
-        
         # 使用 LinkParams 处理参数
         params = LinkParams(**kwargs)
-        # 记录开始时间，用于全局超时检测
-        self.link_start_time = time.time()
-        
-        # 准备返回的失败链路列表
-        failed_links = []
-        
-        # 滑动窗口的数据结构，保存发起的链接请求
-        # 每项包含: instance_id, index, comm_id, retry_count, link_params
-        window = []
-        
-        # 遍历所有实例并建立链接
         instance_ids = list(params.remote_cluster_ids.keys())
-        instance_idx = 0  # 当前处理的实例ID索引
-        total_links = sum(len(params.remote_cluster_ids[instance_id]) for instance_id in instance_ids)
-        link_count = 0    # 已经处理的链接数量
-        current_index = 0 # 当前实例处理到的索引
         
-        # 创建一个字典，记录每个实例当前处理到的索引位置
-        instance_indices = {instance_id: 0 for instance_id in instance_ids}
-        
-        # 首先填充滑动窗口
-        while len(window) < window_size and instance_idx < len(instance_ids):
-            instance_id = instance_ids[instance_idx]
-            current_index = instance_indices[instance_id]  # 获取当前实例处理到的索引
-            
-            while current_index < len(params.remote_cluster_ids[instance_id]):                  
-                single_link_params = self._create_link_params(instance_id, current_index, params)
-                
-                link_status, window_item = self._try_create_link(single_link_params, 
-                                                                 instance_id, current_index)
-                if link_status:
-                    if window_item is not None:
-                        window.append(window_item)
-                else:
-                    logger.error(f"Link from {self.local_device_ip} to {single_link_params[remote_device_ip]} "
-                                  f"failed, error code is {ErrorCode.TEXT_GENERATOR_PD_LINK_ERROR}.")
-                    failed_links.append([single_link_params[remote_device_ip],
-                                          ErrorCode.TEXT_GENERATOR_PD_LINK_ERROR])
+        # 将链接任务添加到临时队列中
+        link_items = []
+        for instance_id in instance_ids:
+            for index in range(len(params.remote_cluster_ids[instance_id])):
+                link_item = self._create_link_params(instance_id, index, params)
+                link_items.append(link_item)
 
-                link_count += 1
-                current_index += 1  # 增加当前实例的索引
-                instance_indices[instance_id] = current_index  # 更新索引记录
-                
-                # 如果窗口已满，暂时跳出循环
-                if len(window) >= window_size or link_count >= total_links:
-                    break
-            
-            # 只有当前实例的所有链接都处理完，才增加实例索引
-            if current_index >= len(params.remote_cluster_ids[instance_id]):
-                instance_idx += 1
-            
-            # 如果已经达到总链接数或窗口已满，跳出外层循环
-            if link_count >= total_links or len(window) >= window_size:
-                break
-        # 处理滑动窗口中的链接
-        while window:
-            # 检查是否超时
-            link_item = window.pop(0)
-            current_time = time.time()
-            if current_time - self.link_start_time > self.link_time_out:
-                logger.error(f"Link from {self.local_device_ip} to {link_item[link_params][remote_device_ip]} "
-                             f"failed, error code is {ErrorCode.TEXT_GENERATOR_PD_LINK_OUT_OF_TIME}.")
-                logger.error(f"Overall link process timed out after {self.link_time_out} seconds, "
-                             f"error code is {ErrorCode.TEXT_GENERATOR_PD_LINK_OUT_OF_TIME}.")
-                # 解除所有窗口中的链接
-                for item in window:
-                    ret = self.unlink(item[link_params][remote_cluster_id])
-                    if ret != MindieLlmStatusCode.SUCCESS:
-                        logger.error(f"Failed to unlink remote_cluster_id {item[link_params][remote_cluster_id]}, "
-                                     f"error code is {ret}.")
+        # 加锁仅保护队列写入，减少锁持有时间
+        with self.link_queue_cond:
+            for link_item in link_items:
+                self.link_queue.append(link_item)
+                self.link_result.add_to_waitting(link_item['remote_device_ip'])
+            self.link_queue_cond.notify()   
 
-                self._collect_remaining_failed_links(instance_ids, instance_idx, 
-                                                     current_index, params, failed_links, window)
-                # 输出汇总日志
-                self._log_link_summary(failed_links)
-                return failed_links
-                
-            status, window_item = self._query_mem_status(link_item)
-            
-            if status == MindieLlmStatusCode.SUCCESS:
-                # 链接成功，尝试添加新的链接
-                while instance_idx < len(instance_ids) and len(window) < window_size:
-                    instance_id = instance_ids[instance_idx]
-                    current_index = instance_indices[instance_id]  # 获取当前实例处理到的索引
-                    while current_index < len(params.remote_cluster_ids[instance_id]):
-                        if link_count >= total_links:
-                            break
-                        
-                        new_link_params = self._create_link_params(instance_id, current_index, params)
-                        link_status, window_item = self._try_create_link(new_link_params, instance_id,
-                                                                        current_index)
-                        if link_status: 
-                            if window_item is not None:
-                                window.append(window_item)
-                        else:
-                            failed_links.append([new_link_params[remote_device_ip], 
-                                                 ErrorCode.TEXT_GENERATOR_PD_LINK_ERROR])
-                        
-                        link_count += 1
-                        current_index += 1  # 增加当前实例的索引
-                        instance_indices[instance_id] = current_index  # 更新索引记录
-                        
-                        if len(window) >= window_size:
-                            break
-                    
-                    # 只有当前实例的所有链接都处理完，才增加实例索引
-                    if current_index >= len(params.remote_cluster_ids[instance_id]):
-                        instance_idx += 1
-                    
-                    # 如果窗口已满或已处理完所有链接，跳出循环
-                    if len(window) >= window_size or link_count >= total_links or instance_idx >= len(instance_ids):
-                        break
-            
-            elif status == MindieLlmStatusCode.TEXT_GENERATOR_PD_RETRY_LINK:
-                # 失败需要重试，把新的 link_item 添加到窗口末尾
-                if window_item is not None:
-                    window.append(window_item)
-            elif status == ErrorCode.TEXT_GENERATOR_PD_LINK_OUT_OF_TIME:
-                logger.error(f"Overall link process timed out after {self.link_time_out} seconds, "
-                             f"error code is {ErrorCode.TEXT_GENERATOR_PD_LINK_OUT_OF_TIME}.")
-                failed_links.append([link_item[link_params][remote_device_ip], 
-                                     ErrorCode.TEXT_GENERATOR_PD_LINK_OUT_OF_TIME])
-                for item in window:
-                    ret = self.unlink(item[link_params][remote_cluster_id])
-                    if ret != MindieLlmStatusCode.SUCCESS:
-                        logger.error(f"Failed to unlink remote_cluster_id {item[link_params][remote_cluster_id]}, "
-                                     f"error code is {ret}.")
-                self._collect_remaining_failed_links(instance_ids, instance_idx, 
-                                                     current_index, params, failed_links, window)
-                # 输出汇总日志
-                self._log_link_summary(failed_links)
-                return failed_links
-            else:
-                logger.error(f"Link from {self.local_device_ip} to {link_item[link_params][remote_device_ip]} "
-                              f"failed, error code is {ErrorCode.TEXT_GENERATOR_PD_LINK_ERROR}.")
-                failed_links.append([link_item[link_params][remote_device_ip], 
-                                     ErrorCode.TEXT_GENERATOR_PD_LINK_ERROR])
-                
-        # 输出汇总日志
-        self._log_link_summary(failed_links)
+    def unlink_batch(self, remote_cluster_ids: List[int]) -> Dict[int, Union[MindieLlmStatusCode, ErrorCode]]:
+        """
+        批量处理unlink请求
+        """
+        if not remote_cluster_ids:
+            logger.warning("unlink_batch called with empty remote_cluster_ids list")
+            return {}
         
-        # 返回失败的链路列表
-        return failed_links
+        target_cluster_ids = set(remote_cluster_ids)
+        batch_result_map = {}
+        removed_from_queue = set()
+
+        with self.link_queue_cond:
+            to_remove = []
+            for link_item in self.link_queue:
+                cluster_id = link_item['remote_cluster_id']
+                if cluster_id in target_cluster_ids:
+                    to_remove.append(link_item)  
+                    removed_from_queue.add(cluster_id)
+
+            for link_item in to_remove:
+                self.link_queue.remove(link_item)
+                self.link_result.remove_from_current_list(link_item['remote_device_ip'])
+                logger.info(
+                    f"Batch removed {link_item['remote_device_ip']} "
+                    f"(cluster_id: {link_item['remote_cluster_id']}) from waiting list"
+                )
+            
+            for cluster_id in removed_from_queue:
+                batch_result_map[cluster_id] = MindieLlmStatusCode.SUCCESS
+            
+            if removed_from_queue:
+                self.link_queue_cond.notify()
+
+        remaining_cluster_ids = target_cluster_ids - removed_from_queue
+        for cluster_id in remaining_cluster_ids:
+            result = self._unlink_after_queue_cleanup(cluster_id)
+            batch_result_map[cluster_id] = result
+        
+        return batch_result_map
     
-
     def unlink(self, remote_cluster_id):
-        if remote_cluster_id not in self.cluster_comm_map:  
-            logger.error(f"Unlink failed, remote_cluster_id:{remote_cluster_id} is not linked.")
-            return ErrorCode.TEXT_GENERATOR_PD_UNLINK_ERROR
-        comm_id = self.cluster_comm_map.pop(remote_cluster_id)
-        # 同时从device_ip映射中移除
-        self.cluster_device_ip_map.pop(remote_cluster_id, None)
-        return self.separate_deployment_engine.unlink(comm_id)
+        
+        # 检查是否在等待队列中
+        with self.link_queue_cond:
+            target_item = None
+            target_idx = -1
+            
+            for idx, link_item in enumerate(self.link_queue):
+                if link_item['remote_cluster_id'] == remote_cluster_id:
+                    target_item = link_item
+                    target_idx = idx
+                    break 
+            
+            if target_item is not None:
+                self.link_result.remove_from_current_list(target_item['remote_device_ip'])
+                del self.link_queue[target_idx]  
+                logger.info(f"Removed {target_item['remote_device_ip']} from waitting list")
+                self.link_queue_cond.notify()
+                return MindieLlmStatusCode.SUCCESS
+                
+        return self._unlink_after_queue_cleanup(remote_cluster_id)
     
     def unlink_all(self):
+        with self.link_queue_cond:
+            self.link_queue.clear()
+
+        with self.window_cond:
+            self.window.clear()
+
         for cluster_id in list(self.cluster_comm_map):
             ret = self.unlink(cluster_id)
             if ret != MindieLlmStatusCode.SUCCESS:
                 logger.error(f"Failed to unlink cluster {cluster_id}, error code is {ret}.")
                 raise Exception("SeparateDeploymentEngine: unlink_all fail")
-
+     
     def finalize(self):
         self.unlink_all()
         self.separate_deployment_engine.finalize()
 
-    def _try_create_link(self, link_params, instance_id=None, index=None):
+    def _try_create_link(self, link_params):
         """
         尝试创建一个链接，支持重试机制
         
         参数:
             link_params: 链接参数
-            instance_id: 实例ID
-            index: 索引
             
         返回:
             (connect_success, window_item): connect_success: 标志是否成功，window_item: 失败时为None,成功时返回一个窗口项
@@ -665,29 +654,30 @@ class SeparateDeploymentWorker:
             
             cluster_rank_info = rank_info.get_cluster_rank_info()
             rank_table = rank_info.get_rank_table()
+            remote_dp_instance_id = link_params['remote_dp_instance_id']
+            local_dp_instance_id = link_params['local_dp_instance_id']
             
             # 尝试链接
-            result = self.separate_deployment_engine.link(cluster_rank_info, rank_table)
+            result = self.separate_deployment_engine.link(
+                cluster_rank_info, 
+                rank_table, 
+                remote_dp_instance_id, 
+                local_dp_instance_id
+                )
             
             # 从结果中提取状态和comm_id
             status = result.get("status")
             comm_id = result.get("comm_id")
             
-            if status == MindieLlmStatusCode.TEXT_GENERATOR_PD_ALREADY_LINK:
-                logger.info(f"Device{link_params['remote_physical_device_id']} already link.")
-                return True, None  # 已建链视为成功
-            
-            elif status == MindieLlmStatusCode.SUCCESS and comm_id is not None:
-                self.cluster_comm_map[link_params['remote_cluster_id']] = comm_id
-                # 创建窗口项
-                window_item = {
-                    'instance_id': instance_id,
-                    'index': index,
-                    'comm_id': comm_id,
-                    'retry_count': 0,
-                    'link_params': link_params
-                }
-                return True, window_item
+            if status == MindieLlmStatusCode.SUCCESS and comm_id is not None:
+                with self.cluster_map_lock:
+                    self.cluster_comm_map[link_params['remote_cluster_id']] = comm_id
+                    # 创建窗口项
+                    window_item = {
+                        'comm_id': comm_id,
+                        'link_params': link_params
+                    }
+                    return True, window_item
             else:
                 #通信域初始化失败，status = ErrorCode.TEXT_GENERATOR_PD_LINK_ERROR
                 logger.error(f"Link from {self.local_device_ip} to {link_params['remote_device_ip']} failed, "
@@ -704,16 +694,13 @@ class SeparateDeploymentWorker:
         查询链路状态并处理结果
         
         参数:
-            link_item: 链路项，包含 comm_id, retry_count, link_params 等信息
+            link_item: 链路项，包含 comm_id, link_params 等信息
             
         返回:
-            (status, result):   status: 状态码, result: 成功时为None，重试时为新的link_item
+            status: 状态码
         """
         comm_id = link_item['comm_id']
-        retry_count = link_item['retry_count']
         link_params = link_item['link_params']
-        instance_id = link_item['instance_id']
-        index = link_item['index']
         start_time = self.link_start_time
         time_out = self.link_time_out
         remote_cluster_id = link_params['remote_cluster_id']
@@ -722,18 +709,7 @@ class SeparateDeploymentWorker:
         max_query_attempts = 3
         query_attempt = 0
         
-        while query_attempt < max_query_attempts:
-            # 每次查询前都检查超时
-            current_time = time.time()
-            if current_time - start_time > time_out:
-                ret = self.unlink(remote_cluster_id)
-                if ret != MindieLlmStatusCode.SUCCESS:
-                    logger.error(f"Failed to unlink remote_cluster_id {remote_cluster_id}, error code is {ret}.")
-                logger.error(f"Link from {self.local_device_ip} to {link_params['remote_device_ip']} "
-                             f"timed out after {current_time - start_time:.2f}s, "
-                             f"error code is {ErrorCode.TEXT_GENERATOR_PD_LINK_OUT_OF_TIME}.")
-                return ErrorCode.TEXT_GENERATOR_PD_LINK_OUT_OF_TIME, None  # 超时，失败不重试
-            
+        while query_attempt < max_query_attempts:     
             try:
                 # 记录查询开始时间
                 query_start_time = time.time()
@@ -751,72 +727,138 @@ class SeparateDeploymentWorker:
                     logger.info(f"Link from local_device_ip {self.local_device_ip} "
                                 f"to remote_device_ip {link_params['remote_device_ip']} success.")
                     # 建立cluster_id到device_ip的映射
-                    self.cluster_device_ip_map[link_params['remote_cluster_id']] = link_params['remote_device_ip']
-                    return MindieLlmStatusCode.SUCCESS, None  # 成功
+                    with self.cluster_map_lock:
+                        self.cluster_device_ip_map[link_params['remote_cluster_id']] = link_params['remote_device_ip']
+                    return MindieLlmStatusCode.SUCCESS  # 成功
                     
                 elif query_status == RegisterMemStatus.FAILED:
-                    # 查询失败，进行重试
-                    logger.warning(f"Mem status query failed for {link_params['remote_device_ip']}, will retry")
+                    logger.error(f"Mem status query failed for {link_params['remote_device_ip']}, no retry.")
                     ret = self.unlink(remote_cluster_id)
                     if ret != MindieLlmStatusCode.SUCCESS:
                         logger.error(f"Failed to unlink remote_cluster_id {remote_cluster_id}, error code is {ret}.")
-                    return self._handle_retry_logic(retry_count, link_params, instance_id, index)
+                    return ErrorCode.TEXT_GENERATOR_PD_LINK_ERROR
                 else:
                     # 状态为PENDING或其他，继续下一次查询
                     query_attempt += 1
                     # 短暂等待后再次查询
                     if query_attempt < max_query_attempts:
-                        time.sleep(0.05)  
+                        time.sleep(0.05)
             
             except Exception as e:
-                logger.warning(f"Mem status query failed for {link_params['remote_device_ip']} with exception{e}.")
+                logger.error(f"Mem status query failed for {link_params['remote_device_ip']} with exception{e}.")
                 ret = self.unlink(remote_cluster_id)
                 if ret != MindieLlmStatusCode.SUCCESS:
                     logger.error(f"Failed to unlink remote_cluster_id {remote_cluster_id}, error code is {ret}.")
-                return self._handle_retry_logic(retry_count, link_params, instance_id, index)
+                return ErrorCode.TEXT_GENERATOR_PD_LINK_ERROR
         
         # 达到最大查询次数，但状态仍然不确定，重新加入队列稍后处理
         logger.debug(f"Max query attempts reached for {link_params['remote_device_ip']}, requeueing")
-        return MindieLlmStatusCode.TEXT_GENERATOR_PD_RETRY_LINK, link_item
-
-    def _handle_retry_logic(self, retry_count, link_params, instance_id, index):
+        return MindieLlmStatusCode.TEXT_GENERATOR_PD_RETRY_QUERY
+    
+    def _fill_window_worker(self):
         """
-        处理链接重试逻辑，无重试次数限制
-        
-        参数:
-            retry_count: 当前重试次数
-            link_params: 链接参数
-            instance_id: 实例ID
-            index: 索引
+        填充窗口线程:持续从link_queue获取任务尝试，创建链接并填充到窗口
+        """
+        while True:
+            # 检查窗口是否已满
+            with self.window_cond:
+                if len(self.window) >= self.window_size:
+                    time.sleep(0.1)  # 窗口满时短暂休眠
+                    continue
             
-        返回:
-            (status_code, window_item): 状态码和窗口项(None表示失败)
-        """
-        # 记录重试警告
-        logger.warning(f"Query exception for link to {link_params['remote_device_ip']}, "
-                        f"retrying (attempt {retry_count+1})...")
-        
-        # 重新尝试建链
-        link_status, window_item = self._try_create_link(link_params, instance_id, index)
-        if link_status and window_item is not None:
-            # 更新重试计数
-            window_item['retry_count'] = retry_count + 1
-            return MindieLlmStatusCode.TEXT_GENERATOR_PD_RETRY_LINK, window_item  # 失败需重试，返回新的link_item
-        else:
-            # 重试失败
-            return ErrorCode.TEXT_GENERATOR_PD_LINK_ERROR, None  # 失败不重试
+            # 从队列获取任务
+            link_item = None
+            with self.link_queue_cond:
+                # 等待：队列非空 且 窗口未满 时才唤醒
+                if not self.link_queue_cond.wait_for(
+                    lambda: len(self.link_queue) > 0 and len(self.window) < self.window_size,
+                    timeout=0.1
+                ):
+                    continue
+                link_item = self.link_queue.popleft()
+            
+            if not link_item:
+                continue
+            
+            # 尝试创建链接
+            link_status, window_item = self._try_create_link(link_item)
+            
+            with self.window_cond:
+                if link_status:
+                    # 创建成功，加入窗口
+                    self.window.append(window_item)
+                    self.link_result.add_to_running(link_item['remote_device_ip'])
+                else:
+                    logger.error(
+                        f"Link from {self.local_device_ip} to {link_item['remote_device_ip']} "
+                        f"error code is {ErrorCode.TEXT_GENERATOR_PD_LINK_ERROR}."
+                    )
+                    self.link_result.add_to_failed(link_item['remote_device_ip'])
 
-    def _log_link_summary(self, failed_links):
-        """输出链路建立的汇总日志"""
-        if len(failed_links) > 0:
-            # 记录所有失败的链路
-            for failed_link in failed_links:
-                logger.error(
-                    f"[Link_Summary] from {self.local_device_ip} to {failed_link[0]} failed, "
-                    f"error code is {failed_link[1]}."
-                )
-            # 可选：输出失败链路总数
-            logger.error(f"[Link_Summary] Total failed links: {len(failed_links)}.")
-        else:
-            # 所有建链成功
-            logger.info(f"[Link_Summary] from {self.local_device_ip} to all remote_device_ip success.")
+    def _process_window_worker(self):
+        """
+        处理窗口线程：持续处理窗口中的任务，检查执行状态
+        """
+        while True:
+            # 从窗口获取任务
+            window_item = None
+            with self.window_cond:
+                if not self.window:
+                    self.window_cond.wait(0.1)  # 窗口为空时等待
+                    continue
+                window_item = self.window.popleft()
+            
+            if not window_item:
+                continue
+            
+            # 查询链接状态
+            status = self._query_mem_status(window_item)
+            
+            with self.window_cond:
+                if status == MindieLlmStatusCode.SUCCESS:
+                    self.link_result.add_to_success(window_item['link_params']['remote_device_ip'])
+                
+                elif status == MindieLlmStatusCode.TEXT_GENERATOR_PD_RETRY_QUERY:
+                    self.window.append(window_item)
+                
+                else:
+                    # 执行失败，标记为失败
+                    logger.error(
+                        f"Link from {self.local_device_ip} to {window_item['link_params']['remote_device_ip']} "
+                        f"failed, error code is {ErrorCode.TEXT_GENERATOR_PD_LINK_ERROR}.")
+                    self.link_result.add_to_failed(window_item['link_params']['remote_device_ip'])
+
+    def _unlink_after_queue_cleanup(self, remote_cluster_id):
+
+        # 检查是否在window中（running状态）
+        with self.window_cond:
+            target_item = None
+            target_idx = -1
+            
+            for idx, window_item in enumerate(self.window):
+                if window_item['link_params']['remote_cluster_id'] == remote_cluster_id:
+                    target_item = window_item
+                    target_idx = idx
+                    break 
+            
+            if target_item is not None:
+                self.link_result.remove_from_current_list(window_item['link_params']['remote_device_ip'])
+                del self.window[target_idx]  
+                logger.info(f"Remove {target_item['link_params']['remote_device_ip']} from running list")
+                self.window_cond.notify() 
+                
+        # 不在等待队列和窗口中，尝试直接unlink
+        with self.cluster_map_lock:
+            if remote_cluster_id not in self.cluster_comm_map:  
+                logger.error(f"Unlink failed, remote_cluster_id:{remote_cluster_id} is not linked.")
+                return ErrorCode.TEXT_GENERATOR_PD_UNLINK_ERROR
+            comm_id = self.cluster_comm_map.pop(remote_cluster_id)
+            # 同时从device_ip映射中移除
+            if remote_cluster_id in self.cluster_device_ip_map:
+                self.link_result.remove_from_current_list(self.cluster_device_ip_map[remote_cluster_id])
+                self.cluster_device_ip_map.pop(remote_cluster_id, None)
+            else:
+                logger.warning(f"Cannot find device_ip for remote_cluster_id"
+                               f" {remote_cluster_id} in cluster_device_ip_map")
+    
+        return self.separate_deployment_engine.unlink(comm_id)

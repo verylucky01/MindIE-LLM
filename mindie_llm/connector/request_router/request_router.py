@@ -11,6 +11,10 @@
 # See the Mulan PSL v2 for more details.
 
 import queue
+import threading
+import traceback
+import os
+import time
 
 from mindie_llm.connector.common import send_model_execute_response
 from mindie_llm.connector.common.response_builder import ExecuteResponseBuilder
@@ -31,12 +35,14 @@ class RequestRouter:
     __slots__ = (
         "inference_queue",
         "transfer_queue",
-        "link_queue",
+        "pdlink_queue",
         "command_queue",
+        "query_queue",
         "inference_related_thread",
         "trans_related_thread",
         "pdlink_related_thread",
         "command_related_thread",
+        "query_related_thread",
         "enable_dp_distributed",
         "router_impl",
     )
@@ -44,16 +50,20 @@ class RequestRouter:
     def __init__(self):
         self.inference_queue = queue.Queue()
         self.transfer_queue = queue.Queue()
-        self.link_queue = queue.Queue()
+        self.pdlink_queue = queue.Queue()
         self.command_queue = queue.Queue()
+        self.query_queue = queue.Queue()
+ 
         self.inference_related_thread = CoreThread(target=self.do_inference, name="inference")
         self.trans_related_thread = CoreThread(target=self.do_transfer, name="transfer")
-        self.pdlink_related_thread = CoreThread(target=self.do_pdlink, name="pdlink")
+        self.pdlink_related_thread = CoreThread(target=self.do_pdlink, name="link")
         self.command_related_thread = CoreThread(target=self.do_command, name="command")
+        self.query_related_thread = CoreThread(target=self.do_query, name="query")
         self.inference_related_thread.start()
         self.trans_related_thread.start()
         self.pdlink_related_thread.start()
         self.command_related_thread.start()
+        self.query_related_thread.start()
 
         self.enable_dp_distributed = None
         self.router_impl = RouterImpl()
@@ -127,17 +137,18 @@ class RequestRouter:
             except queue.Empty:
                 prof_step(stop_check=True)
                 continue
-                
+
     def do_pdlink(self):
         while True:
-            execute_request: ExecuteRequest = self.link_queue.get()
-            execute_type = execute_request.execute_type
-            if execute_type == ExecuteType.PD_LINK:
+            execute_request: ExecuteRequest = self.pdlink_queue.get()
+            if execute_request.execute_type == ExecuteType.PD_LINK:
                 self.router_impl.pd_role(execute_request)
             else:
-                logger.error(f"[MIE04E13030A] Unknown link type {execute_type}, \
-                    Expected PD_LINK type is {ExecuteType.PD_LINK}.")
-
+                logger.error(
+                    f"[MIE04E13030A] Unknown link type {execute_request.execute_type}, "
+                    f"Expected PD_LINK type is {ExecuteType.PD_LINK}."
+                )
+            
     def do_transfer(self):
         while True:
             execute_request: ExecuteRequest = self.transfer_queue.get()
@@ -167,13 +178,25 @@ class RequestRouter:
                 logger.error(f"[MIE04E13030A] Unknown command type {execute_type}, \
                     Expected command type is {ExecuteType.LORA_OPERATION}")
 
+    # 新增处理链路状态查询请求        
+    def do_query(self):
+        while True:
+            execute_request: ExecuteRequest = self.query_queue.get()
+            if execute_request.execute_type == ExecuteType.PD_LINK_STATUS_QUERY:
+                self.router_impl.query_link_status(execute_request)
+            else:
+                logger.error(
+                    f"[MIE04E13030A] Unknown query type {execute_request.execute_type}, "
+                    f"Expected type is {ExecuteType.PD_LINK_STATUS_QUERY}."
+                )
+
     def accept(self, execute_request: ExecuteRequest):
         if execute_request.execute_type == ExecuteType.MODEL_INFER or \
             execute_request.execute_type == ExecuteType.START_COMMAND_EXEC or \
             execute_request.execute_type == ExecuteType.RECOVER_COMMAND_EXEC:
             self.inference_queue.put(execute_request)
         elif execute_request.execute_type == ExecuteType.PD_LINK:
-            self.link_queue.put(execute_request)
+            self.pdlink_queue.put(execute_request)
         elif execute_request.execute_type == ExecuteType.KV_TRANSFER or \
             execute_request.execute_type == ExecuteType.CLEAR_COMMAND_EXEC:
             self.transfer_queue.put(execute_request)
@@ -181,5 +204,8 @@ class RequestRouter:
             execute_request.execute_type == ExecuteType.PAUSE_COMMAND_EXEC or \
             execute_request.execute_type == ExecuteType.PAUSE_COMMAND_EXEC_ROCE:
             self.command_queue.put(execute_request)
+        # 新增：查询请求分发到 query_queue
+        elif execute_request.execute_type == ExecuteType.PD_LINK_STATUS_QUERY:
+            self.query_queue.put(execute_request)
         else:
             self.inference_queue.put(execute_request)

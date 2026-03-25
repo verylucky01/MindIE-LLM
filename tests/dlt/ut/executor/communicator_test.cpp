@@ -112,10 +112,16 @@ TEST_F(CommunicatorTest, SendSyncRequest_Succeeds)
 
     ExecuteRequest request2;
     request2.set_execute_type(PD_LINK);
+
+    bool pdLinkSuccess = communicator_->SendSharedSyncRequest(request2);
+    EXPECT_TRUE(pdLinkSuccess);
+
+    ExecuteRequest request3;
+    request3.set_execute_type(PD_LINK_STATUS_QUERY);
     std::vector<ExecuteResponse> responses2;
 
-    bool pdLinkSuccess = communicator_->SendSharedSyncRequestAndReceive(request2, responses2);
-    EXPECT_TRUE(pdLinkSuccess);
+    bool pdLinkQuerySuccess = communicator_->SendSharedSyncRequestAndReceive(request3, responses2);
+    EXPECT_TRUE(pdLinkQuerySuccess);
 }
 
 TEST_F(CommunicatorTest, LaunchIPCHandleResponseThreads_MasterNode_RegisterAndStartSucceed)

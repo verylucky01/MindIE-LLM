@@ -45,14 +45,15 @@ function fn_build()
         COMPILE_OPTIONS="${COMPILE_OPTIONS} -DCMAKE_CXX_COMPILER_LAUNCHER=ccache"
     fi
 
+    fn_build_version_info
+    fn_build_third_party
+    
     if [ -z "$ASCEND_HOME_PATH" ]; then
         echo "env ASCEND_HOME_PATH not exist, skip kernels compilation"
     else
         source $SCRIPT_DIR/build_kernels.sh
     fi
 
-    fn_build_version_info
-    fn_build_third_party
     fn_build_src
     cp $OUTPUT_DIR/lib/libfoundation.so $MINDIE_LLM_LIB_DIR/foundation.so
     if [ "$build_type" = "release" ]; then

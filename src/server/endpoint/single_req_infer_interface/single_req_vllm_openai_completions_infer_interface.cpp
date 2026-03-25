@@ -409,7 +409,7 @@ bool SingleReqVllmOpenAiCompletionsInferInterface::EncodeLogprobsFullText(Ordere
             return false;
         }
         double curLogprobs = static_cast<double>(curLogprobsFloat);
-        if (!DecodeSingleToken(oneToken, curToken, 0, 0, request_->skipSpecialTokens.value_or(false))) {
+        if (!DecodeSingleToken(oneToken, curToken, 0, 0, request_->skipSpecialTokens.value_or(true))) {
             ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SINGLE_INFERENCE,
                 ENCODE_DECODE_ERROR), "Convert logprobs token to string failed");
             return false;
@@ -464,7 +464,7 @@ bool SingleReqVllmOpenAiCompletionsInferInterface::EncodeLogprobsStream(OrderedJ
         return false;
     }
     double curLogprobs = static_cast<double>(curLogprobsFloat);
-    if (!DecodeSingleToken(oneToken, curToken, 0, 0, request_->skipSpecialTokens.value_or(false))) {
+    if (!DecodeSingleToken(oneToken, curToken, 0, 0, request_->skipSpecialTokens.value_or(true))) {
         ULOG_ERROR(SUBMODLE_NAME_ENDPOINT, GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SINGLE_INFERENCE,
             ENCODE_DECODE_ERROR), "Convert logprobs token to string failed");
         return false;

@@ -38,7 +38,8 @@ class DictContext:
         "string_stopping_criteria",
         "output_texts",
         "trace_ids",
-        "lora_adapter_id"
+        "lora_adapter_id",
+        "random_number_generators"
     ]
 
     def __init__(self):
@@ -47,6 +48,7 @@ class DictContext:
         self.output_texts = {}
         self.trace_ids = {}
         self.lora_adapter_id = {}
+        self.random_number_generators = {}
 
     def add_context(self, context_handles, metadata: InputMetadata, **kwargs):
         batch_adapter_ids = metadata.adapter_ids
@@ -925,6 +927,16 @@ class BatchContext:
 
             metadata.batch_seeds[np.vectorize(lambda x: x is None)(metadata.batch_seeds)] = 0
 
+            if metadata.batch_seeds is not None and self.context_params.generator_backend_type == BackendType.TORCH:
+                for i, idx in enumerate(context_handles):
+                    seed = metadata.batch_seeds[i]
+                    gen = torch.Generator(device=self.device)
+                    if seed is not None:
+                        gen.manual_seed(int(seed))
+                    else:
+                        gen.manual_seed(i)
+                    self.all_dict_context.random_number_generators[idx] = gen
+
             sampling_metadata = SamplingMetadata.from_batch(
                 input_metadata=metadata,
                 batch_sampling_params=batch_sampling_params,
@@ -935,7 +947,11 @@ class BatchContext:
                 batch_n=metadata.batch_n,
                 batch_use_beam_search=metadata.batch_use_beam_search,
                 batch_output_lengths=self.all_ndarray_context.output_len_count[context_handles],
-                batch_cumulative_logprobs=self.all_ndarray_context.cumulative_logprobs[context_handles]
+                batch_cumulative_logprobs=self.all_ndarray_context.cumulative_logprobs[context_handles],
+                random_number_generators=[
+                    self.all_dict_context.random_number_generators.get(idx, None)
+                    for idx in context_handles
+                ]
             )
 
             all_token_ids = self.all_ndarray_context.all_input_ids[context_handles, : metadata.max_seq_len]
@@ -952,7 +968,11 @@ class BatchContext:
                 batch_n=self.all_ndarray_context.n[context_handles],
                 batch_use_beam_search=self.all_ndarray_context.use_beam_search[context_handles],
                 batch_output_lengths=self.all_ndarray_context.output_len_count[context_handles],
-                batch_cumulative_logprobs=self.all_ndarray_context.cumulative_logprobs[context_handles]
+                batch_cumulative_logprobs=self.all_ndarray_context.cumulative_logprobs[context_handles],
+                random_number_generators=[
+                    self.all_dict_context.random_number_generators.get(idx, None)
+                    for idx in context_handles
+                ]
             )
 
         return sampling_metadata

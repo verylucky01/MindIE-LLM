@@ -199,7 +199,7 @@ bool Communicator::SendModelInitRequestAndReceive(ExecuteRequest &request, std::
     return true;
 }
 
-bool Communicator::SendSharedSyncRequestAndReceive(ExecuteRequest &request, std::vector<ExecuteResponse> &responses)
+bool Communicator::SendSharedSyncRequest(ExecuteRequest &request)
 {
     // Send the sync request to local workers if ipcCommunicatoSharedSyncLink_ is initialized.
     if (ipcCommunicatorSharedSync_ != nullptr) {
@@ -215,6 +215,16 @@ bool Communicator::SendSharedSyncRequestAndReceive(ExecuteRequest &request, std:
             return false;
         }
     }
+    return true;
+}
+
+bool Communicator::SendSharedSyncRequestAndReceive(ExecuteRequest &request, std::vector<ExecuteResponse> &responses)
+{
+    // Send the request to local workers and Send the sync request to remote slave node
+    if (!SendSharedSyncRequest(request)) {
+        return false;
+    }
+
     // Wait until the response is received from local workers if ipcCommunicatorSharedSync_ is initialized.
     if (ipcCommunicatorSharedSync_ != nullptr) {
         ExecuteResponse ipcResponse;
@@ -370,6 +380,7 @@ bool Communicator::SlaveNodeIPCResponseHandler(ExecuteResponse &response)
     }
     // Skip sending to remote master if intra-node TP is enabled and response type is not PD_LINK.
     if (intraNodeTP_ && response.msg_type() != PD_LINK &&
+        response.msg_type() != PD_LINK_STATUS_QUERY &&
         response.msg_type() != RECOVER_COMMAND_EXEC &&
         response.msg_type() != START_COMMAND_EXEC &&
         response.msg_type() != PAUSE_COMMAND_EXEC &&
@@ -444,6 +455,7 @@ bool Communicator::SendAsyncRequestToLocal(ExecuteRequest &request)
     } else if (request.execute_type() == KV_TRANSFER) {
         ipcCommunicator = ipcCommunicatorKVTransfer_.get();
     } else if (request.execute_type() == PD_LINK ||
+        request.execute_type() == PD_LINK_STATUS_QUERY ||
         request.execute_type() == RECOVER_COMMAND_EXEC ||
         request.execute_type() == START_COMMAND_EXEC ||
         request.execute_type() == PAUSE_COMMAND_EXEC ||

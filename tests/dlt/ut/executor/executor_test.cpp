@@ -401,16 +401,26 @@ TEST_F(ExecutorTest, AsyncEOSCleanupFail)
 
 TEST_F(ExecutorTest, SetupPDLink)
 {
-    MOCKER_CPP(&Communicator::SendSharedSyncRequestAndReceive, bool (*)(ExecuteRequest &, ExecuteResponse &))
-        .stubs()
-        .will(returnValue(true));
-    MOCKER_CPP(&Executor::HandlePDLinkResponse, bool (*)(ExecuteResponse &)).stubs().will(returnValue(true));
-    MOCKER_CPP(&Communicator::LaunchIPCHandleResponseThreads, bool (*)(ResponseHandler))
+    MOCKER_CPP(&Communicator::SendSharedSyncRequest, bool (*)(ExecuteRequest &))
         .stubs()
         .will(returnValue(true));
 
     PDLinkRequest pdLinkRequest;
     EXPECT_TRUE(executor_->SetupPDLink(pdLinkRequest));
+}
+
+TEST_F(ExecutorTest, QueryPDLinkStatus)
+{
+    MOCKER_CPP(&Communicator::SendSharedSyncRequestAndReceive, bool (*)(ExecuteRequest &, ExecuteResponse &))
+        .stubs()
+        .will(returnValue(true));
+    MOCKER_CPP(&Executor::HandlePDLinkStatusResponse, bool (*)(ExecuteResponse &)).stubs().will(returnValue(true));
+    MOCKER_CPP(&Communicator::LaunchIPCHandleResponseThreads, bool (*)(ResponseHandler))
+        .stubs()
+        .will(returnValue(true));
+
+    PDLinkStatusRequest pdLinkStatusRequest;
+    EXPECT_TRUE(executor_->QueryPDLinkStatus(pdLinkStatusRequest));
 }
 
 TEST_F(ExecutorTest, ExecuteKVTransfer)
@@ -477,18 +487,18 @@ TEST_F(ExecutorTest, HandleInitResult_Invalid)
     EXPECT_FALSE(executor_->HandleInitResult(responses));
 }
 
-TEST_F(ExecutorTest, HandlePDLinkResponse)
+TEST_F(ExecutorTest, HandlePDLinkStatusResponse)
 {
     ExecuteResponse response;
-    response.set_msg_type(model_execute_data::PD_LINK);
-    EXPECT_FALSE(executor_->HandlePDLinkResponse(response)); // Missing keys
+    response.set_msg_type(model_execute_data::PD_LINK_STATUS_QUERY);
+    EXPECT_FALSE(executor_->HandlePDLinkStatusResponse(response)); // Missing keys
 
-    PDLinkResponse pdLinkResponse;
-    *response.mutable_pd_link_response() = pdLinkResponse;
-    EXPECT_TRUE(executor_->HandlePDLinkResponse(response));
+    PDLinkStatusResponse pdLinkStatusResponse;
+    *response.mutable_pd_link_status_response() = pdLinkStatusResponse;
+    EXPECT_TRUE(executor_->HandlePDLinkStatusResponse(response));
 
-    PDLinkResponse out = executor_->GetPDLinkResponse();
-    EXPECT_EQ(out.SerializeAsString(), pdLinkResponse.SerializeAsString());
+    PDLinkStatusResponse out = executor_->GetPDLinkStatusResponse();
+    EXPECT_EQ(out.SerializeAsString(), pdLinkStatusResponse.SerializeAsString());
 }
 
 TEST_F(ExecutorTest, AsyncResponseHandler_WrongType)
