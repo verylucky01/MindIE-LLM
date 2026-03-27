@@ -21,11 +21,11 @@ class FeatureType(str, Enum):
     FLASHCOMM = "flashcomm"
     SPECULATE = "speculate"
     SPLITFUSE = "splitfuse"
-    MOONCAKE = "mempool"
+
 
 COMPATIBLE_MATRIX: dict[FeatureType, list[FeatureType]] = {
     FeatureType.PREFILL: [FeatureType.SINGLE_LORA, FeatureType.MULTI_LORA, FeatureType.FLASHCOMM, \
-        FeatureType.DAP, FeatureType.SPLITFUSE, FeatureType.MOONCAKE],
+        FeatureType.DAP, FeatureType.SPLITFUSE],
     FeatureType.DECODE: [FeatureType.SINGLE_LORA, FeatureType.MULTI_LORA, FeatureType.SPECULATE],
     FeatureType.SINGLE_LORA: [FeatureType.PREFILL, FeatureType.DECODE, FeatureType.SPLITFUSE, FeatureType.FLASHCOMM],
     FeatureType.MULTI_LORA: [FeatureType.PREFILL, FeatureType.DECODE, FeatureType.SPLITFUSE, FeatureType.FLASHCOMM],
@@ -37,5 +37,4 @@ COMPATIBLE_MATRIX: dict[FeatureType, list[FeatureType]] = {
         FeatureType.LAYERWISE_PREFILL, FeatureType.SINGLE_LORA, FeatureType.MULTI_LORA],
     FeatureType.LAYERWISE_PREFILL: [FeatureType.SPLITFUSE],
     FeatureType.LAYERWISE_DECODE: [],
-    FeatureType.MOONCAKE: [FeatureType.PREFILL],
 }
