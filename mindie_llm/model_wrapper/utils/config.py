@@ -396,6 +396,9 @@ class DmiConfig(BaseConfig):
                     self.remote_super_device_id[instance_id] = []
 
             self.remote_dp_instance_ids[instance_id] = dp_instance_id
+            if self.remote_dp_instance_ids[instance_id] >= DP_CHANGE_SINGLEDP:
+                self.remote_dp_instance_ids[instance_id] = dp_instance_id // 100 * 100
+                
             for remote_rank in remote_link_ranks:
                 # for one device links with several devices, mark every link using different cluster id
                 cp_remote_rank = remote_rank // self.remote_sp_size
