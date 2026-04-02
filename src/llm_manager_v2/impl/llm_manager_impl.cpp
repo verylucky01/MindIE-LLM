@@ -1272,7 +1272,7 @@ Status LlmManagerImpl::LaunchLlmEngine(Role pdRole)
         schedulerConfig.templateType = (pdRole == Role::D ? "DmiDecode" : "DmiPrefill");
     }
 
-    llmEnginePtr_ = MakeLlmEngine(schedulerConfig, iExecutorSPtrs_, handleResponse_, pdRole);
+    llmEnginePtr_ = MakeLlmEngine(schedulerConfig, iExecutorSPtrs_, handleResponse_, pdRole, &llmEngineReady_);
     std::vector<ModelParam> modelParamVec = engineConfig_.modelDeployParam;
     llmEnginePtr_->InitStaticLoras(modelParamVec, iExecutorSPtrs_.size()); // 初始化lora_manager中静态lora
     InitEngineDPProcessGroup(schedulerConfig); // 初始化分布式多DP进程通信资源

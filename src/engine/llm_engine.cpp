@@ -34,7 +34,8 @@ namespace mindie_llm {
 constexpr int LOG_TIME_THRESHOLD_MS = 1000;
 constexpr int LOG_CC_TIME_THRESHOLD_MS = 10;
 LlmEngine::LlmEngine(SchedulerConfig schedulerConfig, std::vector<IExecutorSPtr> executors,
-                     ForwardRespToManagerCall cb, Role pdRole)
+                        ForwardRespToManagerCall cb, Role pdRole, std::atomic<bool> *engineReadyFlag)
+        : llmEngineReady_(engineReadyFlag)
 {
     if (executors.empty()) {
         throw std::invalid_argument("At lease one executor is needed");
@@ -200,8 +201,54 @@ void LlmEngine::Stop()
     MINDIE_LLM_LOG_INFO("[LlmEngine]Engine stopped successfully.");
 }
 
+uint64_t LlmEngine::SteadyClockMsSinceEpoch()
+{
+    return static_cast<uint64_t>(
+        duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count());
+}
+
+void LlmEngine::NotifySchedulerDidNonEmptySchedule(size_t localDPRank)
+{
+    if (role_ != Role::P) {
+        return;
+    }
+    if (llmEngineReady_ == nullptr) {
+        return;
+    }
+    const uint64_t nowMs = SteadyClockMsSinceEpoch();
+    enginePerDPs_.at(localDPRank)->lastNonEmptyScheduleSteadyMs_.store(nowMs, std::memory_order_release);
+    llmEngineReady_->store(true, std::memory_order_release);
+}
+
+void LlmEngine::MaybeMarkEngineNotReadyIfAllSchedulersEmptyTooLong()
+{
+    if (role_ != Role::P) {
+        return;
+    }
+    if (llmEngineReady_ == nullptr) {
+        return;
+    }
+    if (!llmEngineReady_->load(std::memory_order_acquire)) {
+        return;
+    }
+    const uint64_t nowMs = SteadyClockMsSinceEpoch();
+    for (const EnginePerDPSPtr &enginePerDP : enginePerDPs_) {
+        const uint64_t lastMs = enginePerDP->lastNonEmptyScheduleSteadyMs_.load(std::memory_order_acquire);
+        if (nowMs >= lastMs && (nowMs - lastMs) <= ENGINE_ALL_THREADS_EMPTY_SCHEDULE_MS) {
+            return;
+        }
+    }
+    llmEngineReady_->store(false, std::memory_order_release);
+}
+
 void LlmEngine::StartEngineThread()
 {
+    const uint64_t startMs = SteadyClockMsSinceEpoch();
+    if (llmEngineReady_ != nullptr && role_ == Role::P) {
+        for (const EnginePerDPSPtr &enginePerDP : enginePerDPs_) {
+            enginePerDP->lastNonEmptyScheduleSteadyMs_.store(startMs, std::memory_order_release);
+        }
+    }
     // 初始化engine的线程
     for (size_t i = 0; i < enginePerDPs_.size(); ++i) {
         EnginePerDPSPtr enginePerDP = enginePerDPs_.at(i);
@@ -414,6 +461,7 @@ void LlmEngine::SchedulerThreadEntry(size_t localDPRank)
     std::unordered_set<SequenceId> eosCleanupSeqIds = {};
 
     while (!stop_) {
+        MaybeMarkEngineNotReadyIfAllSchedulersEmptyTooLong();
         // 暂停调度组batch
         if (isPauseScheduling_.load(std::memory_order_relaxed)) {
             enginePerDP->scheduler->StopRunningRequest();
@@ -480,6 +528,9 @@ void LlmEngine::SchedulerThreadEntry(size_t localDPRank)
         auto spanSchedule = PROF(INFO, Domain("Schedule").SpanStart("BatchSchedule", false));
         auto [seqGroupMetadata, scheduleOut] = enginePerDP->scheduler->Schedule(needSync);
         enginePerDP->scheduler->ClearLastScheduleEmpty();
+        if (!scheduleOut.IsEmpty()) {
+            NotifySchedulerDidNonEmptySchedule(localDPRank);
+        }
         if (scheduleOut.scheduledSeqGroups_.size() > 0) {
             PROF(spanSchedule.ArrayResource(
                 scheduleOut.scheduledSeqGroups_.begin(), scheduleOut.scheduledSeqGroups_.end(),
@@ -779,9 +830,9 @@ void LlmEngine::RecordEngineMetrics(SchedulerOutputs &scOut, std::shared_ptr<Eng
 }
 
 LlmEnginePtr MakeLlmEngine(SchedulerConfig schedulerConfig, std::vector<IExecutorSPtr> executors,
-                           ForwardRespToManagerCall cb, Role pdRole)
+                            ForwardRespToManagerCall cb, Role pdRole, std::atomic<bool> *engineReadyFlag)
 {
-    return std::make_unique<LlmEngine>(schedulerConfig, executors, cb, pdRole);
+    return std::make_unique<LlmEngine>(schedulerConfig, executors, cb, pdRole, engineReadyFlag);
 }
 
 EngineMetric LlmEngine::CollectEngineMetric(size_t localDPRank)

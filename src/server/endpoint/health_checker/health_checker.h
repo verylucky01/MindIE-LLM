@@ -67,6 +67,8 @@ public:
 private:
     std::atomic<ServiceStatus> mServiceStatus;
     int mChipPerCard = 1;    // A2: 1, A3: 2
+    int llmNotReadyCount = 0;
+    bool mFirstSimulateAbnormalSuppressed = false;
     bool mIsCentralizedNode = false;
     bool mIsCentralizedMaster = true;
     mindie_llm::ConcurrentDeque<ErrorItem> mErrorList;
@@ -79,9 +81,10 @@ private:
     std::mutex mStatusMutex; // 状态锁
     std::unordered_map<int, std::vector<int>> statusTransferMap;
     static constexpr int checkIntervalSeconds = 5;
-    
+
     void CheckServiceStatus();
     bool WaitForLlmEngineReady();
+    bool IsDmiInitWaitSatisfied();
     void PerformPeriodicHealthCheck();
     void GetChipPerCard();
     void UpdateErrorList(
@@ -100,6 +103,7 @@ private:
     bool StartSimulateTask();
     bool CreateAndInitSimulateRunner();
     bool InitNpuDeviceCardIds();
+    bool ShouldSkipHealthCheck();
 
     // 虚推执行器和任务运行器
     std::shared_ptr<ISimulateExecutor> mSimulateExecutor;

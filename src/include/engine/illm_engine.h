@@ -13,6 +13,7 @@
 #ifndef LLM_ENGINE_INTERFACE_H
 #define LLM_ENGINE_INTERFACE_H
 
+#include <atomic>
 #include <functional>
 #include <memory>
 #include "basic_types.h"
@@ -60,7 +61,7 @@ public:
 using LlmEnginePtr = std::unique_ptr<ILlmEngine>;
 
 LlmEnginePtr MakeLlmEngine(SchedulerConfig schedulerConfig, std::vector<IExecutorSPtr> executors,
-    ForwardRespToManagerCall cb, Role pdRole);
+    ForwardRespToManagerCall cb, Role pdRole, std::atomic<bool> *engineReadyFlag = nullptr);
 
 } // namespace mindie_llm
 

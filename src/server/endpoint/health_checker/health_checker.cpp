@@ -20,11 +20,13 @@
 #include "simulate_request_executor.h"
 #include "infer_instances.h"
 #include "health_checker.h"
+#include "dmi_role.h"
 
 
 namespace mindie_llm {
 
 constexpr size_t EXECUTE_COMMAND_BUFFER_SIZE = 128;
+constexpr size_t MAX_ENGINE_NOT_READY_COUNT = 120; // 10分钟不调度
 
 
 HealthChecker::HealthChecker() : mRunning(false)
@@ -202,11 +204,30 @@ bool HealthChecker::WaitForLlmEngineReady()
             continue;
         }
 
+        if (!IsDmiInitWaitSatisfied()) {
+            std::this_thread::sleep_for(std::chrono::seconds(checkIntervalSeconds));
+            continue;
+        }
+ 
+        // 额外休眠一次，确保初始化完成
+        std::this_thread::sleep_for(std::chrono::seconds(checkIntervalSeconds));
         ULOG_INFO(SUBMODLE_NAME_HEALTHCHECKER, "HealthChecker: Init finished, update status to normal");
         UpdateStatus(SERVICE_NORMAL);
         return true;
     }
     return false;
+}
+
+bool HealthChecker::IsDmiInitWaitSatisfied()
+{
+    if (GetServerConfig().inferMode != INFER_MODE_DMI) {
+        return true;
+    }
+    if (GetInferInstance()->GetPDRoleStatus() != PDRoleStatus::READY
+        || !DmiRole::GetInstance()->IsHealthy()) {
+        return false;
+    }
+    return true;
 }
 
 void HealthChecker::PerformPeriodicHealthCheck()
@@ -240,9 +261,16 @@ void HealthChecker::PerformPeriodicHealthCheck()
             }
         }
 
+        // PAUSE/READY状态下跳过健康检查
         previousStatus = currentStatus;
         if (isPauseOrReady) {
-            // PAUSE/READY状态下跳过健康检查
+            lock.unlock();
+            std::this_thread::sleep_for(std::chrono::seconds(checkIntervalSeconds));
+            continue;
+        }
+
+        // 检查是否处于跳过健康检查的场景
+        if (ShouldSkipHealthCheck()) {
             lock.unlock();
             std::this_thread::sleep_for(std::chrono::seconds(checkIntervalSeconds));
             continue;
@@ -255,6 +283,30 @@ void HealthChecker::PerformPeriodicHealthCheck()
     }
 }
 
+bool HealthChecker::ShouldSkipHealthCheck()
+{
+    if (!GetInferInstance()->IsLlmEngineReady()) {
+        llmNotReadyCount++;
+
+        // 连续堵塞10分钟，正常上报探测状态
+        if (llmNotReadyCount >= MAX_ENGINE_NOT_READY_COUNT) {
+            ULOG_WARN(SUBMODLE_NAME_HEALTHCHECKER,
+                GenerateHealthCheckerErrCode(WARNING, SUBMODLE_FEATURE_SECURE, CHECK_ERROR),
+                "HealthChecker: LLM engine not ready for " << llmNotReadyCount << " times, will report health status.");
+            return false;
+        }
+
+        // 堵塞10分钟以内跳过健康检查
+        mServiceStatus.store(SERVICE_NORMAL);
+        ULOG_INFO(SUBMODLE_NAME_HEALTHCHECKER,
+            "HealthChecker: LLM engine not ready, skip health check");
+        return true;
+    }
+    
+    llmNotReadyCount = 0;
+    return false;
+}
+
 void HealthChecker::SetSendingMessageStatus(bool sendingMessageStatus) noexcept
 {
     mSendingMessage.store(sendingMessageStatus);
@@ -262,13 +314,16 @@ void HealthChecker::SetSendingMessageStatus(bool sendingMessageStatus) noexcept
 
 void HealthChecker::HandleHealthStatus()
 {
-    // NORMAL、ABNORMAL和BUSY可以互相转换，无需检查状态转移
     ServiceStatus status = CheckSimulateTask();
     std::string errCode;
     const bool isSending = mSendingMessage.load();
-
+ 
     if (status == SERVICE_ABNORMAL) {
-        if (isSending) {
+        if (!mFirstSimulateAbnormalSuppressed) {
+            mFirstSimulateAbnormalSuppressed = true;
+            status = SERVICE_NORMAL;
+        } else if (isSending) {
+            status = SERVICE_NORMAL;
             ULOG_WARN(SUBMODLE_NAME_HEALTHCHECKER,
                 GenerateHealthCheckerErrCode(WARNING, SUBMODLE_FEATURE_SECURE, CHECK_ERROR),
                 "P node is sending a request to D. gRPC may block."
@@ -277,20 +332,14 @@ void HealthChecker::HandleHealthStatus()
             errCode = GenerateHealthCheckerErrCode(ERROR, SUBMODLE_FEATURE_SECURE, STATUS_WARNING);
         }
     } else if (status == SERVICE_NORMAL || status == SERVICE_BUSY) {
-        // normal 和 busy 都当正常，统一上报 071120
+        mFirstSimulateAbnormalSuppressed = false;
         errCode = GenerateHealthCheckerErrCode(INFO, SUBMODLE_FEATURE_SECURE, SIMULATE_NORMAL);
     }
-
+ 
     if (!errCode.empty()) {
         ErrorQueue::GetInstance().EnqueueErrorMessage(errCode, SUBMODLE_NAME_HEALTHCHECKER);
     }
-
-    if (status == SERVICE_ABNORMAL && isSending) {
-        mServiceStatus.store(SERVICE_NORMAL);
-    } else {
-        mServiceStatus.store(status);
-    }
-
+    mServiceStatus.store(status);
     ULOG_INFO(SUBMODLE_NAME_HEALTHCHECKER, "HealthChecker: The simulate infer health check result is "
         << StatusToString(status));
 }
