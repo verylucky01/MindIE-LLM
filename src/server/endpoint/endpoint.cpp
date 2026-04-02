@@ -127,6 +127,10 @@ int EndPoint::StartEndpoint()
         mServerStarted = true;
         ULOG_AUDIT("system", MINDIE_SERVER, "Start mindie server", "success");
     } else {
+        // 多机推理下的slave节点也要开启健康检查，以便将aicore上报给master
+        if (StartHealthChecker() != 0) {
+            return -1;
+        }
         std::cout << "Multi Nodes infer slave instance need not init TokenizerProcessPool and HttpWrapper"
             << std::endl;
         ULOG_INFO(SUBMODLE_NAME_ENDPOINT,

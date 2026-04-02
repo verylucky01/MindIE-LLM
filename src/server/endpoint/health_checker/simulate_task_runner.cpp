@@ -11,13 +11,18 @@
  */
 
 #include "simulate_task_runner.h"
+#include <algorithm>
 #include "log.h"
 #include "dcmi_wrapper.h"
+#include "grpc_communicator.h"
 
 namespace mindie_llm {
 
 constexpr int POLLING_INTERVAL_MS = 1000;
-constexpr int NPU_CHECK_TIMEOUT_S = 6;
+constexpr int NPU_SAMPLES = 3;
+constexpr int NPU_WINDOW_MS = 5000;
+constexpr int NPU_CHECK_COMPLETE_WAIT_SECONDS = 10;
+
 
 SimulateTaskRunner::SimulateTaskRunner()
 {
@@ -25,7 +30,8 @@ SimulateTaskRunner::SimulateTaskRunner()
 }
 
 bool SimulateTaskRunner::Init(std::shared_ptr<ISimulateExecutor> executor,
-                              const std::set<int>& npuDeviceCardIds, int npuThreshold)
+                              const std::set<int>& npuDeviceCardIds, int npuThreshold,
+                              RunMode runMode, int chipPerCard)
 {
     if (isValid_) {
         ULOG_WARN(SUBMODLE_NAME_HEALTHCHECKER,
@@ -33,7 +39,7 @@ bool SimulateTaskRunner::Init(std::shared_ptr<ISimulateExecutor> executor,
             "SimulateTaskRunner::Init: Already initialized");
         return true;
     }
-    if (!executor) {
+    if (!executor && runMode != RunMode::NPU_ONLY) {
         ULOG_ERROR(SUBMODLE_NAME_HEALTHCHECKER,
             GenerateHealthCheckerErrCode(ERROR, SUBMODLE_FEATURE_SECURE, CHECK_ERROR),
             "SimulateTaskRunner::Init: executor must not be null");
@@ -54,11 +60,14 @@ bool SimulateTaskRunner::Init(std::shared_ptr<ISimulateExecutor> executor,
 
     npuThreshold_ = npuThreshold;
     executor_ = std::move(executor);
+    runMode_ = runMode;
+    chipPerCard_ = (chipPerCard > 0) ? chipPerCard : 1;
     npuDeviceCardIds_ = npuDeviceCardIds;
     isValid_ = true;
 
     ULOG_INFO(SUBMODLE_NAME_HEALTHCHECKER, "SimulateTaskRunner::Init: Initialized with "
-        << npuDeviceCardIds_.size() << " NPU device(s).");
+        << npuDeviceCardIds_.size() << " NPU device(s), runMode="
+        << static_cast<int>(runMode_) << ", chipPerCard=" << chipPerCard_);
     return true;
 }
 
@@ -217,6 +226,12 @@ void SimulateTaskRunner::TaskLoop()
         }
 
         TriggerNpuCheck();
+        // slave节点只需要统计npu利用率
+        if (runMode_ == RunMode::NPU_ONLY) {
+            WaitForNpuCheckComplete();
+            continue;
+        }
+
         SimulateResult result = executor_->RunSimulateOnce();
         WaitForNpuCheckComplete();
 
@@ -226,6 +241,13 @@ void SimulateTaskRunner::TaskLoop()
             if (npuUtil > npuThreshold_) {
                 result.status = SimulateResult::Status::BUSY;
                 result.message = "Timeout but AICore usage > " + std::to_string(npuThreshold_) + "%";
+            } else if (slaveNpuReportTimeoutThisRound_.load()) {
+                ULOG_WARN(SUBMODLE_NAME_HEALTHCHECKER,
+                    GenerateHealthCheckerErrCode(WARNING, SUBMODLE_FEATURE_SECURE, CHECK_WARNING),
+                    "SimulateTaskRunner: gRPC communication abnormal (slave NPU report exceeded freshness window). "
+                    "Skip abnormal judgement in this health-check cycle.");
+                result.status = SimulateResult::Status::SUCCESS;
+                result.message = "Timeout ignored due to stale slave NPU report";
             }
         }
 
@@ -267,7 +289,7 @@ void SimulateTaskRunner::TriggerNpuCheck()
 void SimulateTaskRunner::WaitForNpuCheckComplete()
 {
     if (npuUtil_.load() < 0) {
-        auto lastTimePoint = std::chrono::steady_clock::now() + std::chrono::seconds(NPU_CHECK_TIMEOUT_S);
+        auto lastTimePoint = std::chrono::steady_clock::now() + std::chrono::seconds(NPU_CHECK_COMPLETE_WAIT_SECONDS);
         std::unique_lock<std::mutex> locker(npuResultMutex_);
         npuResultCv_.wait_until(locker, lastTimePoint);
     }
@@ -303,13 +325,11 @@ void SimulateTaskRunner::NpuCheckLoop()
 
 void SimulateTaskRunner::CheckAicoreUtilization()
 {
-    DCMIWrapper& dcmiWrapper = DCMIWrapper::GetInstance();
-    int firstNpuId = *(npuDeviceCardIds_.begin());
-    unsigned int maxUtil = 0;
-    unsigned int utilizationRate = 0;
-    constexpr int nSamples = 5;
+    DCMIWrapper &dcmiWrapper = DCMIWrapper::GetInstance();
+    unsigned int maxUtilAcrossCards = 0;
+    const int sampleCount = NPU_SAMPLES;
 
-    auto getUtilizationFunc = dcmiWrapper.GetFunction<int(*)(int, int, int, unsigned int*)>(
+    auto getUtilizationFunc = dcmiWrapper.GetFunction<int (*)(int, int, int, unsigned int *)>(
         "dcmi_get_device_utilization_rate");
     if (!getUtilizationFunc) {
         ULOG_ERROR(SUBMODLE_NAME_HEALTHCHECKER,
@@ -318,24 +338,67 @@ void SimulateTaskRunner::CheckAicoreUtilization()
         return;
     }
 
-    // 多次采样取最大值
-    for (int i = 0; i < nSamples; i++) {
-        // 0: 芯片索引，表示查询NPU的第一个芯片
-        // 2: DCMI参数项，表示查询AI Core利用率
-        int ret = getUtilizationFunc(firstNpuId, 0, 2, &utilizationRate);
-        if (ret != 0) {
-            ULOG_ERROR(SUBMODLE_NAME_HEALTHCHECKER,
-                GenerateHealthCheckerErrCode(ERROR, SUBMODLE_FEATURE_SECURE, CHECK_ERROR),
-                "SimulateTaskRunner: DCMI get AICore failed, error: " << ret);
-            break;
+    // Keep one NPU check window around 5s: scan twice and compensate sleep.
+    const int perSampleTargetMs = std::max(POLLING_INTERVAL_MS, NPU_WINDOW_MS / sampleCount);
+    for (int i = 0; i < sampleCount; i++) {
+        const auto roundStart = std::chrono::steady_clock::now();
+        for (int npuCardId : npuDeviceCardIds_) {
+            unsigned int maxUtilThisCard = 0;
+            for (int chipIdx = 0; chipIdx < chipPerCard_; ++chipIdx) {
+                unsigned int utilizationRate = 0;
+                // chipIdx: 芯片索引；2: 查询AICore 利用率
+                int ret = getUtilizationFunc(npuCardId, chipIdx, 2, &utilizationRate);
+                if (ret != 0) {
+                    ULOG_ERROR(SUBMODLE_NAME_HEALTHCHECKER,
+                        GenerateHealthCheckerErrCode(ERROR, SUBMODLE_FEATURE_SECURE, CHECK_ERROR),
+                        "SimulateTaskRunner: DCMI get AICore failed, card=" << npuCardId
+                                                                             << ", chip=" << chipIdx
+                                                                             << ", error=" << ret);
+                    continue;
+                }
+                maxUtilThisCard = std::max(maxUtilThisCard, utilizationRate);
+            }
+            maxUtilAcrossCards = std::max(maxUtilAcrossCards, maxUtilThisCard);
         }
-        maxUtil = std::max(maxUtil, utilizationRate);
-        std::this_thread::sleep_for(std::chrono::milliseconds(POLLING_INTERVAL_MS));
+        const auto elapsedMs =
+            std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - roundStart);
+        if (elapsedMs.count() < perSampleTargetMs) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(perSampleTargetMs) - elapsedMs);
+        }
     }
 
-    npuUtil_.store(static_cast<int>(maxUtil));
-    ULOG_INFO(SUBMODLE_NAME_HEALTHCHECKER,
-        "SimulateTaskRunner: AICore usage of card " << firstNpuId << " is " << maxUtil << '%');
+    ProcessAndReportNpuUtilization(static_cast<uint32_t>(maxUtilAcrossCards));
+}
+
+void SimulateTaskRunner::ProcessAndReportNpuUtilization(uint32_t localMax)
+{
+    const bool isSlave = (runMode_ == RunMode::NPU_ONLY);
+    auto grpc = GRPCCommunicator::TryGetInstance();
+    const bool hasGrpc = (grpc != nullptr);
+    const bool isMasterNode = (hasGrpc && grpc->IsMaster());
+    slaveNpuReportTimeoutThisRound_.store(false);
+    uint32_t clusterMax = localMax;
+    if (isSlave) {
+        if (hasGrpc) {
+            (void)grpc->SendNpuUtilizationReport(localMax);
+        }
+        npuUtil_.store(static_cast<int>(localMax));
+        // Slave side: only print local NPU utilization each 5s window.
+        ULOG_INFO(SUBMODLE_NAME_HEALTHCHECKER,
+            "SimulateTaskRunner: slave local AICore usage(5s max)=" << localMax << '%');
+    } else {
+        if (isMasterNode) {
+            const uint32_t slaveMax = grpc->GetSlaveMaxNpuUtilizationPercent();
+            const bool timeoutFlag = grpc->ConsumeSlaveNpuReportTimeoutFlag();
+            slaveNpuReportTimeoutThisRound_.store(timeoutFlag);
+            clusterMax = std::max(localMax, slaveMax);
+        }
+        npuUtil_.store(static_cast<int>(clusterMax));
+        ULOG_INFO(SUBMODLE_NAME_HEALTHCHECKER,
+            "SimulateTaskRunner: AICore usage local(max over cards)="
+            << localMax << "%, cluster(max with slaves if exist)="
+            << clusterMax << '%');
+    }
 
     std::unique_lock<std::mutex> locker(npuResultMutex_);
     npuResultCv_.notify_one();

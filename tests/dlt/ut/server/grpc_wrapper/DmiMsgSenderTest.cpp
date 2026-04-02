@@ -11,56 +11,84 @@
  */
 #include <gtest/gtest.h>
 #include "mockcpp/mockcpp.hpp"
+#include <filesystem>
+#include <iostream>
 #include <string>
-#include <thread>
+ 
 #include "dmi_msg_sender.h"
 #include <grpcpp/channel.h>
 #include <grpcpp/create_channel.h>
 #include "health_checker.h"
 #include "config/config_manager.h"
-
+#include "env_util.h"
+ 
 using namespace prefillAndDecodeCommunication;
-
+ 
 namespace grpc {
 bool operator==(const Status& lhs, const Status& rhs)
 {
     return lhs.error_code() == rhs.error_code() &&
            lhs.error_message() == rhs.error_message();
 }
-
+ 
 bool operator!=(const Status& lhs, const Status& rhs)
 {
     return !(lhs == rhs);
 }
 }
-
+ 
 namespace mindie_llm {
-
+ 
 bool operator==(const ServerConfig& lhs, const ServerConfig& rhs)
 {
     return lhs.inferMode == rhs.inferMode &&
            lhs.npuUsageThreshold == rhs.npuUsageThreshold;
 }
-
+ 
 const ServerConfig& GetServerConfig();
-
+ 
 class DmiMsgSenderTest : public testing::Test {
 protected:
     void SetUp() override
     {
+        EnvUtil::GetInstance().SetEnvVar(
+            "RANK_TABLE_FILE",
+            GetParentDirectory() + "/../../config_manager/conf/ranktable.json");
+        EnvUtil::GetInstance().SetEnvVar("MIES_CONTAINER_IP", "127.0.0.1");
+        EnvUtil::GetInstance().SetEnvVar("HOST_IP", "127.0.0.1");
+        EnvUtil::GetInstance().SetEnvVar("MINDIE_CHECK_INPUTFILES_PERMISSION", "1");
+ 
+        ASSERT_TRUE(ConfigManager::CreateInstance(
+            GetParentDirectory() + "/../../config_manager/conf/config_grpc.json"));
+ 
         ServerConfig serverConfig;
         serverConfig.inferMode = "standard";
         serverConfig.npuUsageThreshold = 0;
+        serverConfig.distDPServerEnabled = false;
+ 
         MOCKER_CPP(GetServerConfig, const ServerConfig& (*)())
             .stubs()
             .will(returnValue(serverConfig));
     }
-
+ 
     void TearDown() override
     {
+        EnvUtil::GetInstance().ClearEnvVar("RANK_TABLE_FILE");
+        EnvUtil::GetInstance().ClearEnvVar("MINDIE_CHECK_INPUTFILES_PERMISSION");
+        EnvUtil::GetInstance().ClearEnvVar("MIES_CONTAINER_IP");
+        EnvUtil::GetInstance().ClearEnvVar("HOST_IP");
         GlobalMockObject::verify();
     }
-
+ 
+    static std::string GetParentDirectory()
+    {
+        try {
+            return std::filesystem::current_path().string();
+        } catch (const std::filesystem::filesystem_error& e) {
+            std::cerr << "Error getting current directory: " << e.what() << std::endl;
+            return "";
+        }
+    }
 };
 
 TEST_F(DmiMsgSenderTest, DecodeRequestSender_InitWithoutTlsSuccess)

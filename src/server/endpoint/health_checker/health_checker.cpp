@@ -31,6 +31,11 @@ HealthChecker::HealthChecker() : mRunning(false)
 {
     const ServerConfig& serverConfig = GetServerConfig();
     mNPUThreshold = serverConfig.npuUsageThreshold;
+    mIsCentralizedNode = ConfigManager::GetInstance().IsMultiNodeInfer() &&
+        !serverConfig.distDPServerEnabled;
+    if (mIsCentralizedNode) {
+        mIsCentralizedMaster = GetRanktableParam().isMaster;
+    }
 
     if (mNPUThreshold != 0) {
         mSimulateTaskEnable.store(true);
@@ -174,6 +179,14 @@ void HealthChecker::GetStatusAndErrorList(ServiceStatus &status, std::vector<Err
 
 bool HealthChecker::WaitForLlmEngineReady()
 {
+    // 集中式多机 slave 不持有本地 LlmEngine，若等待 engine ready 会一直阻塞，
+    // 导致 NPU_ONLY 探测任务无法启动。该场景直接进入后续健康检查流程。
+    if (mIsCentralizedNode && !mIsCentralizedMaster) {
+        ULOG_INFO(SUBMODLE_NAME_HEALTHCHECKER,
+            "HealthChecker: centralized slave skip LlmEngine ready wait, enter NPU_ONLY health check.");
+        UpdateStatus(SERVICE_NORMAL);
+        return true;
+    }
     while (mRunning.load()) {
         // 检查当前状态是否为INIT，如果已被外部修改则跳过初始化等待
         ServiceStatus currentStatus = GetServiceStatus();
@@ -242,9 +255,9 @@ void HealthChecker::PerformPeriodicHealthCheck()
     }
 }
 
-void HealthChecker::SetSendingDecodeMessageStatus(bool sendingDecodeMessageStatus) noexcept
+void HealthChecker::SetSendingMessageStatus(bool sendingMessageStatus) noexcept
 {
-    mSendingDecodeMessage.store(sendingDecodeMessageStatus);
+    mSendingMessage.store(sendingMessageStatus);
 }
 
 void HealthChecker::HandleHealthStatus()
@@ -252,10 +265,10 @@ void HealthChecker::HandleHealthStatus()
     // NORMAL、ABNORMAL和BUSY可以互相转换，无需检查状态转移
     ServiceStatus status = CheckSimulateTask();
     std::string errCode;
-    const bool isSendingDecode = mSendingDecodeMessage.load();
+    const bool isSending = mSendingMessage.load();
 
     if (status == SERVICE_ABNORMAL) {
-        if (isSendingDecode) {
+        if (isSending) {
             ULOG_WARN(SUBMODLE_NAME_HEALTHCHECKER,
                 GenerateHealthCheckerErrCode(WARNING, SUBMODLE_FEATURE_SECURE, CHECK_ERROR),
                 "P node is sending a request to D. gRPC may block."
@@ -272,7 +285,7 @@ void HealthChecker::HandleHealthStatus()
         ErrorQueue::GetInstance().EnqueueErrorMessage(errCode, SUBMODLE_NAME_HEALTHCHECKER);
     }
 
-    if (status == SERVICE_ABNORMAL && isSendingDecode) {
+    if (status == SERVICE_ABNORMAL && isSending) {
         mServiceStatus.store(SERVICE_NORMAL);
     } else {
         mServiceStatus.store(status);
@@ -423,7 +436,10 @@ bool HealthChecker::CreateAndInitSimulateRunner()
         mSimulateRunner = std::make_unique<SimulateTaskRunner>();
     }
     
-    if (!mSimulateRunner->Init(mSimulateExecutor, mNpuDeviceCardIds, mNPUThreshold)) {
+    SimulateTaskRunner::RunMode runMode = (mIsCentralizedNode && !mIsCentralizedMaster)
+        ? SimulateTaskRunner::RunMode::NPU_ONLY
+        : SimulateTaskRunner::RunMode::SIMULATE_AND_NPU;
+    if (!mSimulateRunner->Init(mSimulateExecutor, mNpuDeviceCardIds, mNPUThreshold, runMode, mChipPerCard)) {
         ULOG_ERROR(SUBMODLE_NAME_HEALTHCHECKER,
             GenerateHealthCheckerErrCode(ERROR, SUBMODLE_FEATURE_SECURE, CHECK_ERROR),
             "HealthChecker: Failed to init simulate runner");
@@ -439,33 +455,44 @@ bool HealthChecker::InitNpuDeviceCardIds()
     auto &configManager = mindie_llm::ConfigManager::GetInstance();
     auto &serverConfig = configManager.GetServerConfig();
     const auto& npuDeviceIds = configManager.GetBackendConfig().npuDeviceIds;
+    const auto loadNpuIdsFromBackend = [this, &npuDeviceIds]() -> bool {
+        if (npuDeviceIds.empty() || npuDeviceIds[0].empty()) {
+            return false;
+        }
+        std::unique_lock<std::shared_mutex> lock(mNpuDevicesMutex);
+        mNpuDeviceCardIds.clear();
+        for (const auto &id : npuDeviceIds[0]) {
+            // backend 配置通常按逻辑芯片 ID 下发；聚合到卡维度以适配 A2/A3
+            mNpuDeviceCardIds.insert(static_cast<int>(id) / mChipPerCard);
+        }
+        return !mNpuDeviceCardIds.empty();
+    };
 
     // PD分离模式：NPU卡号已经被Controller下发过
+    // 多机 slave 场景下 backendConfig.npuDeviceIds 已由 ranktable.local.device 覆盖为本机设备。
     if (serverConfig.inferMode == INFER_MODE_DMI) {
-        if (mNpuDeviceCardIds.empty()) {
+        {
+            std::shared_lock<std::shared_mutex> lock(mNpuDevicesMutex);
+            if (!mNpuDeviceCardIds.empty()) {
+                return true;
+            }
+        }
+        if (!loadNpuIdsFromBackend()) {
             ULOG_ERROR(SUBMODLE_NAME_HEALTHCHECKER,
                 GenerateHealthCheckerErrCode(ERROR, SUBMODLE_FEATURE_SECURE, CHECK_ERROR),
-                "HealthChecker: NPU device IDs are empty in request body from Controller");
+                "HealthChecker: NPU device IDs are empty in DMI mode. "
+                "Neither UpdateNpuDeviceIds nor backendConfig provides valid IDs.");
             return false;
         }
         return true;
     }
 
     // 标准/混布模式：backendConfig配置不能为空
-    if (npuDeviceIds.empty() || npuDeviceIds[0].empty()) {
+    if (!loadNpuIdsFromBackend()) {
         ULOG_ERROR(SUBMODLE_NAME_HEALTHCHECKER,
             GenerateHealthCheckerErrCode(ERROR, SUBMODLE_FEATURE_SECURE, CHECK_ERROR),
             "HealthChecker: NPU device id list is empty in config");
         return false;
-    }
-
-    // 直接使用配置文件中的设备ID
-    {
-        std::unique_lock<std::shared_mutex> lock(mNpuDevicesMutex);
-        mNpuDeviceCardIds.clear();
-        for (const auto& id : npuDeviceIds[0]) {
-            mNpuDeviceCardIds.insert(static_cast<int>(id));
-        }
     }
     return true;
 }
@@ -580,15 +607,15 @@ SimulateResult HealthChecker::RunHttpTimedHealthCheck(uint32_t waitTime)
     return result;
 }
 
-SendingDecodeMessageScope::SendingDecodeMessageScope(HealthChecker &checker) noexcept
+SendingMessageScope::SendingMessageScope(HealthChecker &checker) noexcept
     : checker_(checker)
 {
-    checker_.SetSendingDecodeMessageStatus(true);
+    checker_.SetSendingMessageStatus(true);
 }
 
-SendingDecodeMessageScope::~SendingDecodeMessageScope() noexcept
+SendingMessageScope::~SendingMessageScope() noexcept
 {
-    checker_.SetSendingDecodeMessageStatus(false);
+    checker_.SetSendingMessageStatus(false);
 }
 
 } // namespace mindie_llm

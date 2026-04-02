@@ -408,6 +408,10 @@ message RegisterRequestMsg {
   string slave_ip = 1;
 }
 
+message NpuUtilizationReport {
+  uint32 max_aicore_utilization_percent = 1;
+}
+
 message MasterToSlaveMsg{
   int32 source_dp_rank = 1;
   int32 target_dp_rank = 2;
@@ -420,6 +424,7 @@ message SlaveToMasterMsg{
   oneof result {
     RegisterRequestMsg register_request = 3;
     ExecuteResponse execute_response = 4;
+    NpuUtilizationReport npu_util_report = 5;
   }
 }
 

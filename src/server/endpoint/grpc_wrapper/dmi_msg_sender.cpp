@@ -53,10 +53,10 @@ namespace mindie_llm {
         bool DecodeRequestSender::SendDecodeRequestMsg(const prefillAndDecodeCommunication::DecodeParameters &message,
             const std::string& reqId, std::string& errMsg)
         {
-            std::unique_ptr<SendingDecodeMessageScope> sendingDecodeScope;
+            std::unique_ptr<SendingMessageScope> sendingScope;
             if (HealthChecker::GetInstance().IsEnabled()) {
-                sendingDecodeScope =
-                    std::make_unique<SendingDecodeMessageScope>(HealthChecker::GetInstance());
+                sendingScope =
+                    std::make_unique<SendingMessageScope>(HealthChecker::GetInstance());
             }
             {
                 std::unique_lock <std::mutex> lock(lock_);
@@ -99,6 +99,11 @@ namespace mindie_llm {
 
         bool KvReleaseSender::SendKvReleaseMsg(const prefillAndDecodeCommunication::RequestId &message)
         {
+            std::unique_ptr<SendingMessageScope> sendingScope;
+            if (HealthChecker::GetInstance().IsEnabled()) {
+                sendingScope =
+                    std::make_unique<SendingMessageScope>(HealthChecker::GetInstance());
+            }
             std::unique_lock<std::mutex> lock(lock_);
             grpc::ClientContext context;
             // 设置超时为10秒
