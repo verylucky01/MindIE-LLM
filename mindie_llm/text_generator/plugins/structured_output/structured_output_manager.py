@@ -8,8 +8,6 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 import hashlib
-import json
-import threading
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
@@ -479,7 +477,7 @@ class StructuredOutputManager:
         Returns:
             bitmask 数组 [batch_size, vocab_size // 32]，或 None（如果没有需要约束的请求）
         """
-        if not cache_ids:
+        if cache_ids is None or len(cache_ids) == 0:
             return None
 
         has_any_grammar = any(state_key in self._request_grammars for state_key in cache_ids)
@@ -496,9 +494,23 @@ class StructuredOutputManager:
                 continue
             grammar = self._request_grammars.get(state_key)
             if grammar is None or grammar.is_terminated():
+                logger.debug(
+                    "[StructuredOutput][Bitmask] state_key=%s skipped: grammar=%s terminated=%s "
+                    "→ full_mask applied (all tokens allowed)",
+                    state_key,
+                    "None" if grammar is None else "exists",
+                    True if grammar is None else grammar.is_terminated(),
+                )
                 continue
             try:
                 grammar.fill_bitmask(bitmask, idx)
+                allowed_tokens = parse_bitmask_allowed_tokens(bitmask[idx:idx + 1], self.vocab_size)
+                logger.debug(
+                    "[StructuredOutput][Bitmask] state_key=%s tried=%s accepted=%s terminated=%s "
+                    "allowed_token_count=%s/%s allowed_tokens=%s", state_key, grammar.num_tried_tokens,
+                    grammar.num_processed_tokens, grammar.is_terminated(), len(allowed_tokens),
+                    self.vocab_size, allowed_tokens,
+                )
             except Exception as e:
                 logger.warning(f"Failed to fill bitmask for state_key {state_key}: {e}")
 
@@ -583,7 +595,9 @@ class StructuredOutputManager:
         cache_ids: List[int],
         response_format_array: List[Optional[str]],
     ) -> Optional[np.ndarray]:
-        if not cache_ids or not response_format_array:
+        if cache_ids is None or response_format_array is None:
+            return None
+        if len(cache_ids) == 0 or len(response_format_array) == 0:
             return None
 
         has_constraint = any(rf is not None for rf in response_format_array)
@@ -671,8 +685,25 @@ class StructuredOutputManager:
                 response_format_array=response_format_array,
             )
         if bitmask is not None:
+            per_seq_allowed = [
+                parse_bitmask_allowed_tokens(bitmask[i:i + 1], self.vocab_size)
+                for i in range(bitmask.shape[0])
+            ]
+            per_seq_counts = [len(t) for t in per_seq_allowed]
+            constrained_count = sum(1 for c in per_seq_counts if c < self.vocab_size)
+            logger.debug(
+                "[StructuredOutput][BitmaskAssign] is_prefill=%s cache_ids=%s "
+                "bitmask_shape=%s constrained_seq_count=%s allowed_counts_per_seq=%s",
+                input_metadata.is_prefill, list(cache_ids), bitmask.shape,
+                constrained_count, per_seq_counts,
+            )
             sampling_metadata.guided_bitmask = bitmask
-    
+        else:
+            logger.debug(
+                "[StructuredOutput][BitmaskAssign] is_prefill=%s cache_ids=%s bitmask=None (no constraint applied)",
+                input_metadata.is_prefill, list(cache_ids),
+            )
+
     def update_states_after_sampling(
         self,
         cache_ids: List[int],
@@ -688,8 +719,11 @@ class StructuredOutputManager:
         Returns:
             每个序列的结构接受状态数组，与 cache_ids 维度对齐
         """
-        if not cache_ids or token_ids is None:
-            return np.ones(len(cache_ids) if cache_ids else 0, dtype=bool)
+        if token_ids is None:
+            n = 0 if cache_ids is None else len(cache_ids)
+            return np.ones(n, dtype=bool)
+        if cache_ids is None or len(cache_ids) == 0:
+            return np.ones(0, dtype=bool)
 
         flattened_token_ids = np.asarray(token_ids).reshape(-1)
         is_accepted_array = np.ones(len(cache_ids), dtype=bool)
@@ -754,7 +788,7 @@ class StructuredOutputManager:
                 )
                 continue
             if self._accept_tokens_on_grammar(normalized_state_key, grammar, replay_tokens):
-                logger.info(
+                logger.debug(
                     f"[StructuredOutput][Prefill] replayed {len(replay_tokens)} predicted tokens "
                     f"for state_key={normalized_state_key}"
                 )
@@ -792,8 +826,12 @@ class StructuredOutputManager:
                     continue
                 if replay_position == len(replay_tokens):
                     continue
-                if source != "predicted_token_ids" and replay_position > len(replay_tokens):
-                    logger.warning(
+                if replay_position > len(replay_tokens):
+                    # predicted_token_ids 可能仅包含 P 节点预生成的 token，D 节点自身采样后
+                    # update_states_after_sampling 已将 grammar 推进；此时 replay_position >
+                    # len(replay_tokens) 属于正常的「grammar 比 predicted_token_ids 超前」，
+                    # 不应回退 grammar 状态。
+                    logger.debug(
                         "[StructuredOutput][DecodeSync] state_key=%s grammar replay_pos=%s exceeds replay_count=%s "
                         "(source=%s), keep current grammar to avoid rollback",
                         normalized_state_key, replay_position, len(replay_tokens), source,
@@ -821,32 +859,34 @@ class StructuredOutputManager:
                     )
                     continue
                 logger.debug(
-                    "[StructuredOutput][DecodeSync] state_key=%s pos=%s != replay_len=%s (%s), rebuild",
+                    "[StructuredOutput][DecodeSync] state_key=%s pos=%s != replay_len=%s (%s), rebuild "
+                    "grammar_before=(tried=%s, accepted=%s)",
                     normalized_state_key, replay_position, len(replay_tokens), source,
+                    replay_position, accepted_count,
                 )
                 self._request_grammars.pop(normalized_state_key, None)
 
+            # grammar 为 None（首次 Decode）或上方 rebuild 路径弹出后，从初始态重建并全量回放。
+            logger.debug(
+                "[StructuredOutput][DecodeSync] state_key=%s rebuild start: "
+                "replay_tokens_len=%s source=%s grammar_was_none=%s",
+                normalized_state_key, len(replay_tokens), source,
+                normalized_state_key not in self._request_grammars,
+            )
             replay_count = self._build_and_replay_structured_output_state(
                 normalized_state_key, response_format_array[idx], replay_tokens
             )
             extra = ""
             if replay_count == 0 and replay_tokens:
                 extra = f", input_replay_len={len(replay_tokens)}"
+            grammar_after = self._request_grammars.get(normalized_state_key)
+            tried_after = 0 if grammar_after is None else int(grammar_after.num_tried_tokens)
+            accepted_after = 0 if grammar_after is None else int(grammar_after.num_processed_tokens)
+            terminated_after = True if grammar_after is None else grammar_after.is_terminated()
             logger.debug(
                 f"[StructuredOutput][Recompute] synced state_key={normalized_state_key}, "
-                f"replay_accepted={replay_count}, source={source}{extra}"
-                )
-            self._request_grammars.pop(normalized_state_key, None)
-
-            replay_count = self._build_and_replay_structured_output_state(
-                normalized_state_key, response_format_array[idx], replay_tokens
-            )
-            extra = ""
-            if replay_count == 0 and replay_tokens:
-                extra = f", input_replay_len={len(replay_tokens)}"
-            logger.info(
-                f"[StructuredOutput][Recompute] synced state_key={normalized_state_key}, "
-                f"replay_accepted={replay_count}, source={source}{extra}"
+                f"replay_accepted={replay_count}, source={source}{extra}, "
+                f"grammar_after=(tried={tried_after}, accepted={accepted_after}, terminated={terminated_after})"
             )
 
     def _resolve_replay_tokens(
