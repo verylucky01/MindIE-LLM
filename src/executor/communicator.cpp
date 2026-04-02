@@ -448,16 +448,17 @@ bool Communicator::SendAsyncRequestToLocal(ExecuteRequest &request)
             ipcCommunicatorSharedSync_.get()
         };
     } else if (request.execute_type() == MODEL_INFER ||
-               request.execute_type() == TEXT_GENERATOR_CLEANUP) {
+               request.execute_type() == TEXT_GENERATOR_CLEANUP ||
+               request.execute_type() == EOS_CLEANUP) {
         targets = {ipcCommunicatorExecute_.get()};
     } else if (request.execute_type() == KV_TRANSFER) {
         targets = {ipcCommunicatorKVTransfer_.get()};
     } else if (request.execute_type() == PD_LINK ||
-        request.execute_type() == PD_LINK_STATUS_QUERY ||
-        request.execute_type() == RECOVER_COMMAND_EXEC ||
-        request.execute_type() == START_COMMAND_EXEC ||
-        request.execute_type() == PAUSE_COMMAND_EXEC ||
-        request.execute_type() == CLEAR_COMMAND_EXEC) {
+               request.execute_type() == PD_LINK_STATUS_QUERY ||
+               request.execute_type() == RECOVER_COMMAND_EXEC ||
+               request.execute_type() == START_COMMAND_EXEC ||
+               request.execute_type() == PAUSE_COMMAND_EXEC ||
+               request.execute_type() == CLEAR_COMMAND_EXEC) {
         targets = {ipcCommunicatorSharedSync_.get()};
     } else {
         MINDIE_LLM_LOG_ERROR("Unsupported execute type for asynchronous request: " << request.execute_type());
