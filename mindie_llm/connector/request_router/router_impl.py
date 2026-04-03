@@ -437,8 +437,6 @@ class RouterImpl:
             host_ips=self.config.remote_link_host_ip,
             remote_super_device_ids=self.config.remote_super_device_id if self.config.remote_super_device_id else None,
             remote_super_pod_ids=self.config.remote_super_pod_id if self.config.remote_super_pod_id else None,
-            remote_dp_instance_ids=self.config.remote_dp_instance_ids,
-            local_dp_instance_id=self.config.local_dp_instance_id,
         )
         logger.debug(f"[Config]\t>>> rank: {self.rank} Create all clusters kvcache links finish...")
 

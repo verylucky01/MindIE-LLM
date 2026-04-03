@@ -115,8 +115,6 @@ class LinkParams:
     host_ips: Dict[int, List[str]]
     remote_super_device_ids: Dict[int, List[int]] | None = None
     remote_super_pod_ids: Dict[int, List[int]] | None = None
-    remote_dp_instance_ids: Dict[int, int] | None = None
-    local_dp_instance_id: int | None = None
 
 
 class RankInfo:
@@ -311,9 +309,7 @@ class SeparateDeploymentEngine:
 
     def link(self, 
              cluster_rank_info: Dict[int, int], 
-             rank_table: str, 
-             remote_dp_instance_id: int, 
-             local_dp_instance_id: int
+             rank_table: str
              ):
         rank_table_dict = json.loads(rank_table)
         server_count = rank_table_dict.get("server_count")
@@ -339,11 +335,6 @@ class SeparateDeploymentEngine:
             link_name = f"link{device_ip1}:{device_ip2}"
         else:
             link_name = f"link{device_ip2}:{device_ip1}"
-
-        if remote_dp_instance_id < local_dp_instance_id:
-            link_name = link_name + f"_{remote_dp_instance_id}:{local_dp_instance_id}"
-        else:
-            link_name = link_name + f"_{local_dp_instance_id}:{remote_dp_instance_id}"
 
         logger.info(f"Link params cluster_rank_info: {cluster_rank_info}, rank_table: {rank_table}, "
                     f"link_name: {link_name}.")
@@ -469,8 +460,6 @@ class SeparateDeploymentWorker:
             'remote_device_ip': params.remote_device_ips[instance_id][index],
             'remote_host_ip': params.host_ips[instance_id][index],
             'retry_count': 0,
-            'remote_dp_instance_id': params.remote_dp_instance_ids[instance_id],
-            'local_dp_instance_id': params.local_dp_instance_id,
         }
         if params.remote_super_device_ids is not None:
             single_link_params['remote_super_device_id'] = params.remote_super_device_ids[instance_id][index]
@@ -654,15 +643,11 @@ class SeparateDeploymentWorker:
             
             cluster_rank_info = rank_info.get_cluster_rank_info()
             rank_table = rank_info.get_rank_table()
-            remote_dp_instance_id = link_params['remote_dp_instance_id']
-            local_dp_instance_id = link_params['local_dp_instance_id']
             
             # 尝试链接
             result = self.separate_deployment_engine.link(
                 cluster_rank_info, 
-                rank_table, 
-                remote_dp_instance_id, 
-                local_dp_instance_id
+                rank_table
                 )
             
             # 从结果中提取状态和comm_id

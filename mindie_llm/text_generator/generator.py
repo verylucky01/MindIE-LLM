@@ -119,9 +119,7 @@ class PDInterface:
                                             remote_device_ips=params.remote_device_ips, 
                                             host_ips=params.host_ips, 
                                             remote_super_device_ids=params.remote_super_device_ids,
-                                            remote_super_pod_ids=params.remote_super_pod_ids,
-                                            remote_dp_instance_ids=params.remote_dp_instance_ids,
-                                            local_dp_instance_id=params.local_dp_instance_id
+                                            remote_super_pod_ids=params.remote_super_pod_ids
                                             )
 
     def unlink(self, remote_cluster_id: int) -> Union[MindieLlmStatusCode, ErrorCode]:

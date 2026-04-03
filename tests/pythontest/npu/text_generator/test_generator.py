@@ -881,9 +881,7 @@ class TestPDInterface(unittest.TestCase):
         remote_device_ips = {1: ["192.168.1.2", "192.168.1.3"]}
         host_ips = {1: ["192.168.1.100", "192.168.1.101"]}
         remote_super_device_ids = {1: [8650754, 8650755]}
-        remote_super_pod_ids = {1: [0, 0]}
-        remote_dp_instance_ids = {1: [5, 6]}
-        local_dp_instance_id = 99        
+        remote_super_pod_ids = {1: [0, 0]}    
         
         self.pd_interface.link(
             remote_cluster_ids=remote_cluster_ids,
@@ -892,8 +890,6 @@ class TestPDInterface(unittest.TestCase):
             host_ips=host_ips,
             remote_super_device_ids=remote_super_device_ids,
             remote_super_pod_ids=remote_super_pod_ids,
-            remote_dp_instance_ids=remote_dp_instance_ids,
-            local_dp_instance_id=local_dp_instance_id
         )
         
         worker_mock.link.assert_called_once_with(
@@ -902,9 +898,7 @@ class TestPDInterface(unittest.TestCase):
             remote_device_ips=remote_device_ips,
             host_ips=host_ips,
             remote_super_device_ids=remote_super_device_ids,
-            remote_super_pod_ids=remote_super_pod_ids,
-            remote_dp_instance_ids=remote_dp_instance_ids,
-            local_dp_instance_id=local_dp_instance_id
+            remote_super_pod_ids=remote_super_pod_ids
         )
 
     def test_unlink(self):

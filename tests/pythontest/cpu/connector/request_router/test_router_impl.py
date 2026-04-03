@@ -64,13 +64,11 @@ class TestRouterImpl(unittest.TestCase):
         self.router.generator = self.mock_generator
         self.router.config = Mock(spec=DmiConfig)
         self.router.config.distributed_enable = False
-        self.router.config.remote_dp_instance_ids = {}
         self.router.config.remote_link_device_physical_id = {}
         self.router.config.remote_link_host_ip = {}
         self.router.config.remote_link_device_ips = {}
         self.router.config.remote_super_device_id = None
         self.router.config.remote_super_pod_id = None
-        self.router.config.local_dp_instance_id = 0
 
     def test_init(self):
         test_router = RouterImpl()
@@ -321,8 +319,6 @@ class TestRouterImpl(unittest.TestCase):
         self.router.config.remote_link_host_ip = []
         self.router.config.remote_super_device_id = None
         self.router.config.remote_super_pod_id = None
-        self.router.config.remote_dp_instance_ids = []
-        self.router.config.local_dp_instance_id = None
         self.mock_generator.link.return_value = []
         self.router.pd_role(mock_request)
 
@@ -337,7 +333,6 @@ class TestRouterImpl(unittest.TestCase):
         self.router.config.remote_unlink_cluster_id = {0: [1001, 1002]}
         self.router.config.need_switch = False
         self.router.config.remote_link_cluster_id = {}
-        self.router.config.local_dp_instance_id = 0 
         
         self.mock_generator.unlink_batch.side_effect = Exception("ACL stream synchronize failed")
         
@@ -358,7 +353,6 @@ class TestRouterImpl(unittest.TestCase):
         self.router.config.remote_unlink_cluster_id = {0: [1001]}
         self.router.config.need_switch = False
         self.router.config.remote_link_cluster_id = {}
-        self.router.config.local_dp_instance_id = 0
         
         self.mock_generator.unlink_batch.side_effect = ValueError("some other error")
         
