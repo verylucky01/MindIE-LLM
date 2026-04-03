@@ -16,7 +16,7 @@ import json
 import numpy as np
 
 from transformers import AutoTokenizer
-from mindie_llm.connector.common import send_model_execute_response, send_transfer_response, send_command_response
+from mindie_llm.connector.common import send_model_execute_response, send_transfer_response, send_command_response, send_recover_command_response
 from mindie_llm.connector.common.response_builder import ExecuteResponseBuilder
 from mindie_llm.connector.common.input_metadata_builder import (
     convert_execute_model_request_to_input_metadata_composite,
@@ -468,7 +468,7 @@ class RouterImpl:
         logger.debug("[Model]\t>>> rank-%s execute recover command: %s", self.rank, command)
         ret_dict = self.generator.execute_recover_command(command)
         proto_response = ExecuteResponseBuilder.build_from_recover_command_result(ret_dict, command)
-        send_command_response(proto_response)
+        send_recover_command_response(proto_response)
 
     def finalize(self):
         self.metrics.output()

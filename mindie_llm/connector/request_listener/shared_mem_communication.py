@@ -181,7 +181,7 @@ class SharedMemoryChannel:
 class SharedMemCommunication:
     _instance = None
     # shared_sync_link: shared by pd_link, lora_load and lora_unload, which is not thread-safe and cannot be reentrant.
-    CHANNEL_NAMES = ["execute", "shared_sync_link", "transfer"]
+    CHANNEL_NAMES = ["execute", "shared_sync_link", "transfer", "recover_command"]
 
     __slots__ = [
         "config",
@@ -297,9 +297,8 @@ class SharedMemCommunication:
             execute_channel.send_message(response, buffer_offset=offset)
             return
 
-        # Recover commands reuse the shared_sync_link channel.
         if is_recover_command:
-            response_channel = self._channels[shared_sync_link_key][response_key]
+            response_channel = self._channels["recover_command"][response_key]
             offset = (self.config.local_rank % self.config.npu_num_per_dp) * \
                 SharedMemoryChannel.RECOVER_COMMAND_RESP_SIZE
             response_channel.send_message(response, buffer_offset=offset)

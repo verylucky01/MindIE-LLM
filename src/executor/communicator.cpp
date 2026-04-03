@@ -49,6 +49,7 @@ Communicator::Communicator(std::unordered_map<std::string, std::string> &config,
         std::vector<std::string> slaveIPs;
         mindie_llm::Split(config.at("slaveIPs"), ",", slaveIPs);
         size_t slaveCount = slaveIPs.size();
+        slaveNum_ = slaveCount;
         size_t dpNumPerNode = intraNodeTP ? 1 : std::stoul(config.at("dp")) / (slaveCount + 1);
         if (intraNodeTP || static_cast<std::size_t>(dpRankIdx_) < dpNumPerNode) {
             remoteSlaveIP_ = ""; // The first segment of DP ranks in Master node does not have remote DP rank.
@@ -82,6 +83,13 @@ bool Communicator::InitIPCCommunicators(const std::string &sharedMemPrefix, uint
         InitSingleIPCCommunicator(sharedMemPrefix + "_shared_sync_link", semConfig, sharedSyncShmConfig);
     if (ipcCommunicatorSharedSync_ == nullptr) {
         MINDIE_LLM_LOG_ERROR("Failed to initialize IPC Communicator for Shared Link channel.");
+        return false;
+    }
+    ShmSizeConfig recoverCommandShmConfig{RECOVER_SHARED_MEMORY_SIZE, RECOVER_SHARED_MEMORY_SIZE};
+    ipcCommunicatorRecoverCommand_ =
+        InitSingleIPCCommunicator(sharedMemPrefix + "_recover_command", semConfig, recoverCommandShmConfig);
+    if (ipcCommunicatorRecoverCommand_ == nullptr) {
+        MINDIE_LLM_LOG_ERROR("Failed to initialize IPC Communicator for Recover Command channel.");
         return false;
     }
 
@@ -168,6 +176,12 @@ bool Communicator::InitGRPCCommunicator(std::unordered_map<std::string, std::str
             MINDIE_LLM_LOG_ERROR("Failed to register request handler for slave node.");
             return false;
         }
+        RequestHandler recoverRequestFromMasterHandler =
+            std::bind(&Communicator::SlaveNodeGRPCRecoverRequestHandler, this, std::placeholders::_1);
+        if (!grpcCommunicator_->RegisterRecoverRequestHandler(recoverRequestFromMasterHandler, dpRankIdx_)) {
+            MINDIE_LLM_LOG_ERROR("Failed to register recover request handler for slave node.");
+            return false;
+        }
     }
 
     auto itrFindLwdMultiNodesEn = config.find("lwd_multi_nodes_enable");
@@ -236,8 +250,19 @@ bool Communicator::SendSharedSyncRequestAndReceive(ExecuteRequest &request, std:
         }
         responses.emplace_back(std::move(ipcResponse));
     }
+
     // Wait until the response is received from remote slave node if grpcCommunicator_ is initialized.
     if (grpcCommunicator_ != nullptr) {
+        if (!ReceiveSyncResponsesFromRemote(responses)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool Communicator::ReceiveSyncResponsesFromRemote(std::vector<ExecuteResponse> &responses)
+{
+    for (uint32_t i = 0; i < slaveNum_; i++) {
         ExecuteResponse grpcResponse;
         if (!grpcCommunicator_->GetSyncResponse(grpcResponse, dpRankIdx_)) {
             MINDIE_LLM_LOG_ERROR("Failed to receive a sync response from remote slave node.");
@@ -250,8 +275,8 @@ bool Communicator::SendSharedSyncRequestAndReceive(ExecuteRequest &request, std:
 
 bool Communicator::SendRecoverCommandRequestAndReceive(ExecuteRequest &request, std::vector<ExecuteResponse> &responses)
 {
-    if (ipcCommunicatorSharedSync_ != nullptr) {
-        if (!ipcCommunicatorSharedSync_->SendMessageViaSM(request)) {
+    if (ipcCommunicatorRecoverCommand_ != nullptr) {
+        if (!ipcCommunicatorRecoverCommand_->SendMessageViaSM(request)) {
             MINDIE_LLM_LOG_ERROR("Failed to send a sync recover command request to local workers.");
             return false;
         }
@@ -265,20 +290,16 @@ bool Communicator::SendRecoverCommandRequestAndReceive(ExecuteRequest &request, 
     }
 
     // Wait until the responses are received.
-    if (ipcCommunicatorSharedSync_ != nullptr) {
-        if (!ipcCommunicatorSharedSync_->ReceiveRecoverCommandResponses(responses)) {
+    if (ipcCommunicatorRecoverCommand_ != nullptr) {
+        if (!ipcCommunicatorRecoverCommand_->ReceiveRecoverCommandResponses(responses)) {
             MINDIE_LLM_LOG_ERROR("Failed to receive a sync recover command responses from local executors.");
             return false;
         }
     }
-
     if (grpcCommunicator_ != nullptr) {
-        ExecuteResponse grpcResponse;
-        if (!grpcCommunicator_->GetSyncResponse(grpcResponse, dpRankIdx_)) {
-            MINDIE_LLM_LOG_ERROR("Failed to receive a sync recover command response from remote slave node.");
+        if (!ReceiveSyncResponsesFromRemote(responses)) {
             return false;
         }
-        responses.emplace_back(std::move(grpcResponse));
     }
     return true;
 }
@@ -317,10 +338,11 @@ bool Communicator::LaunchIPCHandleResponseThreads(ResponseHandler handler)
         MINDIE_LLM_LOG_ERROR("Failed to register and start handler for KV Transfer channel.");
         return false;
     }
+
     if (msRole_ == MasterSlaveRole::SLAVE) {
         // Only slave node needs to asynchronously send sync response to master node.
         if (!RegisterAndStartIPCHandler(ipcCommunicatorSharedSync_, responseHandler)) {
-            MINDIE_LLM_LOG_ERROR("Failed to register and start handler for PD Link channel.");
+            MINDIE_LLM_LOG_ERROR("Failed to register and start handler for Shared Sync channel.");
             return false;
         }
     }
@@ -360,6 +382,39 @@ bool Communicator::SlaveNodeGRPCRequestHandler(ExecuteRequest &request)
         }
     }
     return true;
+}
+
+bool Communicator::SlaveNodeGRPCRecoverRequestHandler(ExecuteRequest &request)
+{
+    if (ipcCommunicatorRecoverCommand_ != nullptr) {
+        if (!ipcCommunicatorRecoverCommand_->SendMessageViaSM(request)) {
+            MINDIE_LLM_LOG_ERROR("Failed to send a sync recover command request to local workers.");
+            return false;
+        }
+    }
+    // Wait until the responses are received.
+    std::vector<ExecuteResponse> responses;
+    if (ipcCommunicatorRecoverCommand_ != nullptr) {
+        if (!ipcCommunicatorRecoverCommand_->ReceiveRecoverCommandResponses(responses)) {
+            MINDIE_LLM_LOG_ERROR("Failed to receive a sync recover command responses from local executors.");
+            return false;
+        }
+    }
+    ExecuteResponse response = AggregateToOneResponse(responses);
+    return SendAsyncReponseToRemote(response);
+}
+
+ExecuteResponse Communicator::AggregateToOneResponse(const std::vector<ExecuteResponse> &responses)
+{
+    // If any command fails, return the first failed response.
+    // Otherwise, return the first response (all responses' command_result should be success in this case).
+    uint32_t success_result = 0;
+    for (const auto &response : responses) {
+        if (response.recover_command_response().command_result() != success_result) {
+            return response;
+        }
+    }
+    return responses[0];
 }
 
 bool Communicator::SlaveNodeIPCResponseHandler(ExecuteResponse &response)
@@ -525,6 +580,10 @@ void Communicator::CleanUp()
     if (ipcCommunicatorKVTransfer_) {
         ipcCommunicatorKVTransfer_->CleanUp();
         ipcCommunicatorKVTransfer_.reset();
+    }
+    if (ipcCommunicatorRecoverCommand_) {
+        ipcCommunicatorRecoverCommand_->CleanUp();
+        ipcCommunicatorRecoverCommand_.reset();
     }
     grpcCommunicator_.reset();
 }

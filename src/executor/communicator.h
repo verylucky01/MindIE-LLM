@@ -69,9 +69,15 @@ private:
 
     bool SlaveNodeGRPCRequestHandler(ExecuteRequest &request);
 
+    bool SlaveNodeGRPCRecoverRequestHandler(ExecuteRequest &request);
+
+    ExecuteResponse AggregateToOneResponse(const std::vector<ExecuteResponse> &responses);
+
     bool SlaveNodeIPCResponseHandler(ExecuteResponse &response);
 
     bool SendAsyncRequestToLocal(ExecuteRequest &request);
+
+    bool ReceiveSyncResponsesFromRemote(std::vector<ExecuteResponse> &responses);
 
     bool isMultiNodesInfer_;
     bool layerwiseDisaggregated_{false};
@@ -90,6 +96,7 @@ private:
     std::shared_ptr<IPCCommunicator> ipcCommunicatorSharedSync_;
     std::shared_ptr<IPCCommunicator> ipcCommunicatorKVTransfer_;
     std::shared_ptr<IPCCommunicator> ipcCommunicatorExecuteError_;
+    std::shared_ptr<IPCCommunicator> ipcCommunicatorRecoverCommand_;
 
     std::unique_ptr<std::thread> handleExecuteErrorThread_{nullptr};
 };

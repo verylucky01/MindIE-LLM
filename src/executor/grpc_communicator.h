@@ -83,6 +83,8 @@ public:
 
     bool RegisterRequestHandler(RequestHandler handler, int dpRankIdx); // Only for slave node
 
+    bool RegisterRecoverRequestHandler(RequestHandler handler, int dpRankIdx); // Only for slave node
+
     bool RegisterResponseHandler(ResponseHandler handler, int dpRankIdx); // Only for master node
 
     void HandleRequestFromMaster(ExecuteRequest &request, int targetDPRank); // Only for slave node
@@ -162,6 +164,7 @@ private:
     std::thread slaveWorkerThread_;
     std::unique_ptr<grpc::ClientContext> context_;
     ConcurrentMap<int, RequestHandler> requestHandlers_;
+    ConcurrentMap<int, RequestHandler> recoverRequestHandlers_;
 
     struct SlaveNpuSample {
         uint32_t maxAicoreUtilizationPercent{0};

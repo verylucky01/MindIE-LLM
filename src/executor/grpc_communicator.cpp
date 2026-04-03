@@ -521,6 +521,11 @@ bool GRPCCommunicator::RegisterRequestHandler(RequestHandler handler, int dpRank
     return RegisterHandler(requestHandlers_, dpRankIdx, handler);
 }
 
+bool GRPCCommunicator::RegisterRecoverRequestHandler(RequestHandler handler, int dpRankIdx)
+{
+    return RegisterHandler(recoverRequestHandlers_, dpRankIdx, handler);
+}
+
 bool GRPCCommunicator::RegisterResponseHandler(ResponseHandler handler, int dpRankIdx)
 {
     return RegisterHandler(responseHandlers_, dpRankIdx, handler);
@@ -552,13 +557,15 @@ bool GRPCCommunicator::HandleResponseFromSlave(ExecuteResponse &response, int ta
 
 void GRPCCommunicator::HandleRequestFromMaster(ExecuteRequest &request, int targetDPRank)
 {
-    if (request.execute_type() == MODEL_INFER ||
-        request.execute_type() == RECOVER_COMMAND_EXEC ||
-        request.execute_type() == START_COMMAND_EXEC ||
-        request.execute_type() == PAUSE_COMMAND_EXEC ||
-        request.execute_type() == CLEAR_COMMAND_EXEC) {
+    if (request.execute_type() == MODEL_INFER) {
         // MODEL_INFER request will be handled by all DP ranks in the slave node
         std::vector<RequestHandler> handlers = requestHandlers_.Values();
+        for (const auto &handler : handlers) {
+            handler(request);
+        }
+    } else if (request.execute_type() == RECOVER_COMMAND_EXEC || request.execute_type() == START_COMMAND_EXEC ||
+               request.execute_type() == PAUSE_COMMAND_EXEC || request.execute_type() == CLEAR_COMMAND_EXEC) {
+        std::vector<RequestHandler> handlers = recoverRequestHandlers_.Values();
         for (const auto &handler : handlers) {
             handler(request);
         }
