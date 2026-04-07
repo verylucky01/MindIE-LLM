@@ -116,7 +116,7 @@ class DeepseekV3Moe(nn.Module):
             router_logits=router_logits,
             top_k=self.topk_num,
             use_grouped_topk=True,
-            renormalize=False,
+            renormalize=True,
             topk_group=self.topk_group,
             num_expert_group=self.n_group,
             scoring_func="",
