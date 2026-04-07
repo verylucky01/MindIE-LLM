@@ -1144,6 +1144,14 @@ class Generator(PDInterface):
         )
         self.input_metadata_queue.put(prefill_input_metadata)
 
+        for req in requests:
+            req.step(
+                num_new_token=1,
+                scp_size=self.scp_size,
+                block_size=self.block_size,
+                is_mix_model=self.is_mix_model
+            )
+
         decode_output = self._execute_warm_up(
             requests=requests,
             is_prefill=False
