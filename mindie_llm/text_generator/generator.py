@@ -961,7 +961,9 @@ class Generator(PDInterface):
                     max_output_len=max_output_len,
                     max_placeholder_num=max_placeholder_num,
                     warmup_topk_size=self.warmup_topk_size,
-                    enable_warmup_sampling=self.enable_warmup_with_sampling
+                    enable_warmup_sampling=self.enable_warmup_with_sampling,
+                    vocab_size=self.vocab_size,
+                    is_multimodal=self.is_multimodal
                 )
                 request.build(
                     dp_rank_id=dp_idx,
