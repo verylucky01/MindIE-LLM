@@ -8,11 +8,9 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 
-from typing import Optional
 
 from enum import Enum
 from mindie_llm.runtime.utils.npu.device_utils import DeviceType
-from mindie_llm.runtime.layers.quantization.ms_model_slim.quant_type import QuantType
 from mindie_llm.runtime.model_runner.forward_context_exp import get_mc2_token_capacity
 from mindie_llm.utils.log.logging import logger
 
@@ -21,9 +19,30 @@ from mindie_llm.runtime.utils.distributed import get_parallel_info_manager
 from mindie_llm.runtime.utils.distributed.parallel_info_manager import ParallelType
 from mindie_llm.runtime.utils.npu.device_utils import get_npu_node_info
 
+MAX_FUSED_MC2_OPERATOR_CAPACITY = 4096  # limit of operator of fused_mc2
+
+
+def cal_num_tokens_per_device(parallel_mgr, forward_ctx):
+    """Calculation of the number of tokens obtained by a single device before MOE communication"""
+    # CP
+    if parallel_mgr.get(ParallelType.ATTN_CP).is_enabled():
+        num_tokens_per_device = forward_ctx.batch_descriptor.num_tokens
+    # DP
+    else:
+        num_tokens_per_device = forward_ctx.dp_metadata.max_tokens_across_dp_cpu
+    # TP + flash_comm
+    if (
+        parallel_mgr.get(ParallelType.ATTN_TP).is_enabled()
+        and forward_ctx.batch_descriptor.is_flash_comm_enabled
+    ):
+        tp_size = parallel_mgr.get(ParallelType.ATTN_TP).group_size
+        num_tokens_per_device = (num_tokens_per_device + tp_size - 1) // tp_size
+    return num_tokens_per_device
+
 
 class MoECommType(Enum):
-    """Supported MoE communication operator types."""
+    """MoE communication operator types."""
+
     ALLGATHER = "allgather"
     MC2 = "mc2"
     ALLTOALL = "all2all"
@@ -33,50 +52,54 @@ class MoECommType(Enum):
 
 class MoECommStrategyBase:
     """Base class for MoE communication strategy selection."""
-    
+
     @staticmethod
-    def is_applicable(quant_type: Optional[str], max_num_tokens_per_device: Optional[int]) -> bool:
-        """Check if strategy applies to given context."""
+    def is_applicable(num_experts_per_ep_rank: int) -> bool:
+        """Check if the strategy applies to the given context."""
         raise NotImplementedError
-    
+
     @staticmethod
     def get_comm_type() -> MoECommType:
-        """Return communication type for this strategy."""
+        """Return the communication type for this strategy."""
         raise NotImplementedError
 
 
 class FusedMC2Strategy(MoECommStrategyBase):
     """Fused MC2 strategy: highest priority for Ascend 910C.
-    
-    Requirements: EP group size <= 32, no MoE TP, tokens within capacity.
+
+    Constraints: EP group size <= 32, no MoE TP, tokens within capacity.
     """
-    
+
     @staticmethod
-    def is_applicable(quant_type: Optional[str], max_num_tokens_per_device: Optional[int]) -> bool:
+    def is_applicable(num_experts_per_ep_rank: int) -> bool:
         device_type = get_npu_node_info().get_device_type()
         parallel_mgr = get_parallel_info_manager()
         forward_ctx = get_forward_context()
-        
-        # EP must be enabled for any MoE communication strategy
+
+        # EP must be enabled
         if not parallel_mgr.get(ParallelType.MOE_EP).is_enabled():
             return False
-        # Hardware constraint: only Ascend 910C (910_93) supports fused MC2
-        if device_type != DeviceType.ASCEND_910_93:
-            return False
-        
-        # EP group size limit for fused operator efficiency
-        is_ep_valid = parallel_mgr.get(ParallelType.MOE_EP_MC2).group_size <= 32
-        # Token count must fit within per-device capacity
-        tp_size = parallel_mgr.get(ParallelType.ATTN_TP).group_size
-        num_tokens_per_device = (forward_ctx.batch_descriptor.num_tokens + tp_size - 1) // tp_size
-        is_num_tokens_valid = num_tokens_per_device <= max_num_tokens_per_device
-        if not (is_ep_valid and is_num_tokens_valid):
-            return False
-        # Incompatible with MoE TP parallelism
+        # Incompatible with MoE TP
         if parallel_mgr.get(ParallelType.MOE_TP).is_enabled():
             return False
+        # Only Ascend 910C supports fused MC2
+        if device_type != DeviceType.ASCEND_910_93:
+            return False
+        # Check EP group size limit
+        if parallel_mgr.get(ParallelType.MOE_EP_MC2).group_size > 32:
+            return False
+        # Check num tokens for fused_mc2 operator limitation
+        num_tokens_per_device = cal_num_tokens_per_device(parallel_mgr, forward_ctx)
+        if num_tokens_per_device >= MAX_FUSED_MC2_OPERATOR_CAPACITY:
+            err_msg = (
+                f"num_tokens_per_device({num_tokens_per_device}) is larger than "
+                f"MAX_FUSED_MC2_OPERATOR_CAPACITY({MAX_FUSED_MC2_OPERATOR_CAPACITY}),"
+                f" please check the config."
+            )
+            logger.error(err_msg)
+            raise RuntimeError(err_msg)
         return True
-    
+
     @staticmethod
     def get_comm_type() -> MoECommType:
         return MoECommType.FUSED_MC2
@@ -84,79 +107,73 @@ class FusedMC2Strategy(MoECommStrategyBase):
 
 class MC2Strategy(MoECommStrategyBase):
     """MC2 strategy: for Ascend 910B/910C decode phase.
-    
-    910B: requires world size >= 16. 910C: strict token capacity check.
+
+    910B: requires world_size >= 16. 910C: strict token capacity check.
     """
-    
+
     @staticmethod
-    def is_applicable(quant_type: Optional[str], max_num_tokens_per_device: Optional[int]) -> bool:
+    def is_applicable(num_experts_per_ep_rank: int) -> bool:
         device_type = get_npu_node_info().get_device_type()
         parallel_mgr = get_parallel_info_manager()
         forward_ctx = get_forward_context()
+
         if not parallel_mgr.get(ParallelType.MOE_EP).is_enabled():
             return False
-        
-        if device_type == DeviceType.ASCEND_910B:
-            # 910B: decode phase only, large cluster required
-            if forward_ctx.is_prefill or parallel_mgr.world_size < 16:
-                return False
-        elif device_type == DeviceType.ASCEND_910_93:
-            # 910C: decode phase only
-            if forward_ctx.is_prefill:
-                return False
-            # Strict capacity check: fail fast if exceeded
-            if forward_ctx.batch_descriptor.num_tokens > get_mc2_token_capacity():
-                error_msg = (
-                    f"MC2 operator limitation: tokens per card ({forward_ctx.batch_descriptor.num_tokens})"
-                    f" exceed the limit of mc2_token_capacity = {get_mc2_token_capacity()}. "
-                    f"Please reduce the batch_size during the decode stage."
-                )
-                logger.error(error_msg)
-                raise ValueError(error_msg)
-        else:
-            logger.error("Unsupported device type: {device_type}")
-            raise RuntimeError("Unsupported device type: {device_type}")
-        
-        # Incompatible with MoE TP parallelism
+        # MoE TP + MoE EP not supported
         if parallel_mgr.get(ParallelType.MOE_TP).is_enabled():
             return False
+        num_tokens_per_device = cal_num_tokens_per_device(parallel_mgr, forward_ctx)
+        if device_type == DeviceType.ASCEND_910B:
+            # 910B: capacity and cluster constraints
+            if (
+                num_tokens_per_device > get_mc2_token_capacity()
+                or parallel_mgr.world_size not in {16, 32, 64}
+                or num_experts_per_ep_rank > 24
+            ):
+                return False
+
+        elif device_type == DeviceType.ASCEND_910_93:
+            # 910C: strict capacity check
+            if (
+                num_tokens_per_device > get_mc2_token_capacity()
+                or num_experts_per_ep_rank > 24
+            ):
+                return False
+        else:
+            return False
+
         return True
-    
+
     @staticmethod
     def get_comm_type() -> MoECommType:
         return MoECommType.MC2
 
 
 class All2AllStrategy(MoECommStrategyBase):
-    """All2All strategy: fallback for specific scenarios.
-    
-    910B: W4A8_DYNAMIC quant or Attn DP enabled.
-    910C: prefill phase when fused MC2 unavailable.
+    """All2All strategy: fallback for specific scenarios on Ascend 910C.
+
+    Used in prefill phase or when fused MC2 is unavailable.
     """
-    
+
     @staticmethod
-    def is_applicable(quant_type: Optional[str], max_num_tokens_per_device: Optional[int]) -> bool:
+    def is_applicable(num_experts_per_ep_rank: int) -> bool:
         device_type = get_npu_node_info().get_device_type()
         parallel_mgr = get_parallel_info_manager()
+        forward_ctx = get_forward_context()
         if not parallel_mgr.get(ParallelType.MOE_EP).is_enabled():
             return False
-        
-        if device_type == DeviceType.ASCEND_910B:
-            # 910B: prefer W4A8_DYNAMIC; allow fallback if Attn DP enabled
-            if quant_type != QuantType.W4A8_DYNAMIC:
-                return parallel_mgr.get(ParallelType.ATTN_DP).is_enabled() or \
-                       parallel_mgr.get(ParallelType.ATTN_CP).is_enabled()
-        
-        # Compatibility rule: MoE TP + All2All requires special handling
+        # MoE TP + MoE EP not supported
         if parallel_mgr.get(ParallelType.MOE_TP).is_enabled():
-            # Attn DP + MoE TP > 1 is not supported for MC2/All2All
-            if parallel_mgr.get(ParallelType.ATTN_DP).is_enabled():
-                err_msg = 'MoECommType.MC2 and MoECommType.ALLTOALL: Do not support moe_tp > 1'
-                logger.error(err_msg)
-                raise RuntimeError(err_msg)
+            return False
+
+        if device_type not in {DeviceType.ASCEND_910B, DeviceType.ASCEND_910_93}:
+            return False
+
+        # all2allv is not supported for graph mode(decode stage)
+        if not forward_ctx.is_prefill:
             return False
         return True
-    
+
     @staticmethod
     def get_comm_type() -> MoECommType:
         return MoECommType.ALLTOALL
@@ -164,21 +181,35 @@ class All2AllStrategy(MoECommStrategyBase):
 
 class AllGatherStrategy(MoECommStrategyBase):
     """AllGather strategy: universal fallback with lowest priority."""
-    
+
     @staticmethod
-    def is_applicable(quant_type: Optional[str], max_num_tokens_per_device: Optional[int]) -> bool:
+    def is_applicable(num_experts_per_ep_rank: int) -> bool:
         # Fallback: applicable when no other strategy matches
+        device_type = get_npu_node_info().get_device_type()
+        parallel_mgr = get_parallel_info_manager()
+
+        # MoE TP + MoE EP not supported
+        if parallel_mgr.get(ParallelType.MOE_TP).is_enabled():
+            return False
+
+        # Attn DP not supported
+        if parallel_mgr.get(ParallelType.ATTN_DP).is_enabled():
+            return False
+
+        if device_type != DeviceType.ASCEND_910B:
+            return False
+
         return True
-    
+
     @staticmethod
     def get_comm_type() -> MoECommType:
         return MoECommType.ALLGATHER
 
 
-# Strategy priority order: first applicable strategy is selected
+# Strategy selection order: first applicable strategy is used
 MOE_COMM_STRATEGIES = [
-    FusedMC2Strategy,      # P0: Optimal (910C Fused)
-    MC2Strategy,           # P1: High perf (large cluster/decode)
-    All2AllStrategy,       # P2: Specific quant/prefill
-    AllGatherStrategy,     # P3: Universal fallback
+    FusedMC2Strategy,  # P0: Optimal (910C Fused MC2)
+    MC2Strategy,  # P1: High perf (large cluster/decode)
+    All2AllStrategy,  # P2: Fallback for prefill/specific cases
+    AllGatherStrategy,  # P3: Universal fallback
 ]

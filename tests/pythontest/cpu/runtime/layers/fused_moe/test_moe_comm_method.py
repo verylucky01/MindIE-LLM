@@ -8,15 +8,17 @@ and dispatcher caching functionality.
 """
 
 import unittest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 from enum import Enum
 
 
 class MockMoECommType(Enum):
     """Mock enumeration for MoE communication types."""
+
     ALLGATHER = "allgather"
     MC2 = "mc2"
     ALLTOALL = "alltoall"
+    FUSED_MC2 = "fused_mc2"
 
 
 class TestMoECommMethod(unittest.TestCase):
@@ -33,9 +35,7 @@ class TestMoECommMethod(unittest.TestCase):
 
         self.mock_strategy_mc2 = Mock()
         self.mock_strategy_mc2.is_applicable = Mock(return_value=False)
-        self.mock_strategy_mc2.get_comm_type = Mock(
-            return_value=MockMoECommType.MC2
-        )
+        self.mock_strategy_mc2.get_comm_type = Mock(return_value=MockMoECommType.MC2)
 
         self.mock_strategy_alltoall = Mock()
         self.mock_strategy_alltoall.is_applicable = Mock(return_value=False)
@@ -52,257 +52,201 @@ class TestMoECommMethod(unittest.TestCase):
         """Tear down test fixtures after each test method."""
         pass
 
+    @patch("mindie_llm.runtime.layers.fused_moe.moe_comm_method.MOE_COMM_STRATEGIES")
     @patch(
-        'mindie_llm.runtime.layers.fused_moe.moe_comm_method.MOE_COMM_STRATEGIES'
+        "mindie_llm.runtime.layers.fused_moe.moe_comm_method.MoECommType",
+        MockMoECommType,
     )
-    @patch(
-        'mindie_llm.runtime.layers.fused_moe.moe_comm_method.MoECommType',
-        MockMoECommType
-    )
-    def test_select_moe_comm_method_returns_first_applicable(
-        self,
-        mock_strategies
-    ):
-        """Test selection returns first applicable strategy.
-        
-        Verifies that the function traverses strategies and returns
-        the communication type of the first applicable one.
-        """
+    def test_select_moe_comm_method_returns_first_applicable(self, mock_strategies):
+        """Test selection returns first applicable strategy."""
+        # FIXED: Use side_effect to return fresh iterator each time
         mock_strategies.__iter__ = Mock(
-            return_value=iter([
-                self.mock_strategy_allgather,
-                self.mock_strategy_mc2,
-                self.mock_strategy_alltoall
-            ])
+            side_effect=lambda: iter(
+                [
+                    self.mock_strategy_allgather,
+                    self.mock_strategy_mc2,
+                    self.mock_strategy_alltoall,
+                ]
+            )
         )
 
         from mindie_llm.runtime.layers.fused_moe.moe_comm_method import (
-            select_moe_comm_method
+            select_moe_comm_method,
         )
 
-        result = select_moe_comm_method(
-            quant_type="W4A8_DYNAMIC",
-            max_num_tokens_per_device=1024
+        result = select_moe_comm_method(num_experts_per_ep_rank=2)
+
+        self.assertEqual(result, MockMoECommType.ALLGATHER)
+        self.mock_strategy_allgather.is_applicable.assert_called_with(
+            num_experts_per_ep_rank=2
         )
 
-        self.assertEqual(
-            result,
-            MockMoECommType.ALLGATHER
-        )
-        self.assertTrue(
-            self.mock_strategy_allgather.is_applicable.called
-        )
-
+    @patch("mindie_llm.runtime.layers.fused_moe.moe_comm_method.MOE_COMM_STRATEGIES")
     @patch(
-        'mindie_llm.runtime.layers.fused_moe.moe_comm_method.MOE_COMM_STRATEGIES'
+        "mindie_llm.runtime.layers.fused_moe.moe_comm_method.MoECommType",
+        MockMoECommType,
     )
-    @patch(
-        'mindie_llm.runtime.layers.fused_moe.moe_comm_method.MoECommType',
-        MockMoECommType
-    )
-    def test_select_moe_comm_method_no_applicable_returns_none(
-        self,
-        mock_strategies
-    ):
-        """Test selection returns None when no strategy is applicable.
-        
-        Verifies that the function returns None if no strategy matches
-        the given conditions.
-        """
+    def test_select_moe_comm_method_no_applicable_raises_error(self, mock_strategies):
+        """Test selection raises RuntimeError when no strategy matches."""
         self.mock_strategy_allgather.is_applicable = Mock(return_value=False)
         self.mock_strategy_mc2.is_applicable = Mock(return_value=False)
         self.mock_strategy_alltoall.is_applicable = Mock(return_value=False)
 
         mock_strategies.__iter__ = Mock(
-            return_value=iter([
-                self.mock_strategy_allgather,
-                self.mock_strategy_mc2,
-                self.mock_strategy_alltoall
-            ])
+            side_effect=lambda: iter(
+                [
+                    self.mock_strategy_allgather,
+                    self.mock_strategy_mc2,
+                    self.mock_strategy_alltoall,
+                ]
+            )
         )
 
         from mindie_llm.runtime.layers.fused_moe.moe_comm_method import (
-            select_moe_comm_method
+            select_moe_comm_method,
         )
+
         with self.assertRaises(RuntimeError) as ctx:
-            select_moe_comm_method(
-                quant_type="UNKNOWN",
-                max_num_tokens_per_device=999999
-            )
+            select_moe_comm_method(num_experts_per_ep_rank=2)
+
+        self.assertIn("MoE strategy selection failed", str(ctx.exception))
 
     @patch(
-        'mindie_llm.runtime.layers.fused_moe.moe_comm_method._COMM_TYPE_TO_DISPATCHER'
+        "mindie_llm.runtime.layers.fused_moe.moe_comm_method._COMM_TYPE_TO_DISPATCHER"
     )
     @patch(
-        'mindie_llm.runtime.layers.fused_moe.moe_comm_method.MoECommType',
-        MockMoECommType
+        "mindie_llm.runtime.layers.fused_moe.moe_comm_method.MoECommType",
+        MockMoECommType,
     )
-    def test_get_cached_dispatcher_returns_instance(
-        self,
-        mock_dispatcher_map
-    ):
-        """Test dispatcher retrieval returns correct instance.
-        
-        Verifies that the function returns a dispatcher instance
-        for a valid communication type.
-        """
+    def test_get_cached_dispatcher_returns_instance(self, mock_dispatcher_map):
+        """Test dispatcher retrieval returns correct instance."""
         mock_dispatcher_map.__getitem__ = Mock(
             return_value=self.mock_dispatcher_allgather
         )
         mock_dispatcher_map.__contains__ = Mock(return_value=True)
 
         from mindie_llm.runtime.layers.fused_moe.moe_comm_method import (
-            get_cached_dispatcher
+            get_cached_dispatcher,
         )
 
         result = get_cached_dispatcher(MockMoECommType.ALLGATHER)
 
-        self.assertIsNotNone(
-            result
-        )
-        self.assertTrue(
-            mock_dispatcher_map.__getitem__.called
-        )
+        self.assertIsNotNone(result)
+        self.assertTrue(mock_dispatcher_map.__getitem__.called)
 
     @patch(
-        'mindie_llm.runtime.layers.fused_moe.moe_comm_method._COMM_TYPE_TO_DISPATCHER'
+        "mindie_llm.runtime.layers.fused_moe.moe_comm_method._COMM_TYPE_TO_DISPATCHER"
     )
     @patch(
-        'mindie_llm.runtime.layers.fused_moe.moe_comm_method.MoECommType',
-        MockMoECommType
+        "mindie_llm.runtime.layers.fused_moe.moe_comm_method.MoECommType",
+        MockMoECommType,
     )
-    def test_get_cached_dispatcher_none_type_returns_none(
-        self,
-        mock_dispatcher_map
-    ):
-        """Test dispatcher retrieval with None type returns None.
-        
-        Verifies that the function handles None input gracefully.
-        """
+    def test_get_cached_dispatcher_none_type_returns_none(self, mock_dispatcher_map):
+        """Test dispatcher retrieval with None type returns None."""
         from mindie_llm.runtime.layers.fused_moe.moe_comm_method import (
-            get_cached_dispatcher
+            get_cached_dispatcher,
         )
 
         result = get_cached_dispatcher(None)
 
-        self.assertIsNone(
-            result
-        )
+        self.assertIsNone(result)
         self.assertFalse(
             mock_dispatcher_map.__getitem__.called,
-            "Should not lookup dispatcher for None input"
+            "Should not lookup dispatcher for None input",
         )
 
     @patch(
-        'mindie_llm.runtime.layers.fused_moe.moe_comm_method._COMM_TYPE_TO_DISPATCHER'
+        "mindie_llm.runtime.layers.fused_moe.moe_comm_method._COMM_TYPE_TO_DISPATCHER"
     )
     @patch(
-        'mindie_llm.runtime.layers.fused_moe.moe_comm_method.MoECommType',
-        MockMoECommType
+        "mindie_llm.runtime.layers.fused_moe.moe_comm_method.MoECommType",
+        MockMoECommType,
     )
     def test_get_cached_dispatcher_unsupported_type_returns_none(
-        self,
-        mock_dispatcher_map
+        self, mock_dispatcher_map
     ):
-        """Test dispatcher retrieval with unsupported type returns None.
-        
-        Verifies that the function returns None for unsupported
-        communication types.
-        """
+        """Test dispatcher retrieval with unsupported type returns None."""
         mock_dispatcher_map.__contains__ = Mock(return_value=False)
 
         from mindie_llm.runtime.layers.fused_moe.moe_comm_method import (
-            get_cached_dispatcher
+            get_cached_dispatcher,
         )
 
         result = get_cached_dispatcher(MockMoECommType.MC2)
 
-        self.assertIsNone(
-            result
-        )
+        self.assertIsNone(result)
 
+    @patch("mindie_llm.runtime.layers.fused_moe.moe_comm_method.MOE_COMM_STRATEGIES")
     @patch(
-        'mindie_llm.runtime.layers.fused_moe.moe_comm_method.MOE_COMM_STRATEGIES'
+        "mindie_llm.runtime.layers.fused_moe.moe_comm_method.MoECommType",
+        MockMoECommType,
     )
-    @patch(
-        'mindie_llm.runtime.layers.fused_moe.moe_comm_method.MoECommType',
-        MockMoECommType
-    )
-    def test_select_moe_comm_method_with_quant_type_only(
-        self,
-        mock_strategies
-    ):
-        """Test selection with quantization type parameter only.
-        
-        Verifies that the function works with partial parameters.
-        """
+    def test_select_moe_comm_method_with_different_expert_count(self, mock_strategies):
+        """Test selection with different num_experts_per_ep_rank values."""
+        # FIXED: side_effect ensures fresh iterator for each call in subTest loop
         mock_strategies.__iter__ = Mock(
-            return_value=iter([self.mock_strategy_allgather])
+            side_effect=lambda: iter([self.mock_strategy_allgather])
         )
 
         from mindie_llm.runtime.layers.fused_moe.moe_comm_method import (
-            select_moe_comm_method
+            select_moe_comm_method,
         )
 
-        result = select_moe_comm_method(quant_type="W8A8")
+        # Test with different expert counts
+        for expert_count in [1, 2, 8, 16]:
+            with self.subTest(expert_count=expert_count):
+                result = select_moe_comm_method(num_experts_per_ep_rank=expert_count)
+                self.assertEqual(result, MockMoECommType.ALLGATHER)
+                self.mock_strategy_allgather.is_applicable.assert_called_with(
+                    num_experts_per_ep_rank=expert_count
+                )
+                # Reset for next subTest iteration
+                self.mock_strategy_allgather.is_applicable.reset_mock()
 
-        self.assertEqual(
-            result,
-            MockMoECommType.ALLGATHER
-        )
-        self.assertEqual(
-            self.mock_strategy_allgather.is_applicable.call_count,
-            1
-        )
-
+    @patch("mindie_llm.runtime.layers.fused_moe.moe_comm_method.MOE_COMM_STRATEGIES")
     @patch(
-        'mindie_llm.runtime.layers.fused_moe.moe_comm_method.MOE_COMM_STRATEGIES'
+        "mindie_llm.runtime.layers.fused_moe.moe_comm_method.MoECommType",
+        MockMoECommType,
     )
-    @patch(
-        'mindie_llm.runtime.layers.fused_moe.moe_comm_method.MoECommType',
-        MockMoECommType
-    )
-    def test_select_moe_comm_method_with_no_parameters(
-        self,
-        mock_strategies
-    ):
-        """Test selection with no parameters provided.
-        
-        Verifies that the function works with default parameters.
-        """
+    def test_select_moe_comm_method_strategy_order(self, mock_strategies):
+        """Test that strategies are checked in order and first applicable wins."""
+        self.mock_strategy_allgather.is_applicable = Mock(return_value=False)
+        self.mock_strategy_mc2.is_applicable = Mock(return_value=True)
+
         mock_strategies.__iter__ = Mock(
-            return_value=iter([self.mock_strategy_allgather])
+            side_effect=lambda: iter(
+                [
+                    self.mock_strategy_allgather,
+                    self.mock_strategy_mc2,
+                    self.mock_strategy_alltoall,
+                ]
+            )
         )
 
         from mindie_llm.runtime.layers.fused_moe.moe_comm_method import (
-            select_moe_comm_method
+            select_moe_comm_method,
         )
 
-        result = select_moe_comm_method()
+        result = select_moe_comm_method(num_experts_per_ep_rank=2)
 
-        self.assertEqual(
-            result,
-            MockMoECommType.ALLGATHER
+        self.assertEqual(result, MockMoECommType.MC2)
+        self.mock_strategy_allgather.is_applicable.assert_called_once_with(
+            num_experts_per_ep_rank=2
         )
+        self.mock_strategy_mc2.is_applicable.assert_called_once_with(
+            num_experts_per_ep_rank=2
+        )
+        self.mock_strategy_alltoall.is_applicable.assert_not_called()
 
     def test_comm_type_to_dispatcher_mapping_exists(self):
-        """Test communication type to dispatcher mapping is defined.
-        
-        Verifies that the mapping dictionary is properly initialized.
-        """
+        """Test communication type to dispatcher mapping is defined."""
         from mindie_llm.runtime.layers.fused_moe.moe_comm_method import (
-            _COMM_TYPE_TO_DISPATCHER
-        )
-
-        self.assertIsInstance(
             _COMM_TYPE_TO_DISPATCHER,
-            dict
-        )
-        self.assertGreater(
-            len(_COMM_TYPE_TO_DISPATCHER),
-            0
         )
 
+        self.assertIsInstance(_COMM_TYPE_TO_DISPATCHER, dict)
+        self.assertGreater(len(_COMM_TYPE_TO_DISPATCHER), 0)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main(verbosity=2)

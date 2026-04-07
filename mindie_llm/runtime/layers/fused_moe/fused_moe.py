@@ -12,7 +12,6 @@ import math
 from typing import List
 
 import torch
-import torch_npu
 import torch.distributed as dist
 
 from mindie_llm.runtime.layers.custom_layer import CustomLayer
@@ -22,11 +21,17 @@ from mindie_llm.runtime.layers.fused_moe.moe_comm_method import (
     MoECommType,
 )
 from mindie_llm.runtime.layers.fused_moe.token_dispatcher import (
-    MoeAllGatherArgs, MoeMC2Args, MoeAll2AllVArgs
+    MoeAllGatherArgs,
+    MoeMC2Args,
+    MoeAll2AllVArgs,
 )
 from mindie_llm.runtime.layers.parameter import RowParameter, ColumnParameter
-from mindie_llm.runtime.layers.quantization.ms_model_slim.w4a8 import W4A8PerTokenFusedMoEMethod
-from mindie_llm.runtime.layers.quantization.quantization_config_base import QuantizationConfigBase
+from mindie_llm.runtime.layers.quantization.ms_model_slim.w4a8 import (
+    W4A8PerTokenFusedMoEMethod,
+)
+from mindie_llm.runtime.layers.quantization.quantization_config_base import (
+    QuantizationConfigBase,
+)
 from mindie_llm.runtime.layers.quantization.unquantized import UnquantizedFusedMoEMethod
 from mindie_llm.runtime.utils.distributed import get_parallel_info_manager
 from mindie_llm.runtime.utils.distributed.parallel_info_manager import ParallelType
@@ -57,12 +62,18 @@ class FusedMoE(CustomLayer):
 
         self.parallel_info = get_parallel_info_manager()
         self.moe_tp_rank = get_parallel_info_manager().get(ParallelType.MOE_TP).rank
-        self.moe_tp_size = get_parallel_info_manager().get(ParallelType.MOE_TP).group_size
+        self.moe_tp_size = (
+            get_parallel_info_manager().get(ParallelType.MOE_TP).group_size
+        )
         self.moe_ep_rank = get_parallel_info_manager().get(ParallelType.MOE_EP).rank
-        self.moe_ep_size = get_parallel_info_manager().get(ParallelType.MOE_EP).group_size
+        self.moe_ep_size = (
+            get_parallel_info_manager().get(ParallelType.MOE_EP).group_size
+        )
         self.hidden_size = hidden_size
         self.intermediate_size = intermediate_size
-        self.intermediate_size_per_partition = even_divide(self.intermediate_size, self.moe_tp_size)
+        self.intermediate_size_per_partition = even_divide(
+            self.intermediate_size, self.moe_tp_size
+        )
         self.bias = bias
         self.weight_dtype = weight_dtype or torch.get_default_dtype()
         self.quant_config = quant_config
@@ -70,21 +81,25 @@ class FusedMoE(CustomLayer):
         self.suffix = suffix
         self.activation = activation
         self.num_experts = num_experts
+        self._num_experts_per_ep_rank = (
+            self.num_experts + self.moe_ep_size - 1
+        ) // self.moe_ep_size
         self.topk = topk_num
-        # Max receivable tokens per device.
-        # Formula is MAX_OUTPUT_SIZE / load_balance_factor / topk
-        # Note: load_balance_factor=2 is recommended by the fused operator spec 
-        #       to account for load balancing skew (reserves 2x the average per-card capacity).
-        self.max_num_tokens_per_device = MAX_OUTPUT_SIZE // 2 // self.topk
-        self.expert_list = assign_experts(self.num_experts, self.moe_ep_size)[self.moe_ep_rank]
+        self.expert_list = assign_experts(self.num_experts, self.moe_ep_size)[
+            self.moe_ep_rank
+        ]
         self.num_local_experts = len(self.expert_list)
-        self.expert_map = torch.full(size=(self.num_experts,), fill_value=-1, device='npu')
+        self.expert_map = torch.full(
+            size=(self.num_experts,), fill_value=-1, device="npu"
+        )
         self.expert_map[self.expert_list] = 1
         if self.quant_config is None:
             self.quant_method = UnquantizedFusedMoEMethod()
         else:
             # Get moe quant method through gate proj weights of expert 0
-            self.quant_method = self.quant_config.get_quant_method(self, prefix=f"{self.prefix}.0.{self.suffix[0]}")
+            self.quant_method = self.quant_config.get_quant_method(
+                self, prefix=f"{self.prefix}.0.{self.suffix[0]}"
+            )
         # Only created when MC2 used fused op
         self._moe_ep_group = None
 
@@ -96,39 +111,49 @@ class FusedMoE(CustomLayer):
         loaded_weight: torch.Tensor,
         expert_id: int,
         module_suffix: str,
-        weight_name: str
+        weight_name: str,
     ):
         param = getattr(self, self.weight_map.get(module_suffix) + weight_name)
         shard_size = self.intermediate_size_per_partition
         loaded_expert_id = self.expert_list.index(expert_id)
-        if isinstance(self.quant_method, W4A8PerTokenFusedMoEMethod) and weight_name == "weight":
+        if (
+            isinstance(self.quant_method, W4A8PerTokenFusedMoEMethod)
+            and weight_name == "weight"
+        ):
             # w4a8 quantization: pack two int4 values into one int8 unit; shard size halved
             shard_size = shard_size // 2
         if isinstance(param, RowParameter):
-            param.load_expert_row_parallel_weight(loaded_weight, loaded_expert_id, self.moe_tp_rank)
+            param.load_expert_row_parallel_weight(
+                loaded_weight, loaded_expert_id, self.moe_tp_rank
+            )
         elif isinstance(param, ColumnParameter):
             if module_suffix == self.suffix[0]:
                 param.load_expert_column_parallel_weight(
-                    loaded_weight, loaded_expert_id, self.moe_tp_rank, 0, shard_size)
+                    loaded_weight, loaded_expert_id, self.moe_tp_rank, 0, shard_size
+                )
             elif module_suffix == self.suffix[2]:
                 param.load_expert_column_parallel_weight(
-                    loaded_weight, loaded_expert_id, self.moe_tp_rank, shard_size, shard_size)
+                    loaded_weight,
+                    loaded_expert_id,
+                    self.moe_tp_rank,
+                    shard_size,
+                    shard_size,
+                )
         else:
             param.load_expert_weight(loaded_weight, loaded_expert_id)
 
     def forward(
-            self,
-            hidden_states: torch.Tensor,
-            topk_weights: torch.Tensor,
-            topk_ids: torch.Tensor,
+        self,
+        hidden_states: torch.Tensor,
+        topk_weights: torch.Tensor,
+        topk_ids: torch.Tensor,
     ) -> torch.Tensor:
         moe_comm_type = select_moe_comm_method(
-            quant_type=None,
-            max_num_tokens_per_device=self.max_num_tokens_per_device
+            num_experts_per_ep_rank=self._num_experts_per_ep_rank,
         )
-
         if moe_comm_type == MoECommType.FUSED_MC2:
-            from mindie_llm.runtime.ops import mie_ops
+            from mindie_llm.runtime.ops import mie_ops  # noqa
+
             # FUSED_MC2 mode: Directly invoke the fused dispatch + FFN + combine operator
             self._create_moe_ep_group()
             final_hidden_states = torch.empty_like(hidden_states)
@@ -148,7 +173,9 @@ class FusedMoE(CustomLayer):
 
         dispatcher = get_cached_dispatcher(moe_comm_type=moe_comm_type)
 
-        moe_comm_args = self._build_moe_comm_args(moe_comm_type, hidden_states, topk_weights, topk_ids)
+        moe_comm_args = self._build_moe_comm_args(
+            moe_comm_type, hidden_states, topk_weights, topk_ids
+        )
 
         moe_dispatch_output, dispatch_context = dispatcher.token_dispatch(moe_comm_args)
 
@@ -157,12 +184,11 @@ class FusedMoE(CustomLayer):
             x=moe_dispatch_output["hidden_states"],
             group_list=moe_dispatch_output["group_list"],
             group_list_type=moe_dispatch_output["group_list_type"],
-            dynamic_scale=moe_dispatch_output["dynamic_scale"]
+            dynamic_scale=moe_dispatch_output["dynamic_scale"],
         )
 
         final_hidden_states = dispatcher.token_combine(
-            hidden_states=moe_mlp_out,
-            ctx=dispatch_context
+            hidden_states=moe_mlp_out, ctx=dispatch_context
         )
 
         if moe_comm_type == MoECommType.ALLGATHER:
@@ -170,7 +196,9 @@ class FusedMoE(CustomLayer):
             # back to all ranks, but the hidden states are still sharded across
             # Tensor Parallel (TP) ranks. Therefore, an all-reduce over the MLP TP
             # group is needed to merge TP-partial hidden states into a full result.
-            dist.all_reduce(final_hidden_states, group=self.parallel_info.world.process_group)
+            dist.all_reduce(
+                final_hidden_states, group=self.parallel_info.world.process_group
+            )
         return final_hidden_states
 
     def _post_init(self):
@@ -188,11 +216,13 @@ class FusedMoE(CustomLayer):
             self.suffix[2]: param_prefixes[0],
         }
 
-    def _build_moe_comm_args(self,
-                             moe_comm_type: MoECommType,
-                             hidden_states: torch.Tensor,
-                             topk_weights: torch.Tensor,
-                             topk_ids: torch.Tensor):
+    def _build_moe_comm_args(
+        self,
+        moe_comm_type: MoECommType,
+        hidden_states: torch.Tensor,
+        topk_weights: torch.Tensor,
+        topk_ids: torch.Tensor,
+    ):
         common_kwargs = {
             "hidden_states": hidden_states,
             "topk_weights": topk_weights,
