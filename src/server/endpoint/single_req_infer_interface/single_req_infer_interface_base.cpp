@@ -1063,6 +1063,9 @@ bool SingleReqInferInterfaceBase::GetTokensFromInput(const std::string &input,
     // 重计算场景
     inputParam->preOutputTokenNum = responseTokens.size();
     inputParam->outputLenOffset = inputParam->preOutputTokenNum; // maxNewTokens需要减去已输出的token数
+    // tokenizer的Index需要同步更新
+    inputParam->prevDecodeIndex[SPECIAL_SEQ_ID_PRESET] = inputParam->preOutputTokenNum;
+    inputParam->currentDecodeIndex[SPECIAL_SEQ_ID_PRESET] = inputParam->preOutputTokenNum;
     return true;
 }
 
