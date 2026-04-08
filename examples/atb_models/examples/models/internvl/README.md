@@ -421,7 +421,7 @@ bash examples/models/internvl/run_pa.sh --performance (--trust_remote_code) ${we
 
 可以在 `${script_path}` 路径下找到测试结果。
 
-## 服务化推理场景 精度测试
+## 服务化推理场景 benchmark精度测试
 
 ### TextVQA 图片+文本理解场景
 
@@ -500,6 +500,117 @@ bash examples/models/internvl/run_pa.sh --performance (--trust_remote_code) ${we
   ```
 
 完成数据集推理后，测试结果将打印展示数据集得分等指标，同时测试结果会保存在--SavePath路径下。
+
+## 服务化推理场景 AISBench精度测试
+
+> 说明：上面的 `benchmark --TestAccuracy ...` 是旧方案；下面给出 AISBench 的使用方法。仅覆盖“服务化推理场景 精度测试”这一块（保留旧文档，便于兼容复现）。
+
+### 通用前置条件
+
+- 先安装 AISBench（按目标模型选择仓库来源）：
+
+  - InternVL2-8B / InternVL2-40B 使用 GitHub 仓：
+
+    ```shell
+    git clone -b v3.0-20251219-master https://github.com/AISBench/benchmark.git
+    cd benchmark/
+    pip install -e ./ --use-pep517
+    ```
+
+  - InternVL2.5-8B / InternVL2.5-78B 使用 Gitee 仓：
+
+    ```shell
+    git clone https://gitee.com/AISBench/benchmark.git
+    cd benchmark/
+    pip install -e ./ --use-pep517
+    ```
+
+- 若使用服务化模型评估，建议额外安装依赖：
+
+  ```shell
+  pip3 install -r requirements/api.txt
+  pip3 install -r requirements/extra.txt
+  ```
+
+- 启动服务化推理服务：参考上方【服务化推理】章节，在 MindIE Service 中开启推理服务，并确认推理端口（`ServerConfig.port`）与管理端口（`ServerConfig.managementPort`）。
+
+### 数据集配置文件修改（TextVQA / VideoBench，共用）
+
+- TextVQA
+  - 编辑 `ais_bench/benchmark/configs/datasets/textvqa/textvqa_gen.py`
+  - 将其中 `path=` 指向 `textvqa_val.jsonl` 的绝对文件路径
+  - 建议保证 `textvqa_val.jsonl` 中每条样本的 `image` 字段为图片的绝对文件路径
+- VideoBench
+  - 编辑 `ais_bench/benchmark/configs/datasets/videobench/videobench_gen.py`
+  - 将其中 `path=` 指向 VideoBench 数据目录（`videobench/`）的绝对路径
+  - 确保 VideoBench 样本中的视频文件路径对推理服务可访问（权限/路径在服务端侧需成立）
+
+### A. InternVL2-8B / InternVL2-40B（vllm_api_general_chat）
+
+- 模型配置文件修改
+  - 编辑 `ais_bench/benchmark/configs/models/vllm_api/vllm_api_general_chat.py`
+  - 将 `host_ip` / `host_port` 设置为 MindIE Service 的推理地址与端口（端口对应 `ServerConfig.port`）
+  - 建议将 `model` 设置为服务端已加载的模型名（例如 `internvl`），以避免依赖服务端自动探测
+
+#### TextVQA（AISBench 精度）
+
+- 运行精度评测：
+
+  ```shell
+  cd benchmark/
+  ais_bench --models vllm_api_general_chat --datasets textvqa_gen --debug
+  ```
+
+#### VideoBench（AISBench 精度）
+
+- 运行精度评测：
+
+  ```shell
+  cd benchmark/
+  ais_bench --models vllm_api_general_chat --datasets videobench_gen --debug
+  ```
+
+### B. InternVL2.5-8B / InternVL2.5-78B（triton_stream_api_general）
+
+- 模型配置文件修改
+  - 编辑 `ais_bench/benchmark/configs/models/triton_api/triton_stream_api_general.py`
+  - 将 `host_ip` / `host_port` 设置为推理服务地址与端口
+  - 将 `model_name` 设置为服务端已加载模型名称（按服务实际名称填写）
+  - `generation_kwargs` 需按以下配置覆盖默认值（与默认配置不一致）：
+
+    ```python
+    generation_kwargs=dict(
+        temperature=1.0,
+        top_k=10,
+        top_p=1.0,
+        do_sample=False,
+        repetition_penalty=1.0,
+    ),
+    ```
+
+#### TextVQA（AISBench 精度）
+
+- 运行精度评测：
+
+  ```shell
+  cd benchmark/
+  ais_bench --models triton_stream_api_general --datasets textvqa_gen --debug
+  ```
+
+#### VideoBench（AISBench 精度）
+
+- 运行精度评测：
+
+  ```shell
+  cd benchmark/
+  ais_bench --models triton_stream_api_general --datasets videobench_gen --debug
+  ```
+
+### 需要注意的参数对齐
+
+- AISBench 模型配置（`ais_bench/benchmark/configs/models/.../*.py`）里的并发相关参数（如 `batch_size`、`request_rate`、以及生成长度 `max_out_len`）决定了服务化推理时的压力与输出长度；如遇到超长输入/内存问题，可以降低这些参数后再测。
+- 如果推理接口请求报 `TrustRemoteCode`/tokenizer 相关问题，请以 AISBench 对应配置文件为准再调整（不要沿用原 `benchmark` 工具里的参数名）。
+- 评测完成后，AISBench 会在 `outputs/` 目录下生成日志与 `summary_*.csv/md/txt` 等结果（默认输出路径以实际运行时打印的 `Base path of result&log` 为准）。
 
 ## 服务化推理场景 性能测试
 
