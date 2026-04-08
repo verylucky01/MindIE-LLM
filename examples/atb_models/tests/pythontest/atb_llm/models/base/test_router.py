@@ -224,6 +224,62 @@ class TestBaseRouter(unittest.TestCase):
         expected_config.max_position_embeddings = 12345
         self.assertEqual(base_router.config, expected_config)
 
+    @patch('atb_llm.utils.file_utils.safe_open')
+    @patch('atb_llm.utils.file_utils.is_path_exists', return_value=True)
+    @patch('atb_llm.utils.file_utils.standardize_path', return_value="")
+    @patch('atb_llm.utils.file_utils.check_path_permission', return_value=None)
+    @patch('transformers.configuration_utils.PretrainedConfig.get_config_dict', return_value={})
+    @patch("os.path.exists", return_value=False)
+    @patch("atb_llm.models.base.router.BaseRouter.get_config_cls")
+    def test_config_fa_quant_type_preserved_when_quant_descs_overrides(
+        self, mock_get_config_cls, _1, _2, _3, _4, _5, mock_safe_open
+    ):
+        """Verify fa_quant_type from config.json is preserved when quant_descs tries to override it."""
+        mock_get_config_cls.return_value = BaseConfig
+
+        quant_descs = {"model_quant_type": "W8A8", "fa_quant_type": "FAQuant"}
+        from io import StringIO
+        mock_safe_open.return_value.__enter__ = Mock(return_value=StringIO(json.dumps(quant_descs)))
+        mock_safe_open.return_value.__exit__ = Mock(return_value=False)
+
+        config_dict = copy.deepcopy(FAKE_CONFIG_DICT)
+        config_dict["quantize"] = "w8a8"
+        config_dict["quantization_config"] = {"fa_quant_type": None}
+
+        router = BaseRouter(FAKE_MODEL_NAME_OR_PATH, config_dict)
+        config = router.config
+
+        # fa_quant_type should be preserved as None, not overwritten to "FAQuant"
+        self.assertIsNone(config.quantization_config.fa_quant_type)
+
+    @patch('atb_llm.utils.file_utils.safe_open')
+    @patch('atb_llm.utils.file_utils.is_path_exists', return_value=True)
+    @patch('atb_llm.utils.file_utils.standardize_path', return_value="")
+    @patch('atb_llm.utils.file_utils.check_path_permission', return_value=None)
+    @patch('transformers.configuration_utils.PretrainedConfig.get_config_dict', return_value={})
+    @patch("os.path.exists", return_value=False)
+    @patch("atb_llm.models.base.router.BaseRouter.get_config_cls")
+    def test_config_fa_quant_type_from_quant_descs_when_not_in_config(
+        self, mock_get_config_cls, _1, _2, _3, _4, _5, mock_safe_open
+    ):
+        """Verify fa_quant_type from quant_descs is used when config.json does not define it."""
+        mock_get_config_cls.return_value = BaseConfig
+
+        quant_descs = {"model_quant_type": "W8A8", "fa_quant_type": "FAQuant"}
+        from io import StringIO
+        mock_safe_open.return_value.__enter__ = Mock(return_value=StringIO(json.dumps(quant_descs)))
+        mock_safe_open.return_value.__exit__ = Mock(return_value=False)
+
+        config_dict = copy.deepcopy(FAKE_CONFIG_DICT)
+        config_dict["quantize"] = "w8a8"
+        config_dict["quantization_config"] = {"kv_quant_type": None}
+
+        router = BaseRouter(FAKE_MODEL_NAME_OR_PATH, config_dict)
+        config = router.config
+
+        # fa_quant_type should come from quant_descs since config.json does not define it
+        self.assertEqual(config.quantization_config.fa_quant_type, "FAQuant")
+
     @patch('atb_llm.utils.file_utils.standardize_path', return_value="")
     @patch('atb_llm.utils.file_utils.check_path_permission', return_value=None)
     @patch("transformers.AutoTokenizer.from_pretrained", return_value=FakeTokenizer())

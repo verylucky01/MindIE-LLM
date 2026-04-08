@@ -57,11 +57,17 @@ void HandleResponse(ResponseSPtr response)
     // EOS or PUBLISH_KV_COMPLETE时，删除callback
     if (response->isEos || response->transferStatusFlag == TransferStatusType::PUBLISH_KV_COMPLETE) {
         InferInstance::GetCallbackMap().Erase(response->reqId);
+        MINDIE_LLM_LOG_INFO_REQUEST("[LlmManagerImpl] Remove SendResponsesCallback requestId: " + response->reqId +
+                            " when encountering EOS or PUBLISH_KV_COMPLETE.");
     }
 
     if (serverResponseCallback.has_value()) {
         serverResponseCallback.value()(response);
+    } else if (!InferInstance::IsPaused()) {
+        MINDIE_LLM_LOG_INFO_REQUEST("[LlmManagerImpl] SendResponsesCallback of requestId: " + response->reqId +
+                            " is not exist.");
     }
+    
     PROF(spanHandleResponse.SpanEnd());
 }
 
@@ -231,6 +237,7 @@ constexpr int CONTROL_STEP_SLEEP = 1;
 constexpr int RUNTIME_STEP_SLEEP = 50;
 constexpr int RESPONSE_FLAG3 = 3;
 const std::string ENV_NPU_DEVICE_IDS = "NPU_DEVICE_IDS";
+static std::once_flag pool_init_flag;
 LlmManagerImpl::LlmManagerImpl(const std::string &llmConfigPath, GetRequestsCallbackV2 getRequests,
                                SendResponsesCallbackV2 handleResponse, ControlSignalCallbackV2 controlCallback,
                                LlmManagerStatsCallback statusCallback,
@@ -245,6 +252,19 @@ LlmManagerImpl::LlmManagerImpl(const std::string &llmConfigPath, GetRequestsCall
     ipInfo_ = ipInfo;
     // llmConfigPath comes from ENV or CMD args
     llmConfigPath_ = llmConfigPath;
+
+    if (!mindie_llm::Log::GetInstance(LoggerType::MINDIE_LLM)) {
+        std::call_once(pool_init_flag, []() {
+            spdlog::init_thread_pool(LOGGER_QUEUE_SIZE, LOGGER_THREAD_NUM);
+        });
+        mindie_llm::Log::CreateInstance(LoggerType::MINDIE_LLM);
+    }
+
+    // for engine mode, we need to create configmanager and log instance
+    if (!mindie_llm::ConfigManager::CreateInstance(llmConfigPath_)) {
+        MINDIE_LLM_LOG_ERROR("Failed to create ConfigManager in LlmManagerImpl");
+    }
+    
     if (ipInfo.count("infer_mode") > 0 && ipInfo["infer_mode"] == "dmi") {
         isDmiInfer_ = true;
     }
@@ -356,6 +376,13 @@ static void InitbackendConfig(EngineConfig &engineConfig, const BackendConfig &b
     engineConfig.interNodeTlsCrlFiles = backendConfig.interNodeTlsCrlFiles;
     engineConfig.kvPoolConfig = backendConfig.kvPoolConfig;
     engineConfig.lwdMultiNodesEnable = backendConfig.lwdMultiNodesEnable;
+}
+
+static bool CheckJsonDepthCallback(int depth, Json::parse_event_t ev, [[maybe_unused]] Json& obj)
+{
+    return CheckJsonDepthWithLogger(depth, ev, [depth]() {
+        MINDIE_LLM_LOG_INFO("Failed to parse json: depth is " << depth <<  ", limit is " << GetJsonDepthLimit());
+    });
 }
 
 static void UpdateFromEnv(std::set<size_t> &npuDeviceIds, uint32_t modelInstanceId)
@@ -923,7 +950,8 @@ static void LLMSetModelConfig(std::map<std::string, std::string> &modelConfig, c
     modelConfig["max_beam_width"] = std::to_string(engineConfig.maxBeamWidth);
     modelConfig["kv_pool_backend"] = engineConfig.kvPoolConfig.backend;
     modelConfig["kv_pool_config_path"] = engineConfig.kvPoolConfig.configPath;
-   
+    modelConfig["kv_pool_async_write"] = engineConfig.kvPoolConfig.asyncWrite ? "true" : "false";
+
     std::string npuIds;
     if (!modelParam.npuDeviceIds.empty()) {
         for (auto &item : modelParam.npuDeviceIds) {
@@ -956,9 +984,7 @@ static void LLMSetModelConfig(std::map<std::string, std::string> &modelConfig, c
     modelConfig["threadNum"] = (modelConfig["asyncBatchscheduler"] == "true") ? "2" : "1";
 
     auto &configManager = mindie_llm::ConfigManager::GetInstance();
-    if (configManager.IslayerwiseDisaggregated()) {
-        LLMSetLayerwiseDisaggregatedModelConfig(modelConfig, engineConfig);
-    }
+    if (configManager.IslayerwiseDisaggregated()) LLMSetLayerwiseDisaggregatedModelConfig(modelConfig, engineConfig);
 }
 
 static void InitPolicyConfig(SchedulerConfig &schedulerConfig, const EngineConfig &engineConfig)
@@ -1252,7 +1278,7 @@ Status LlmManagerImpl::LaunchLlmEngine(Role pdRole)
         schedulerConfig.templateType = (pdRole == Role::D ? "DmiDecode" : "DmiPrefill");
     }
 
-    llmEnginePtr_ = MakeLlmEngine(schedulerConfig, iExecutorSPtrs_, handleResponse_, pdRole);
+    llmEnginePtr_ = MakeLlmEngine(schedulerConfig, iExecutorSPtrs_, handleResponse_, pdRole, &llmEngineReady_);
     std::vector<ModelParam> modelParamVec = engineConfig_.modelDeployParam;
     llmEnginePtr_->InitStaticLoras(modelParamVec, iExecutorSPtrs_.size()); // 初始化lora_manager中静态lora
     InitEngineDPProcessGroup(schedulerConfig); // 初始化分布式多DP进程通信资源
@@ -1320,10 +1346,10 @@ Status LlmManagerImpl::Init(uint32_t modelInstanceId, std::set<size_t> npuDevice
 
     std::vector<ModelDeployConfig> modelParamVec;
     try {
-        modelParamVec = GetModelDeployConfig();
+        modelParamVec = mindie_llm::ConfigManager::GetInstance().GetModelDeployConfig();
     } catch (const std::exception &e) {
         MINDIE_LLM_LOG_ERROR("Config manager init exception: " << e.what());
-        return Status(Error::Code::ERROR, "Get configManagerInstance failed.");
+        return Status(Error::Code::ERROR, "Get configManagerInstance failed. modelParamVec get failed.");
     }
     if (!InitEngineConfig(engineConfig_, modelParamVec, npuDeviceIds, modelInstanceId, extendInfo)) {
         return Status(Error::Code::ERROR, "llmmanager init InitEngineConfig failed.");
@@ -1331,7 +1357,6 @@ Status LlmManagerImpl::Init(uint32_t modelInstanceId, std::set<size_t> npuDevice
     multiNodesInferEnabled_ = engineConfig_.multiNodesInferEnabled;
     isMaster_ = engineConfig_.isMaster;
     
-    auto &configManager = mindie_llm::ConfigManager::GetInstance();
     if (!LlmSetModelConfig(engineConfig_, modelConfigs_, ipInfo_, isDmiInfer_)) {
         MINDIE_LLM_LOG_ERROR("Malloc modelBackends_ failed.");
         return Status(Error::Code::ERROR, "Engine init model failed: new modelBackends_ failed");
@@ -1347,10 +1372,24 @@ Status LlmManagerImpl::Init(uint32_t modelInstanceId, std::set<size_t> npuDevice
     size_t shmCount = 1;
     auto it = engineConfig_.modelDeployParam[0].modelConfig.find("dp");
 
-    if (engineConfig_.layerwiseDisaggregated) {
-        executorNum = 1;
-        if (configManager.IsLwdMultiNodesEnable() && configManager.GetLwdRoleType() == "master") {
-            executorNum = std::stoul(it->second);   // 多机场景 = dp数
+    if (engineConfig_.layerwiseDisaggregated) { // 边云特性的逻辑在这个分支
+        size_t dp = 1;
+        if (it != engineConfig_.modelDeployParam[0].modelConfig.end()) {
+            dp = std::stoul(it->second);
+        }
+        auto &configManager = mindie_llm::ConfigManager::GetInstance();
+        if (configManager.GetLwdRoleType() == "master") {
+            executorNum = dp;   // master起dp个
+        } else {
+            std::vector<std::string> slaveIPs;
+            mindie_llm::Split(modelConfigs_[0].at("slaveIPs"), ",", slaveIPs);
+            size_t slaveNum = slaveIPs.size();
+            // slave在多dp下起DP/slaveNum个,单dp下起1个;至少起1个
+            if (slaveNum == 0) {
+                throw std::runtime_error("slaveIPs must be greater than 0");
+            } else {
+                executorNum = std::max(dp / slaveNum, size_t(1));
+            }
         }
     } else if (engineConfig_.distributedEnable && !multiNodesInferEnabled_) {
         executorNum = 1;
@@ -1418,6 +1457,7 @@ Status LlmManagerImpl::Init(uint32_t modelInstanceId, std::set<size_t> npuDevice
 
 Status LlmManagerImpl::ProcessRequests(RequestSPtr request)
 {
+    MINDIE_LLM_LOG_WARN_REQUEST("Get a new inferRequest from server, requestId: " << request->requestId);
     return ForwardRequest(request);
 }
 
@@ -1434,6 +1474,7 @@ Status LlmManagerImpl::ProcessRequests()
             MINDIE_LLM_LOG_ERROR("Error: Request is null!");
             continue;
         }
+        MINDIE_LLM_LOG_INFO("Get a new inferRequest from server, requestId: " << req->requestId);
 
         Status ret = ForwardRequest(req);
         if (!ret.IsOk()) {
@@ -1448,7 +1489,7 @@ Status LlmManagerImpl::ProcessRequests()
 
 Status LlmManagerImpl::ForwardRequest(RequestSPtr request)
 {
-    Status ret = ProccessReqInputIds(request);
+    Status ret = ProcessReqInputIds(request);
     if (!ret.IsOk()) {
         return ret;
     }
@@ -1456,6 +1497,8 @@ Status LlmManagerImpl::ForwardRequest(RequestSPtr request)
     if (!llmEnginePtr_->AddRequest(request)) {
         return Status(Error::Code::ERROR, "Engine has been stopped. Cannot add request.");
     }
+
+    MINDIE_LLM_LOG_INFO_REQUEST("Insert a new inferRequest, requestId: " << request->requestId);
     return Status(Error::Code::OK, "Success");
 }
 
@@ -1525,7 +1568,7 @@ static Status CheckReqInputIds(RequestSPtr &request, const uint32_t vocabSize)
     return Status(Error::Code::OK, "Success");
 }
 
-Status LlmManagerImpl::ProccessReqInputIds(RequestSPtr &request) const
+Status LlmManagerImpl::ProcessReqInputIds(RequestSPtr &request) const
 {
     if (!request) {
         MINDIE_LLM_LOG_ERROR("CheckReqInputIds: request is nullptr.");
@@ -1567,6 +1610,8 @@ void LlmManagerImpl::ControlRequest(const RequestIdNew &requestId, OperationV2 o
 {
     RequestId reqId = requestId;
     std::unordered_set<RequestId> reqIds = {reqId};
+    MINDIE_LLM_LOG_INFO_REQUEST("Get a new ControlRequest from server, requestId: " << reqId << ", with operation:"
+                                                                            << static_cast<int>(operation));
     if (operation == OperationV2::STOP) {
         llmEnginePtr_->AbortRequests(reqIds);
     } else if (operation == OperationV2::RELEASE_KV) {
@@ -1581,6 +1626,8 @@ void LlmManagerImpl::ControlRequest()
     auto stopReqPairs = controlCallback_();
     for (auto reqPair : stopReqPairs) {
         RequestId reqId = reqPair.first;
+        MINDIE_LLM_LOG_INFO("Get a new ControlRequest from server, requestId: "
+                    << reqId << ", with operation:" << static_cast<int>(reqPair.second));
         std::unordered_set<RequestId> reqIds = {reqId};
         if (reqPair.second == OperationV2::STOP) {
             llmEnginePtr_->AbortRequests(reqIds);

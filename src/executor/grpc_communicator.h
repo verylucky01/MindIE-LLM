@@ -15,9 +15,12 @@
 
 #include <grpcpp/server_builder.h>
 #include <grpcpp/server_context.h>
+#include <chrono>
 #include <condition_variable>
 #include <mutex>
 #include <thread>
+#include <cstdint>
+#include <unordered_map>
 #include <openssl/pem.h>
 #include <openssl/bio.h>
 #include <openssl/evp.h>
@@ -45,6 +48,21 @@ public:
     static std::shared_ptr<GRPCCommunicator>
     GetInstance(const std::unordered_map<std::string, std::string> &modelConfig);
 
+    static std::shared_ptr<GRPCCommunicator> TryGetInstance()
+    {
+        return grpcCommunicatorSingleton;
+    }
+
+    [[nodiscard]] bool IsMaster() const noexcept { return isMaster_; }
+
+    bool SendNpuUtilizationReport(uint32_t maxAicoreUtilizationPercent);
+
+    uint32_t GetSlaveMaxNpuUtilizationPercent() const;
+
+    bool ConsumeSlaveNpuReportTimeoutFlag() const;
+
+    void RecordSlaveNpuUtil(const std::string &slaveIp, uint32_t maxAicoreUtilizationPercent);
+
     // 删除拷贝构造和赋值操作
     GRPCCommunicator(const GRPCCommunicator &) = delete;
     GRPCCommunicator &operator=(const GRPCCommunicator &) = delete;
@@ -65,6 +83,8 @@ public:
 
     bool RegisterRequestHandler(RequestHandler handler, int dpRankIdx); // Only for slave node
 
+    bool RegisterRecoverRequestHandler(RequestHandler handler, int dpRankIdx); // Only for slave node
+
     bool RegisterResponseHandler(ResponseHandler handler, int dpRankIdx); // Only for master node
 
     void HandleRequestFromMaster(ExecuteRequest &request, int targetDPRank); // Only for slave node
@@ -82,6 +102,9 @@ public:
     ConcurrentMap<std::string, SlaveStreamPtr> &SlaveIpToStream();
 
 private:
+
+    static std::shared_ptr<GRPCCommunicator> grpcCommunicatorSingleton;
+
     static constexpr int grpcSendReceiveBufSize = 256 * 1024 * 1024; // 256MB, 和共享内存大小对齐
     static constexpr int maxConcurrentStreams = 128;                   // 最大并发流数
 
@@ -141,6 +164,20 @@ private:
     std::thread slaveWorkerThread_;
     std::unique_ptr<grpc::ClientContext> context_;
     ConcurrentMap<int, RequestHandler> requestHandlers_;
+    ConcurrentMap<int, RequestHandler> recoverRequestHandlers_;
+
+    struct SlaveNpuSample {
+        uint32_t maxAicoreUtilizationPercent{0};
+        std::chrono::steady_clock::time_point reportTime{};
+    };
+    mutable std::mutex slaveNpuMutex_;
+    std::unordered_map<std::string, SlaveNpuSample> slaveIpToMaxNpuUtil_;
+    mutable bool slaveNpuReportTimeout_{false};
+    mutable bool slaveNpuTimeoutActive_{false};
+    mutable std::chrono::steady_clock::time_point lastSlaveNpuTimeoutLogTime_{};
+    mutable uint64_t slaveNpuReportRxCount_{0};
+    mutable uint64_t lastSlaveNpuReportRxCountLog_{0};
+    mutable std::chrono::steady_clock::time_point lastMasterNpuDiagLogTime_{};
 };
 
 class MasterServiceImpl final : public MasterService::Service {

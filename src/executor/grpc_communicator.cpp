@@ -17,12 +17,19 @@
 #include <grpcpp/create_channel.h>
 #include <grpcpp/server_builder.h>
 #include <experimental/filesystem>
+#include <algorithm>
 
 using grpc::Server;
 using grpc::ServerBuilder;
 
 namespace fs = std::experimental::filesystem;
 namespace mindie_llm {
+
+std::shared_ptr<GRPCCommunicator> GRPCCommunicator::grpcCommunicatorSingleton = nullptr;
+static constexpr uint64_t SLAVE_NPU_REPORT_STALE_MS = 7000;
+static constexpr uint64_t SLAVE_NPU_TIMEOUT_LOG_INTERVAL_MS = 60000;
+static constexpr uint64_t NPU_REPORT_DIAG_LOG_INTERVAL_MS = 30000;
+
 bool ReadFileToString(const fs::path &filePath, std::string &outContent)
 {
     std::string path = filePath.string();
@@ -47,6 +54,7 @@ std::shared_ptr<GRPCCommunicator>
 GRPCCommunicator::GetInstance(const std::unordered_map<std::string, std::string> &modelConfig)
 {
     static std::shared_ptr<GRPCCommunicator> instance = std::make_shared<GRPCCommunicator>(modelConfig);
+    GRPCCommunicator::grpcCommunicatorSingleton = instance;
     return instance;
 }
 
@@ -414,6 +422,85 @@ bool GRPCCommunicator::SendResponse(ExecuteResponse &response, int sourceDPRank,
     return true;
 }
 
+bool GRPCCommunicator::SendNpuUtilizationReport(uint32_t maxAicoreUtilizationPercent)
+{
+    if (isMaster_) {
+        return false;
+    }
+    SlaveToMasterMsg msg;
+    msg.set_source_dp_rank(0);
+    msg.set_target_dp_rank(0);
+    msg.mutable_npu_util_report()->set_max_aicore_utilization_percent(maxAicoreUtilizationPercent);
+    std::lock_guard<std::mutex> lock(streamWriteMutex_);
+    if (!slaveStream_) {
+        return false;
+    }
+    return slaveStream_->Write(msg);
+}
+
+void GRPCCommunicator::RecordSlaveNpuUtil(const std::string &slaveIp, uint32_t maxAicoreUtilizationPercent)
+{
+    std::lock_guard<std::mutex> lock(slaveNpuMutex_);
+    slaveIpToMaxNpuUtil_[slaveIp] = {maxAicoreUtilizationPercent, std::chrono::steady_clock::now()};
+    ++slaveNpuReportRxCount_;
+}
+
+uint32_t GRPCCommunicator::GetSlaveMaxNpuUtilizationPercent() const
+{
+    std::lock_guard<std::mutex> lock(slaveNpuMutex_);
+    const auto now = std::chrono::steady_clock::now();
+    const auto expireDuration = std::chrono::milliseconds(SLAVE_NPU_REPORT_STALE_MS);
+    slaveNpuReportTimeout_ = false;
+    uint32_t maxVal = 0;
+    uint32_t freshSamples = 0;
+    uint32_t staleSamples = 0;
+    for (const auto &kv : slaveIpToMaxNpuUtil_) {
+        if (now - kv.second.reportTime <= expireDuration) {
+            maxVal = std::max(maxVal, kv.second.maxAicoreUtilizationPercent);
+            ++freshSamples;
+        } else {
+            ++staleSamples;
+        }
+    }
+    // 主节点聚合时发现从节点上报过期/缺失：置超时标志，并按节流策略打印告警。
+    if (staleSamples > 0 || freshSamples < slaveCount_) {
+        slaveNpuReportTimeout_ = true;
+        const bool enteringTimeout = !slaveNpuTimeoutActive_;
+        const bool intervalElapsed =
+            (now - lastSlaveNpuTimeoutLogTime_) >= std::chrono::milliseconds(SLAVE_NPU_TIMEOUT_LOG_INTERVAL_MS);
+        if (enteringTimeout || intervalElapsed) {
+            lastSlaveNpuTimeoutLogTime_ = now;
+            MINDIE_LLM_LOG_WARN("Slave NPU reports stale/missing on master. stale=" << staleSamples
+                                << ", fresh_reported=" << freshSamples
+                                << ", cached_samples=" << slaveIpToMaxNpuUtil_.size()
+                                << ", expected=" << slaveCount_
+                                << ", registered_streams=" << slaveIpToStream_.Size());
+        }
+        slaveNpuTimeoutActive_ = true;
+    } else {
+        slaveNpuTimeoutActive_ = false;
+    }
+    return maxVal;
+}
+
+bool GRPCCommunicator::ConsumeSlaveNpuReportTimeoutFlag() const
+{
+    std::lock_guard<std::mutex> lock(slaveNpuMutex_);
+    const auto now = std::chrono::steady_clock::now();
+    if ((now - lastMasterNpuDiagLogTime_) >= std::chrono::milliseconds(NPU_REPORT_DIAG_LOG_INTERVAL_MS)) {
+        lastMasterNpuDiagLogTime_ = now;
+        const uint64_t rxDelta = slaveNpuReportRxCount_ - lastSlaveNpuReportRxCountLog_;
+        lastSlaveNpuReportRxCountLog_ = slaveNpuReportRxCount_;
+        MINDIE_LLM_LOG_INFO("Master NPU report diagnostics: registered_streams=" << slaveIpToStream_.Size()
+                            << ", expected_slaves=" << slaveCount_
+                            << ", total_rx=" << slaveNpuReportRxCount_
+                            << ", rx_delta_since_last=" << rxDelta);
+    }
+    const bool ret = slaveNpuReportTimeout_;
+    slaveNpuReportTimeout_ = false;
+    return ret;
+}
+
 template <typename HandlerType>
 bool RegisterHandler(ConcurrentMap<int, HandlerType> &handlers, int dpRankIdx, HandlerType handler)
 {
@@ -432,6 +519,11 @@ bool RegisterHandler(ConcurrentMap<int, HandlerType> &handlers, int dpRankIdx, H
 bool GRPCCommunicator::RegisterRequestHandler(RequestHandler handler, int dpRankIdx)
 {
     return RegisterHandler(requestHandlers_, dpRankIdx, handler);
+}
+
+bool GRPCCommunicator::RegisterRecoverRequestHandler(RequestHandler handler, int dpRankIdx)
+{
+    return RegisterHandler(recoverRequestHandlers_, dpRankIdx, handler);
 }
 
 bool GRPCCommunicator::RegisterResponseHandler(ResponseHandler handler, int dpRankIdx)
@@ -465,13 +557,15 @@ bool GRPCCommunicator::HandleResponseFromSlave(ExecuteResponse &response, int ta
 
 void GRPCCommunicator::HandleRequestFromMaster(ExecuteRequest &request, int targetDPRank)
 {
-    if (request.execute_type() == MODEL_INFER ||
-        request.execute_type() == RECOVER_COMMAND_EXEC ||
-        request.execute_type() == START_COMMAND_EXEC ||
-        request.execute_type() == PAUSE_COMMAND_EXEC ||
-        request.execute_type() == CLEAR_COMMAND_EXEC) {
+    if (request.execute_type() == MODEL_INFER) {
         // MODEL_INFER request will be handled by all DP ranks in the slave node
         std::vector<RequestHandler> handlers = requestHandlers_.Values();
+        for (const auto &handler : handlers) {
+            handler(request);
+        }
+    } else if (request.execute_type() == RECOVER_COMMAND_EXEC || request.execute_type() == START_COMMAND_EXEC ||
+               request.execute_type() == PAUSE_COMMAND_EXEC || request.execute_type() == CLEAR_COMMAND_EXEC) {
+        std::vector<RequestHandler> handlers = recoverRequestHandlers_.Values();
         for (const auto &handler : handlers) {
             handler(request);
         }
@@ -526,9 +620,11 @@ void MasterServiceImpl::StopRespHandlerThreads()
 grpc::Status MasterServiceImpl::RegisterAndCommunicate(ServerContext *context, SlaveStreamPtr stream)
 {
     SlaveToMasterMsg client_msg;
+    std::string slaveIpFromStream;
     while (stream->Read(&client_msg)) {
         if (client_msg.has_register_request()) {
             auto &register_request = client_msg.register_request();
+            slaveIpFromStream = register_request.slave_ip();
             gRPCCommunicator_->SlaveIpToStream().Insert(register_request.slave_ip(), stream);
             (void)context;
             if (gRPCCommunicator_->AllSlavesConnected()) {
@@ -554,6 +650,13 @@ grpc::Status MasterServiceImpl::RegisterAndCommunicate(ServerContext *context, S
                 respTask->response = std::make_shared<ExecuteResponse>(std::move(executeResponse));
                 pendingRespFromSlaveQueue_.push(std::move(respTask));
             }
+        } else if (client_msg.has_npu_util_report()) {
+            if (slaveIpFromStream.empty()) {
+                MINDIE_LLM_LOG_WARN("MasterService: npu_util_report received before register_request, ignored.");
+                continue;
+            }
+            uint32_t pct = client_msg.npu_util_report().max_aicore_utilization_percent();
+            gRPCCommunicator_->RecordSlaveNpuUtil(slaveIpFromStream, pct);
         }
     }
     return grpc::Status::OK;

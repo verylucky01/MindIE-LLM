@@ -25,7 +25,7 @@
 #include "env_util.h"
 #include "dmi_role.h"
 #include "config_manager_impl.h"
-#include "safe_io.h"
+#include "json_util.h"
 
 using namespace prefillAndDecodeCommunication;
 using OrderedJson = nlohmann::ordered_json;
@@ -171,6 +171,7 @@ bool SingleLLMPrefillReqHandler::GenerateFirstToken(ResponseSPtr response, bool 
         constructOneResponseCallBack_ = nullptr;
         return false;
     }
+    ULOG_INFO(SUBMODLE_NAME_ENDPOINT, "[P Node] Finish decode first token. requestId: " << reqId_);
     constructOneResponseCallBack_ = nullptr;
     return true;
 }
@@ -269,6 +270,9 @@ void SingleLLMPrefillReqHandler::SetBackManagerCallBack(RequestSPtr request)
             /* note: send to D and coordinator.
             */
             auto isReqStopped = self->stopReqSet_.find(self->reqId_) != self->stopReqSet_.end() ? true : false;
+            ULOG_INFO(SUBMODLE_NAME_ENDPOINT, "P requestId: " << self->reqId_
+                                                              << " is ready for kv-cache publish, stop flag is "
+                                                              << isReqStopped);
             PROF(INFO, Domain("Communication").Resource(self->reqId_.c_str()).Event("sendReqToD"));
             self->constructOneResponseCallBack_ = nullptr;
             DecodeParameters decodeParams;
@@ -542,6 +546,9 @@ void SingleLLMPrefillReqHandler::BuildSamplingParametersNext(DecodeParameters& p
     }
     if (inferParam_->enableThinking.has_value()) {
         params.mutable_samplingparams()->mutable_enablethinking()->set_value(inferParam_->enableThinking.value());
+    }
+    if (request_->responseFormat.has_value()) {
+        params.mutable_samplingparams()->set_responseformat(request_->responseFormat.value());
     }
     if (request_->thinkingBudget.has_value()) {
         params.mutable_samplingparams()->mutable_thinkingbudget()->set_value(request_->thinkingBudget.value());

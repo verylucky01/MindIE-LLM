@@ -368,7 +368,6 @@ def convert_execute_model_request_to_input_metadata_composite(
             is_sp_enable = config.sp_size > 1
             is_cp_enable = config.cp_size > 1
             is_mtp_enable = config.enable_mtp
-        lwd_multi_nodes_enable = getattr(config, 'model_config', {}).get('lwd_multi_nodes_enable', 'false') == 'true'
         lwd_is_slave = getattr(config, 'model_config', {}).get('layerwiseDisaggregatedRoleType', 'master') == 'slave'
         is_scp_enbale = is_sp_enable or is_cp_enable
 
@@ -379,7 +378,7 @@ def convert_execute_model_request_to_input_metadata_composite(
             )
         else:
             seq_blocks = convert_bytes_to_list(seq_group_metadata.block_tables[0])
-            if lwd_multi_nodes_enable and lwd_is_slave and is_scp_enbale:
+            if lwd_is_slave and is_scp_enbale:
                 seq_blocks = convert_bytes_to_list(seq_group_metadata.lwd_cloud_metadata.lwd_cloud_block_tables)
             sp_rank_block_num = None
             sp_rank_token_num = None
@@ -390,14 +389,14 @@ def convert_execute_model_request_to_input_metadata_composite(
             if seq_ids[0] == SIMULATE_SEQUENCE_ID:
                 ibis_batch_sp_tokens.append(sp_rank_token_num)
             else:
-                if lwd_multi_nodes_enable and lwd_is_slave:
+                if lwd_is_slave:
                     lwd_cloud_metadata = seq_group_metadata.lwd_cloud_metadata
                     ibis_batch_sp_tokens.append(list(lwd_cloud_metadata.lwd_cloud_sp_rank_token_num))
                     sp_rank_block_num = list(lwd_cloud_metadata.lwd_cloud_sp_rank_block_num)
                 else:
                     ibis_batch_sp_tokens.append(list(seq_group_metadata.sp_rank_token_num))
                     sp_rank_block_num = list(seq_group_metadata.sp_rank_block_num)
-            if lwd_multi_nodes_enable and lwd_is_slave:
+            if lwd_is_slave:
                 lwd_cloud_metadata = seq_group_metadata.lwd_cloud_metadata
                 ibis_batch_sp_rank_id.append(lwd_cloud_metadata.lwd_cloud_sp_rank_id)
                 ibis_batch_block_rank_id.append(lwd_cloud_metadata.lwd_cloud_append_block_rank_id)
@@ -477,11 +476,11 @@ def convert_execute_model_request_to_input_metadata_composite(
         computed_blocks = prefill_params["computed_blocks"]
         remote_computed_blocks = prefill_params["remote_computed_blocks"]
         batch_response_format = prefill_params["batch_response_format"]
+        batch_predicted_token_ids = prefill_params["batch_predicted_token_ids"]
     else:
         # decode 阶段：收集必要的批次元数据
-        # 注意：在 decode 阶段，每个 seq_group 可能包含多个 sequence
-        # response_format_array 需要与 all_sequence_ids 一一对应（sequence 级别）
-        batch_response_format = []
+        # response_format 已在 prefill 阶段存入 DictContext，decode 从 context 读取，此处无需收集
+        batch_predicted_token_ids = []
         for seq_group_metadata in request.seq_group_metadata_list:
             seq_ids = convert_bytes_to_list(seq_group_metadata.seqIds)
             num_sequences = len(seq_ids)
@@ -495,13 +494,10 @@ def convert_execute_model_request_to_input_metadata_composite(
             else:
                 reserved_id = np.array(reserved_seqs_id_tensor, copy=True, dtype=np.int64)
             batch_reserved_seq_ids.append(reserved_id)
-            
-            # 收集 response_format（每个 sequence 都需要相同的 response_format）
-            response_format = None
-            if seq_group_metadata.HasField("response_format"):
-                response_format = seq_group_metadata.response_format
-            # Decode 阶段：按 sequence 数量扩展
-            batch_response_format.extend([response_format] * num_sequences)
+
+            predicted_tokens = list(seq_group_metadata.predicted_token_ids)
+            predicted_tokens = predicted_tokens if predicted_tokens else None
+            batch_predicted_token_ids.extend([predicted_tokens] * num_sequences)
     batch_ignore_eos = np.array(batch_ignore_eos)
     batch_skip_special_tokens = np.array(batch_skip_special_tokens)
     batch_include_stop = np.array(batch_include_stop)
@@ -546,7 +542,8 @@ def convert_execute_model_request_to_input_metadata_composite(
         prefill_block_rank_id=batch_prefill_block_rank_id,
         block_rank_id=batch_block_rank_id,
         layerwise_disaggregated_exe_stage=layerwise_disaggregated_exe_stage,
-        batch_response_format=batch_response_format
+        batch_response_format=batch_response_format,
+        batch_predicted_token_ids=batch_predicted_token_ids,
     )
 
     input_metadata_composite = InputMetadataComposite()
@@ -661,6 +658,8 @@ def convert_pull_kv_request_to_input_metadata_composite(
     batch_logprobs = prefill_params["batch_logprobs"]
     batch_reserved_seq_ids = prefill_params["batch_reserved_seq_ids"]
     batch_use_beam_search = prefill_params["batch_use_beam_search"]
+    batch_response_format = prefill_params["batch_response_format"]
+    batch_predicted_token_ids = prefill_params["batch_predicted_token_ids"]
     adapter_ids = prefill_params["adapter_ids"]
     computed_blocks = prefill_params["computed_blocks"]
     remote_computed_blocks = prefill_params["remote_computed_blocks"]
@@ -702,6 +701,8 @@ def convert_pull_kv_request_to_input_metadata_composite(
         batch_use_beam_search=batch_use_beam_search,
         reserved_sequence_ids=batch_reserved_seq_ids,
         sp_tokens=batch_sp_tokens,
+        batch_response_format=batch_response_format,
+        batch_predicted_token_ids=batch_predicted_token_ids,
         seq_lens=[[1]],
     )
 
@@ -731,7 +732,8 @@ def parse_para_is_prefill(seq_group_metadata_list: List[SequenceGroupMetadata], 
     batch_reserved_seq_ids = []
     batch_use_beam_search = np.array([], dtype=bool)
     batch_response_format = []
-    
+    batch_predicted_token_ids = []
+
     # prefix cache
     computed = []
     remote_computed = []
@@ -805,6 +807,10 @@ def parse_para_is_prefill(seq_group_metadata_list: List[SequenceGroupMetadata], 
         # Prefill 阶段通常每个 seq_group 只有 1 个 sequence，但为了一致性也按 sequence 数量扩展
         batch_response_format.extend([response_format] * num_sequences)
 
+        predicted_tokens = list(seq_group_metadata.predicted_token_ids)
+        predicted_tokens = predicted_tokens if predicted_tokens else None
+        batch_predicted_token_ids.extend([predicted_tokens] * num_sequences)
+
         # 解析每条request已计算的block数量，解析成一维list，如不存在将值置为None
         # 虚推请求不使用 prefix cache，填充 0 值以确保维度对齐
         if seq_ids[0] == SIMULATE_SEQUENCE_ID:
@@ -833,8 +839,8 @@ def parse_para_is_prefill(seq_group_metadata_list: List[SequenceGroupMetadata], 
     computed_blocks = None
     remote_computed_blocks = None
 
-    lwd_multi_nodes_enable = getattr(config, 'model_config', {}).get('lwd_multi_nodes_enable', 'false') == 'true'
-    if scp_size > 1 and not lwd_multi_nodes_enable:
+    layerwise_disaggregated = getattr(config, 'model_config', {}).get('layerwiseDisaggregated', 'false') == 'true'
+    if scp_size > 1 and not layerwise_disaggregated:
         if computed:
             computed_blocks = np.array(computed, dtype=np.int64).reshape(-1, scp_size)
             if np.count_nonzero(computed_blocks) == 0:
@@ -875,6 +881,7 @@ def parse_para_is_prefill(seq_group_metadata_list: List[SequenceGroupMetadata], 
         "computed_blocks": computed_blocks,
         "remote_computed_blocks": remote_computed_blocks,
         "batch_response_format": batch_response_format,
+        "batch_predicted_token_ids": batch_predicted_token_ids,
     }
 
 

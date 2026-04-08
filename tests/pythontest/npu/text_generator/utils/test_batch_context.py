@@ -10,6 +10,7 @@ from mindie_llm.text_generator.utils.config import ContextParams, CacheConfig, S
 from mindie_llm.text_generator.utils.input_metadata import SAMPLING_DTYPE, InputMetadata
 from mindie_llm.text_generator.utils.sampling_metadata import SamplingMetadata
 from mindie_llm.text_generator.utils.sampling_output import SamplingOutput
+from mindie_llm.modeling.backend_type import BackendType
 
 
 class TestDictContext(unittest.TestCase):
@@ -181,6 +182,21 @@ class TestBatchContext(unittest.TestCase):
         mock_ndarray_clear.assert_called_once_with(handle)
         mock_dict_clear.assert_called_once_with(handle)
 
+    @patch.object(NdarrayContext, 'clear_context')
+    @patch.object(DictContext, 'clear_context')
+    def test_clear_context_by_handles_clears_structured_output_with_handles(
+        self, mock_dict_clear, mock_ndarray_clear
+    ):
+        """测试通过handle清除context时同步按handle清理structured output状态"""
+        handle = np.array([1, 2], dtype=np.int32)
+        self.batch_ctx.structured_output_manager = Mock()
+
+        self.batch_ctx.clear_context_by_handles(handle)
+
+        self.batch_ctx.structured_output_manager.clear_finished_requests.assert_called_once_with(handle)
+        mock_ndarray_clear.assert_called_once_with(handle)
+        mock_dict_clear.assert_called_once_with(handle)
+
     def test_block_mapping_methods(self):
         """测试block_to_slots和block_table_to_slots"""
         block_id = np.array([0, 1])
@@ -247,6 +263,7 @@ class TestBatchContext(unittest.TestCase):
         input_metadata.batch_request_ids = np.array(["0"])
         input_metadata.is_dummy_batch = False
         input_metadata.adapter_ids = None
+        input_metadata.batch_response_format = None
 
         self.batch_ctx.update_context(
             context_handles=np.array([0]),
@@ -469,6 +486,45 @@ class TestBatchContext(unittest.TestCase):
         self.assertEqual(nd.seq_lens[3], 8)  # child[3] ← parent[1]
         self.assertEqual(dc.output_texts.get(2), "Hello")
         self.assertEqual(dc.trace_ids.get(3), "trace-B")
+
+    @patch("mindie_llm.text_generator.utils.batch_context.torch.Generator")
+    @patch("mindie_llm.text_generator.utils.batch_context.SamplingMetadata.from_batch")
+    def test_build_sampling_meta_for_splitfuse_sets_random_number_generators(
+        self, mock_from_batch, mock_torch_generator
+    ):
+        self.batch_ctx.context_params.generator_backend_type = BackendType.TORCH
+        mock_sampling_metadata = Mock()
+        mock_from_batch.return_value = mock_sampling_metadata
+        mock_generator = Mock()
+        mock_torch_generator.return_value = mock_generator
+
+        context_handles = np.array([1], dtype=np.int32)
+        metadata = Mock(spec=InputMetadata)
+        metadata.batch_size = 1
+        metadata.batch_is_prefill = np.array([True])
+        metadata.batch_seq_len = np.array([2], dtype=np.int64)
+        metadata.split_start_position = np.array([0], dtype=np.int64)
+        metadata.input_ids = np.array([11, 12], dtype=np.int64)
+        metadata.batch_sequence_ids = [np.array([101], dtype=np.int64)]
+        metadata.batch_sampling_params = np.array(
+            [(np.nan, np.nan, np.nan, 0.0, np.nan, np.nan, np.nan, np.nan)],
+            dtype=SAMPLING_DTYPE
+        )
+        metadata.batch_logprobs = np.array([None], dtype=object)
+        metadata.trace_ids = [None]
+        metadata.batch_seeds = np.array([25], dtype=object)
+        metadata.batch_ignore_eos = np.array([None], dtype=object)
+        metadata.is_mix = False
+
+        self.batch_ctx.build_sampling_meta_for_splitfuse(context_handles, metadata, np.array([0]))
+
+        self.assertEqual(self.batch_ctx.all_ndarray_context.seeds[1], 25)
+        self.assertIs(self.batch_ctx.all_dict_context.random_number_generators[1], mock_generator)
+        mock_generator.manual_seed.assert_called_once_with(25)
+
+        _, kwargs = mock_from_batch.call_args
+        self.assertEqual(kwargs["batch_seeds"].tolist(), [25])
+        self.assertEqual(kwargs["random_number_generators"], [mock_generator])
 
 
 if __name__ == "__main__":

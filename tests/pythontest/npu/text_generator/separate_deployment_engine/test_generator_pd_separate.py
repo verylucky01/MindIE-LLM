@@ -184,9 +184,7 @@ def test_separate_deployment_engine(role: str, queue):
             remote_cluster_ids={0: [decoder_model_instance_id]},
             remote_physical_device_ids={0: [decoder_physical_device_id]},
             remote_device_ips={0: [remote_device_ip]},
-            host_ips={0: [decoder_host_ip]},
-            remote_dp_instance_ids={0: [decoder_model_instance_id]},
-            local_dp_instance_id=prefill_model_instance_id
+            host_ips={0: [decoder_host_ip]}
         )
  
     elif generator_runner.generator.pd_config.model_role == decoder:
@@ -195,9 +193,7 @@ def test_separate_deployment_engine(role: str, queue):
             remote_cluster_ids={0: [prefill_model_instance_id]},
             remote_physical_device_ids={0: [prefill_physical_device_id]},
             remote_device_ips={0: [remote_device_ip]},
-            host_ips={0: [prefill_host_ip]},
-            remote_dp_instance_ids={0: [prefill_model_instance_id]},
-            local_dp_instance_id=decoder_model_instance_id
+            host_ips={0: [prefill_host_ip]}
         ) 
         
     if role == decoder:

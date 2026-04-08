@@ -22,8 +22,6 @@ SERVER_LIST = "server_list"
 ATTRIBUTES_IDX = 0
 DEVICES_IDX = 1
 POLICY_IDX = 2
-DP_CHANGE = 1000
-DP_CHANGE_SINGLEDP = 10000
 
 
 @dataclass
@@ -174,8 +172,6 @@ class DmiConfig(BaseConfig):
         self.need_switch = False
         self.local_dp_rank_to_id = list()
         self.dp_inst_id_to_cluster_id = {}
-        self.local_dp_instance_id = 0
-        self.remote_dp_instance_ids = {}
 
         self.init_dmi_config()
 
@@ -264,12 +260,6 @@ class DmiConfig(BaseConfig):
         if self.dp_size > 1:
             self.local_dp_rank_to_id = generate_dp_inst_id(self.model_config['local_instance_id'], self.dp_size)
             self.model_config["local_instance_id"] = self.local_dp_rank_to_id[self.rank // self.tp_size]
-            self.local_dp_instance_id = int(int(self.model_config['local_instance_id']) / DP_CHANGE)
-        else:
-            if self.cp_size > 1:
-                self.local_dp_instance_id = int(self.model_config['local_instance_id']) * DP_CHANGE_SINGLEDP
-            else:
-                self.local_dp_instance_id = int(self.model_config['local_instance_id'])
 
         self.model_config["local_device_ip"] = local_device_ip
         self.model_config["local_physical_device_id"] = device_physical_id[self.local_rank]
@@ -282,7 +272,6 @@ class DmiConfig(BaseConfig):
             f"local_device_ip = {self.model_config['local_device_ip']},"
             f"local_logic_device_id = {self.model_config['npu_device_id']},"
             f"local_physical_device_id = {self.model_config['local_physical_device_id']},"
-            f"local_dp_instance_id = {self.local_dp_instance_id}."
         )
         logger.info(log_msg)
 
@@ -388,14 +377,12 @@ class DmiConfig(BaseConfig):
                 self.remote_link_cluster_id[instance_id] = []
                 self.remote_link_device_ips[instance_id] = []
                 self.remote_link_device_physical_id[instance_id] = []
-                self.remote_dp_instance_ids[instance_id] = []
                 if host_ip_num != 0:
                     self.remote_link_host_ip[instance_id] = []
                 if super_id_num != 0:
                     self.remote_super_pod_id[instance_id] = []
                     self.remote_super_device_id[instance_id] = []
-
-            self.remote_dp_instance_ids[instance_id] = dp_instance_id
+  
             for remote_rank in remote_link_ranks:
                 # for one device links with several devices, mark every link using different cluster id
                 cp_remote_rank = remote_rank // self.remote_sp_size
@@ -434,7 +421,6 @@ class DmiConfig(BaseConfig):
             f"remote_super_pod_id = {self.remote_super_pod_id},"
             f"remote_super_device_id = {self.remote_super_device_id},"
             f"remote_link_device_ips = {self.remote_link_device_ips},"
-            f"remote_dp_instance_ids = {self.remote_dp_instance_ids}."
         )
         logger.info(log_msg)
 

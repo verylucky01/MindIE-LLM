@@ -78,6 +78,7 @@ BlockSpaceManagerSPtr CreateBlockManagerFromSchedulerConfig(const SchedulerConfi
 
     throw std::invalid_argument("Multiple kvCacheDescs are not supported by current BlockManagerFactory.");
 }
+
 } // namespace
 
 Scheduler::Scheduler(const std::shared_ptr<SchedulerConfig> &schedulerConfig,
@@ -381,6 +382,8 @@ std::unordered_set<SequenceId> Scheduler::ReleaseKvPulledBlocks()
             // abort流程也会触发release kv，如果abort和release kv 并发，可能会存在这个场景。增加日志打印
             MINDIE_LLM_LOG_WARN("Try to release kv, but kv has released before. seqid:" << seqId);
         }
+        MINDIE_LLM_LOG_INFO_REQUEST("[LlmEngine|Request-Release KV] DP RankId: "
+                            << dpRankId_ << ". KV blocks of seqId: " << seqId << " are released.");
         blockManager_->Free(seqId);
         transferringMap_.Erase(seqId);
         LiveInferContext::GetInstance(localDPRank_)->Remove(seqId);
@@ -1099,6 +1102,15 @@ void Scheduler::SetBasicMetadata(SequenceGroupMetaData &metaData, const Sequence
     }
     // JSON 结构化输出约束
     metaData.responseFormat_ = seqGroup->sampling->responseFormat;
+
+    // PD分离/重计算：直接使用请求生命周期内维护的已输出 token 前缀作为 replay 状态输入。
+    // 该前缀由 D 侧在接收 decode 请求时用 P 节点 prefill 已输出 token 初始化，
+    // 后续在 FetchSeqGeneratedTokens 中随新输出 token 单调追加，避免从 outputTokenIds 等缓冲区反推。
+    std::vector<SequenceSPtr> runningSeqs = seqGroup->GetSequences(SequenceStatus::RUNNING);
+    if (metaData.responseFormat_.has_value() && !runningSeqs.empty()) {
+        const SequenceId seqId = runningSeqs[0]->seqId_;
+        metaData.predictedTokenIds_ = seqGroup->prefillReplayTokenIds_;
+    }
 }
 
 SequenceGroupMetaDatas Scheduler::InitSequenceGroupMetaDatas(const SchedulerOutputs &schedulerOut) const
@@ -1435,9 +1447,22 @@ void Scheduler::FetchSeqGeneratedTokens(ConcurrentDeque<std::pair<SequenceId, To
             if (isDiscardOutputToken(contextSPtr, seqId)) {
                 continue;
             } else {
-                predictedTokensBySeqId_[seqId].push_back(token);
+                AddGeneratedToken(contextSPtr, seqId, token);
             }
         }
+    }
+}
+
+void Scheduler::AddGeneratedToken(LiveInferContextSPtr &contextSPtr, SequenceId seqId, TokenId token)
+{
+    predictedTokensBySeqId_[seqId].push_back(token);
+    SequenceGroupSPtr seqGroup = contextSPtr->GetSeqGroup(seqId);
+    if (seqGroup == nullptr) {
+        seqGroup = contextSPtr->GetSeqGroupFromSeqRootMap(seqId);
+    }
+    if (seqGroup != nullptr && seqGroup->sampling != nullptr &&
+        seqGroup->sampling->responseFormat.has_value()) {
+        seqGroup->prefillReplayTokenIds_.push_back(token);
     }
 }
 

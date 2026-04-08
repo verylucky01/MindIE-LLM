@@ -48,7 +48,7 @@ from mindie_llm.text_generator.utils.request import Request
 from mindie_llm.utils.decorators.time_decorator import timer
 from mindie_llm.utils.env import ENV
 from mindie_llm.utils.log import ErrorCode, logger, print_log
-from mindie_llm.utils.log.error_code import ErrorCodeException, convert_exception_to_error_code
+from mindie_llm.utils.log.error_code import ErrorCodeException, convert_exception_to_error_code, is_force_stop_exception
 from mindie_llm.utils.status import MindieLlmStatusCode
 from mindie_llm.utils.tensor import npu
 from mindie_llm.text_generator.utils.separate_deployment_engine import (
@@ -119,9 +119,7 @@ class PDInterface:
                                             remote_device_ips=params.remote_device_ips, 
                                             host_ips=params.host_ips, 
                                             remote_super_device_ids=params.remote_super_device_ids,
-                                            remote_super_pod_ids=params.remote_super_pod_ids,
-                                            remote_dp_instance_ids=params.remote_dp_instance_ids,
-                                            local_dp_instance_id=params.local_dp_instance_id
+                                            remote_super_pod_ids=params.remote_super_pod_ids
                                             )
 
     def unlink(self, remote_cluster_id: int) -> Union[MindieLlmStatusCode, ErrorCode]:
@@ -256,6 +254,8 @@ class Generator(PDInterface):
         self.world_size = parse_config(model_config, 'world_size', required=True, parse_type=ParseType.TO_INT)
         self.local_rank = parse_config(model_config, 'local_rank', required=True, parse_type=ParseType.TO_INT)
         self.npu_device_id = parse_config(model_config, 'npu_device_id', required=True, parse_type=ParseType.TO_INT)
+        kv_pool_async_write = parse_config(model_config, 'kv_pool_async_write', required=False,
+                                        parse_type=ParseType.TO_BOOL, default_value=False)
 
         async_inference_key = 'async_inference'
         model_config[async_inference_key] = ENV.async_inference
@@ -264,6 +264,9 @@ class Generator(PDInterface):
             logger.info('Async inference is activated.')
             validator.check_async_inference_and_plugin_type(True, plugin_config.get("plugin_type"))
         model_config['splitfuse_enabled'] = self.is_mix_model
+
+        if kv_pool_async_write and "splitfuse" in model_config.get("plugin_params", ""):
+            raise ValueError("Async mempool does not support plugin_type: splitfuse!")
 
         self.layerwise_disaggregated = parse_config(model_config, 'layerwiseDisaggregated', required=False,
             parse_type=ParseType.TO_BOOL, default_value=False)
@@ -389,13 +392,14 @@ class Generator(PDInterface):
         
         # NOTE: Warmup async inference will lead to lower mtp acceptance rate with unknown reason,
         # so we disable async inference here.
-        with self._temporarily_disable(async_inference=self.async_inference):
+        with self._temporarily_disable(async_inference=self.async_inference, 
+                                       mem_pool=self.generator_backend.kv_pool_backend):
             block_mem_size_gb = gb(calc_block_mem(self.model_info, self.block_size, self.num_speculative_tokens))
             print_log(self.rank, logger.info,
                     f'One block during warmup needs npu memory(GiB): {block_mem_size_gb}')
             kvcache_settings = self._update_kvcache_settings(block_mem_size_gb)
             self._init_plugin_manager(kvcache_settings, plugin_list, plugin_config)
-            if self.layerwise_disaggregated and not self.lwd_multi_nodes_enable:
+            if self.layerwise_disaggregated:
                 # Because distributed inference will split the chunks, limit the max prefill tokens to 32k
                 max_prefill_tokens = min(max_prefill_tokens, LWD_MAX_CHUNK_SIZE)
                 max_seq_len = min(max_seq_len, LWD_MAX_CHUNK_SIZE)
@@ -554,6 +558,9 @@ class Generator(PDInterface):
             else:
                 raise e
         except Exception as e:
+            if isinstance(e, ErrorCodeException):
+                self.generator_backend.is_fault_device = True
+                raise e
             error_code = convert_exception_to_error_code(str(e))
 
             # Handle PyTorch OOM(Only supports Torch 2.6+ native exception)
@@ -572,9 +579,13 @@ class Generator(PDInterface):
                     f'{error_code.name} fault happened in generate_token, error code: {error_code.value}.'
                 )
                 logger.error(message)
+                self.generator_backend.is_fault_device = True
                 raise ErrorCodeException(error_code) from e
             print_log(self.rank, logger.error, f'Unknown exception: {e}')
             if self.is_inference_pause:
+                if is_force_stop_exception(e):
+                    logger.info(f"FORCE STOP exception detected in generator.generate_token: {e}")
+                    self.generator_backend.notify_force_stop_exception()
                 return GenerationOutput.make_empty()
             raise e
 
@@ -662,23 +673,19 @@ class Generator(PDInterface):
                 npu_mem = KV_HALF_BYTE * num_hidden_layers * kv_hidden_dim * total_tokens / self.world_size
                 return math.ceil(gb(npu_mem))
 
-            with memory_profiling(
-                baseline_non_torch=0,
-                weights_memory=self.model_memory_usage,
-                backend_type=self.backend_type
-            ) as profile_result:
-                if self.pd_config.model_role in {STANDARD_TAG, DmiModeNodeRole.FLEX}:
-                    self._warmup_standard(warmup_params)
-                elif self.pd_config.model_role == DmiModeNodeRole.PREFILL:
-                    self._warmup_prefill(warmup_params)
-                elif self.pd_config.model_role == DmiModeNodeRole.DECODER:
-                    self._warmup_decode(warmup_params)
-            requested_memory = profile_result.total_memory * ENV.memory_fraction
-            npu_mem = requested_memory - profile_result.non_kv_cache_memory
-            print_log(self.rank, logger.info,
-                      f'Requested memory: {ENV.memory_fraction} (util), {gb(requested_memory):.2f} GiB')
-            print_log(self.rank, logger.info, profile_result)
+            if self.pd_config.model_role in {STANDARD_TAG, DmiModeNodeRole.FLEX}:
+                self._warmup_standard(warmup_params)
+            elif self.pd_config.model_role == DmiModeNodeRole.PREFILL:
+                self._warmup_prefill(warmup_params)
+            elif self.pd_config.model_role == DmiModeNodeRole.DECODER:
+                self._warmup_decode(warmup_params)
+            free_mem, total_mem, _ = acl.rt.get_mem_info(1)
+            requested_memory = total_mem * ENV.memory_fraction
+            npu_mem = requested_memory - (total_mem - free_mem)
             npu_mem = self._validate_warmup_memory(warmup_params, npu_mem)
+            print_log(self.rank, logger.info,
+                      f'Requested memory: {ENV.memory_fraction} (util), {gb(requested_memory):.2f} GiB'
+                      f'npu_mem: {npu_mem} GiB')
         return npu_mem
 
     def swap(self, block_operation: Any) -> None:
@@ -756,13 +763,6 @@ class Generator(PDInterface):
             "npu_device_id": self.npu_device_id
         }
 
-        # Only 'atb' backend supports recovery commands
-        if self.backend_type != 'atb':
-            error_msg = f"Recovery commands are only supported by 'atb' backend, got: {self.backend_type!r}"
-            logger.error(error_msg)
-            ret_dict[error_msg_key] = error_msg
-            return ret_dict
-
         logger.info(f"Executing recover command {command} on NPU device {self.npu_device_id}.")
         # Dispatch by command
         if command == "CMD_REINIT_NPU":
@@ -770,10 +770,6 @@ class Generator(PDInterface):
                 self.infer_context.reset_all_context()
                 self.plugin_manager.error_code_collected_in_async = None
                 ret_dict = self.generator_backend.execute_recover_command(command)
-                if ret_dict[command_res_key] == 0:
-                    acl.rt.set_device(self.npu_device_id)
-                    self.model_wrapper.resume_hccl_comm()
-                    ret_dict[command_res_key] = 0  # success
             except Exception as e:
                 error_msg = f"Failed to execute recovery command {command!r}: {e}"
                 logger.exception(error_msg)
@@ -799,14 +795,12 @@ class Generator(PDInterface):
             # Delegate pause to generator backend
             self.is_inference_pause = True
             self.plugin_manager.is_inference_pause = True
-            time.sleep(20)
-            
             ret_dict = self.generator_backend.execute_recover_command(command)
 
         elif command == "CMD_PAUSE_ENGINE_ROCE":
             # Delegate pause to generator backend
             self.is_inference_pause = True
-            self.plugin.is_inference_pause = True
+            self.plugin_manager.is_inference_pause = True
             ret_dict[command_res_key] = 0
 
         elif command == "CMD_CLEAR_TRANSER":
@@ -828,20 +822,25 @@ class Generator(PDInterface):
         return ret_dict
 
     @contextmanager
-    def _temporarily_disable(self, dap: bool = False, async_inference: bool = False):
+    def _temporarily_disable(self, dap: bool = False, async_inference: bool = False, mem_pool: str = ""):
         origin_enable_dap = self.generator_backend.enable_dap
         origin_async_inference = self.async_inference
+        origin_mem_pool = self.generator_backend.kv_pool_backend
         try:
             if dap:
                 self.generator_backend.enable_dap = False
             if async_inference and not self.backend_type == "torch":
                 self.async_inference = False
+            if len(mem_pool) != 0:
+                self.generator_backend.kv_pool_backend = ""
             yield
         finally:
             if dap:
                 self.generator_backend.enable_dap = origin_enable_dap
             if async_inference:
                 self.async_inference = origin_async_inference
+            if len(mem_pool) != 0:
+                self.generator_backend.kv_pool_backend = origin_mem_pool
 
     def _init_plugin_manager(
         self,
@@ -962,7 +961,9 @@ class Generator(PDInterface):
                     max_output_len=max_output_len,
                     max_placeholder_num=max_placeholder_num,
                     warmup_topk_size=self.warmup_topk_size,
-                    enable_warmup_sampling=self.enable_warmup_with_sampling
+                    enable_warmup_sampling=self.enable_warmup_with_sampling,
+                    vocab_size=self.vocab_size,
+                    is_multimodal=self.is_multimodal
                 )
                 request.build(
                     dp_rank_id=dp_idx,
@@ -978,8 +979,9 @@ class Generator(PDInterface):
         return prefill_reqs
 
     def _warmup_prefill(self, warmup_params: WarmupParams):
-        self._auto_warmup_prefill(warmup_params)
-        if self.enable_prefix_cache and self.backend_type != "torch":
+        if not self.enable_prefix_cache:
+            self._auto_warmup_prefill(warmup_params)
+        elif self.backend_type != "torch":
             self._auto_warmup_prefill(warmup_params, do_prefix_cache_warmup=True)
         if self.backend_type == "torch":
             self._auto_warmup_prefill(warmup_params)
@@ -995,9 +997,10 @@ class Generator(PDInterface):
         with self._temporarily_disable(
             dap=self.enable_dap
         ):
-            self._auto_warmup(warmup_params)
-        if self.enable_prefix_cache and self.backend_type != "torch":
-            self._auto_warmup(warmup_params, do_prefix_cache_warmup=True)
+            if not self.enable_prefix_cache:
+                self._auto_warmup(warmup_params)
+            elif self.backend_type != "torch":
+                self._auto_warmup(warmup_params, do_prefix_cache_warmup=True)
 
     def _warmup_specified(self, warmup_params: WarmupParams):
         self._auto_warmup(warmup_params)
@@ -1052,7 +1055,7 @@ class Generator(PDInterface):
                         model_id=3,
                         num_tensors=kvcache_settings.num_layers,
                         num_blocks=kvcache_settings.num_npu_blocks,
-                        blockshape=kvcache_settings.v_block_shape,
+                        blockshape=kvcache_settings.index_block_shape,
                         dtype=kvcache_settings.dtype_str,
                     )
             else:
@@ -1140,6 +1143,14 @@ class Generator(PDInterface):
             requests, None, True, self.block_size
         )
         self.input_metadata_queue.put(prefill_input_metadata)
+
+        for req in requests:
+            req.step(
+                num_new_token=1,
+                scp_size=self.scp_size,
+                block_size=self.block_size,
+                is_mix_model=self.is_mix_model
+            )
 
         decode_output = self._execute_warm_up(
             requests=requests,
@@ -1245,7 +1256,7 @@ class Generator(PDInterface):
             max_batch_size_per_dp = self.max_batch_size
 
         max_prefill_tokens = self.max_prefill_tokens
-        if self.layerwise_disaggregated and not self.lwd_multi_nodes_enable:
+        if self.layerwise_disaggregated:
             max_prefill_tokens = min(max_prefill_tokens, LWD_MAX_CHUNK_SIZE)
         # Max prefill tokens has been aligned in llm_manager for context parallel.
         aligned_prefill_tokens = (
@@ -1299,14 +1310,20 @@ class Generator(PDInterface):
             )
 
         request_num_per_dp = len(prefill_reqs) // self.dp_size
-        
-        if self.scp_size > 1:
-            warmup_blocks = [0] * self.scp_size
-            warmup_blocks[0] = 1
-        else:
-            warmup_blocks = 1
 
+        global_index = 0   
         for dp_rank in range(self.dp_size):
             req = prefill_reqs[dp_rank * request_num_per_dp]
-            req.computed_blocks = warmup_blocks
-            req.remote_computed_blocks = warmup_blocks
+            if self.scp_size > 1:
+                warmup_blocks = [0] * self.scp_size
+                num_blocks = len(req.input_ids) // self.cp_size // self.block_size
+                for _ in range(num_blocks):
+                    warmup_blocks[global_index] += 1
+                    global_index = (global_index + 1) % self.scp_size
+                
+                req.computed_blocks = warmup_blocks
+                req.remote_computed_blocks = warmup_blocks
+            else:
+                # When q_len equals context_len, it goes into the prefix handling logic.
+                req.computed_blocks = 0
+                req.remote_computed_blocks = 0

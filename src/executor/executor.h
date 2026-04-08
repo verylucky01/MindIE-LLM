@@ -100,6 +100,7 @@ private:
     bool InitIPCAndLaunchModel();
     bool InitModelExecution(std::unordered_map<std::string, std::string> &config);
     bool ExecutorModelInitAndSync();
+    bool LwdMasterAndSlaveSync();
     bool MasterSendPDInfoToSlave(const std::map<std::string, std::string> &pdInfo);
     bool SlaveSendInitResponseToMaster();
     bool MasterHandleSlaveInitResponse(ExecuteResponse &response) const;
@@ -137,6 +138,7 @@ private:
     std::vector<std::thread> pipeThreads_;
     LoraOperationResponse loraOperationResponse_;
     ThinkingConfig thinkingConfig_;
+    std::vector<pid_t> childPids_;
 };
 } // namespace mindie_llm
 #endif

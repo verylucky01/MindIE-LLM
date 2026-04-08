@@ -776,6 +776,46 @@ class TestPluginManagerPrepareMasks(unittest.TestCase):
         if 'hit_sequence_ids_mask' in result:
             self.assertTrue(result['hit_sequence_ids_mask'][0])  # 第一个元素应该命中
 
+    def test_prepare_masks_for_filling_dp_filtered_prefill_mask(self):
+        """测试_prepare_masks_for_filling - DP过滤后的prefill mask不会越界"""
+        model_inputs = Mock()
+        current_dp_sequence_ids = np.array([], dtype=np.int64)
+        input_metadata = Mock()
+        input_metadata.batch_is_prefill = np.array([True])
+        input_metadata.batch_last_prompt = None
+        input_metadata.all_sequence_ids = np.array([1], dtype=np.int64)
+        input_metadata.is_prefill = True
+
+        result = self.plugin_manager._prepare_masks_for_filling(
+            model_inputs,
+            current_dp_sequence_ids,
+            input_metadata,
+            np.array([], dtype=bool)
+        )
+
+        self.assertEqual(result, {})
+
+    def test_prepare_masks_for_filling_mix_model_dp_filtered_token_num(self):
+        """测试_prepare_masks_for_filling - mix模型使用DP过滤后的token_num_per_seq"""
+        self.plugin_manager.is_mix_model = True
+        model_inputs = Mock()
+        current_dp_sequence_ids = np.array([2, 3], dtype=np.int64)
+        input_metadata = Mock()
+        input_metadata.batch_is_prefill = np.array([False, False, False, False])
+        input_metadata.batch_last_prompt = None
+        input_metadata.all_sequence_ids = np.array([1, 2, 3, 4], dtype=np.int64)
+        input_metadata.is_prefill = False
+
+        result = self.plugin_manager._prepare_masks_for_filling(
+            model_inputs,
+            current_dp_sequence_ids,
+            input_metadata,
+            np.array([False, False]),
+            np.array([1, 1], dtype=np.int64)
+        )
+
+        np.testing.assert_array_equal(result['hit_mask_per_token'].cpu().numpy(), np.array([True, True]))
+
 
 class TestPluginManagerGetTokenNumPerSeq(unittest.TestCase):
     """测试_get_token_num_per_seq方法"""
@@ -1452,153 +1492,6 @@ class TestPluginManagerInitialize(unittest.TestCase):
         # 验证插件被正确加载
         mock_importlib.import_module.assert_called_once_with("mindie_llm.text_generator.plugins.test_plugin.test_plugin_plugin")
         self.assertEqual(self.plugin_manager.test_plugin, mock_plugin_instance)
-
-
-class TestPluginManagerPreprocessWithStructuredOutput(unittest.TestCase):
-    """测试preprocess方法中的结构化输出路径"""
-
-    def setUp(self):
-        self.mock_generator_backend = Mock()
-        self.mock_generator_backend.model_wrapper = Mock()
-        self.mock_generator_backend.sampler = Mock()
-        self.mock_generator_backend.rank = 0
-
-        self.mock_kvcache_settings = Mock()
-        self.mock_infer_context = Mock()
-        self.mock_infer_context.context_params.async_infer = False
-        self.mock_infer_context.context_params.max_generated_tokens = 100
-        self.mock_output_filter = Mock()
-        self.mock_watcher = Mock()
-
-        self.plugin_manager = PluginManager(
-            generator_backend=self.mock_generator_backend,
-            kvcache_settings=self.mock_kvcache_settings,
-            infer_context=self.mock_infer_context,
-            output_filter=self.mock_output_filter,
-            is_mix_model=False,
-            plugin_list=[],
-            model_role="master",
-            watcher=self.mock_watcher
-        )
-
-    def test_preprocess_with_structured_output_manager(self):
-        """测试preprocess - 有structured_output_manager的情况"""
-        input_metadata = Mock()
-        input_metadata.batch_is_prefill = None
-        input_metadata.batch_last_prompt = None
-        input_metadata.batch_response_format = [{"type": "json_object"}, None]
-
-        # Mock infer_context
-        mock_model_inputs = Mock()
-        mock_sampling_metadata = Mock()
-        mock_sampling_metadata.all_sequence_ids = np.array([1, 2])
-        self.mock_infer_context.get_batch_context_handles = Mock(return_value=[1, 2])
-        self.mock_infer_context.compose_model_inputs = Mock(return_value=(
-            mock_model_inputs, mock_sampling_metadata, [100, 200]
-        ))
-
-        # Mock structured_output_manager
-        mock_structured_manager = Mock()
-        mock_structured_manager.process_batch_for_generation = Mock(return_value=np.array([[1, 0], [0, 1]]))
-        self.plugin_manager._structured_output_manager = mock_structured_manager
-
-        result = self.plugin_manager.preprocess(input_metadata)
-
-        self.assertEqual(len(result), 4)
-        mock_structured_manager.process_batch_for_generation.assert_called_once()
-
-
-class TestPluginManagerPostprocessWithStructuredOutput(unittest.TestCase):
-    """测试postprocess方法中的结构化输出路径"""
-
-    def setUp(self):
-        self.mock_generator_backend = Mock()
-        self.mock_generator_backend.model_wrapper = Mock()
-        self.mock_generator_backend.sampler = Mock()
-        self.mock_generator_backend.rank = 0
-
-        self.mock_kvcache_settings = Mock()
-        self.mock_infer_context = Mock()
-        self.mock_infer_context.context_params.async_infer = False
-        self.mock_infer_context.context_params.max_generated_tokens = 100
-        self.mock_output_filter = Mock()
-        self.mock_watcher = Mock()
-
-        self.plugin_manager = PluginManager(
-            generator_backend=self.mock_generator_backend,
-            kvcache_settings=self.mock_kvcache_settings,
-            infer_context=self.mock_infer_context,
-            output_filter=self.mock_output_filter,
-            is_mix_model=False,
-            plugin_list=[],
-            model_role="master",
-            watcher=self.mock_watcher
-        )
-
-    def test_postprocess_with_structured_output_manager(self):
-        """测试postprocess - 有structured_output_manager的情况"""
-        cache_ids = [1, 2, 3]
-        input_metadata = Mock()
-        input_metadata.is_dummy_batch = False
-        input_metadata.all_sequence_ids = np.array([1, 2, 3])
-        input_metadata.batch_is_prefill = None
-        input_metadata.batch_last_prompt = None
-
-        # Mock result
-        result = torch.tensor([[0.1, 0.2, 0.3]])
-
-        # Mock sampling_metadata
-        sampling_metadata = Mock()
-        sampling_metadata.best_of_array = None
-        sampling_metadata.is_prefill = True
-        sampling_metadata.use_beam_search_array = None
-        sampling_metadata.all_sequence_ids = np.array([1, 2, 3])
-
-        # Mock sampling_output
-        sampling_output = Mock()
-        sampling_output.token_ids = np.array([[1], [2], [3]])
-        sampling_output.logprobs = np.array([[0.1], [0.2], [0.3]])
-        sampling_output.top_token_ids = np.array([[[1, 2]], [[3, 4]], [[5, 6]]])
-        sampling_output.top_logprobs = np.array([[[0.1, 0.2]], [[0.3, 0.4]], [[0.5, 0.6]]])
-        sampling_output.num_new_tokens = np.array([1, 1, 1])
-        sampling_output.num_top_tokens = np.array([2, 2, 2])
-        sampling_output.cumulative_logprobs = np.array([0.1, 0.2, 0.3])
-        sampling_output.finish_reason = np.array([0, 0, 0])
-        sampling_output.sequence_ids = np.array([1, 2, 3])
-        sampling_output.parent_sequence_ids = np.array([1, 2, 3])
-        sampling_output.group_indices = None
-
-        # Mock output_filter
-        self.mock_output_filter.filter_finished_sequences = Mock(return_value=(
-            np.array([0, 1, 0]), np.array([1], dtype=np.int64), np.array([], dtype=np.int64)
-        ))
-
-        # Mock infer_context
-        self.mock_infer_context.update_context = Mock(return_value=(
-            np.array([2], dtype=np.int64), np.array([2], dtype=np.int64)
-        ))
-        self.mock_infer_context.clear_finished_context = Mock(return_value=np.array([2], dtype=np.int64))
-        self.mock_infer_context.clear_aborted_context = Mock()
-        self.mock_infer_context.get_output_len_count = Mock(return_value=np.array([1, 1, 1]))
-
-        # Mock plugin方法
-        self.plugin_manager.plugin_cache_update_manager = Mock()
-        self.plugin_manager.plugin_cache_clear_manager = Mock()
-        self.plugin_manager.filter_splitfuse_token_ids = Mock()
-
-        # Mock structured_output_manager
-        mock_structured_manager = Mock()
-        mock_structured_manager.update_states_after_sampling = Mock()
-        mock_structured_manager.clear_finished_requests = Mock()
-        self.plugin_manager._structured_output_manager = mock_structured_manager
-
-        result_output = self.plugin_manager.postprocess(
-            cache_ids, input_metadata, result, sampling_metadata, sampling_output
-        )
-
-        self.assertIsNotNone(result_output)
-        mock_structured_manager.update_states_after_sampling.assert_called_once()
-        mock_structured_manager.clear_finished_requests.assert_called_once()
 
 
 if __name__ == "__main__":

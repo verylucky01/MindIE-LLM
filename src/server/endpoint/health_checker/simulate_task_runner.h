@@ -65,6 +65,11 @@ public:
 /// @brief 虚推任务运行器，管理定时虚推任务和 NPU 利用率检测
 class SimulateTaskRunner {
 public:
+    enum class RunMode {
+        SIMULATE_AND_NPU = 0, // 默认：虚推 + NPU 采样
+        NPU_ONLY = 1          // 仅 NPU 采样（集中式 slave）
+    };
+
     SimulateTaskRunner();
     ~SimulateTaskRunner();
 
@@ -72,7 +77,8 @@ public:
     SimulateTaskRunner& operator=(const SimulateTaskRunner&) = delete;
 
     bool Init(std::shared_ptr<ISimulateExecutor> executor,
-              const std::set<int>& npuDeviceCardIds, int npuThreshold);
+              const std::set<int>& npuDeviceCardIds, int npuThreshold,
+              RunMode runMode = RunMode::SIMULATE_AND_NPU, int chipPerCard = 1);
 
     /// @brief 检查是否初始化成功
     bool IsValid() const { return isValid_; }
@@ -91,6 +97,7 @@ private:
     void TaskLoop();
     void NpuCheckLoop();
     void CheckAicoreUtilization();
+    void ProcessAndReportNpuUtilization(uint32_t localMax);
     void TriggerNpuCheck();
     void WaitForNpuCheckComplete();
     void UpdateHealthStatus(const SimulateResult& result);
@@ -99,6 +106,8 @@ private:
     std::set<int> npuDeviceCardIds_;  // NPU 设备卡 ID 集合（Init 时传入，不可为空）
     bool isValid_{false};  // 是否初始化成功
     int npuThreshold_ = 10; // 适配大部分场景的检测阈值
+    RunMode runMode_{RunMode::SIMULATE_AND_NPU};
+    int chipPerCard_{1}; // A2=1, A3=2
 
     // 虚推任务线程
     std::thread taskThread_;
@@ -112,6 +121,7 @@ private:
     std::atomic<bool> npuCheckStopRequested_{false};
     std::atomic<bool> npuCheckRequested_{false};  // 触发标志，避免虚假唤醒
     std::atomic<int> npuUtil_{-1};  // -1 表示未检测
+    std::atomic<bool> slaveNpuReportTimeoutThisRound_{false};
 
     // NPU 检测同步原语
     std::mutex npuCheckMutex_;

@@ -136,7 +136,13 @@ int SequenceGroup::GetMaxNumRunningSeqs() const
     if (sampling && !sampling->enableParallelSampling) {
         return firstSeq->IsFinished() ? 0 : 1;
     }
-    std::vector<SequenceSPtr> seqs = GetParallelSequences(SequenceStatus::RUNNING);
+
+    // beamsearch请求时prefill/decode状态均返回束宽n
+    if (sampling && sampling->useBeamsearch) {
+        return sampling->n;
+    }
+
+    std::vector<SequenceSPtr> seqs = GetParallelSequences(SequenceStatus::ALL_STATUS);
     return seqs.size();
 }
 

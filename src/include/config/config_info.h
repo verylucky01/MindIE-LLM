@@ -37,6 +37,7 @@ enum class WorkFlowType : uint32_t {
 struct KvPoolConfig {
     std::string backend;
     std::string configPath;
+    bool asyncWrite;
 };
 
 struct ServerConfig {
@@ -52,6 +53,7 @@ struct ServerConfig {
     bool httpsEnabled = true;
     bool fullTextEnabled = false;
     bool pluginEnabled = false;
+    bool mtpEnabled = false;
     bool deepseekEnabled = false;
     std::string tlsCert;
     std::string tlsCrlPath;

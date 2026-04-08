@@ -158,9 +158,7 @@ class TestSeparateDeploymentWorker(unittest.TestCase):
             'remote_device_ips': {0: ['192.168.1.0']},
             'host_ips': {0: ['192.168.1.100']},
             'remote_super_device_ids': {0: [8650754]},
-            'remote_super_pod_ids': {0: [0]},
-            'remote_dp_instance_ids': {0: 1},  # 远端dp id = 1
-            'local_dp_instance_id': 0           # 本地dp id = 0 【不同值】
+            'remote_super_pod_ids': {0: [0]}
         }
 
         self.worker.link(**link_params)
@@ -190,9 +188,7 @@ class TestSeparateDeploymentWorker(unittest.TestCase):
             'remote_device_ips': {0: ['192.168.1.2']},
             'host_ips': {0: ['127.0.0.2']},  # 远程主机 IP 与本地的不同
             'remote_super_device_ids': {0: [8650754]},
-            'remote_super_pod_ids': {0: [0]},
-            'remote_dp_instance_ids': {0: 2},  # 远端dp id =2
-            'local_dp_instance_id': 0           # 本地dp id =0
+            'remote_super_pod_ids': {0: [0]}
         }
         
         self.worker.link(**link_params)
@@ -223,9 +219,7 @@ class TestSeparateDeploymentWorker(unittest.TestCase):
             'remote_device_ips': {0: ['192.168.1.2', '192.168.1.3', '192.168.1.4']},
             'host_ips': {0: ['192.168.1.100', '192.168.1.101', '192.168.1.102']},
             'remote_super_device_ids': {0: [8650754, 8650755, 8650756]},
-            'remote_super_pod_ids': {0: [0, 0, 0]},
-            'remote_dp_instance_ids': {0: 3},  # 远端dp id=3
-            'local_dp_instance_id': 0           # 本地dp id=0
+            'remote_super_pod_ids': {0: [0, 0, 0]}
         }
 
         self.worker.link(**link_params)
@@ -258,9 +252,7 @@ class TestSeparateDeploymentWorker(unittest.TestCase):
             'remote_device_ips': {0: ['192.168.1.2']},
             'host_ips': {0: ['192.168.1.100']},
             'remote_super_device_ids': {0: [8650754]},
-            'remote_super_pod_ids': {0: [0]},
-            'remote_dp_instance_ids': {0: 5},  # 远端dp id=5
-            'local_dp_instance_id': 1           # 本地dp id=1 
+            'remote_super_pod_ids': {0: [0]}
         }
 
         self.worker.link(**link_params)
@@ -289,9 +281,7 @@ class TestSeparateDeploymentWorker(unittest.TestCase):
             'remote_device_ips': {0: ['192.168.1.10', '192.168.1.11', '192.168.1.12']},
             'host_ips': {0: ['192.168.1.100', '192.168.1.101', '192.168.1.102']},
             'remote_super_device_ids': {0: [8650754, 8650755, 8650756]},
-            'remote_super_pod_ids': {0: [0, 0, 0]},
-            'remote_dp_instance_ids': {0: 8},
-            'local_dp_instance_id': 0
+            'remote_super_pod_ids': {0: [0, 0, 0]}
         }
 
         self.worker.link(**link_params)

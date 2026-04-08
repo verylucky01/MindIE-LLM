@@ -10,16 +10,18 @@
 from atb_llm.models.base.graph_manager.graph_wrapper import ATBGraphWrapper
 from atb_llm.models.base.graph_manager.compatible_matrix import FeatureType
 from atb_llm.models.base.flash_causal_lm import FlashForCausalLM
+from atb_llm.runner.model_runner import generate_mem_pool_event_key
 
 
 class SplitFuseGraphWrapper(ATBGraphWrapper):
     "ATBGraphWrapper class for prefixcache and splitfuse"
+    pipe_key: str = generate_mem_pool_event_key(only_save_kv=False)
+
     def __init__(self):
         super().__init__()
-
         self.feature_name = FeatureType.SPLITFUSE
-        self.feature_params = {"enableSplitFuse": True, "isPrefill": True}
-    
+        self.feature_params = {"enableSplitFuse": True, "isPrefill": True, "pipekey": self.pipe_key}
+
     def activate(self, context: FlashForCausalLM, runtime_params, **kwargs) -> bool:
         pa_enable = False if context.inference_mode is None else context.inference_mode.enable_prefill_pa
         q_lens = "\"qLen\"" in runtime_params

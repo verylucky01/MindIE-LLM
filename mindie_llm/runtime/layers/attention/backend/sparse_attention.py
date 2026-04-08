@@ -245,9 +245,10 @@ class SfaMetadata(AttentionMetadata):
         )
 
     @staticmethod
-    def register_buffer(max_num_token, device):
+    def register_buffer(max_num_token, device, max_block_per_seq):
         input_buffer.register("seq_lens", torch.zeros(max_num_token, dtype=torch.int32, device=device))
-        input_buffer.register("block_tables", torch.zeros((max_num_token, 64), dtype=torch.int32, device=device))
+        input_buffer.register("block_tables", 
+                              torch.zeros((max_num_token, max_block_per_seq), dtype=torch.int32, device=device))
         input_buffer.register("slot_mapping", -torch.ones(max_num_token, dtype=torch.int32, device=device))
 
         input_buffer.register("actual_seq_lengths_kv", torch.zeros(max_num_token, dtype=torch.int32, device=device))
@@ -458,7 +459,7 @@ class SfaBackendImpl(SelectAttentionImpl):
 
         self.enable_mlapo = kwargs['enable_mlapo']
         if self.enable_mlapo:
-            import mie_ops
+            from mindie_llm.runtime.ops import mie_ops
         self.input_layernorm = kwargs.get('input_layernorm', None)
         self.mlapo_weight_pack = MlapoWeightPack()
 
@@ -640,7 +641,7 @@ class SfaBackendImpl(SelectAttentionImpl):
         q_pe, q_nope = torch.split(q, [self.qk_rope_head_dim, self.indexer.head_dim - self.qk_rope_head_dim], dim=-1)
 
         q_pe = q_pe.unsqueeze(2)
-        q_pe = torch_npu.npu_interleave_rope(q_pe, cos, sin)
+        q_pe = torch_npu.npu_rotary_mul(q_pe, cos, sin)
         q_pe = q_pe.squeeze(2)
         q = torch.cat([q_pe, q_nope], dim=-1)
 
@@ -648,9 +649,9 @@ class SfaBackendImpl(SelectAttentionImpl):
         k = self.indexer.k_norm(k_proj).unsqueeze(1)
         k_pe, k_nope = torch.split(k, [self.qk_rope_head_dim, self.indexer.head_dim - self.qk_rope_head_dim], dim=-1)
         k_pe = k_pe.unsqueeze(2)
-        k_pe = torch_npu.npu_interleave_rope(k_pe,
-                                             cos.view(-1, 1, 1, self.qk_rope_head_dim),
-                                             sin.view(-1, 1, 1, self.qk_rope_head_dim))
+        k_pe = torch_npu.npu_rotary_mul(k_pe,
+                                        cos.view(-1, 1, 1, self.qk_rope_head_dim),
+                                        sin.view(-1, 1, 1, self.qk_rope_head_dim))
         k_pe = k_pe.squeeze(2)
         k = torch.cat([k_pe, k_nope], dim=-1)
         # cp

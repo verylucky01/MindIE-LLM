@@ -95,6 +95,7 @@ target_link_libraries(mindieservice_endpoint_static
         ${OPENSSL_LIBRARIES}
         config_manager mindie_llm_utils system_log
         mindieservice_infer_instances mindieservice_tokenizer
+        mindie_executor
         -Wl,--end-group
 )
 
@@ -117,6 +118,7 @@ target_link_libraries(mindieservice_endpoint
         config_manager
         mindieservice_tokenizer
         pd_grpc_proto_file
+        mindie_executor
         -Wl,--end-group
 )
 

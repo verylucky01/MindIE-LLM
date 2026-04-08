@@ -14,6 +14,7 @@
 #define LLM_ENGINE_H
 
 #include <atomic>
+#include <cstdint>
 #include <thread>
 #include "engine/illm_engine.h"
 #include "ischeduler.h"
@@ -34,6 +35,8 @@ namespace mindie_llm {
 constexpr int DEFAULT_SLEEP_TIME_BETWEEN_TWO_ITER = 1;
 constexpr int HEARTBEAT_INTERVAL_SECONDS = 60;
 constexpr int METRICS_UPDATE_INTERVAL = 50; // 50ms
+/// 仅 P 角色（role_ == Role::P）：当每个调度线程距上次「非空调度结果」均超过此时长时，将 engineReady 置为 false（毫秒）
+constexpr uint64_t ENGINE_ALL_THREADS_EMPTY_SCHEDULE_MS = 5000;
 
 struct EngineMetricStatics {
     std::atomic<float> prefillThroughput_{0.0};
@@ -64,6 +67,9 @@ struct EnginePerDP {
     std::unordered_set<SequenceId> TGCleanupSeqIds_;
 
     DummyQuotaManagerSPtr dummyQuotaManagerSPtr_;
+
+    /// 仅 P 角色下使用：本 DP 最近一次 Schedule() 组 batch 非空的时间戳（毫秒）；
+    std::atomic<uint64_t> lastNonEmptyScheduleSteadyMs_{0};
 };
 using EnginePerDPSPtr = std::shared_ptr<EnginePerDP>;
 using SchOutDataPair =
@@ -73,7 +79,7 @@ using SchOutDataPair =
 class LlmEngine final : public ILlmEngine {
 public:
     LlmEngine(SchedulerConfig schedulerConfig, std::vector<IExecutorSPtr> executors, ForwardRespToManagerCall cb,
-              Role pdRole);
+              Role pdRole, std::atomic<bool> *engineReadyFlag = nullptr);
 
     ~LlmEngine() override;
 
@@ -170,6 +176,13 @@ private:
     // 调度暂停标志位
     std::atomic<bool> isPauseScheduling_{false};
 
+    /// 由 LlmManagerImpl 持有；仅 role_ == Role::P 时根据各线程 Schedule() 空闲情况置 false（不含 ScheduleExecTransfer）
+    std::atomic<bool> *llmEngineReady_{nullptr};
+
+    static uint64_t SteadyClockMsSinceEpoch();
+    void NotifySchedulerDidNonEmptySchedule(size_t localDPRank);
+    void MaybeMarkEngineNotReadyIfAllSchedulersEmptyTooLong();
+
     // 分布式场景下记录DP rank id，用于下发batch时指定dp rank id值
     int dpRankId_{0};
 
@@ -182,6 +195,10 @@ private:
         if (diffTime > std::chrono::seconds(HEARTBEAT_INTERVAL_SECONDS)) {
             heartbeatBegin = std::chrono::high_resolution_clock::now();
             auto passed_seconds = std::chrono::duration_cast<std::chrono::seconds>(diffTime).count();
+            MINDIE_LLM_LOG_INFO_REQUEST("Since last schedule, pass " << passed_seconds
+                << " seconds, AsyncBatchNum=" << enginePerDP->modelExecOutputHandler->GetAsyncBatchNum()
+                << ", freeNpuBlockNum=" << enginePerDP->scheduler->CollectSchedulerMetric().blockInfo.freeNpuBlockNum_
+                << ", freeCpuBlockNum=" << enginePerDP->scheduler->CollectSchedulerMetric().blockInfo.freeCpuBlockNum_);
         }
     }
     // 边云新增

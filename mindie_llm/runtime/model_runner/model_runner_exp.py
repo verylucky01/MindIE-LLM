@@ -40,6 +40,7 @@ from mindie_llm.runtime.layers.attention.sparse_attention_layer import SFA
 from mindie_llm.runtime.config.mindie_llm_config import SpeculativeConfig
 from mindie_llm.runtime.layers.sampling.sampler import Sampler
 from mindie_llm.runtime.model_runner.spec_worker import auto_speculative_method_router, speculative_worker_selector
+from mindie_llm.runtime.utils.npu.device_utils import get_npu_node_info
 
 # Allow tensor initialization and casting with internal format(e.g., NZ)
 torch.npu.config.allow_internal_format = True
@@ -124,7 +125,15 @@ class ModelRunnerExp:
         local_rank = local_rank if local_rank is not None else rank
         self.device = set_device(rank, npu_id if npu_id is not None else local_rank)
         self._max_seq_len = kwargs.get("max_seq_len", -1)
+        self._block_size = kwargs.get("block_size", 128)
+        if self._max_seq_len <= 0:
+            raise ValueError(f"max_seq_len must be specified and greater than 0, but got {self._max_seq_len}")
+        if self._block_size <= 0:
+            raise ValueError(f"block_size must be greater than 0, but got {self._block_size}")
+        # Reserve 5 extra blocks for DP, asynchronous scheduling and MTP
+        self._max_block_per_seq = (self._max_seq_len + self._block_size - 1) // self._block_size + 5
         self.is_draft_model = kwargs.get("is_draft_model", False)
+        self.soc_info = get_npu_node_info()
 
         # bin cpus to the NUMA
         if ENV.bind_cpu:
@@ -159,7 +168,7 @@ class ModelRunnerExp:
         self.input_builder = router_ins.input_builder
         self.config_dict = router_ins.config_dict
         self.llm_config = router_ins.llm_config
-        self.enable_nz = self.llm_config.llm.kv_cache_options.enable_nz
+        self.enable_nz = False # NOTE: This feature should be decided by models, this will be refactored later.
         init_distributed(rank, world_size, local_rank, llm_config=self.llm_config, server_config=kwargs)
         self.head_size = self.config.head_dim
         self.num_heads = self.config.get_num_attention_heads_per_rank()
@@ -412,7 +421,8 @@ class ModelRunnerExp:
 
     def _init_buffer(self) -> None:
         """Initialize input buffers for graph mode."""
-        ForwardContext.register(self._max_num_token, self.device, self._mindie_llm_config.hf_config)
+        ForwardContext.register(self._max_num_token, self.device, self._mindie_llm_config.hf_config,
+            self._max_block_per_seq)
         input_buffer.register("input_ids", torch.zeros(self._max_num_token, dtype=torch.int32, device=self.device))
         input_buffer.register("position_ids", torch.zeros(self._max_num_token, dtype=torch.int64, device=self.device))
 

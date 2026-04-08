@@ -13,8 +13,10 @@ from __future__ import annotations
 import importlib
 import queue
 import threading
+import time
 import copy
 from dataclasses import fields
+from enum import IntEnum
 from typing import Iterable, Optional, Any, TYPE_CHECKING
 
 import numpy as np
@@ -37,7 +39,7 @@ from mindie_llm.utils.decorators.time_decorator import timer
 from mindie_llm.utils.env import ENV
 from mindie_llm.utils.log import logger, HandlerType
 from mindie_llm.utils.prof.profiler import span_start, span_end, span_req, span_attr, count_block
-from mindie_llm.utils.log.error_code import ErrorCodeException, convert_exception_to_error_code
+from mindie_llm.utils.log.error_code import ErrorCodeException, convert_exception_to_error_code, is_force_stop_exception
 
 if TYPE_CHECKING:
     from mindie_llm.text_generator.utils import (
@@ -50,6 +52,12 @@ if TYPE_CHECKING:
 
 LAUNCH_DONE_TIMEOUT = 20 * 60     # unit: second
 MEM_DETECT_INTERVAL = 1000        # unit: second
+
+
+class MemPoolType(IntEnum):
+    DISABLED = 0
+    SYNC_WRITE = 1
+    ASYNC_WRITE = 2
 
 
 class PluginManager:
@@ -96,6 +104,8 @@ class PluginManager:
         self.is_inference_pause = False
         self.mem_det_trigger_counter = 0
         self.error_code_collected_in_async = None
+        self.mempool_type = MemPoolType.DISABLED
+        self.warmup_is_end = True
         # 结构化输出管理器 (延迟初始化)
         self._structured_output_manager: Optional[Any] = None
         self._structured_output_enabled = kwargs.get('enable_structured_output', True)
@@ -138,7 +148,7 @@ class PluginManager:
                     host_array = field_value.cpu().numpy()
                 setattr(new_instance, field.name, host_array)
         return new_instance
-        
+
     def clear_cache(
         self,
         sequence_ids: Iterable[int],
@@ -169,9 +179,20 @@ class PluginManager:
                 **self.kwargs,
             )
             setattr(self, plugin, plugin_tmp)
-        
+        if "prefix_cache" in self.plugin_list:
+            self.mempool_type = self.prefix_cache.mempool_type
+
         # 初始化结构化输出管理器
         self._init_structured_output_manager()
+
+    def wait_put_finish(self, input_metadata):
+        if "prefix_cache" in self.plugin_list and input_metadata.is_prefill:
+            logger.info("Waiting save to finished")
+            start_t, timeout_t = time.time(), self.prefix_cache.save_timeout
+            if self.prefix_cache.save_event.wait(timeout=timeout_t):
+                logger.info(f"Save finished in {(time.time() - start_t)*1000:.1f} ms")
+            else:
+                logger.error(f"[TIMEOUT] Save unfinished after {timeout_t} seconds. Exit")
 
     def mem_det_trigger_counter_acc(self):
         if self.mem_det_trigger_counter < MEM_DETECT_INTERVAL:
@@ -191,6 +212,9 @@ class PluginManager:
                 model_inputs, input_metadata, sampling_metadata, cache_ids)
             self.plugin_data_param.q_len = qlen if qlen is not None else self.plugin_data_param.q_len
             self.plugin_data_param.mask = mask if mask is not None else self.plugin_data_param.mask
+            if not warmup and "prefix_cache" in self.plugin_list and \
+                self.prefix_cache.mempool_type == MemPoolType.ASYNC_WRITE:
+                self.prefix_cache.async_put_prefix_kvcache_to_mempool(input_metadata, cache_ids)
             span_end(prof)
             self.watcher.watch_npu_mem(self.rank, f'After preprocess', 
                                        trigger_count=self.mem_det_trigger_counter)
@@ -202,16 +226,22 @@ class PluginManager:
                 span_attr(prof, "dp_rank", str(self.model_wrapper.mapping.attn_dp.rank))
                 
             if ENV.framework_backend == BackendType.ATB:
-                self.model_wrapper.model_runner.clear_internal_tensors()
+                forward_extra_kwargs = {}
+                if warmup:
+                    forward_extra_kwargs["warmup_is_end"] = False
+                else:
+                    self.model_wrapper.model_runner.clear_internal_tensors()
                 if (self.plugin_list and "mtp" not in self.plugin_list) or self.is_mix_model:
                     result = self.generator_backend.forward(model_inputs, q_lens=self.plugin_data_param.q_len,
-                                                            attn_mask=self.plugin_data_param.mask)  # q_len spec_mask
+                                                            attn_mask=self.plugin_data_param.mask,
+                                                            **forward_extra_kwargs)  # q_len spec_mask
                 # old graph forward
                 else:
                     result = self.generator_backend.forward(model_inputs, q_lens=self.plugin_data_param.q_len,
                                                             spec_mask=self.plugin_data_param.mask,
                                                             sub_model_inputs=self.plugin_data_param.mtp_model_inputs,
-                                                            hidden_states=self.plugin_data_param.hidden_states)
+                                                            hidden_states=self.plugin_data_param.hidden_states,
+                                                            **forward_extra_kwargs)
             else:
                 result = self.generator_backend.forward(model_inputs, q_lens=self.plugin_data_param.q_len,
                                                         spec_mask=self.plugin_data_param.mask)  # q_len spec_mask
@@ -220,18 +250,24 @@ class PluginManager:
             else:
                 logits = result
             span_end(prof, True)
+            if warmup:
+                torch.npu.synchronize()
+                torch.npu.empty_cache()
             self.watcher.watch_npu_mem(self.rank, f'After forward', trigger_count=self.mem_det_trigger_counter)
 
             prof = span_start("sample")
             draft_filtered_logits = self.sample_preprocess_manager(logits, result, sampling_metadata, input_metadata)
             sampling_output = self.generator_backend.sample(draft_filtered_logits, sampling_metadata)
-            if ENV.framework_backend == BackendType.ATB:
+            if ENV.framework_backend == BackendType.ATB and not warmup:
                 self.model_wrapper.model_runner.clear_internal_tensors()
             span_end(prof)
             self.watcher.watch_npu_mem(self.rank, f'After sample', trigger_count=self.mem_det_trigger_counter)
             logger.info("sample end", extra={"handler_ids": HandlerType.TOKEN})
             prof = span_start("postprocess")
-            self.put_prefix_kvcache_to_mempool(input_metadata, cache_ids)
+            if self.mempool_type == MemPoolType.SYNC_WRITE:
+                self.put_prefix_kvcache_to_mempool(input_metadata, cache_ids)
+            elif not warmup and self.mempool_type == MemPoolType.ASYNC_WRITE:
+                self.wait_put_finish(input_metadata)
             generation_output = self.postprocess(
                 cache_ids, input_metadata, result, sampling_metadata, sampling_output)
             generation_output.trace_ids = trace_ids
@@ -244,6 +280,10 @@ class PluginManager:
         except Exception as e:
             if self.is_inference_pause:
                 logger.info(f"Mocking response due to inference pause for trace_ids={trace_ids}.")
+                # Check for FORCE STOP exception and notify generator_backend if it's GeneratorTorch
+                if is_force_stop_exception(e):
+                    logger.info(f"FORCE STOP exception detected in plugin_manager.generate_token: {e}")
+                    self.generator_backend.notify_force_stop_exception()
                 return GenerationOutput.make_empty()
             logger.exception(
                 f"Error encountered in generate_token (trace_ids={trace_ids}). "
@@ -283,17 +323,39 @@ class PluginManager:
                     sub_model_inputs=self.plugin_data_param.mtp_model_inputs,
                     hidden_states=self.plugin_data_param.hidden_states
                 )
+            
+            self.warmup_is_end = True
+            if warmup:
+                if model_kwargs is None:
+                    model_kwargs = {}
+                model_kwargs["warmup_is_end"] = False
+                self.warmup_is_end = False
 
             if self.generator_backend.dp > 1:
                 cur_dp_rank_id_per_token_mask = model_input.dp_rank_ids == self.generator_backend.mapping.attn_dp.rank
                 current_dp_sequence_ids = input_metadata.all_sequence_ids[cur_dp_rank_id_per_token_mask]
+                current_dp_batch_is_prefill = (
+                    input_metadata.batch_is_prefill[cur_dp_rank_id_per_token_mask]
+                    if input_metadata.batch_is_prefill is not None else None
+                )
+                current_dp_token_num_per_seq = (
+                    self._get_token_num_per_seq(input_metadata)[cur_dp_rank_id_per_token_mask]
+                    if self.is_mix_model else None
+                )
             else:
                 current_dp_sequence_ids = input_metadata.all_sequence_ids
+                current_dp_batch_is_prefill = input_metadata.batch_is_prefill
+                current_dp_token_num_per_seq = (
+                    self._get_token_num_per_seq(input_metadata)
+                    if self.is_mix_model else None
+                )
 
             filling_masks = self._prepare_masks_for_filling(
                 model_input,
                 current_dp_sequence_ids,
-                input_metadata)
+                input_metadata,
+                current_dp_batch_is_prefill,
+                current_dp_token_num_per_seq)
 
             postprocess_done = threading.Event()
             model_input_wrapper = ModelInputWrapper(
@@ -325,6 +387,10 @@ class PluginManager:
             prof = span_start("synchronize_processing_stream")
             self.generator_backend.synchronize()
             span_end(prof)
+
+            if not warmup and "prefix_cache" in self.plugin_list and \
+                self.prefix_cache.mempool_type == MemPoolType.ASYNC_WRITE:
+                self.prefix_cache.async_put_prefix_kvcache_to_mempool(input_metadata, cache_ids)
 
             prof = span_start("put_into_input_queue")
             self.input_queue.put(model_input_wrapper)
@@ -416,29 +482,23 @@ class PluginManager:
                 warmup=warmup,
                 hit_mask=hit_mask
             )
-        
-        # 生成结构化输出 bitmask (直接调用 StructuredOutputManager)
-        if self._structured_output_manager is not None and sampling_metadata is not None:
-            response_format_array = input_metadata.batch_response_format
-            all_sequence_ids = sampling_metadata.all_sequence_ids
-            
-            if response_format_array is not None and all_sequence_ids is not None:
-                num_with_constraint = sum(1 for rf in response_format_array if rf is not None)
-                if num_with_constraint > 0:
-                    bitmask = self._structured_output_manager.process_batch_for_generation(
-                        sequence_ids=list(all_sequence_ids),
-                        response_format_array=response_format_array,
-                    )
-                    if bitmask is not None:
-                        sampling_metadata.guided_bitmask = bitmask
-        
+
+        if not self.async_inference and self._structured_output_manager is not None:
+            response_format_array = (
+                input_metadata.batch_response_format
+                if input_metadata.is_prefill
+                else self.infer_context.get_response_format(cache_ids)
+            )
+            self._structured_output_manager.build_and_assign_structured_guided_bitmask(
+                input_metadata, sampling_metadata, cache_ids, response_format_array
+            )
+
         if sampling_metadata is not None and ENV.model_runner_exp and not sampling_metadata.is_prefill:
             for plugin in self.plugin_list:
                 plugin_instance = getattr(self, plugin, None)
                 method = getattr(plugin_instance, 'compose_model_inputs_exp', None)
                 if method is not None:
                     sampling_metadata = method(sampling_metadata)
-
         res = (cache_ids, model_inputs, sampling_metadata, trace_ids)
         return res
 
@@ -456,21 +516,26 @@ class PluginManager:
                 logits = logits.squeeze(1)
                 sampling_output.token_ids = logits.cpu().numpy()
 
+        is_structured_accepted = sampling_output.is_structured_accepted
         if not self.async_inference:
             self.plugin_verify_manager(sampling_output, cache_ids, result)
-        
-        # 更新结构化输出 FSM 状态（直接调用 StructuredOutputManager）
-        if self._structured_output_manager is not None and sampling_metadata is not None:
-            all_sequence_ids = sampling_metadata.all_sequence_ids
-            token_ids = sampling_output.token_ids
-            if all_sequence_ids is not None and token_ids is not None:
-                self._structured_output_manager.update_states_after_sampling(
-                    sequence_ids=list(all_sequence_ids),
-                    token_ids=token_ids,
+            if self._structured_output_manager is not None:
+                is_structured_accepted = (
+                    self._structured_output_manager.compute_structured_output_accepted(
+                        cache_ids=cache_ids,
+                        token_ids=sampling_output.token_ids,
+                    )
                 )
+            else:
+                is_structured_accepted = None
+        # 兜底：无结构化输出时（_compute_... 返回 None 或异步路径本批次无结构化请求），使用全 True 数组
+        if is_structured_accepted is None:
+            batch_size = len(cache_ids) if cache_ids is not None else 0
+            is_structured_accepted = np.ones(batch_size, dtype=bool)
 
         finish_reason, filtered_indices, truncation_indices = (
-            self.output_filter.filter_finished_sequences(cache_ids, input_metadata, sampling_output))
+            self.output_filter.filter_finished_sequences(
+                cache_ids, input_metadata, sampling_output, is_structured_accepted))
 
         # If best_of sampling or beam search is open, get new cache ids
         if sampling_metadata is not None:
@@ -492,9 +557,6 @@ class PluginManager:
             sequence_ids_to_clear = self.infer_context.clear_finished_context(finished_sequence_ids, finished_cache_ids)
             if has_sampling and finished_sequence_ids.size != 0:
                 self.sampler.clear_cache(finished_sequence_ids)
-                # 清理结构化输出 FSM 状态（直接调用 StructuredOutputManager）
-                if self._structured_output_manager is not None:
-                    self._structured_output_manager.clear_finished_requests(finished_sequence_ids)
             self.plugin_cache_clear_manager(cache_ids, finish_reason)
         self.infer_context.clear_aborted_context()
         token_indices = self.infer_context.get_output_len_count(cache_ids)
@@ -593,6 +655,21 @@ class PluginManager:
             prof = span_start("get_from_input_queue")
             model_input_wrapper: ModelInputWrapper = self.input_queue.get()
             span_end(prof)
+
+            if self._structured_output_manager is not None:
+                input_metadata_for_batch = model_input_wrapper.input_metadata
+                response_format_array = (
+                    input_metadata_for_batch.batch_response_format
+                    if input_metadata_for_batch.is_prefill
+                    else self.infer_context.get_response_format(model_input_wrapper.cache_ids)
+                )
+                self._structured_output_manager.build_and_assign_structured_guided_bitmask(
+                    input_metadata_for_batch,
+                    model_input_wrapper.sampling_metadata,
+                    model_input_wrapper.cache_ids,
+                    response_format_array,
+                )
+
             # Maintain backward compatibility with the previous implementation
             if ENV.model_runner_exp:
                 prof = span_start("fill_in_model_result")
@@ -618,27 +695,42 @@ class PluginManager:
                     model_input_wrapper.sampling_metadata,
                     model_input_wrapper.input_metadata
                 )
-                sampling_output = self.generator_backend.sample(draft_filtered_logits,
-                                                                model_input_wrapper.sampling_metadata)
+                sampling_output = self.generator_backend.sample(
+                    draft_filtered_logits, model_input_wrapper.sampling_metadata)
+                if self._structured_output_manager is not None:
+                    async_is_structured_accepted = (
+                        self._structured_output_manager.compute_structured_output_accepted(
+                            cache_ids=model_input_wrapper.cache_ids,
+                            token_ids=sampling_output.token_ids,
+                        )
+                    )
+                else:
+                    async_is_structured_accepted = None
+
                 if ENV.framework_backend == BackendType.ATB:
                     self.model_wrapper.model_runner.clear_internal_tensors()
                 span_end(prof)
                 logger.info("sample end", extra={"handler_ids": HandlerType.TOKEN})
+
                 if not self.is_inference_pause:
                     model_input_wrapper.postprocess_done.wait()
 
-                prof = span_start("verify")	 
+                prof = span_start("verify")
                 self.plugin_verify_manager(
                     sampling_output, model_input_wrapper.cache_ids, model_output.original_result)
                 span_end(prof)
 
-                prof = span_start("put_prefix_kvcache_to_mempool")
-                if model_input_wrapper.cache_ids is not None and not model_input_wrapper.input_metadata.is_dummy_batch:
-                    self.put_prefix_kvcache_to_mempool(
-                        model_input_wrapper.input_metadata, 
-                        model_input_wrapper.cache_ids
-                    )
-                span_end(prof)
+                if self.mempool_type == MemPoolType.SYNC_WRITE:
+                    prof = span_start("put_prefix_kvcache_to_mempool")
+                    if (
+                        model_input_wrapper.cache_ids is not None
+                        and not model_input_wrapper.input_metadata.is_dummy_batch
+                    ):
+                        self.put_prefix_kvcache_to_mempool(
+                            model_input_wrapper.input_metadata, model_input_wrapper.cache_ids)
+                    span_end(prof)
+                elif self.warmup_is_end and self.mempool_type == MemPoolType.ASYNC_WRITE:
+                    self.wait_put_finish(model_input_wrapper.input_metadata)
 
                 launch_done = threading.Event()
                 model_output_wrapper = ModelOutputWrapper(
@@ -649,10 +741,16 @@ class PluginManager:
                     sampling_output=sampling_output,
                     trace_ids=model_input_wrapper.trace_ids,
                     current_dp_sequence_ids=model_input_wrapper.current_dp_sequence_ids,
-                    launch_done=launch_done
+                    launch_done=launch_done,
                 )
+                sampling_output.is_structured_accepted = async_is_structured_accepted
             except Exception as e:
                 trace_ids = getattr(model_input_wrapper, 'trace_ids', 'unknown')
+
+                # Check for FORCE STOP exception and notify generator_backend if it's GeneratorTorch
+                if is_force_stop_exception(e):
+                    logger.info(f"FORCE STOP exception detected in plugin_manager.forward_loop: {e}")
+                    self.generator_backend.notify_force_stop_exception()
 
                 error_code = convert_exception_to_error_code(str(e))
 
@@ -771,7 +869,8 @@ class PluginManager:
                 vocab_size=vocab_size,
                 config=config,
             )
-            
+            self.infer_context.set_structured_output_manager(self._structured_output_manager)
+
         except ImportError as e:
             logger.warning(f"Failed to import structured output module: {e}")
             self._structured_output_enabled = False
@@ -779,7 +878,14 @@ class PluginManager:
             logger.warning(f"Failed to initialize structured output manager: {e}")
             self._structured_output_enabled = False
 
-    def _prepare_masks_for_filling(self, model_inputs, current_dp_sequence_ids, input_metadata):
+    def _prepare_masks_for_filling(
+        self,
+        model_inputs,
+        current_dp_sequence_ids,
+        input_metadata,
+        current_dp_batch_is_prefill=None,
+        current_dp_token_num_per_seq=None
+    ):
         if input_metadata.batch_is_prefill is None and input_metadata.is_prefill:
             # Under forced preemption, prefill batch must not be hit.
             return {}
@@ -795,14 +901,16 @@ class PluginManager:
         else:
             masks = {}
             hit_sequence_ids_mask = np.isin(current_dp_sequence_ids, self.last_sequence_ids)
-            if input_metadata.batch_is_prefill is not None:
-                hit_sequence_ids_mask[input_metadata.batch_is_prefill] = False
+            if current_dp_batch_is_prefill is not None:
+                hit_sequence_ids_mask[current_dp_batch_is_prefill] = False
             elif input_metadata.is_prefill:
                 hit_sequence_ids_mask[:] = False
             if hit_sequence_ids_mask.any():
                 hit_sequence_ids = current_dp_sequence_ids[hit_sequence_ids_mask]
                 if self.is_mix_model:
-                    token_num_per_seq = self._get_token_num_per_seq(input_metadata)
+                    token_num_per_seq = current_dp_token_num_per_seq
+                    if token_num_per_seq is None:
+                        token_num_per_seq = self._get_token_num_per_seq(input_metadata)
                     repeating_indices = np.repeat(np.arange(len(token_num_per_seq)), token_num_per_seq)
                     hit_mask_per_token = hit_sequence_ids_mask[repeating_indices]
                     masks['hit_mask_per_token'] = self.generator_backend.to_tensor(hit_mask_per_token)

@@ -41,6 +41,7 @@ QWEN3_MOE = "qwen3_moe"
 DEEPSEEKV2 = "deepseekv2"
 LLAMA = "llama"
 EOS_TOKEN_ID = 'eos_token_id'
+FA_QUANT_TYPE = 'fa_quant_type'
 
 
 def remove_part_of_generation_config(generation_config: dict) -> dict:
@@ -223,7 +224,15 @@ class BaseRouter:
                 # convert the new version `w8a8_mix` to the old version `w8a8_pdmix`.
                 if self.config_dict[quantize] == "w8a8_mix":
                     self.config_dict[quantize] = "w8a8_pdmix"
-                self.config_dict.setdefault("quantization_config", {}).update(quant_descs)
+                # [Temporary workaround] Preserve fa_quant_type from config.json
+                # to avoid old-format quant description files incorrectly overriding it.
+                # This compatibility shim will be removed on 2026/06/30.
+                quant_cfg = self.config_dict.setdefault("quantization_config", {})
+                has_fa_quant_type = FA_QUANT_TYPE in quant_cfg
+                preserved_fa_quant_type = quant_cfg.get(FA_QUANT_TYPE)
+                quant_cfg.update(quant_descs)
+                if has_fa_quant_type:
+                    quant_cfg[FA_QUANT_TYPE] = preserved_fa_quant_type
 
             self._config = self.get_config()
             if not hasattr(self._config, quantize):

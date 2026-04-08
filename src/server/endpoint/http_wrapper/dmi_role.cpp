@@ -15,7 +15,7 @@
 #include "parse_protocol.h"
 #include "grpc_communication_mng.h"
 #include "log.h"
-#include "safe_io.h"
+#include "json_util.h"
 
 using OrderedJson = nlohmann::ordered_json;
 constexpr uint32_t MAX_INSTANCE_PER_POD = 64; // max instances per pod
@@ -816,6 +816,16 @@ void DmiRole::UpdateHostIpInfo(
             it = this->linkingHostIP_.erase(it);
         } else {
             ++it;
+        }
+    }
+    
+    auto successIt = this->successHostIP_.begin();
+    while (successIt != this->successHostIP_.end()) {
+        auto key = successIt->first;
+        if (currentLinkHostIpInfo.find(key) == currentLinkHostIpInfo.cend()) {
+            successIt = this->successHostIP_.erase(successIt);
+        } else {
+            ++successIt;
         }
     }
 }

@@ -62,16 +62,22 @@ private:
     bool LwdGRPCCommunicatorInit(std::unordered_map<std::string, std::string> &config,
                                 uint32_t grpcCommunicatorNum);
     std::unique_ptr<IPCCommunicator> InitSingleIPCCommunicator(const std::string &sharedMemName,
-                                                              uint32_t localWorldSize,
+                                                              const SemaphoreConfig &semConfig,
                                                               const ShmSizeConfig &shmSizeConfig) const;
 
     bool RegisterAndStartIPCHandler(std::shared_ptr<IPCCommunicator> ipcCommunicator, ResponseHandler handler) const;
 
     bool SlaveNodeGRPCRequestHandler(ExecuteRequest &request);
 
+    bool SlaveNodeGRPCRecoverRequestHandler(ExecuteRequest &request);
+
+    ExecuteResponse AggregateToOneResponse(const std::vector<ExecuteResponse> &responses);
+
     bool SlaveNodeIPCResponseHandler(ExecuteResponse &response);
 
     bool SendAsyncRequestToLocal(ExecuteRequest &request);
+
+    bool ReceiveSyncResponsesFromRemote(std::vector<ExecuteResponse> &responses);
 
     bool isMultiNodesInfer_;
     bool layerwiseDisaggregated_{false};
@@ -90,9 +96,8 @@ private:
     std::shared_ptr<IPCCommunicator> ipcCommunicatorSharedSync_;
     std::shared_ptr<IPCCommunicator> ipcCommunicatorKVTransfer_;
     std::shared_ptr<IPCCommunicator> ipcCommunicatorExecuteError_;
+    std::shared_ptr<IPCCommunicator> ipcCommunicatorRecoverCommand_;
 
-    void HandleExecuteErrorResponse(ResponseHandler handler) const;
-    std::atomic<bool> executeErrorRecvActive_{false};
     std::unique_ptr<std::thread> handleExecuteErrorThread_{nullptr};
 };
 

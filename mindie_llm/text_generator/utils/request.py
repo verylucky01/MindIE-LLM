@@ -94,9 +94,11 @@ class Request:
         cls,
         input_len: int,
         max_output_len: int,
+        vocab_size: int,
         max_placeholder_num: int = 1,
         warmup_topk_size: int = 1000,
-        enable_warmup_sampling: bool = True
+        enable_warmup_sampling: bool = True,
+        is_multimodal: bool = False
     ):
         req_id = next(Request.counter)
         input_ids = np.ones(input_len, dtype=np.int64)

@@ -53,9 +53,11 @@ public:
         const std::string &errCode, const std::string &createdBy,
         const std::chrono::time_point<std::chrono::system_clock> &timestamp = std::chrono::system_clock::now());
     void PrintNpuDeviceIds();
+    void SetSendingMessageStatus(bool sendingMessageStatus) noexcept;
     std::string StatusToString(const ServiceStatus &status) const;
     bool Start();
     void Stop();
+    bool IsEnabled() const noexcept;
     SimulateResult RunHttpTimedHealthCheck(uint32_t waitTime);
     HealthChecker(const HealthChecker &) = delete;
     HealthChecker &operator=(const HealthChecker &) = delete;
@@ -65,17 +67,24 @@ public:
 private:
     std::atomic<ServiceStatus> mServiceStatus;
     int mChipPerCard = 1;    // A2: 1, A3: 2
+    int llmNotReadyCount = 0;
+    bool mFirstSimulateAbnormalSuppressed = false;
+    bool mIsCentralizedNode = false;
+    bool mIsCentralizedMaster = true;
+    mindie_llm::ConcurrentDeque<ErrorItem> mErrorList;
     std::set<int> mNpuDeviceCardIds;
     std::string mEngineName;
     mutable std::shared_mutex mNpuDevicesMutex;
     std::thread mCheckerThread;
     std::atomic<bool> mRunning;
+    std::atomic<bool> mSendingMessage{false};
     std::mutex mStatusMutex; // 状态锁
     std::unordered_map<int, std::vector<int>> statusTransferMap;
     static constexpr int checkIntervalSeconds = 5;
-    
+
     void CheckServiceStatus();
     bool WaitForLlmEngineReady();
+    bool IsDmiInitWaitSatisfied();
     void PerformPeriodicHealthCheck();
     void GetChipPerCard();
     void UpdateErrorList(
@@ -94,6 +103,7 @@ private:
     bool StartSimulateTask();
     bool CreateAndInitSimulateRunner();
     bool InitNpuDeviceCardIds();
+    bool ShouldSkipHealthCheck();
 
     // 虚推执行器和任务运行器
     std::shared_ptr<ISimulateExecutor> mSimulateExecutor;
@@ -106,6 +116,16 @@ private:
 
 private:
     HealthChecker();
+};
+
+class SendingMessageScope {
+public:
+    explicit SendingMessageScope(HealthChecker &checker) noexcept;
+    ~SendingMessageScope() noexcept;
+    SendingMessageScope(const SendingMessageScope &) = delete;
+    SendingMessageScope &operator=(const SendingMessageScope &) = delete;
+private:
+    HealthChecker &checker_;
 };
 
 } // namespace mindie_llm

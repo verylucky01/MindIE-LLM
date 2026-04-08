@@ -8,7 +8,7 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, List, Optional, Union
 
 import numpy as np
@@ -41,6 +41,7 @@ def get_batch_size(is_prefill_pre_batch, requests):
 
 @dataclass
 class LwdMetadata():
+    request_key: int = 0
     start_exec_layer: int = 0
     end_exec_layer: int = 0
     end_of_generate_token: bool = True
@@ -51,9 +52,10 @@ class LwdMetadata():
     is_long_seq: bool = False
     long_seq_start_idx: int = 0
     long_seq_end_idx: int = 0
-    long_seq_next_end_idx: int = 0
+    hidden_start_pos: int = 0
     prefill_total_seq_len: int = 0
     is_last_chunk: bool = False
+    long_seq_recv_list: List[tuple] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -95,6 +97,10 @@ class InputMetadata:
     simulator_ids: Optional[List[Any]] = None
     # JSON 结构化输出约束 (response_format)
     batch_response_format: Optional[List[Optional[str]]] = None
+    # PD分离/重计算场景下已生成的output token IDs，用于同步grammar等有状态组件
+    batch_predicted_token_ids: Optional[List[Optional[List[int]]]] = None
+    batch_tools: Optional[List[Any]] = None
+    batch_tool_choice: Optional[List[Any]] = None
 
     # attributes for prefixcache
     computed_blocks: Optional[np.ndarray] = None
@@ -312,20 +318,19 @@ class InputMetadata:
                 batch_seq_len = split_end_pos - split_start_pos
                 total_seq_num = sum(batch_seq_len)
         else:
+            # decode 阶段：response_format 已在 prefill 阶段存入 DictContext，无需重复收集
             batch_max_output_lens = []
-            batch_response_format = []
             batch_dp_rank_ids = []
             for llm_request in llm_requests:
                 num_sequences = len(llm_request.sequences.keys())
                 batch_max_output_lens.extend([llm_request.max_new_tokens] * num_sequences)
-                # 收集 response_format（每个 sequence 都需要相同的 response_format）
-                batch_response_format.extend([llm_request.response_format] * num_sequences)
-                batch_dp_rank_ids.append(llm_request.dp_rank_id)
-                if llm_request.sp_tokens is not None:
-                    batch_sp_tokens.append(llm_request.sp_tokens)
-                    batch_sp_rank_ids.append(llm_request.sp_rank_id)
-                    batch_is_append_block.append(llm_request.is_append_block)
-                    batch_block_rank_id.append(llm_request.block_rank_id)
+                # 收集 response_format（每个 sequence 都需要相同的 response_format） 
+                batch_dp_rank_ids.append(llm_request.dp_rank_id) 
+                if llm_request.sp_tokens is not None: 
+                    batch_sp_tokens.append(llm_request.sp_tokens) 
+                    batch_sp_rank_ids.append(llm_request.sp_rank_id) 
+                    batch_is_append_block.append(llm_request.is_append_block) 
+                    batch_block_rank_id.append(llm_request.block_rank_id)                
 
         batch_max_output_lens = np.array(batch_max_output_lens, dtype=np.int64)
         if req_block_tables is not None:

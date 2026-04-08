@@ -13,6 +13,8 @@
 #include <cstring>
 #include <csignal>
 #include <vector>
+#include <sys/wait.h>
+#include <unistd.h>
 #include "log.h"
 #include "string_utils.h"
 #include "math_utils.h"
@@ -161,6 +163,40 @@ bool Executor::ExecutorParseConfigAndInitGRPC(std::map<std::string, std::string>
     return true;
 }
 
+bool Executor::LwdMasterAndSlaveSync()
+{
+    MINDIE_LLM_LOG_INFO("[layerwiseDisaggregated|executor] "
+                        <<"Start to synchronize model initialization between Master and Slave nodes.");
+    // Master node receives init response from slave
+    if (modelLaunchConfig_.layerwiseDisaggregatedRoleType == "master" && modelLaunchConfig_.dp > 1) {
+        if (!modelLaunchConfig_.lwdMultiNodesEnable && dpRankIdx_ > 0) {
+            return true;  // 单机多dp场景,只有rank0处理model_init
+        }
+        ExecuteResponse rawSlaveResponse;
+        communicator_->GRPCGetSyncResponse(rawSlaveResponse);
+        if (!MasterHandleSlaveInitResponse(rawSlaveResponse)) {
+            MINDIE_LLM_LOG_ERROR("Failed to handle slave initialization response.");
+            return false;
+        }
+    } else if (modelLaunchConfig_.layerwiseDisaggregatedRoleType == "master" && modelLaunchConfig_.dp == 1) {
+        uint32_t slaveCount = modelLaunchConfig_.slaveIPs.size();
+        for (uint32_t i = 0; i < slaveCount; i++) {
+            ExecuteResponse rawSlaveResponse;
+            communicator_->GRPCGetSyncResponse(rawSlaveResponse);
+            if (!MasterHandleSlaveInitResponse(rawSlaveResponse)) {
+                MINDIE_LLM_LOG_ERROR("Failed to handle slave initialization response.");
+                return false;
+            }
+        }
+    } else if (!SlaveSendInitResponseToMaster()) { // Slave node sends init response to master
+        MINDIE_LLM_LOG_ERROR("Failed to send initialization response to master node.");
+        return false;
+    }
+    MINDIE_LLM_LOG_INFO("Successfully synchronize model initialization between Master and"
+        " Slave nodes in layerwise disaggregated scenario.");
+    return true;
+}
+
 bool Executor::ExecutorModelInitAndSync()
 {
     // Initialize IPC communicator and launch model if needed.
@@ -170,12 +206,10 @@ bool Executor::ExecutorModelInitAndSync()
             return false;
         }
     }
-    // 以下是集中式场景下，Master和Slave节点之间的同步逻辑
-    if ((isMultiNodesInfer_ || (modelLaunchConfig_.layerwiseDisaggregated && dpRankIdx_ < 1)) && isGRPCInit_) {
-        if (modelLaunchConfig_.layerwiseDisaggregated) {
-            MINDIE_LLM_LOG_INFO("[layerwiseDisaggregated|executor] "
-                                <<"Start to synchronize model initialization between Master and Slave nodes.");
-        }
+    if (modelLaunchConfig_.layerwiseDisaggregated && isGRPCInit_) {
+        return LwdMasterAndSlaveSync();
+    } else if (isMultiNodesInfer_ && isGRPCInit_) {
+        // 以下是集中式场景下，Master和Slave节点之间的同步逻辑
         if (modelLaunchConfig_.isMasterNode) { // Master node receives init response from slave
             // For intraNodeTP scenario(where one GRPC message is broadcasted to multiple slaves),
             // master needs to receive responses from all slaves and aggregate the results.
@@ -473,8 +507,32 @@ bool Executor::ExecutorInstanceFinalize()
         MINDIE_LLM_LOG_ERROR("Failed to send finialize message.");
         return false;
     }
-    communicator_->CleanUp();
+    for (pid_t pid : childPids_) {
+        if (pid <= 0) continue;
+
+        if (kill(pid, SIGTERM) == 0) {
+            MINDIE_LLM_LOG_INFO("Sent SIGTERM to child process " << pid);
+        } else {
+            MINDIE_LLM_LOG_ERROR("Failed to send SIGTERM to " << pid);
+            continue;
+        }
+
+        constexpr int maxWaitMs = 500;
+        constexpr int checkIntervalMs = 50;
+        constexpr int checkIntervalUs = checkIntervalMs * 1000; // 50ms
+        constexpr int maxIterations = maxWaitMs / checkIntervalMs;
+        for (int i = 0; i < maxIterations; ++i) {
+            if (waitpid(pid, nullptr, WNOHANG) > 0) {
+                break;
+            }
+            usleep(checkIntervalUs);
+        }
+    }
+
+    // 清空 PID 列表
+    childPids_.clear();
     JoinPipeThreads(); // Ensure all pipe threads are joined before finalizing
+    communicator_->CleanUp();
     MINDIE_LLM_LOG_DEBUG("Executor finalized and resources cleaned up.");
     return true;
 }
@@ -665,7 +723,8 @@ bool Executor::AsyncResponseHandler(ExecuteResponse &response)
     } else if (executeType == KV_TRANSFER) { // Handle KV cache transfer message.
         HandleKVTransferResponse(response);
     } else {
-        MINDIE_LLM_LOG_ERROR("Receive wrong message type: " << executeType);
+        MINDIE_LLM_LOG_ERROR("Receive wrong message type: " << executeType
+                             << ". You can ignore this warning if you are shutting down engine.");
         return false;
     }
     return true;
@@ -842,6 +901,9 @@ bool Executor::ExecuteCommand(const std::vector<std::string> &command)
         
         return false;
     } else {
+        if (pid > 0) {
+            childPids_.push_back(pid);
+        }
         close(pipefd[1]);
 
         FILE* pipe = fdopen(pipefd[0], "r");

@@ -116,7 +116,7 @@ class DeepseekV3Moe(nn.Module):
             router_logits=router_logits,
             top_k=self.topk_num,
             use_grouped_topk=True,
-            renormalize=False,
+            renormalize=True,
             topk_group=self.topk_group,
             num_expert_group=self.n_group,
             scoring_func="",
@@ -567,7 +567,7 @@ class DeepseekV3ForCausalLM(BaseModelForCausalLM):
         self.config: HuggingFaceConfig = mindie_llm_config.hf_config
         self.quant_config = mindie_llm_config.quant_config
         self.parallel_info = get_parallel_info_manager()
-        self.ds_config = mindie_llm_config.llm_config.llm
+        self.ds_config = mindie_llm_config.llm_config
         weight_prefetcher.enable_weight_prefetch()  # initialize weight prefetcher
         self.model = DeepseekV3Model(
             config=mindie_llm_config.hf_config,
