@@ -926,7 +926,7 @@ class PluginManager:
 
                 error_code = convert_exception_to_error_code(str(e))
 
-                # Handle PyTorch OOM(Only supports Torch 2.6+ native exception)
+                # Handle PyTorch OOM(Only supports Torch >= 2.6 native exception)
                 # If torch version is 2.1 or lower, please check exception message directly.
                 if hasattr(torch, "OutOfMemoryError") and isinstance(
                     e, torch.OutOfMemoryError
