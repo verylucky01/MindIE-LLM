@@ -8,23 +8,23 @@
 
 - 若开启HTTPS双向认证，需要提前准备好服务证书、服务器私钥和验签证书等。
 - 若使用容器化部署启动，要求共享内存设置不小于1GB。
-- Server对于Python的环境要求为Python3.10.x或者Python3.11.x。此处以Python3.10.13为例，如果环境中的Python3.10.13不是默认版本，需要参考如下方法添加环境变量（Python路径根据实际路径进行修改）。
+- Server对于Python的环境要求为Python3.11.x。此处以Python3.11为例，如果环境中的Python3.11不是默认版本，需要参考如下方法添加环境变量（Python路径根据实际路径进行修改）。
 
    ```bash
 
-   export LD_LIBRARY_PATH=/usr/local/python3.10.13/lib:$LD_LIBRARY_PATH
-   export PATH=/usr/local/python3.10.13/bin:$PATH
+   export LD_LIBRARY_PATH=/usr/local/python3.11/lib:$LD_LIBRARY_PATH
+   export PATH=/usr/local/python3.11/bin:$PATH
 
    ```
 
 ### 操作步骤
 
 1. 以安装用户进入MindIE安装目录。
-    
+
     ```bash
      cd {MindIE安装目录}/latest
      ```
-    
+
 2. 确认目录文件权限是否如下所示，若存在不匹配项，则参考以下命令修改权限。
 
     ```bash
@@ -124,7 +124,7 @@
              "e2eTimeout" : 600,
              "distDPServerEnabled": false
           },
-     
+
          "BackendConfig": {
              "backendName" : "mindieservice_llm_engine",
              "modelInstanceNumber" : 1,
@@ -160,7 +160,7 @@
                      }
                  ]
              },
-      
+
              "ScheduleConfig":
              {
                  "templateType": "Standard",
@@ -192,7 +192,7 @@
 
 4. （可选）若开启了HTTPS认证（即“httpsEnabled” : true时，默认开启）。
 
-   a. 则使用Service的证书导入脚本导入证书，各证书信息如[表1](#table1)所示。  
+   a. 则使用Service的证书导入脚本导入证书，各证书信息如[表1](#table1)所示。
 
     > [!NOTE]说明
     > - HTTPS使用三面隔离时，HTTPS的业务面和管理面不建议使用同一套安全证书，使用同一套安全证书会存在较高的网络安全风险。
@@ -200,7 +200,7 @@
     > - 导入证书时，对于用户导入CA证书的脚本权限要求为600，服务证书的脚本权限要求为600，私钥证书的脚本权限要求为400，吊销列表证书的脚本权限要求为600。
     > - Service的证书导入脚本请参见《MindIE Motor开发指南》中的"配套工具 > MindIE Service Tools > <a href="https://www.hiascend.com/document/detail/zh/mindie/22RC1/mindieservice/servicedev/mindie_service0312.html">CertTools</a>"章节。
     > - 如果导入证书超时，请参考<a href="https://www.hiascend.com/document/detail/zh/mindie/22RC1/envdeployment/instg/mindie_instg_0088.html">启动haveged服务</a>处理。
-   
+
       表1 证书文件清单  <a id="table1"></a>
 
       | 证书文件               | 默认目标路径                                             | 说明                                              |
@@ -244,7 +244,7 @@
 
     > [!NOTE]说明
     > 拉起服务前，建议用户使用MindStudio的预检工具进行配置文件字段校验，辅助校验配置的合法性，详情请参见[链接](https://gitcode.com/Ascend/msit/tree/master/msprechecker)。
-   
+
    - （推荐）使用后台进程方式启动服务。
 
        ```shell
@@ -290,11 +290,11 @@
 
 ### 前提条件
 
-- Server对于Python的环境要求为Python3.10.*x*或者Python3.11*.**x*。此处以Python3.10.13为例，如果环境中的Python3.10.13不是默认版本，需要参考如下方法添加环境变量（Python路径根据实际路径进行修改）。
+- Server对于Python的环境要求为Python3.11.x。此处以Python3.11为例，如果环境中的Python3.11不是默认版本，需要参考如下方法添加环境变量（Python路径根据实际路径进行修改）。
 
       ```linux
-      export LD_LIBRARY_PATH=/usr/local/python3.10.13/lib:$LD_LIBRARY_PATH
-      export PATH=/usr/local/python3.10.13/bin:$PATH
+      export LD_LIBRARY_PATH=/usr/local/python3.11/lib:$LD_LIBRARY_PATH
+      export PATH=/usr/local/python3.11/bin:$PATH
       ```
 
 - 服务器或容器环境上已经安装好NPU驱动和固件、CANN包、PyTorch、ATB Models和MindIE。
@@ -342,7 +342,7 @@ ranktable.json文件权限需要设置为640，详细内容请根据以下样例
                "server_id": "Master节点IP地址",
                "container_ip": "Master节点容器IP地址",
                "device": [
-                  { "device_id": "0", "device_ip": "10.20.0.2", "rank_id": "0" }, 
+                  { "device_id": "0", "device_ip": "10.20.0.2", "rank_id": "0" },
                   { "device_id": "1", "device_ip": "10.20.0.3", "rank_id": "1" },
                   { "device_id": "2", "device_ip": "10.20.0.4", "rank_id": "2" },
                   { "device_id": "3", "device_ip": "10.20.0.5", "rank_id": "3" },
@@ -435,7 +435,7 @@ ranktable.json文件权限需要设置为640，详细内容请根据以下样例
     chmod 700 mindie-service/security
     chmod -R 700 mindie-service/security/*
     ```
-  
+
     > [!NOTE]说明
     > 若文件权限不符合要求将会导致Server启动失败。
 
@@ -483,7 +483,7 @@ ranktable.json文件权限需要设置为640，详细内容请根据以下样例
       > - 如果导入证书超时，请参考启动haveged服务处理。
 
         表2 证书文件信息
-      
+
         | 证书文件               | 默认目标路径                        | 说明                                                         |
         | ---------------------- | ----------------------------------- | ------------------------------------------------------------ |
         | 根证书                 | mindie-service/security/grpc/ca/    | 开启“interNodeTLSEnabled” : true后必选。                     |
@@ -491,7 +491,7 @@ ranktable.json文件权限需要设置为640，详细内容请根据以下样例
         | 服务证书私钥           | mindie-service/security/grpc/keys/  | 支持私钥文件加密场景。开启“interNodeTLSEnabled” : true后必选。 |
         | 服务证书吊销列表       | mindie-service/security/grpc/certs/ | 必选。                                                       |
         | 服务证书私钥的加密口令 | mindie-service/security/pass/       | 必选。                                                       |
-      
+
        b. 在{MindIE安装目录}/latest下执行以下命令修改证书文件的用户权限。
 
         ```shell
@@ -530,7 +530,7 @@ ranktable.json文件权限需要设置为640，详细内容请根据以下样例
        chmod 400 mindie-service/security/keys/*
        chmod 400 mindie-service/security/pass/*
       ```
-      
+
 7. 使用以下命令配置环境变量。
 
       ```bash
@@ -539,7 +539,7 @@ ranktable.json文件权限需要设置为640，详细内容请根据以下样例
       source /usr/local/Ascend/atb-models/set_env.sh                                # ATB Models
       ```
 
-8. 将模型权重文件（由用户自行准备）拷贝到config.json中模型配置参数“modelWeightPath”指定的目录下。 
+8. 将模型权重文件（由用户自行准备）拷贝到config.json中模型配置参数“modelWeightPath”指定的目录下。
 
       ```bash
       cp -r {模型权重文件所在路径} /data/atb_testdata/weights/llama1-65b-safetensors
