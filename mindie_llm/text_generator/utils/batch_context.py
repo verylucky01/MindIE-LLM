@@ -865,18 +865,19 @@ class BatchContext:
                     raise RuntimeError(
                         "Prefilling-decoding separation deployment does not support best_of > 1."
                     )
-                for i, token in enumerate(prefill_new_tokens):
-                    stop_strings = input_metadata.batch_stop_strings[i]
-                    if stop_strings:
-                        prefill_text = decode_one(
-                            self.tokenizer,
-                            [token],
-                            input_metadata.batch_skip_special_tokens[i],
-                            self.tokenizer_sliding_window_size,
-                        )
-                        self.all_dict_context.output_texts[context_handles[i]] = (
-                            prefill_text
-                        )
+                if input_metadata.batch_stop_strings:
+                    for i, token in enumerate(prefill_new_tokens):
+                        stop_strings = input_metadata.batch_stop_strings[i]
+                        if stop_strings:
+                            prefill_text = decode_one(
+                                self.tokenizer,
+                                [token],
+                                input_metadata.batch_skip_special_tokens[i],
+                                self.tokenizer_sliding_window_size,
+                            )
+                            self.all_dict_context.output_texts[context_handles[i]] = (
+                                prefill_text
+                            )
 
                 self.all_ndarray_context.last_input_ids[context_handles] = (
                     prefill_new_tokens
