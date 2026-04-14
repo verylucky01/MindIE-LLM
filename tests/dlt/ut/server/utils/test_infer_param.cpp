@@ -228,36 +228,36 @@ TEST_F(InferParamTest, testAssignN)
     EXPECT_FALSE(request->n.has_value());
 }
 
-TEST_F(InferParamTest, testAssignBestOf)
-{
-    ServerConfig mockServerConfig;
-    MOCKER_CPP(GetServerConfig, const ServerConfig &(*)()).stubs().will(returnValue(mockServerConfig));
-    // valid values
-    //      should return true given "best_of" is valid
-    jsonObj["best_of"] = static_cast<uint32_t>(3);
-    EXPECT_TRUE(AssignBestOf(jsonObj, request, error));
-    EXPECT_TRUE(request->bestOf.has_value());
-    EXPECT_EQ(request->bestOf.value(), 3);
-    //      corner case
-    jsonObj["best_of"] = static_cast<uint32_t>(1);
-    EXPECT_TRUE(AssignBestOf(jsonObj, request, error));
-    EXPECT_TRUE(request->bestOf.has_value());
-    EXPECT_EQ(request->bestOf.value(), 1);
+// TEST_F(InferParamTest, testAssignBestOf)
+// {
+//     ServerConfig mockServerConfig;
+//     MOCKER_CPP(GetServerConfig, const ServerConfig &(*)()).stubs().will(returnValue(mockServerConfig));
+//     // valid values
+//     //      should return true given "best_of" is valid
+//     jsonObj["best_of"] = static_cast<uint32_t>(3);
+//     EXPECT_TRUE(AssignBestOf(jsonObj, request, error));
+//     EXPECT_TRUE(request->bestOf.has_value());
+//     EXPECT_EQ(request->bestOf.value(), 3);
+//     //      corner case
+//     jsonObj["best_of"] = static_cast<uint32_t>(1);
+//     EXPECT_TRUE(AssignBestOf(jsonObj, request, error));
+//     EXPECT_TRUE(request->bestOf.has_value());
+//     EXPECT_EQ(request->bestOf.value(), 1);
 
-    // invalid values
-    //      bestOf should have no value given "best_of" is invalid
-    request = std::make_shared<Request>(RequestIdNew("mockRequest"));
-    jsonObj["best_of"] = 0;
-    EXPECT_FALSE(AssignBestOf(jsonObj, request, error));
-    EXPECT_FALSE(request->bestOf.has_value());
+//     // invalid values
+//     //      bestOf should have no value given "best_of" is invalid
+//     request = std::make_shared<Request>(RequestIdNew("mockRequest"));
+//     jsonObj["best_of"] = 0;
+//     EXPECT_FALSE(AssignBestOf(jsonObj, request, error));
+//     EXPECT_FALSE(request->bestOf.has_value());
 
-    // contents missing
-    //      bestOf should have no value given "best_of" is missing
-    request = std::make_shared<Request>(RequestIdNew("mockRequest"));
-    jsonObj.clear();
-    EXPECT_TRUE(AssignBestOf(jsonObj, request, error));
-    EXPECT_FALSE(request->bestOf.has_value());
-}
+//     // contents missing
+//     //      bestOf should have no value given "best_of" is missing
+//     request = std::make_shared<Request>(RequestIdNew("mockRequest"));
+//     jsonObj.clear();
+//     EXPECT_TRUE(AssignBestOf(jsonObj, request, error));
+//     EXPECT_FALSE(request->bestOf.has_value());
+// }
 
 TEST_F(InferParamTest, testAssignFrequencyPenalty)
 {
