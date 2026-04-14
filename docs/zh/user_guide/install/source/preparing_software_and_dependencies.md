@@ -10,7 +10,7 @@ MindIE、CANN与Ascend Extension for Pytorch版本必须配套使用。其配套
 
 |MindIE|CANN|Ascend Extension for Pytorch|
 |-----------|------------|----------|
-|2.3.0|8.5.1|7.3.0（torch、torch_npu：2.9.0）（推荐）<br>7.2.0（torch、torch_npu：2.1.0）|
+|3.0.0|8.5.1|7.3.0（torch、torch_npu：2.9.0）（推荐）<br> 7.2.0（torch、torch_npu：2.1.0）|
 
 > [!NOTE]说明
 > DeepSeek-V3.2不支持torch、torch_npu 2.1.0。
@@ -28,7 +28,7 @@ MindIE、CANN与Ascend Extension for Pytorch版本必须配套使用。其配套
 |MindIE Motor|mindie_motor-<*version>*-cp*xxx*-cp*xxx*-linux_<*arch>*.whl|MindIE Motor组件安装包。|[获取链接](https://www.hiascend.com/developer/download/community/result?module=ie%2Bpt%2Bcann)|
 |MindIE SD|mindiesd-<*version>*-cp*xxx*-cp*xxx*-linux_<*arch>*.whl|MindIE SD组件安装包。|[获取链接](https://www.hiascend.com/developer/download/community/result?module=ie%2Bpt%2Bcann)|
 |CANN|Ascend-cann-toolkit_<*version>*_linux-<*arch>*.run|CANN开发套件包（Toolkit）。|[获取链接](https://www.hiascend.com/developer/download/community/result?module=ie%2Bpt%2Bcann)|
-|CANN|Ascend-cann-<*chip_type>*-ops_<*version>*_linux-<*arch>*.run|CANN二进制算子包（ops）。<br> 安装ops前，需已安装同一版本胡Toolkit软件包，请选择运行设备对应的ops软件包。|[获取链接](https://www.hiascend.com/developer/download/community/result?module=ie%2Bpt%2Bcann)|
+|CANN|Ascend-cann-<*chip_type>*-ops_<*version>*_linux-<*arch>*.run|CANN二进制算子包（ops）。<br> 安装ops前，需已安装同一版本的Toolkit软件包，请选择运行设备对应的ops软件包。|[获取链接](https://www.hiascend.com/developer/download/community/result?module=ie%2Bpt%2Bcann)|
 |CANN|Ascend-cann-nnal_<*version>*_linux-<*arch>*.run|CANN神经网络加速库（NNAL）。|[获取链接](https://www.hiascend.com/developer/download/community/result?module=ie%2Bpt%2Bcann)|
 |Ascend Extension for PyTorch|torch_npu-<*torch_version>*.post<*post_id>*-cp*xxx*-cp*xxx*-manylinux_<*arch>*.whl|torch_npu插件whl包。|[获取链接](https://www.hiascend.com/developer/download/community/result?module=ie%2Bpt%2Bcann)<ul><li>如需获取2.1.0版本的torch_npu，请在社区版资源下载页面左上方“配套资源”中，选择PyTorch版本为7.2.0。</li><li>在PyTorch栏单击对应版本后方“获取源码”按钮，跳转至PyTorch的gitcode仓库发布页，然后在页面下方获取对应版本的torch_npu。</li></ul>|
 |Ascend Extension for PyTorch|apex-<*apex_version>*_ascend-cp*xxx*-cp*xxx*-<*arch*>.whl|APEX模块的whl包。|请参见《Ascend Extension for PyTorch 软件安装指南》中的“[安装APEX模块](https://www.hiascend.com/document/detail/zh/Pytorch/730/configandinstg/instg/docs/installing_apex.md)”章节，根据Python3.11版本自行编译。|
@@ -49,7 +49,7 @@ MindIE、CANN与Ascend Extension for Pytorch版本必须配套使用。其配套
 
 MindIE所需依赖如[表3](#table3)所示。
 
-> [!NOTE]说明 
+> [!NOTE]说明
 > 针对用户自行安装的开源软件，请使用稳定版本（尽量使用无漏洞的版本）。
 
 **表 3**  依赖列表 <a id="table3"></a>

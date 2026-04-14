@@ -417,7 +417,7 @@ fi
     #######################################################################################
 
     # 读取PD混部服务化配置参数中的管理面端口，赋值到management_port变量
-    config_file="/home/HwHiAiUser/Ascend/mindie/latest/mindie-service/conf/config.json"
+    config_file="{MindIE安装目录}/mindie_llm/conf/config.json"
     management_port=$(grep '"managementPort"' "$config_file" | sed 's/[^0-9]*//g')
     HEALTH_CHECK_URL="https://127.0.0.2:$management_port/health/timed-3"
 
@@ -975,19 +975,19 @@ call calnnCat failed, detail:EZ1001: xxxxxxxx dimnum of tensor 5 is [1], should 
     - 所有模型需要安装的通用依赖文件所在路径为：
 
         ```text
-        /usr/local/Ascend/atb-models/requirements/requirements.txt
+        {MindIE安装目录}/atb_llm/requirements/requirements.txt
         ```
 
     - 不同的模型对应的依赖安装文件在models路径下，比如qwen2-vl 模型：
 
         ```text
-        /usr/local/Ascend/atb-models/requirements/models/requirements_qwen2_vl.txt
+        {MindIE安装目录}/atb_llm/requirements/models/requirements_qwen2_vl.txt
         ```
 
     安装命令如下所示：
 
     ```bash
-    pip install -r /usr/local/Ascend/atb-models/requirements/models/requirements_qwen2_vl.txt
+    pip install -r {MindIE安装目录}/atb_llm/requirements/models/requirements_qwen2_vl.txt
     ```
 
 - 报错提示二处理方式：
@@ -1059,7 +1059,7 @@ RuntimeError: NPU out of memory. Tried to allocate xxx GiB."
     export OMP_NUM_THREADS=1
     ```
 
-2. 适当调低服务化配置文件config.json中maxSeqLen、maxInputTokenLen、maxPrefillBatchSize、maxPrefillTokens、maxBatchSize等参数的值，主要是调整maxPrefillTokens、maxSeqLen和maxPrefillToken参数。
+2. 适当调低服务化配置文件config.json中maxSeqLen、maxInputTokenLen、maxPrefillBatchSize、maxPrefillTokens、maxBatchSize等参数的值，主要是调整maxPrefillTokens、maxSeqLen和maxPrefillTokens参数。
     - maxPrefillTokens需要大于等于maxInputToken。
     - maxPrefillTokens会影响到atb初始化阶段的workspace，其值过大时拉起服务后可能直接出现Out of memory报错。
 
@@ -1091,7 +1091,7 @@ RuntimeError: NPU out of memory. Tried to allocate xxx GiB."
 
 - 使用的模型在当前版本可能不支持该硬件环境。
 
-- 输入shape过大，selfattention算子不支持。
+- 输入shape过大，self-attention算子不支持。
 
 <br>
 
@@ -1103,7 +1103,7 @@ RuntimeError: NPU out of memory. Tried to allocate xxx GiB."
 
         ![](./figures/faq011.png)
 
-- 输入shape过大，selfattention算子不支持
+- 输入shape过大，self-attention算子不支持
 
     将服务化配置文件config.json中的maxPrefillTokens参数适当调小。
 
@@ -1163,7 +1163,7 @@ image\_url/video\_url/audio\_url参数中的值未符合指定的要求。
 
 1. 格式一：\{"type": "audio\_url", "audio\_url": audio\_url\}， 此类格式的audio\_url支持本地路径、http和https协议url。
 2. 格式二：\{"type": "audio\_url", "audio\_url": \{"url": \{audio\_url\}\}\}，此类格式的audio\_url支持本地路径、http和https协议url。
-3. 格式三：\{"type": "audio\_url", "audio\_url": \{"url": "file://\{local\_path\}"\}，此类格式仅支持本地路径。
+3. 格式三：\{"type": "audio\_url", "audio\_url": \{"url": "file://\{local\_path\}"\}}，此类格式仅支持本地路径。
 4. 格式四：\{"type": "audio\_url", "audio\_url": \{"url": f"data:<mime\_type\>/<subtype\>;base64,<base64\_data\>"\}\}，此类格式仅支持base64编码，源格式可以为mp3、wav、flac，对应的MIME如下表所示。
 
     |格式|MIME|
@@ -1233,13 +1233,13 @@ Failed to get vocab size from tokenizer wrapper with exception...
 MindIE部署Qwen2.5系列模型执行量化推理时出现以下报错信息：
 
 ```text
-ValueError：linear type not matched，please check 'config.json' 'quantize' parameter
+ValueError: linear type not matched,please check 'config.json' 'quantize' parameter
 ```
 
 或
 
 ```text
-AttributeError: 'ForkAwareLocal' object has no attribute 'connection‘
+AttributeError: 'ForkAwareLocal' object has no attribute 'connection'
 ```
 
 <br>

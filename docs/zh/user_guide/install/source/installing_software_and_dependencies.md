@@ -12,16 +12,16 @@
 
 - 安装方式：选择“在物理机上安装”。
 - 操作系统：选择使用的操作系统，MindIE支持的操作系统请参考[硬件配套和支持的操作系统](../installation_introduction.md)。
-- 业务场景：选择“训练&推理&开发调试”。
+- 安装类型：根据在线或离线的安装方式，选择对应的安装类型。
 
 ### 安装
 
-请参见《CANN 软件安装指南》中的“[选择安装场景](https://www.hiascend.com/document/detail/zh/canncommercial/850/softwareinst/instg/instg_0000.html?Mode=PmIns&InstallType=local&OS=openEuler)”章节（商用版）或“[选择安装场景](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/850/softwareinst/instg/instg_0000.html?Mode=PmIns&InstallType=local&OS=openEuler)”章节（社区版），并按如下方式选择安装场景，选择完成后单击“开始阅读”，按“**安装CANN（物理机场景） \> 安装CANN软件包**”章节进行安装。
+请参见《CANN 软件安装指南》中的“[选择安装场景](https://www.hiascend.com/document/detail/zh/canncommercial/850/softwareinst/instg/instg_0000.html?Mode=PmIns&InstallType=local&OS=openEuler)”章节（商用版）或“[选择安装场景](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/850/softwareinst/instg/instg_0000.html?Mode=PmIns&InstallType=local&OS=openEuler)”章节（社区版），并按如下方式选择安装场景，选择完成后单击“开始阅读”，按“**安装CANN**”章节进行安装。
 
 - 安装方式：选择“在物理机上安装”。
 - 操作系统：选择使用的操作系统，MindIE支持的操作系统请参考[硬件配套和支持的操作系统](../installation_introduction.md)。
-- 业务场景：选择“训练&推理&开发调试”。
-  
+- 安装类型：根据在线或离线的安装方式，选择对应的安装类型。
+
 ## 安装Pytorch和Torch NPU
 
 - 如果是操作系统是ubuntu 22.04，请安装torch_npu 2.1.0；如果操作系统是ubuntu 24.04 LTS，请安装torch_npu 2.9.0。
@@ -57,7 +57,7 @@ pip install atb_llm-<*version>*-cp*xxx*-cp*xxx*-linux_<*arch>*.whl
 
 ## 安装步骤
 
-1. 首先使用以下命令单独安装tritonclient\[all\]依赖。
+1. 首先使用以下命令单独安装tritonclient[all]依赖。
 
     ```bash
     pip3 install tritonclient[all]

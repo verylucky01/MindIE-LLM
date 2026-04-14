@@ -60,7 +60,7 @@ MindIE镜像获取请参见[镜像安装方式](../user_guide/install/source/ima
     pip wheel . --no-build-isolation -v
     ```
 
-    * 编译完成后，会在当前目录生成 `mindie_LLM-<version>-*.whl` 文件。
+    * 编译完成后，会在当前目录生成 `mindie_llm-<version>-*.whl` 文件。
     * 编译时，`setup.py` 会自动调用 `build.sh` 编译C++代码，并拷贝第三方依赖到包内。
     * 编译后，生成临时目录 `build`、存放二进制的目录 `output` 和 debug 符号表 `llm_debug_symbols` 目录。
 
