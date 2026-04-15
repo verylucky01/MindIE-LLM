@@ -141,7 +141,7 @@
 |templateType|std::string|<ul><li>"Standard"</li><li>"Mix"</li></ul>|必填，默认值："Standard"。<br>推理类型。<ul><li>Standard：PD混部场景，Prefill请求和Decode请求各自组batch。</li><li>Mix：SplitFuse特性相关参数，Prefill请求和Decode请求可以一起组batch。</li></ul>PD分离场景下该字段配置不生效。|
 |templateName|std::string|当前取值只能为："Standard_LLM"|必填，默认值："Standard_LLM"。<br>调度工作流名称。|
 |cacheBlockSize|uint32_t|[1, 128]|必填，默认值：128，建议值：128，其他值需为16的整数倍。<br>KV Cache block的size大小。|
-|maxPrefillBatchSize|uint32_t|[1, maxBatchSize]|必填，默认值：50。<br>最大prefill batch size。maxPrefillBatchSize和maxPrefillTokens谁先达到各自的取值就完成本次组batch。<br>该参数主要是在明确需要限制Prefill阶段batch size的场景下使用，否则可以设置为0（此时引擎将默认取maxBatchSize值）或与maxBatchSize值相同。|
+|maxPrefillBatchSize|uint32_t|[1, maxBatchSize]|必填，默认值：50。<br>最大prefill batch size。maxPrefillBatchSize和maxPrefillTokens谁先达到各自的取值就完成本次组batch。<br>该参数主要是在明确需要限制Prefill阶段batch size的场景下使用，否则可以设置为0（此时引擎将默认取maxBatchSize值）或与maxBatchSize值相同。<br>当请求开启束搜索或并行采样时，单条请求占用的prefill batch size为采样参数n，该参数建议配置为 prefill阶段请求并发数*maxN。|
 |maxPrefillTokens|uint32_t|[1,4194304]，且必须大于或等于maxInputTokenLen的取值。|必填，默认值：8192。<br>每次Prefill时，当前batch中所有input token总数，不能超过maxPrefillTokens。maxPrefillTokens和maxPrefillBatchSize谁先达到各自的取值就完成本次组batch。<br>不建议设置过大，若显存溢出可适当调小。|
 |prefillTimeMsPerReq|uint32_t|[0, 1000]|必填，默认值：150。<br>该参数与decodeTimeMsPerReq参数一起参与计算，确定下一次推理应该选择Prefill还是Decode。单位：ms，当**supportSelectBatch**设置为**true**时有效。其调度策略流程图请参见[图1](#figure1)。<ul><li>PD混部场景，通过计算以下参数来选择下一次推理是Prefill还是Decode：<ul><li>prefillWaitTime = prefillTimeMsPerReq*decodeReqNum，表示如果选择Prefill，Decode请求需要等待的时间。</li><li>accumulatedDecodeWasteTime = accumulatedDecodeWasteTime + decodeTimeMsPerReq\*(maxBatchSize - decodeReqNum)，表示连续执行多次Decode浪费的时间。</li>**比较计算结果，确定下一次推理:**<li>当prefillWaitTime > accumulatedDecodeWasteTime时，表示Decode请求积压过多，则下一次推理是Decode。</li><li>当prefillWaitTime <= accumulatedDecodeWasteTime时，表示连续多次Decode浪费的时间过多，则下一次推理是Prefill。</li></ul></li><li>PD分离场景，该参数无效；如果当前实例是Prefill实例，则优先Prefill计算；如果当前实例是Decode实例，则优先Decode计算。</li></ul>|
 |prefillPolicyType|uint32_t|0|必填，只能配置为0。<br>Prefill阶段的调度策略。其调度策略流程图请参见[图2](#figure2)。0：FCFS，先来先服务。|
@@ -152,7 +152,7 @@
 |maxPreemptCount|uint32_t|[0, maxBatchSize]，当取值大于0时，cpuMemSize取值不可为0。|必填，默认值：0。<br>每一批次最大可抢占请求的上限，即限制一轮调度最多抢占请求的数量，最大上限为maxBatchSize，取值大于0则表示开启可抢占功能。|
 |maxQueueDelayMicroseconds|uint32_t|[500, 1000000]|必填，默认值：5000。<br>在队列中的请求数量达到最大maxBatchSize、maxPrefillBatchSize或maxPrefillTokens前，请求在队列中的最大等待时间，单位：us。<br>只要等待时间达到该值，即使请求数量未达到最大maxBatchSize、maxPrefillBatchSize或maxPrefillTokens，也要进行下一次推理。|
 |maxFirstTokenWaitTime|uint32_t|[0, 3600000]|选填，默认值：2500，单位：ms。<br>请求到达后的最长排队时间。达到该等待时间后，将允许本轮调度抢占请求，缩短首token时延。<br>PD分离场景下该字段配置不生效。|
-|maxN|uint32_t|[1, 8192], 且必须小于或等于maxBatchSize参数的取值。|选填，默认值：128。<br>Beam search支持的最大采样并行数。<br>请求中携带的n的参数值不能超过maxN的值。 |
+|maxN|uint32_t|[1, 8192], 且必须小于或等于maxBatchSize参数的取值。|选填，默认值：128。<br>束搜索支持的最大束宽。<br>并行采样支持的最大采样并行数。<br>请求中携带的n的参数值不能超过maxN的值。 |
 
 ## LogConfig参数说明
 
