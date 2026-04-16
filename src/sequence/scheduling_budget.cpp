@@ -52,6 +52,8 @@ size_t SchedulingBudget::GetPrefillSlots() {
     // 固定切分长度
     if (schedulerConfig_->prefillChunkSize != 0) {
         return schedulerConfig_->prefillChunkSize;
+    } else {
+        return schedulerConfig_->maxPrefillTokens;
     }
 
     // 动态切分长度
