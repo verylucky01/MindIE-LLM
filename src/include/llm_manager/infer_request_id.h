@@ -14,6 +14,7 @@
 #define MINDIE_LLM_INFERENCE_REQUEST_ID_H
 
 #include <functional>
+#include <string>
 
 namespace mindie_llm {
 /// class InferRequestId
