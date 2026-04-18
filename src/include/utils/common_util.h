@@ -58,39 +58,41 @@ const mode_t MAX_HOME_DIR_PERM = S_IRWXU | S_IRGRP | S_IXGRP;  // 750
 
 std::vector<std::string> GetHostIP(bool skipLoopback = true);
 
-size_t GetDuration(const std::chrono::steady_clock::time_point &end,
-                   const std::chrono::steady_clock::time_point &start);
+size_t GetDuration(const std::chrono::steady_clock::time_point& end,
+                   const std::chrono::steady_clock::time_point& start);
 
 std::string GetCurTime();
 
-std::vector<std::string> Split(const std::string &str, char delim);
+std::vector<std::string> Split(const std::string& str, char delim);
 
-std::string TrimSpace(const std::string &str);
+std::string TrimSpace(const std::string& str);
 
 std::string ToLower(std::string str);
 
 std::string ToUpper(std::string str);
 
-bool CanonicalPath(std::string &path);
+const std::string& GetMindieLlmHomePath();
 
-bool GetBinaryPath(std::string &outPath);
+bool CanonicalPath(std::string& path);
 
-Error GetHomePath(std::string &outHomePath);
+bool GetBinaryPath(std::string& outPath);
 
-bool IsNumber(const std::string &str);
+Error GetHomePath(std::string& outHomePath);
 
-Error GetConfigPath(std::string &outConfigPath);
+bool IsNumber(const std::string& str);
 
-bool GetWorldSizeAndServerCountFromRanktable(size_t &tp, size_t &serverCount);
+Error GetConfigPath(std::string& outConfigPath);
 
-bool GetModelInfo(std::string &modelName, size_t &tp, size_t &serverCount);
+bool GetWorldSizeAndServerCountFromRanktable(size_t& tp, size_t& serverCount);
+
+bool GetModelInfo(std::string& modelName, size_t& tp, size_t& serverCount);
 
 constexpr uint32_t SignalHandlerDefaultTimeout = 5;
 
 void ExecuteAction(std::function<void()> action, uint32_t timeoutSeconds, std::function<void()> timeoutHandler);
 
 template <typename T>
-std::string SerializeSet(const std::set<T> &inputSet) {
+std::string SerializeSet(const std::set<T>& inputSet) {
     std::stringstream ss;
     bool first = true;
     for (T elem : inputSet) {
@@ -103,29 +105,29 @@ std::string SerializeSet(const std::set<T> &inputSet) {
     return ss.str();
 }
 
-std::set<size_t> DeserializeSet(const std::string &data);
+std::set<size_t> DeserializeSet(const std::string& data);
 
-std::string JoinStrings(const std::vector<std::string> &stringsVec, const std::string &delimiter);
+std::string JoinStrings(const std::vector<std::string>& stringsVec, const std::string& delimiter);
 
 uint32_t RandomNumber(uint32_t maxNumber);
 
-bool CheckAndGetLogPath(const std::string &logPath, uint64_t sizeLimit, std::string &outPath,
-                        const std::string &defaultPath);
+bool CheckAndGetLogPath(const std::string& logPath, uint64_t sizeLimit, std::string& outPath,
+                        const std::string& defaultPath);
 
-std::vector<std::string> SplitPath(const std::string &absPath) noexcept;
+std::vector<std::string> SplitPath(const std::string& absPath) noexcept;
 
-std::string AbsoluteToAnonymousPath(const std::string &absPath) noexcept;
+std::string AbsoluteToAnonymousPath(const std::string& absPath) noexcept;
 
-std::string AbsoluteToRelativePath(const std::string &absPath, const std::string &absDir) noexcept;
+std::string AbsoluteToRelativePath(const std::string& absPath, const std::string& absDir) noexcept;
 
-std::string CleanStringForJson(const std::string &input);
+std::string CleanStringForJson(const std::string& input);
 
 bool IsFloatEquals(float a, float b);
 
 template <typename T>
-inline void StreamAppend(std::stringstream &stream, typename std::vector<T> source,
+inline void StreamAppend(std::stringstream& stream, typename std::vector<T> source,
                          size_t limit = std::numeric_limits<size_t>::max(), bool delimOnStart = false,
-                         const std::string &delim = ",") {
+                         const std::string& delim = ",") {
     limit = std::min(source.size(), limit);
     if (limit == 0) {
         return;
@@ -138,51 +140,51 @@ inline void StreamAppend(std::stringstream &stream, typename std::vector<T> sour
     }
 }
 
-std::vector<std::string> SplitString(const std::string &str, char delimiter);
+std::vector<std::string> SplitString(const std::string& str, char delimiter);
 
-bool CheckSystemConfig(const std::string &jsonPath, nlohmann::json &inputJsonData, std::string paramType);
+bool CheckSystemConfig(const std::string& jsonPath, nlohmann::json& inputJsonData, std::string paramType);
 
-bool ReadJsonFile(const std::string &jsonPath, std::string &baseDir, nlohmann::json &inputJsonData,
+bool ReadJsonFile(const std::string& jsonPath, std::string& baseDir, nlohmann::json& inputJsonData,
                   std::string paramType);
 
-void GetModelInfo(const std::string &configPath, std::string &modelName, size_t &tp, size_t &serverCount);
+void GetModelInfo(const std::string& configPath, std::string& modelName, size_t& tp, size_t& serverCount);
 
-Error GetLlmPath(std::string &outHomePath);
+Error GetLlmPath(std::string& outHomePath);
 
-bool ParsePortFromIp(const std::string &ipPort, uint32_t &port);
+bool ParsePortFromIp(const std::string& ipPort, uint32_t& port);
 
-std::string JoinStrings(const std::vector<std::string> &stringsVec, const std::string &delimiter);
+std::string JoinStrings(const std::vector<std::string>& stringsVec, const std::string& delimiter);
 
 std::pair<uint32_t, uint32_t> ReverseDpInstId(uint64_t dpInstanceId);
 
-bool CheckIp(const std::string &ipAddress, const std::string &inputName, bool enableZeroIp);
+bool CheckIp(const std::string& ipAddress, const std::string& inputName, bool enableZeroIp);
 
-bool CheckIPV4(const std::string &ipAddress, const std::string &inputName, bool enableZeroIp);
+bool CheckIPV4(const std::string& ipAddress, const std::string& inputName, bool enableZeroIp);
 
-bool CheckIPV6(const std::string &ipAddress, const std::string &inputName, bool enableZeroIp);
+bool CheckIPV6(const std::string& ipAddress, const std::string& inputName, bool enableZeroIp);
 
-bool IsIPv4(const std::string &ipAddress);
+bool IsIPv4(const std::string& ipAddress);
 
-bool IsIPv6(const std::string &ipAddress);
+bool IsIPv6(const std::string& ipAddress);
 
-std::string FormatGrpcAddress(const std::string &ip, const std::string &port);
+std::string FormatGrpcAddress(const std::string& ip, const std::string& port);
 
 // safe get value from map<vector<int64_t>>
-bool SafeGetMapVectorValue(const std::map<uint64_t, std::vector<int64_t>> &map, uint64_t seqId, size_t index,
-                           int64_t &outValue, const std::string &mapName) noexcept;
+bool SafeGetMapVectorValue(const std::map<uint64_t, std::vector<int64_t>>& map, uint64_t seqId, size_t index,
+                           int64_t& outValue, const std::string& mapName) noexcept;
 
 // safe get value from map<vector<float>>
-bool SafeGetMapVectorValue(const std::map<uint64_t, std::vector<float>> &map, uint64_t seqId, size_t index,
-                           float &outValue, const std::string &mapName) noexcept;
+bool SafeGetMapVectorValue(const std::map<uint64_t, std::vector<float>>& map, uint64_t seqId, size_t index,
+                           float& outValue, const std::string& mapName) noexcept;
 
-bool StrToInt64(int64_t &dest, const std::string &str);
+bool StrToInt64(int64_t& dest, const std::string& str);
 
-bool StrToUint64(uint64_t &dest, const std::string &str);
+bool StrToUint64(uint64_t& dest, const std::string& str);
 
-bool StrToUint32(uint32_t &dest, const std::string &str);
+bool StrToUint32(uint32_t& dest, const std::string& str);
 
 template <typename T>
-std::string VectorToString(const std::vector<T> &vec) {
+std::string VectorToString(const std::vector<T>& vec) {
     std::ostringstream oss;
     oss << "[";
     for (size_t i = 0; i < vec.size(); ++i) {
@@ -197,7 +199,7 @@ std::string VectorToString(const std::vector<T> &vec) {
 
 // Helper function to convert a std::map to a string
 template <typename K, typename V>
-std::string MapToString(const std::map<K, V> &map) {
+std::string MapToString(const std::map<K, V>& map) {
     std::ostringstream oss;
     oss << "{";
     for (auto it = map.begin(); it != map.end(); ++it) {
@@ -212,7 +214,7 @@ std::string MapToString(const std::map<K, V> &map) {
 
 // Specialization for std::map with std::vector as the value type
 template <typename K, typename V>
-std::string MapToString(const std::map<K, std::vector<V>> &map) {
+std::string MapToString(const std::map<K, std::vector<V>>& map) {
     std::ostringstream oss;
     oss << "{";
     for (auto it = map.begin(); it != map.end(); ++it) {
@@ -226,17 +228,17 @@ std::string MapToString(const std::map<K, std::vector<V>> &map) {
 }
 
 template <typename KeyType, typename ValueType>
-void MergeMaps(std::map<KeyType, ValueType> &totalMap, const std::map<KeyType, ValueType> &subMap) {
-    for (const auto &entry : subMap) {
+void MergeMaps(std::map<KeyType, ValueType>& totalMap, const std::map<KeyType, ValueType>& subMap) {
+    for (const auto& entry : subMap) {
         totalMap[entry.first] += entry.second;
     }
 }
 
 template <typename K, typename V>
-std::map<K, V> RemoveMapElements(const std::map<K, V> &inputMap, const std::vector<K> &keysToRemove) {
+std::map<K, V> RemoveMapElements(const std::map<K, V>& inputMap, const std::vector<K>& keysToRemove) {
     std::map<K, V> resultMap = inputMap;
 
-    for (const auto &key : keysToRemove) {
+    for (const auto& key : keysToRemove) {
         // 删除整个键值对
         resultMap.erase(key);
     }

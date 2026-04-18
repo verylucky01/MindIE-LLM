@@ -75,9 +75,9 @@ std::vector<std::string> DynamicConfigHandler::splitString(const std::string& s,
 }
 
 std::string DynamicConfigHandler::getConfigFilePath() const {
-    const char* miesInstallPath = std::getenv("MINDIE_LLM_HOME_PATH");
-    if (miesInstallPath != nullptr) {
-        return std::string(miesInstallPath) + "/conf/config.json";
+    auto miesInstallPath = GetMindieLlmHomePath();
+    if (!miesInstallPath.empty()) {
+        return miesInstallPath + "/conf/config.json";
     }
     return "../conf/config.json";
 }

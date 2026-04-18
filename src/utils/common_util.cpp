@@ -28,6 +28,7 @@
 
 #include "common_util.h"
 #include "env_util.h"
+#include "file_system.h"
 #include "file_utils.h"
 #include "log.h"
 #include "log/logger_def.h"
@@ -42,8 +43,8 @@ constexpr int MAX_IPV6_LENGTH = 128;
 constexpr int DP_INDEX_RANGE = 10000;
 std::vector<std::string> GetHostIP(bool skipLoopback) {
     std::vector<std::string> ips;
-    ifaddrs *ifaddr;
-    ifaddrs *ifa;
+    ifaddrs* ifaddr;
+    ifaddrs* ifa;
 
     if (getifaddrs(&ifaddr) == -1) {
         perror("getifaddrs error");
@@ -63,14 +64,14 @@ std::vector<std::string> GetHostIP(bool skipLoopback) {
         }
 
         char ipstr[INET6_ADDRSTRLEN];
-        void *addr = nullptr;
+        void* addr = nullptr;
 
         if (family == AF_INET) {
             // IPv4
-            addr = &(reinterpret_cast<sockaddr_in *>(ifa->ifa_addr))->sin_addr;
+            addr = &(reinterpret_cast<sockaddr_in*>(ifa->ifa_addr))->sin_addr;
         } else if (family == AF_INET6) {
             // IPv6
-            addr = &(reinterpret_cast<sockaddr_in6 *>(ifa->ifa_addr))->sin6_addr;
+            addr = &(reinterpret_cast<sockaddr_in6*>(ifa->ifa_addr))->sin6_addr;
         }
 
         if (addr != nullptr && inet_ntop(family, addr, ipstr, sizeof(ipstr)) != nullptr) {
@@ -82,8 +83,8 @@ std::vector<std::string> GetHostIP(bool skipLoopback) {
     return ips;
 }
 
-size_t GetDuration(const std::chrono::steady_clock::time_point &end,
-                   const std::chrono::steady_clock::time_point &start) {
+size_t GetDuration(const std::chrono::steady_clock::time_point& end,
+                   const std::chrono::steady_clock::time_point& start) {
     return std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
 }
 
@@ -100,7 +101,7 @@ std::string GetCurTime() {
     return ss.str();
 }
 
-std::vector<std::string> Split(const std::string &str, char delim) {
+std::vector<std::string> Split(const std::string& str, char delim) {
     std::vector<std::string> tokens{};
     // 1. check empty string
     if (str.empty()) {
@@ -128,7 +129,7 @@ std::vector<std::string> Split(const std::string &str, char delim) {
     return tokens;
 }
 
-std::string TrimSpace(const std::string &str) {
+std::string TrimSpace(const std::string& str) {
     auto start = std::find_if_not(str.begin(), str.end(), [](unsigned char c) { return std::isspace(c); });
     if (start == str.end()) {
         return "";
@@ -149,7 +150,7 @@ std::string ToUpper(std::string str) {
     return str;
 }
 
-bool CanonicalPath(std::string &path) {
+bool CanonicalPath(std::string& path) {
     if (path.empty() || path.size() > 4096L) {
         return false;
     }
@@ -166,14 +167,25 @@ bool CanonicalPath(std::string &path) {
     return true;
 }
 
-bool GetBinaryPath(std::string &outPath) {
-    auto miesInstallPath = EnvUtil::GetInstance().Get("MINDIE_LLM_HOME_PATH");
+const std::string& GetMindieLlmHomePath() {
+    auto mindieLlmHomePath = EnvUtil::GetInstance().Get("MINDIE_LLM_HOME_PATH");
+    if (!mindieLlmHomePath.empty()) {
+        std::string initPyPath = mindieLlmHomePath + "/__init__.py";
+        if (FileSystem::Exists(initPyPath)) {
+            return mindieLlmHomePath;
+        }
+    }
+    return EnvUtil::GetInstance().Get("MIES_INSTALL_PATH");
+}
+
+bool GetBinaryPath(std::string& outPath) {
+    auto miesInstallPath = GetMindieLlmHomePath();
     if (miesInstallPath.empty()) {
         std::string linkedPath = "/proc/" + std::to_string(getpid()) + "/exe";
         std::string realPath{};
         try {
             realPath.resize(PATH_MAX);
-        } catch (const std::bad_alloc &e) {
+        } catch (const std::bad_alloc& e) {
             std::cout << "[%s] " << GetCurTime() << "Failed to alloc mem" << std::endl;
             return false;
         } catch (...) {
@@ -195,8 +207,8 @@ bool GetBinaryPath(std::string &outPath) {
     return true;
 }
 
-Error GetHomePath(std::string &outHomePath) {
-    auto configPath = EnvUtil::GetInstance().Get("MINDIE_LLM_HOME_PATH");
+Error GetHomePath(std::string& outHomePath) {
+    auto configPath = GetMindieLlmHomePath();
     if (configPath.empty()) {
         /* get binary path */
         std::string binaryPath{};
@@ -217,9 +229,9 @@ Error GetHomePath(std::string &outHomePath) {
     return Error(Error::Code::OK);
 }
 
-Error GetLlmPath(std::string &outHomePath) {
-    const char *llmPath = getenv("MINDIE_LLM_HOME_PATH");
-    if (llmPath == nullptr) {
+Error GetLlmPath(std::string& outHomePath) {
+    auto llmPath = GetMindieLlmHomePath();
+    if (llmPath.empty()) {
         std::cout << "Failed to get MINDIE_LLM_HOME_PATH in llm_manager " << std::endl;
         return Error(Error::Code::ERROR, "ERROR: Failed to get MINDIE_LLM_HOME_PATH.");
     } else {
@@ -233,7 +245,7 @@ Error GetLlmPath(std::string &outHomePath) {
     return Error(Error::Code::OK);
 }
 
-bool IsNumber(const std::string &str) {
+bool IsNumber(const std::string& str) {
     // string is empty or existing space at the beginning of the string
     if (str.empty() || str[0] == ' ') {
         return false;
@@ -242,14 +254,14 @@ bool IsNumber(const std::string &str) {
         size_t pos;
         std::stol(str, &pos);
         return pos == str.size();
-    } catch (const std::invalid_argument &) {
+    } catch (const std::invalid_argument&) {
         return false;
-    } catch (const std::out_of_range &) {
+    } catch (const std::out_of_range&) {
         return false;
     }
 }
 
-Error GetConfigPath(std::string &outConfigPath) {
+Error GetConfigPath(std::string& outConfigPath) {
     auto configPath = (!outConfigPath.empty()) ? outConfigPath : EnvUtil::GetInstance().Get("MIES_CONFIG_JSON_PATH");
     std::string errMsg;
     std::string regularPath;
@@ -280,8 +292,8 @@ Error GetConfigPath(std::string &outConfigPath) {
     }
 }
 
-bool CheckAndGetLogPath(const std::string &logPath, uint64_t sizeLimit, std::string &outPath,
-                        const std::string &defaultPath) {
+bool CheckAndGetLogPath(const std::string& logPath, uint64_t sizeLimit, std::string& outPath,
+                        const std::string& defaultPath) {
     bool usingDefault = logPath == defaultPath;
     std::string usingDefaultNotice = !usingDefault ? " using default path instead" : "";
 
@@ -332,7 +344,7 @@ bool CheckAndGetLogPath(const std::string &logPath, uint64_t sizeLimit, std::str
     return true;
 }
 
-bool GetWorldSizeAndServerCountFromRanktable(size_t &tp, size_t &serverCount) {
+bool GetWorldSizeAndServerCountFromRanktable(size_t& tp, size_t& serverCount) {
     auto ranktablePath = EnvUtil::GetInstance().Get("RANK_TABLE_FILE");
     // check env val RANK_TABLE_FILE
     if (ranktablePath.empty()) {
@@ -368,7 +380,7 @@ bool GetWorldSizeAndServerCountFromRanktable(size_t &tp, size_t &serverCount) {
         return false;
     }
     Json serverListJsonData = ranktableJsonData.at("server_list");
-    for (Json &serverEleData : serverListJsonData) {
+    for (Json& serverEleData : serverListJsonData) {
         if (serverEleData.find("device") == serverEleData.end()) {
             std::cout << "ranktable file is invalid." << std::endl;
             return false;
@@ -378,7 +390,7 @@ bool GetWorldSizeAndServerCountFromRanktable(size_t &tp, size_t &serverCount) {
     tp = globalWorldSize;
     try {
         serverCount = std::stoul(ranktableJsonData["server_count"].get<std::string>());
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         std::cout << "server_count in ranktale file is invalid." << std::endl;
         return false;
     } catch (...) {
@@ -388,7 +400,7 @@ bool GetWorldSizeAndServerCountFromRanktable(size_t &tp, size_t &serverCount) {
     return true;
 }
 
-void GetModelInfo(const std::string &configPath, std::string &modelName, size_t &tp, size_t &serverCount) {
+void GetModelInfo(const std::string& configPath, std::string& modelName, size_t& tp, size_t& serverCount) {
     std::string configPathTmp = configPath;
     if (configPathTmp.empty()) {
         GetConfigPath(configPathTmp);
@@ -426,13 +438,13 @@ void GetModelInfo(const std::string &configPath, std::string &modelName, size_t 
             tp = modelDeployConfig["ModelConfig"][0]["worldSize"];
             serverCount = 1;
         }
-    } catch (const Json::exception &e) {
+    } catch (const Json::exception& e) {
         MINDIE_LLM_LOG_ERROR("Config json is invalid." << e.what());
         return;
     }
 }
 
-bool GetModelInfo(std::string &modelName, size_t &tp, size_t &serverCount) {
+bool GetModelInfo(std::string& modelName, size_t& tp, size_t& serverCount) {
     std::string jsonPathTmp;
     GetConfigPath(jsonPathTmp);
 
@@ -461,7 +473,7 @@ bool GetModelInfo(std::string &modelName, size_t &tp, size_t &serverCount) {
             tp = modelDeployConfig["ModelConfig"][0]["worldSize"];
             serverCount = 1;
         }
-    } catch (const Json::exception &e) {
+    } catch (const Json::exception& e) {
         std::cout << "config json is invalid." << e.what() << std::endl;
         return false;
     }
@@ -489,7 +501,7 @@ void ExecuteAction(std::function<void()> action, uint32_t timeoutSeconds, std::f
     }
 }
 
-std::string JoinStrings(const std::vector<std::string> &stringsVec, const std::string &delimiter) {
+std::string JoinStrings(const std::vector<std::string>& stringsVec, const std::string& delimiter) {
     std::ostringstream oss;
     for (size_t i = 0; i < stringsVec.size(); ++i) {
         oss << stringsVec[i];
@@ -507,7 +519,7 @@ uint32_t RandomNumber(uint32_t maxNumber) {
     return dis(gen);
 }
 
-std::vector<std::string> SplitPath(const std::string &absPath) noexcept {
+std::vector<std::string> SplitPath(const std::string& absPath) noexcept {
     std::vector<std::string> components{};
     std::string component;
     for (char ch : absPath) {
@@ -526,7 +538,7 @@ std::vector<std::string> SplitPath(const std::string &absPath) noexcept {
     return components;
 }
 
-std::string AbsoluteToAnonymousPath(const std::string &absPath) noexcept {
+std::string AbsoluteToAnonymousPath(const std::string& absPath) noexcept {
     if (absPath.empty() || absPath[0] != '/') {
         return "";
     }
@@ -549,7 +561,7 @@ std::string AbsoluteToAnonymousPath(const std::string &absPath) noexcept {
     return anonymousPath;
 }
 
-std::string AbsoluteToRelativePath(const std::string &absPath, const std::string &absDir) noexcept {
+std::string AbsoluteToRelativePath(const std::string& absPath, const std::string& absDir) noexcept {
     std::string relativePath{};
     if (absPath.empty()) {
         return relativePath;
@@ -572,12 +584,12 @@ std::string AbsoluteToRelativePath(const std::string &absPath, const std::string
     try {
         relativePath = absRealPath.substr(position + absRealDir.length());
         return relativePath;
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         return AbsoluteToAnonymousPath(absRealPath);
     }
 }
 
-std::string CleanStringForJson(const std::string &input) {
+std::string CleanStringForJson(const std::string& input) {
     std::string result = "";
     auto it = input.begin();
     while (it != input.end()) {
@@ -600,7 +612,7 @@ std::string CleanStringForJson(const std::string &input) {
 
 bool IsFloatEquals(float a, float b) { return std::fabs(a - b) < 1e-6; }
 
-std::vector<std::string> SplitString(const std::string &str, char delimiter) {
+std::vector<std::string> SplitString(const std::string& str, char delimiter) {
     std::vector<std::string> result;
     std::string token;
     std::istringstream stream(str);
@@ -616,7 +628,7 @@ std::pair<uint32_t, uint32_t> ReverseDpInstId(uint64_t dpInstanceId) {
     return std::make_pair(pid, dpIdx);
 }
 
-bool CheckSystemConfig(const std::string &jsonPath, Json &inputJsonData, std::string paramType) {
+bool CheckSystemConfig(const std::string& jsonPath, Json& inputJsonData, std::string paramType) {
     std::string homePath;
     if (!GetHomePath(homePath).IsOk()) {
         std::cout << "Error: Get home path failed." << std::endl;
@@ -630,7 +642,7 @@ bool CheckSystemConfig(const std::string &jsonPath, Json &inputJsonData, std::st
     return ReadJsonFile(jsonPath, baseDir, inputJsonData, paramType);
 }
 
-bool ReadJsonFile(const std::string &jsonPath, std::string &baseDir, Json &inputJsonData, std::string paramType) {
+bool ReadJsonFile(const std::string& jsonPath, std::string& baseDir, Json& inputJsonData, std::string paramType) {
     try {
         std::string errMsg;
         std::string regularPath;
@@ -651,11 +663,11 @@ bool ReadJsonFile(const std::string &jsonPath, std::string &baseDir, Json &input
         file.close();
         try {
             inputJsonData = jsonData.at(paramType);
-        } catch (const Json::exception &e) {
+        } catch (const Json::exception& e) {
             std::cout << paramType << ": " << e.what() << std::endl;
             return false;
         }
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         std::cout << "Json file is invalid. Please check json format! " << std::endl;
         return false;
     }
@@ -663,7 +675,7 @@ bool ReadJsonFile(const std::string &jsonPath, std::string &baseDir, Json &input
     return true;
 }
 
-bool CheckIp(const std::string &ipAddress, const std::string &inputName, bool enableZeroIp) {
+bool CheckIp(const std::string& ipAddress, const std::string& inputName, bool enableZeroIp) {
     if (ipAddress.empty()) {
         std::cout << "Input " << inputName << " is empty" << std::endl;
         return false;
@@ -680,11 +692,11 @@ bool CheckIp(const std::string &ipAddress, const std::string &inputName, bool en
     }
 }
 
-bool IsIPv4(const std::string &ipAddress) { return ipAddress.find('.') != std::string::npos; }
+bool IsIPv4(const std::string& ipAddress) { return ipAddress.find('.') != std::string::npos; }
 
-bool IsIPv6(const std::string &ipAddress) { return ipAddress.find(':') != std::string::npos; }
+bool IsIPv6(const std::string& ipAddress) { return ipAddress.find(':') != std::string::npos; }
 
-bool CheckIPV4(const std::string &ipAddress, const std::string &inputName, bool enableZeroIp) {
+bool CheckIPV4(const std::string& ipAddress, const std::string& inputName, bool enableZeroIp) {
     if (ipAddress.empty() || ipAddress.length() > MAX_IPV4_LENGTH) {
         std::cout << "Input " << inputName << " format is invalid." << std::endl;
         return false;
@@ -704,7 +716,7 @@ bool CheckIPV4(const std::string &ipAddress, const std::string &inputName, bool 
     return true;
 }
 
-bool CheckIPV6(const std::string &ipAddress, const std::string &inputName, bool enableZeroIp) {
+bool CheckIPV6(const std::string& ipAddress, const std::string& inputName, bool enableZeroIp) {
     if (ipAddress.empty() || ipAddress.length() > MAX_IPV6_LENGTH) {  // IPv6最大长度
         std::cout << "Input " << inputName << " format is invalid." << std::endl;
         return false;
@@ -729,7 +741,7 @@ bool CheckIPV6(const std::string &ipAddress, const std::string &inputName, bool 
     return true;
 }
 
-bool ParsePortFromIp(const std::string &ipPort, uint32_t &port) {
+bool ParsePortFromIp(const std::string& ipPort, uint32_t& port) {
     size_t colonPos = ipPort.find(';');
     if (colonPos == std::string::npos) {
         return false;
@@ -739,14 +751,14 @@ bool ParsePortFromIp(const std::string &ipPort, uint32_t &port) {
     std::string portStr = ipPort.substr(colonPos + 1);
     try {
         port = std::stoul(portStr);
-    } catch (const std::invalid_argument &e) {
+    } catch (const std::invalid_argument& e) {
         std::cerr << "Error: Port number contains invalid characters: " << portStr << std::endl;
     }
 
     return true;
 }
 
-std::set<size_t> DeserializeSet(const std::string &data) {
+std::set<size_t> DeserializeSet(const std::string& data) {
     std::set<size_t> resultSet{};
     std::size_t start = 0;
     std::size_t end;
@@ -756,11 +768,11 @@ std::set<size_t> DeserializeSet(const std::string &data) {
             size_t elemUl = static_cast<size_t>(std::stoul(elemStr));
             resultSet.insert(elemUl);
             start = end + 1;
-        } catch (const std::invalid_argument &e) {
+        } catch (const std::invalid_argument& e) {
             std::cout << "Invalid argument: " << e.what() << std::endl;
             ;
             continue;
-        } catch (const std::out_of_range &e) {
+        } catch (const std::out_of_range& e) {
             std::cout << "Convert " << elemStr << "to unsigned long failed." << e.what() << std::endl;
             continue;
         } catch (...) {
@@ -775,9 +787,9 @@ std::set<size_t> DeserializeSet(const std::string &data) {
         try {
             size_t elemLastUl = static_cast<size_t>(std::stoul(elemStr));
             resultSet.insert(elemLastUl);
-        } catch (const std::invalid_argument &e) {
+        } catch (const std::invalid_argument& e) {
             std::cout << "Invalid argument: " << e.what() << std::endl;
-        } catch (const std::out_of_range &e) {
+        } catch (const std::out_of_range& e) {
             std::cout << "Convert " << elemStr << "to unsigned long failed." << e.what() << std::endl;
         } catch (...) {
             std::cout << "An unknown exception occurred when converting " << elemStr << " to unsigned long."
@@ -787,7 +799,7 @@ std::set<size_t> DeserializeSet(const std::string &data) {
     return resultSet;
 }
 
-std::string FormatGrpcAddress(const std::string &ip, const std::string &port) {
+std::string FormatGrpcAddress(const std::string& ip, const std::string& port) {
     if ((ip.find(':') != std::string::npos)) {
         return "[" + ip + "]:" + port;
     } else {
@@ -796,8 +808,8 @@ std::string FormatGrpcAddress(const std::string &ip, const std::string &port) {
 }
 
 // safe get value from map<vector<int64_t>>
-bool SafeGetMapVectorValue(const std::map<uint64_t, std::vector<int64_t>> &map, uint64_t seqId, size_t index,
-                           int64_t &outValue, const std::string &mapName) noexcept {
+bool SafeGetMapVectorValue(const std::map<uint64_t, std::vector<int64_t>>& map, uint64_t seqId, size_t index,
+                           int64_t& outValue, const std::string& mapName) noexcept {
     try {
         auto it = map.find(seqId);
         if (it == map.end()) {
@@ -814,12 +826,12 @@ bool SafeGetMapVectorValue(const std::map<uint64_t, std::vector<int64_t>> &map, 
         }
         outValue = it->second.at(index);
         return true;
-    } catch (const std::out_of_range &e) {
+    } catch (const std::out_of_range& e) {
         ULOG_ERROR(SUBMODLE_NAME_ENDPOINT,
                    GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SINGLE_INFERENCE, ABNORMAL_TRANSMISSION_ERROR),
                    mapName << " vector index out of range: seqId=" << seqId << ", index=" << index << ".");
         return false;
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         ULOG_ERROR(SUBMODLE_NAME_ENDPOINT,
                    GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SINGLE_INFERENCE, ABNORMAL_TRANSMISSION_ERROR),
                    mapName << " access failed: " << e.what() << ".");
@@ -828,8 +840,8 @@ bool SafeGetMapVectorValue(const std::map<uint64_t, std::vector<int64_t>> &map, 
 }
 
 // safe get value from map<vector<float>>
-bool SafeGetMapVectorValue(const std::map<uint64_t, std::vector<float>> &map, uint64_t seqId, size_t index,
-                           float &outValue, const std::string &mapName) noexcept {
+bool SafeGetMapVectorValue(const std::map<uint64_t, std::vector<float>>& map, uint64_t seqId, size_t index,
+                           float& outValue, const std::string& mapName) noexcept {
     try {
         auto it = map.find(seqId);
         if (it == map.end()) {
@@ -846,12 +858,12 @@ bool SafeGetMapVectorValue(const std::map<uint64_t, std::vector<float>> &map, ui
         }
         outValue = it->second.at(index);
         return true;
-    } catch (const std::out_of_range &e) {
+    } catch (const std::out_of_range& e) {
         ULOG_ERROR(SUBMODLE_NAME_ENDPOINT,
                    GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SINGLE_INFERENCE, ABNORMAL_TRANSMISSION_ERROR),
                    mapName << " vector index out of range: seqId=" << seqId << ", index=" << index << ".");
         return false;
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         ULOG_ERROR(SUBMODLE_NAME_ENDPOINT,
                    GenerateEndpointErrCode(ERROR, SUBMODLE_FEATURE_SINGLE_INFERENCE, ABNORMAL_TRANSMISSION_ERROR),
                    mapName << " access failed: " << e.what() << ".");
@@ -859,7 +871,7 @@ bool SafeGetMapVectorValue(const std::map<uint64_t, std::vector<float>> &map, ui
     }
 }
 
-bool StrToInt64(int64_t &dest, const std::string &str) {
+bool StrToInt64(int64_t& dest, const std::string& str) {
     if (str.empty()) {
         return false;
     }
@@ -875,7 +887,7 @@ bool StrToInt64(int64_t &dest, const std::string &str) {
     return true;
 }
 
-bool StrToUint64(uint64_t &dest, const std::string &str) {
+bool StrToUint64(uint64_t& dest, const std::string& str) {
     if (str.empty()) {
         return false;
     }
@@ -891,7 +903,7 @@ bool StrToUint64(uint64_t &dest, const std::string &str) {
     return true;
 }
 
-bool StrToUint32(uint32_t &dest, const std::string &str) {
+bool StrToUint32(uint32_t& dest, const std::string& str) {
     if (str.empty()) {
         return false;
     }

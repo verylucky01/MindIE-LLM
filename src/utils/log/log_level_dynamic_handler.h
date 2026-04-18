@@ -23,33 +23,34 @@
 namespace mindie_llm {
 class LogLevelDynamicHandler {
    public:
-    static LogLevelDynamicHandler &GetInstance();
+    static LogLevelDynamicHandler& GetInstance();
     static void Init(size_t intervalMs = 5000, bool needWriteToFile = false);
     static void Stop();
-    LogLevelDynamicHandler(const LogLevelDynamicHandler &) = delete;
-    LogLevelDynamicHandler &operator=(const LogLevelDynamicHandler &) = delete;
-    LogLevelDynamicHandler(LogLevelDynamicHandler &&) = delete;
-    LogLevelDynamicHandler &operator=(LogLevelDynamicHandler &&) = delete;
+    LogLevelDynamicHandler(const LogLevelDynamicHandler&) = delete;
+    LogLevelDynamicHandler& operator=(const LogLevelDynamicHandler&) = delete;
+    LogLevelDynamicHandler(LogLevelDynamicHandler&&) = delete;
+    LogLevelDynamicHandler& operator=(LogLevelDynamicHandler&&) = delete;
 
    private:
     LogLevelDynamicHandler();
     ~LogLevelDynamicHandler();
     void GetAndSetLogConfig();
     void InsertLogConfigToFile();
-    void ModifyLogConfigByKey(const std::string &key, const std::string &value, bool isNumber);
+    void ModifyLogConfigByKey(const std::string& key, const std::string& value, bool isNumber);
     void ClearDynamicLogConfigs();
-    bool CheckDynamicLogLevelChanged(const nlohmann::json &dynamicLogLevel);
-    bool CheckValidHoursChanged(const nlohmann::json &dynamicLogLevelValidHours);
+    bool CheckDynamicLogLevelChanged(const nlohmann::json& dynamicLogLevel);
+    bool CheckValidHoursChanged(const nlohmann::json& dynamicLogLevelValidHours);
     void UpdateDynamicLogParam(const bool sameDynamicLogLevel, const bool sameValidHours);
     void UpdateDynamicLogParamToFile();
-    bool IsCurrentTimeWithinValidRange(const std::string &validTimeStr, int validHours) const;
-    bool CheckAndAutoCorrectInvalidParam(const nlohmann::json &logConfigJson);
-    bool CheckLogLevelRefreshConfig(const std::string &jsonPath, nlohmann::json &inputJsonData);
-    bool ReadLogConfig(const std::string &jsonPath, std::string &baseDir, nlohmann::json &inputJsonData) const;
-    bool GetHomePath(std::string &outHomePath);
-    bool GetBinaryPath(std::string &outPath);
-    bool CanonicalPath(std::string &path) const;
-    static bool IsGreaterThanNow(const std::string &other);
+    bool IsCurrentTimeWithinValidRange(const std::string& validTimeStr, int validHours) const;
+    bool CheckAndAutoCorrectInvalidParam(const nlohmann::json& logConfigJson);
+    bool CheckLogLevelRefreshConfig(const std::string& jsonPath, nlohmann::json& inputJsonData);
+    bool ReadLogConfig(const std::string& jsonPath, std::string& baseDir, nlohmann::json& inputJsonData) const;
+    bool GetHomePath(std::string& outHomePath);
+    bool GetBinaryPath(std::string& outPath);
+    bool CanonicalPath(std::string& path) const;
+    static bool IsGreaterThanNow(const std::string& other);
+    const std::string GetMindieLlmHomePath();
 
    private:
     std::thread logLevelDynamicThread_;

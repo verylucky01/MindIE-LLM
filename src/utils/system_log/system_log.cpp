@@ -28,6 +28,7 @@
 #include <iomanip>
 #include <iostream>
 
+#include "file_system.h"
 #include "safe_envvar.h"
 #include "safe_path.h"
 #include "string_utils.h"
@@ -747,13 +748,24 @@ void DynamicLogManager::GetAndSetLogConfig() {
 }
 
 std::string DynamicLogManager::GetConfigPath() const {
-    std::string configPath;
-    Result r = EnvVar::GetInstance().Get(MINDIE_LLM_HOME_PATH, GetDefaultMindIELLMHomePath(), configPath);
-    if (!r.IsOk()) {
-        throw std::runtime_error(r.message());
+    std::string mindieLlmHomePath;
+    Result r = EnvVar::GetInstance().Get(MINDIE_LLM_HOME_PATH, GetDefaultMindIELLMHomePath(), mindieLlmHomePath);
+    if (r.IsOk()) {
+        std::string initPyPath = mindieLlmHomePath + "/__init__.py";
+        if (FileSystem::Exists(initPyPath)) {
+            return mindieLlmHomePath + "/conf/config.json";
+        }
     }
-    configPath += "/conf/config.json";
-    return configPath;
+
+    std::string miesInstallPath;
+    r = EnvVar::GetInstance().Get(MIES_INSTALL_PATH, "", miesInstallPath);
+    if (r.IsOk() && !miesInstallPath.empty()) {
+        return miesInstallPath + "/conf/config.json";
+    }
+
+    throw std::runtime_error(
+        "Failed to determine config path: neither 'MINDIE_LLM_HOME_PATH' "
+        "(with __init__.py), nor 'MIES_INSTALL_PATH' is valid.");
 }
 
 DynamicLogConfig DynamicLogManager::LoadLogConfig(const std::string& configPath) {
