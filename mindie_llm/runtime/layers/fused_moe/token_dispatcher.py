@@ -28,6 +28,7 @@ import torch
 import torch.distributed as dist
 import torch_npu
 
+from mindie_llm.runtime.model_runner.forward_context_exp import get_forward_context
 from mindie_llm.runtime.utils.distributed import get_parallel_info_manager
 from mindie_llm.runtime.utils.distributed.parallel_info_manager import ParallelType
 from mindie_llm.runtime.utils.singleton import Singleton
@@ -184,8 +185,9 @@ class TokenDispatcherWithMC2(Singleton, MoETokenDispatcher):
             quant_mode = 2
         else:
             quant_mode = 0
-        # NOTE: eager mode下，每张卡global_bs不一致会有报错，可手动赋值
-        global_bs = args.hidden_states.shape[0] * self.ep_world_size
+        tp_size = get_parallel_info_manager().get(ParallelType.ATTN_TP).group_size
+        max_bs = (get_forward_context().dp_metadata.max_tokens_across_dp_cpu + tp_size - 1) // tp_size
+        global_bs = max_bs * self.ep_world_size  # must be identical across all ranks.
         kwargs_mc2_dispatch = {
             "x": args.hidden_states,
             "expert_ids": args.topk_ids,
