@@ -939,7 +939,8 @@ InferParam::ValidationContext SingleReqInferInterfaceBase::BuildValidationContex
         ctx.reqBestOf = bestOfValue;
         ctx.reqN = nValue;
         ctx.reqTemperature = request_->temperature.value_or(0.0f);
-        ctx.reqStructuredOutput = request_->responseFormat.has_value();
+        ctx.reqStructuredOutput =
+            request_->responseFormat.has_value() && request_->responseFormat.value() != R"({"type":"text"})";
     }
     // 服务/模型级能力（从 ServerConfig 的 pluginEnabled 获取）
     auto &serverConfig = GetServerConfig();
