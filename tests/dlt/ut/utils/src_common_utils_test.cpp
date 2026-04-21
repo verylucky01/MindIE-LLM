@@ -20,12 +20,15 @@
 #include <climits>
 #include <iomanip>
 #include <map>
+#include <mockcpp/mockcpp.hpp>
 #include <nlohmann/json.hpp>
 #include <set>
 #include <sstream>
 #include <string>
 #include <thread>
 #include <vector>
+
+#include "file_system.h"
 using Json = nlohmann::json;
 
 namespace mindie_llm {
@@ -635,4 +638,14 @@ TEST_F(CommonUtilsTest, TestCheckIpEdgeCases) {
     EXPECT_FALSE(mindie_llm::CheckIp("192.168.1.1:8080", "testIP", true));
     EXPECT_FALSE(mindie_llm::CheckIp("[2001:db8::1]:8080", "testIP", true));
 }
+
+// 测试whl包场景，MINDIE_LLM_HOME_PATH 下存在 __init__.py，获取到 MINDIE_LLM_HOME_PATH 路径
+TEST_F(CommonUtilsTest, TestGetHomePathWhlPkgSuccess) {
+    std::string homePath;
+    auto existsMock = MOCKER(mindie_llm::FileSystem::Exists);
+    existsMock.stubs().with(any()).will(returnValue(true));
+    Error result = GetHomePath(homePath);
+    EXPECT_TRUE(result.IsOk());
+}
+
 }  // namespace mindie_llm

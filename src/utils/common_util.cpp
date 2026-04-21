@@ -167,8 +167,8 @@ bool CanonicalPath(std::string& path) {
     return true;
 }
 
-const std::string& GetMindieLlmHomePath() {
-    auto mindieLlmHomePath = EnvUtil::GetInstance().Get("MINDIE_LLM_HOME_PATH");
+std::string GetMindieLlmHomePath() {
+    auto& mindieLlmHomePath = EnvUtil::GetInstance().Get("MINDIE_LLM_HOME_PATH");
     if (!mindieLlmHomePath.empty()) {
         std::string initPyPath = mindieLlmHomePath + "/__init__.py";
         if (FileSystem::Exists(initPyPath)) {

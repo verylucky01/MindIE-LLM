@@ -71,7 +71,7 @@ std::string ToLower(std::string str);
 
 std::string ToUpper(std::string str);
 
-const std::string& GetMindieLlmHomePath();
+std::string GetMindieLlmHomePath();
 
 bool CanonicalPath(std::string& path);
 
