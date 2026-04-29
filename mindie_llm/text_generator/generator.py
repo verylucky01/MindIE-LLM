@@ -1299,7 +1299,9 @@ class Generator(PDInterface):
     ) -> list[Request]:
         # 根据模式确定 max_output_len
         max_output_len = 1
-        if self.pd_config.model_role == STANDARD_TAG or self.pd_config.model_role == DmiModeNodeRole.FLEX:
+        if self.enable_mtp and (
+            self.pd_config.model_role == STANDARD_TAG or self.pd_config.model_role == DmiModeNodeRole.FLEX
+        ):
             max_output_len = 2
 
         prefill_reqs = self._get_warm_up_reqs(
