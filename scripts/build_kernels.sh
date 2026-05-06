@@ -1,6 +1,9 @@
 #!/bin/bash
 cd $CODE_ROOT/src/kernels
-bash build.sh
+if ! ls dist/mie_ops*.whl >/dev/null 2>&1; then
+    echo "Wheel packages not found in the directory 'dist'. Start to build mie_ops."
+    bash build.sh
+fi
 if [ ! -d "dist" ]; then
     echo "The directory of mie_ops wheel package 'dist' not found. Skipping wheel installation."
 else
