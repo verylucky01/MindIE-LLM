@@ -120,7 +120,9 @@ MindIE-LLM 安装请参见[安装指南](../../install/installing_MindIE.md)。
 ```shell
 source /usr/local/lib/python3.11/site-packages/mindie_llm/set_env.sh # 设置 MindIE-LLM 运行所需环境变量
 export MINDIE_LOG_TO_STDOUT=1                            # 开启日志输出到屏幕（可选）
-
+export TASK_QUEUE_ENABLE=0                               # 关闭任务队列，避免多流场景下精度问题
+export HCCL_OP_EXPANSION_MODE="HOST"                     # 使用 HOST 模式，避免通信算子偶发报错
+export HCCL_BUFFSIZE=1050                                # 设置 HCCL 缓存区大小，可以后文典型配置
 # 显存优化
 export NPU_MEMORY_FRACTION=0.92                          # 设置 NPU 显存比例
 export PYTORCH_NPU_ALLOC_CONF="expandable_segments:True" # 配置 Pytorch 显存可扩展分段
@@ -157,7 +159,7 @@ vim conf/config.json
 
 修改以下参数：
 
-```shell
+```json
 {
     "ServerConfig" :
     {
@@ -259,20 +261,22 @@ user_config_base_A3.json       # 针对 A3 硬件的服务配置
 {
   "mindie_common_env": {
     ...
+    "TASK_QUEUE_ENABLE": 0,            # 关闭任务队列，避免多流场景下精度问题
     "HCCL_BUFFSIZE": 1050,
-    "HCCL_EXEC_TIMEOUT": 1200,         // 增大数值避免超时，注意：旧版本 boot_helper/boot.sh 中重复定义该变量，一并增大数值
-    "MASTER_PORT": 10000               // 增加此行，如果端口被占用，则把值修改为其他空闲的端口
+    "HCCL_EXEC_TIMEOUT": 1200,         # 增大数值避免超时，注意：旧版本 boot_helper/boot.sh 中重复定义该变量，一并增大数值
+    "MASTER_PORT": 10000               # 增加此行，如果端口被占用，则把值修改为其他空闲的端口
   },
   "mindie_server_prefill_env": {
     ...
-    "HCCL_OP_EXPANSION_MODE": "AIV",
+    "HCCL_OP_EXPANSION_MODE": "HOST",  # 使用 HOST 模式，避免通信算子偶发报错
     "NPU_MEMORY_FRACTION": 0.8
   },
   "mindie_server_decode_env": {
     ...
+    "TASK_QUEUE_ENABLE": 0,            # 关闭任务队列，避免多流场景下精度问题
     "NPU_MEMORY_FRACTION": 0.8,
     "HCCL_CONNECT_TIMEOUT": 7200,
-    "HCCL_OP_EXPANSION_MODE": "AIV",
+    "HCCL_OP_EXPANSION_MODE": "HOST",  # 使用 HOST 模式，避免通信算子偶发报错
     ...
   }
 }
@@ -739,8 +743,8 @@ DeepSeek V3.2 的典型部署方式如下：
 
 | 部署形态 |部署方式 |  机器数量 | 卡数 | 最大上下文 | 并行策略 | mtp 量化<br/>mtp=2 | chunked prefill | HCCL_BUFFSIZE（MB） |  NPU_MEM_FRACTION |
 |:--|:--|:--|:--|:--|:--|:--|:--|:--|:--|
-| A2 四机   | PD 混部 | 4 | 32  | 32K | MLA: DP4+TP8<br/>MOE: EP32+TP1 | ✅ | ❌  | 1050 | 0.92 |
-| A2 四机   | PD 混部 | 4 | 32  | 64K | MLA: DP4+TP8<br/>MOE: EP32+TP1 | ❌ | ✅  | 1050 | 0.92 |
+| A2 四机   | PD 混部 | 4 | 32  | 32K | MLA: DP4+TP8<br/>MOE: EP32+TP1 | ✅ | ❌  | 512 | 0.8 |
+| A2 四机   | PD 混部 | 4 | 32  | 64K | MLA: DP4+TP8<br/>MOE: EP32+TP1 | ❌ | ✅  | 512 | 0.8 |
 | A2 大 EP  | PD 分离 | 8 | 64  | 64K | P:<br/>MLA: DP1+TP2+CP16<br/>MOE: EP32+TP1<br/>D:<br/>MLA: DP8+TP4<br/>MOE: EP32+TP1 | ✅ | ❌ | 1050 | 0.8 |
 | A2 大 EP | PD 分离 | 8 | 64  | 128K | P:<br/>MLA: DP4+TP8<br/>MOE: EP32+TP1<br/>D:<br/>MLA: DP4+TP8<br/>MOE: EP32+TP1 | ✅ | P✅ D❌ | 1050 | 0.8 |
 | A3 双机  | PD 混部 | 2 | 16  | 32K | MLA: DP4+TP8<br/>MOE: EP32+TP1 | ✅ | ❌ | 1050 | 0.92 |

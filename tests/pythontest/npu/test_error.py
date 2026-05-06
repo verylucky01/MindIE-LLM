@@ -53,6 +53,7 @@ class TestError(unittest.TestCase):
         }
         self.test_block_size_params = {"max_block_size": 0}
         self.test_eos_token_id_params = {"eos_token_id": "abc"}
+        self.test_invalid_decoding_params = {"backend_type": "xxx"}
 
     def test_generator_backend(self):
         """The test for `TEXT_GENERATOR_GENERATOR_BACKEND_INVALID`"""
@@ -128,7 +129,7 @@ class TestError(unittest.TestCase):
                 5,
                 5,
                 128,
-                self.test_invalid_decoding_params.get("backend_type"),
+                "",
                 False,
             )
             spcp_info = (Mock(group_size=1, rank=0), Mock(group_size=1, rank=0))
