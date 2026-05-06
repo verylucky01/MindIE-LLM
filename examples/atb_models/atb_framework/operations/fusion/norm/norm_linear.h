@@ -14,7 +14,7 @@
 #define ASCEND_SPEED_INFERENCE_COMMON_NORM_LINEAR_H
 
 #include <atb/atb_infer.h>
-#include "atb_speed/utils/operation_util.h"
+
 #include "atb_speed/utils/operation_util.h"
 #include "operations/fusion/linear/linear.h"
 #include "operations/fusion/linear/linear_parallel.h"
@@ -57,11 +57,12 @@ struct NormLinearParam {
 /// in the `operations/utils.h`.
 /// \param linearType The type of one linear module. Refer to `LinearType` in the `operations/utils.h`.
 /// \param hasNorm A flag indicating whether the linear module includes a preceding normalization module
-LinearQuantType GetLinearQuantType(
-    const int &packQuantType = PackQuantType::PACK_QUANT_UNDEFINED,
-    const int &linearType = LinearType::INVALID,
-    bool hasNorm = false,
-    const int &linearDesc = LinearDesc::INVALID_DESC);
+/// \param linearDesc The linear description type. Refer to `LinearDesc` in the `operations/utils.h`.
+/// \param supportLora A flag indicating whether LoRA is enabled. When true, use LINEAR_W8A8_DYNAMIC_QUANT
+///                    instead of LINEAR_W8A8_DYNAMIC_DEQUANT to ensure both float and quantized inputs are available.
+LinearQuantType GetLinearQuantType(const int &packQuantType = PackQuantType::PACK_QUANT_UNDEFINED,
+                                   const int &linearType = LinearType::INVALID, bool hasNorm = false,
+                                   const int &linearDesc = LinearDesc::INVALID_DESC, bool supportLora = false);
 
 /// The function construct an operation that combines a normalization module with a `FusionLinear` module.
 ///
@@ -145,9 +146,9 @@ atb::Status NormLinear(const NormLinearParam<NormParamType> &param, atb::Operati
 /// \endcode
 template <typename NormParamType>
 int64_t InsertNorm(atb::GraphParam &opGraph, const NormLinearParam<NormParamType> &param,
-    std::map<std::string, uint32_t> &tensorMap);
+                   std::map<std::string, uint32_t> &tensorMap);
 
-} // namespace common
-} // namespace atb_speed
+}  // namespace common
+}  // namespace atb_speed
 
 #endif
