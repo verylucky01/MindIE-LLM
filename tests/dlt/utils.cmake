@@ -62,7 +62,7 @@ endfunction()
 # 添加明确的分隔符（如空格）
 function(build_test module type list_libraries list_includes)
     set(TEST_BINARY ${CMAKE_PROJECT_NAME}_${module}_${type})
-    file(GLOB_RECURSE TEST_SOURCES 
+    file(GLOB_RECURSE TEST_SOURCES
         ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/*.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/*.h
@@ -79,7 +79,7 @@ function(build_test module type list_libraries list_includes)
     endforeach()
     message("INCLUDES: ${INCLUDES}")
 
-    target_include_directories(${TEST_BINARY} PRIVATE 
+    target_include_directories(${TEST_BINARY} PRIVATE
         ${THIRD_PARTY_OUTPUT_DIR}/googletest/include
         ${THIRD_PARTY_OUTPUT_DIR}/mockcpp/include
         ${INCLUDES}
@@ -95,6 +95,14 @@ function(build_test module type list_libraries list_includes)
         ${THIRD_PARTY_OUTPUT_DIR}/gtest/lib
         ${THIRD_PARTY_OUTPUT_DIR}/mockcpp/lib
     )
+    file(GLOB ABSL_LIBS
+        ${THIRD_PARTY_OUTPUT_DIR}/abseil-cpp/lib/libabsl_*.so
+    )
+    file(GLOB CARES_LIBS
+        ${THIRD_PARTY_OUTPUT_DIR}/cares/lib/libcares.so*
+        ${THIRD_PARTY_OUTPUT_DIR}/cares/lib/libcares.a
+    )
+    target_link_libraries(${TEST_BINARY} PRIVATE ${ABSL_LIBS} ${CARES_LIBS})
     target_link_libraries(${TEST_BINARY} PUBLIC
         gtest
         gtest_main
@@ -102,11 +110,41 @@ function(build_test module type list_libraries list_includes)
         mockcpp
         ${LIBRARIES}
     )
-    
+
     add_test(NAME ${module}_${type} COMMAND ${TEST_BINARY} --gtest_color=yes --gtest_brief=0 --gtest_output=xml:${CMAKE_BINARY_DIR}/dlt_info/${module}_${type}_detail.xml --gtest_break_on_failure)
-    
+
+    string(JOIN ":" LD_LIBRARY_PATH_STR
+        ${THIRD_PARTY_OUTPUT_DIR}/prometheus-cpp/lib
+        ${THIRD_PARTY_OUTPUT_DIR}/libboundscheck/lib
+        ${THIRD_PARTY_OUTPUT_DIR}/grpc/lib
+        ${THIRD_PARTY_OUTPUT_DIR}/re2/lib
+        ${THIRD_PARTY_OUTPUT_DIR}/zlib/lib
+        ${THIRD_PARTY_OUTPUT_DIR}/protobuf/lib
+        ${THIRD_PARTY_OUTPUT_DIR}/abseil-cpp/lib
+        ${THIRD_PARTY_OUTPUT_DIR}/cares/lib
+        ${THIRD_PARTY_OUTPUT_DIR}/openssl/lib
+        ${THIRD_PARTY_OUTPUT_DIR}/boost/lib
+        ${CMAKE_SOURCE_DIR}/src/utils/lib
+        ${CMAKE_SOURCE_DIR}/src/utils/log/lib
+        ${CMAKE_BINARY_DIR}/src/utils/system_log/
+        ${CMAKE_BINARY_DIR}/src/server/tokenizer
+        ${CMAKE_BINARY_DIR}/src/server/endpoint
+        ${CMAKE_BINARY_DIR}/src/server/infer_instances
+        ${CMAKE_BINARY_DIR}/src/config_manager
+        ${CMAKE_BINARY_DIR}/src/engine
+        ${CMAKE_BINARY_DIR}/src/executor
+        ${CMAKE_BINARY_DIR}/src/block_manager
+        ${CMAKE_BINARY_DIR}/src/scheduler
+        ${CMAKE_BINARY_DIR}/src/sequence
+        ${CMAKE_BINARY_DIR}/src/load_balance
+        ${CMAKE_BINARY_DIR}/src/llm_manager_v2
+        ${CMAKE_BINARY_DIR}/src/llm_manager
+        ${CMAKE_BINARY_DIR}/src/llm_manager/python_api
+        ${PYTORCH_INSTALL_PATH}/lib
+        ${PYTORCH_EXTRA_LIB_SO}
+    )
     add_custom_target(${module}_${type} ALL
-        COMMAND env LD_LIBRARY_PATH=${THIRD_PARTY_OUTPUT_DIR}/grpc/lib:${THIRD_PARTY_OUTPUT_DIR}/re2/lib:${THIRD_PARTY_OUTPUT_DIR}/zlib/lib:${THIRD_PARTY_OUTPUT_DIR}/protobuf/lib:${THIRD_PARTY_OUTPUT_DIR}/abseil-cpp/lib:${THIRD_PARTY_OUTPUT_DIR}/cares/lib:${THIRD_PARTY_OUTPUT_DIR}/openssl/lib:${THIRD_PARTY_OUTPUT_DIR}/boost/lib
+        COMMAND env LD_LIBRARY_PATH=${LD_LIBRARY_PATH_STR}
         bash -c "ctest --verbose" || exit -1
         COMMENT "Run testing: ${TEST_BINARY}"
     )

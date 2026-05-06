@@ -100,7 +100,7 @@ class StructuredOutputConfig:
     """结构化输出配置"""
 
     backend: GuidedDecodingBackendType = GuidedDecodingBackendType.XGRAMMAR
-    xgrammar_any_whitespace: bool = False
+    xgrammar_any_whitespace: bool = True
     grammar_cache_size: int = _DEFAULT_GRAMMAR_CACHE_SIZE
     bitmask_prealloc_batch: int = _DEFAULT_BITMASK_PREALLOC_BATCH
 

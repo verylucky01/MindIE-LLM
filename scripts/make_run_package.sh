@@ -134,5 +134,10 @@ function fn_build_for_ci()
 {
     cd $OUTPUT_DIR
     mkdir -p include
-    cp -r $CODE_ROOT/src/include/* ./include/
+    mkdir -p include/utils
+    cp -r $CODE_ROOT/src/include/llm_manager ./include/
+
+    cp $CODE_ROOT/src/include/utils/error.h ./include/utils/
+    cp $CODE_ROOT/src/include/utils/status.h ./include/utils/
+    cp $CODE_ROOT/src/include/utils/concurrent_deque.h ./include/utils/
 }
