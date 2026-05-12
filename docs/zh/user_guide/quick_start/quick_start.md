@@ -110,10 +110,10 @@
 
 ## 模型推理
 
-1. 执行如下命令，查询安装路径<*site-packages*>。
+1. 执行如下命令，查询安装路径\<site-packages\>。
 
      ```bash
-     pip show mindie_llm | grep location
+     pip show mindie_llm | grep Location
      ```
 
    若python版本是3.11，则查询到的默认安装路径为：`/usr/local/lib/python3.11/site-packages`。
@@ -262,6 +262,7 @@
 
     ```python
     from ais_bench.benchmark.models import VLLMCustomAPIChatStream
+    from ais_bench.benchmark.utils.model_postprocessors import extract_non_reasoning_content
     models = [
         dict(
             attr="service",
@@ -332,6 +333,7 @@
 
     ```python
     from ais_bench.benchmark.models import VLLMCustomAPIChatStream
+    from ais_bench.benchmark.utils.model_postprocessors import extract_non_reasoning_content
     models = [
         dict(
             attr="service",

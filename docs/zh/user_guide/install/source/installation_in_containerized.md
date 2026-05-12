@@ -34,7 +34,7 @@
  可参考如下示例命令启动容器，具体挂载信息可根据产品路径和实际需求修改。
 
      ```bash
-     docker run -it -d --net=host --shm-size=1g \
+     docker run -it -d --net=host --shm-size=1g \ # 对于多模态理解模型，若业务最大并发数较高，--shm-size建议设置不小于100g
      --name <container-name> \
      --device=/dev/davinci_manager:rwm \
      --device=/dev/hisi_hdc:rwm \
@@ -57,7 +57,7 @@
      |参数|参数说明|
      |--|--|
      |--pids-limit -1|表示解除进程数限制。<br>当Atlas 800I A2 推理服务器使用Alibaba Cloud Linux 3.2104 U10操作系统时，启动容器命令中必须使用该参数解除进程数限制。|
-     |--shm-size=1g|表示指定容器的共享内存（/dev/shm）大小，用户可自行设置，1g为示例值。<br>该值不能超过宿主机剩余的物理内存总量，可使用`free -h`命令查看。当开启数据并行（即DP>1）时，需要随DP增大调整共享内存大小：<ul><li>当DP=2时，shm-size至少为2g;</li><li>当DP=4时，shm-size至少为3g;</li><li>当DP=8时，shm-size至少为5g;</li><li>当DP=16时，shm-size至少为9g。</li></ul>|
+     |--shm-size=1g|表示指定容器的共享内存（/dev/shm）大小，用户可自行设置，1g为示例值。对于多模态理解模型，若业务最大并发数较高，--shm-size建议设置不小于100g。<br>该值不能超过宿主机剩余的物理内存总量，可使用`free -h`命令查看。当开启数据并行（即DP>1）时，需要随DP增大调整共享内存大小：<ul><li>当DP=2时，shm-size至少为2g;</li><li>当DP=4时，shm-size至少为3g;</li><li>当DP=8时，shm-size至少为5g;</li><li>当DP=16时，shm-size至少为9g。</li></ul>|
      |--name|容器名，请根据需要自行设定。|
      |--device|表示映射的设备，可以挂载一个或者多个设备。<br>需要挂载的设备如下：<ul><li>/dev/davinci_manager：davinci相关的管理设备。</li><li>/dev/hisi_hdc：hdc相关管理设备。</li><li>/dev/devmm_svm：内存管理相关设备。</li><li>/dev/davinci0：需要挂载的卡号。</li></ul><br>可根据`ll \/dev\/ \| grep davinci`命令查询device个数及名称方式，根据需要绑定设备，修改上面命令中的"--device=****"。|
      |-v /usr/local/Ascend/driver:/usr/local/Ascend/driver:ro|将宿主机目录"/usr/local/Ascend/driver"挂载到容器，请根据驱动所在实际路径修改。|

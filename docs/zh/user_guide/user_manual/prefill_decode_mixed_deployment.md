@@ -66,13 +66,12 @@
 
 4. （可选）若开启了HTTPS认证（即“httpsEnabled” : true时，默认开启）。
 
-   a. 使用Service的证书导入脚本导入证书，各证书信息如[表1](#table1)所示。
+   a. 导入证书，各证书信息如[表1](#table1)所示。
 
     > [!NOTE]说明
     > - HTTPS使用三面隔离时，HTTPS的业务面和管理面不建议使用同一套安全证书，使用同一套安全证书会存在较高的网络安全风险。
     > - HTTPS和GRPC不建议使用同一套安全证书，使用同一套安全证书会存在较高的网络安全风险。
     > - 导入证书时，对于用户导入CA证书的脚本权限要求为600，服务证书的脚本权限要求为600，私钥证书的脚本权限要求为400，吊销列表证书的脚本权限要求为600。
-    > - Service的证书导入脚本请参见《MindIE Motor开发指南》中的“配套工具 > MindIE Service Tools > <a href="https://www.hiascend.com/document/detail/zh/mindie/22RC1/mindieservice/servicedev/mindie_service0312.html">CertTools</a>”章节。
     > - 如果导入证书超时，请参考[启动haveged服务](../install/faq_and_appendixes/starting_the_haveged_service.md)处理。
 
       表1 证书文件清单  <a id="table1"></a>
@@ -83,7 +82,6 @@
       | 服务证书               | {MindIE安装目录}/latest/mindie-service/security/certs/ | 开启HTTPS后必选。                                 |
       | 服务证书私钥            | {MindIE安装目录}/latest/mindie-service/security/keys/  | 支持私钥文件加密场景。<br/><br/>开启HTTPS后必选。 |
       | 服务证书吊销列表        | {MindIE安装目录}/latest/mindie-service/security/certs/  | 开启HTTPS后可选。                                 |
-      | 服务证书私钥的加密口令  | {MindIE安装目录}/latest/mindie-service/security/pass/   | 可选。                                            |
 
    b. 在{MindIE安装目录}下执行以下命令修改证书文件的用户权限。
 
@@ -91,7 +89,6 @@
         chmod 400 mindie-service/security/ca/*
         chmod 400 mindie-service/security/certs/*
         chmod 400 mindie-service/security/keys/*
-        chmod 400 mindie-service/security/pass/*
       ```
 
 5. 使用以下命令配置环境变量。
@@ -323,7 +320,7 @@ ranktable.json文件权限需要设置为640，详细内容请根据以下样例
 
 5. （可选）若开启了GRPC双向认证（即“interNodeTLSEnabled”=true时）。
 
-    a. 使用证书管理工具导入证书，证书管理工具的使用请参见《MindIE Motor开发指南》中的“配套工具 > MindIE Service Tools > [CertTools](https://gitcode.com/Ascend/MindIE-Motor/blob/dev/docs/zh/user_guide/service_deployment/single_machine_service_deployment.md)”章节。各证书文件信息如[表2](#table2)所示。
+    a. 导入证书。各证书文件信息如[表2](#table2)所示。
 
       > [!NOTE]说明
       > - HTTPS使用三面隔离时，HTTPS的业务面和管理面不建议使用同一套安全证书，使用同一套安全证书会存在较高的网络安全风险。
@@ -339,7 +336,6 @@ ranktable.json文件权限需要设置为640，详细内容请根据以下样例
     | 服务证书               | mindie-service/grpc/certs/          | 开启“interNodeTLSEnabled” : true后必选。                     |
     | 服务证书私钥           | mindie-service/security/grpc/keys/  | 支持私钥文件加密场景。开启“interNodeTLSEnabled” : true后必选。 |
     | 服务证书吊销列表       | mindie-service/security/grpc/certs/ | 必选。                                                       |
-    | 服务证书私钥的加密口令 | mindie-service/security/pass/       | 必选。                                                       |
 
     b. 在{MindIE安装目录}/latest下执行以下命令修改证书文件的用户权限。
 
@@ -347,18 +343,16 @@ ranktable.json文件权限需要设置为640，详细内容请根据以下样例
     chmod 400 mindie-service/security/grpc/ca/*
     chmod 400 mindie-service/security/grpc/certs/*
     chmod 400 mindie-service/security/grpc/keys/*
-    chmod 400 mindie-service/security/grpc/pass/*
     ```
 
 6. （可选）若开启了HTTPS认证（即“httpsEnabled”: true时，默认开启）。
 
-    a. 使用Service的证书导入脚本导入证书，各证书信息如[表3](#table3)所示。
+    a. 导入证书，各证书信息如[表3](#table3)所示。
 
     > [!NOTE]说明
     > - HTTPS使用三面隔离时，HTTPS的业务面和管理面不建议使用同一套安全证书，使用同一套安全证书会存在较高的网络安全风险。
     > - HTTPS和GRPC不建议使用同一套安全证书，使用同一套安全证书会存在较高的网络安全风险。
     > - 导入证书时，对于用户导入CA证书的脚本权限要求为600，服务证书的脚本权限要求为600，私钥证书的脚本权限要求为400，吊销列表证书的脚本权限要求为600。
-    > - Service的证书导入脚本请参见《MindIE Motor开发指南》中的“配套工具 > MindIE Service Tools > CertTools”章节。
     > - 如果导入证书超时，请参考[启动haveged服务](../install/faq_and_appendixes/starting_the_haveged_service.md)处理。
 
       表3 证书文件清单  <a id="table3"></a>
@@ -369,7 +363,6 @@ ranktable.json文件权限需要设置为640，详细内容请根据以下样例
       | 服务证书               | {MindIE安装目录}/latest/mindie-service/security/certs/ | 开启HTTPS后必选。                                 |
       | 服务证书私钥           | {MindIE安装目录}/latest/mindie-service/security/keys/  | 支持私钥文件加密场景。<br>开启HTTPS后必选。      |
       | 服务证书吊销列表       | {MindIE安装目录}/latest/mindie-service/security/certs/   | 开启HTTPS后可选。                                 |
-    | 服务证书私钥的加密口令 | {MindIE安装目录}/latest/mindie-service/security/pass/  | 可选。                                  |
 
     b. 在{MindIE安装目录}下执行以下命令修改证书文件的用户权限。
 
@@ -377,7 +370,6 @@ ranktable.json文件权限需要设置为640，详细内容请根据以下样例
         chmod 400 mindie-service/security/ca/*
         chmod 400 mindie-service/security/certs/*
         chmod 400 mindie-service/security/keys/*
-        chmod 400 mindie-service/security/pass/*
       ```
 
 7. 使用以下命令配置环境变量。

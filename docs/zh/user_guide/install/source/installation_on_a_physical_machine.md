@@ -31,7 +31,7 @@
 4. (可选)执行如下命令，查询安装路径。
 
    ```bash
-   pip show mindie_llm | grep location
+   pip show mindie_llm | grep Location
    ```
 
    若python版本是3.11，则默认安装路径为：`/usr/local/lib/python3.11/site-packages`
