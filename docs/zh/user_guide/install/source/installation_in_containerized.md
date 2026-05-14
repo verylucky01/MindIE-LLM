@@ -4,11 +4,6 @@
 
 ## 前提条件
 
-- 宿主机已经安装过NPU驱动和固件。如未安装，请参见《CANN 软件安装指南》中的“[选择安装场景](https://www.hiascend.com/document/detail/zh/canncommercial/850/softwareinst/instg/instg_0000.html?Mode=PmIns&InstallType=local&OS=openEuler)”（商用版）章节或“[选择安装场景](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/850/softwareinst/instg/instg_0000.html?Mode=PmIns&InstallType=local&OS=openEuler)”章节（社区版），按如下方式选择安装场景，按“**安装NPU驱动和固件**”章节进行安装。
-    - 安装方式：选择“在物理机上安装”。
-    - 操作系统：选择使用的操作系统，MindIE支持的操作系统请参考[硬件配套和支持的操作系统](../installation_introduction.md#硬件配套和支持的操作系统)。
-    - 安装类型：根据在线或离线的安装方式，选择对应的安装类型。
-
 - 宿主机已参见[准备软件包和依赖](../source/preparing_software_and_dependencies.md)章节准备好需要安装的软件包和依赖。
 - 用户在宿主机自行安装Docker（版本要求大于或等于24.x.x_）。Docker的安装可参见[安装Docker](../source/docker_installation.md)。
 - 配置源之前，请确保安装环境能够连接网络。
@@ -100,5 +95,5 @@
     export LD_LIBRARY_PATH=/usr/local/Ascend/driver/lib64/driver:$LD_LIBRARY_PATH
     ```
 
-6. 请参见[安装软件包和依赖](../source/installing_software_and_dependencies.md)章节在容器中安装依赖、CANN和PyTorch。
+6. 请参见[安装软件包和依赖](../source/installing_software_and_dependencies.md)章节在容器中安装依赖、CANN、PyTorch和ATB Models。
 7. 请参见[安装MindIE](installation_on_a_physical_machine.md)章节在容器中安装MindIE，安装完成后，即可在容器内进行MindIE的业务部署。

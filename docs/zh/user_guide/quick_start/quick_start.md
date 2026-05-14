@@ -80,11 +80,11 @@
            -v /usr/local/bin/npu-smi:/usr/local/bin/npu-smi:ro \
            -v /usr/local/sbin/:/usr/local/sbin:ro \
            -v /home/weight:/home/weight:ro \
-           mindie:2.2.RC1-800I-A2-py311-openeuler24.03-lts bash
+           mindie:3.0.0-800I-A2-py311-openeuler24.03-lts bash
     ```
 
      > [!NOTE]说明
-     > - “mindie:2.2.RC1-800I-A2-py311-openeuler24.03-lts”为镜像名称，可根据实际情况修改。
+     > - “mindie:3.0.0-800I-A2-py311-openeuler24.03-lts”为镜像名称，可根据实际情况修改。
      > - 对于--device参数，挂载权限设置为rwm，而非权限较小的rw或r，原因如下：
      > - 对于Atlas 800I A2 推理服务器，若设置挂载权限为rw，可以正常进入容器，同时也可以使用npu-smi命令查看npu占用信息，并正常运行MindIE业务；但如果挂载的npu（即对应挂载选项中的davinci_xxx_，如npu0对应davinci0）上有其它任务占用，则使用npu-smi命令会打印报错，且无法运行MindIE任务（此时torch.npu.set_device()会失败）。
      > - 对于Atlas 800I A3 超节点服务器，若设置挂载权限为rw，进入容器后，使用npu-smi命令会打印报错，且无法运行MindIE任务（此时torch.npu.set_device()会失败）。
@@ -110,41 +110,58 @@
 
 ## 模型推理
 
-1. 执行如下命令，查询安装路径\<site-packages\>。
-
-     ```bash
-     pip show mindie_llm | grep Location
-     ```
-
-   若python版本是3.11，则查询到的默认安装路径为：`/usr/local/lib/python3.11/site-packages`。
-
-2. 执行如下命令，进入安装路径。
-
-     ```bash
-     cd <site-packages>
-     ```
-
-3. 确认配置文件有640权限。
+1. 若安装路径为默认路径，执行如下命令，进入MindIE安装目录。
 
     ```bash
-     chmod 640 <site-packages>/mindie_llm/conf/config.json
-     ```
+    cd /usr/local/Ascend/mindie/latest
+    ```
 
-     > [!NOTE]说明
-     > 若文件权限不符合要求将会导致服务启动失败。
+2. 确认目录文件权限是否如下所示，若存在不匹配项，则参考以下命令修改权限。
 
-4. 设置环境变量，开启日志打印。 <a id="step3"></a>
+    ```bash
+    chmod 750 mindie-service
+    chmod -R 550 mindie-service/bin
+    chmod -R 500 mindie-service/bin/mindie_llm_backend_connector
+    chmod 550 mindie-service/lib
+    chmod 440 mindie-service/lib/*
+    chmod 550 mindie-service/lib/grpc
+    chmod 440 mindie-service/lib/grpc/*
+    chmod -R 550 mindie-service/include
+    chmod -R 550 mindie-service/scripts
+    chmod 750 mindie-service/logs
+    chmod 750 mindie-service/conf
+    chmod 640 mindie-service/conf/config.json
+    chmod 700 mindie-service/security
+    chmod -R 700 mindie-service/security/*
+    ```
 
-     ```bash
-     export MINDIE_LOG_TO_STDOUT=1
-     ```
+    > [!NOTE]说明
+    > 若文件权限不符合要求将会导致服务启动失败。
 
-5. 配置服务化参数。
+3. 设置环境变量。<a id="step3"></a>
+
+    运行以下命令初始化各组件环境变量，并开启日志打印。
+
+    ```bash
+    # 配置CANN环境，默认安装在/usr/local目录下
+    source /usr/local/Ascend/ascend-toolkit/set_env.sh
+    # 配置加速库环境
+    source /usr/local/Ascend/nnal/atb/set_env.sh
+    # 配置模型仓环境变量
+    source /usr/local/Ascend/atb-models/set_env.sh
+    # MindIE
+    source /usr/local/Ascend/mindie/latest/mindie-llm/set_env.sh
+    source /usr/local/Ascend/mindie/latest/mindie-service/set_env.sh
+    # 开启MindIE日志打印
+    export MINDIE_LOG_TO_STDOUT="true"
+    ```
+
+4. 配置服务化参数。
 
     a. 进入conf目录，打开“config.json“文件。
 
     ```bash
-    cd mindie_llm/conf
+    cd mindie-service/conf
     vim config.json
     ```
 
@@ -188,13 +205,39 @@
 
     c. 按“Esc”，输入`:wq!`，按“Enter”保存并退出编辑。
 
-6. 启动服务。
+5. 启动服务。
 
-    a. 执行如下命令，启动服务。
+    a. 执行如下命令，进入安装目录。
 
     ```bash
-    mindie_llm_server
+    cd /usr/local/Ascend/mindie/latest/mindie-service
     ```
+
+    b. 两种启动服务方法如下所示。
+
+    - 方式一（推荐）：使用后台进程方式启动服务。后台进程方式启动服务后，关闭窗口时进程也会保留。
+
+        ```bash
+        nohup ./bin/mindieservice_daemon > output.log 2>&1 &
+        ```
+
+        在标准输出流捕获到的文件中，打印如下信息说明启动成功。
+
+        ```text
+        Daemon start success!
+        ```
+
+    - 方式二：直接启动服务。
+
+        ```bash
+        ./bin/mindieservice_daemon
+        ```
+
+        回显如下则说明启动成功。
+
+        ```text
+        Daemon start success!
+        ```
 
     b. 回显如下则说明启动成功。
 
@@ -209,7 +252,7 @@
      >- 如需切换用户，请在切换用户后执行**rm -f /dev/shm/\***命令，删除由之前用户运行创建的共享文件。避免切换用户后，该用户没有之前用户创建的共享文件的读写权限，造成推理失败。
      >- 标准输出流捕获到的文件output.log支持用户自定义文件和路径。
 
-7. 发送请求。
+6. 发送请求。
 
     服务化API接口请参考《MindIE LLM开发指南》中的**RESTFUL API参考**章节。
 
@@ -269,13 +312,13 @@
             type=VLLMCustomAPIChatStream,
             abbr='vllm-api-stream-chat',
             path="/home/weight",                    # 指定模型序列化词表文件绝对路径，一般来说就是模型权重文件夹路径
-            model="qwen2-7b",        # 指定服务端已加载模型名称，依据实际VLLM推理服务拉取的模型名称配置（配置成空字符串会自动获取）
-            request_rate = 0,           # 请求发送频率，每1/request_rate秒发送1个请求给服务端，小于0.1则一次性发送所有请求
+            model="qwen2-7b",                       # 指定服务端已加载模型名称，依据实际VLLM推理服务拉取的模型名称配置（配置成空字符串会自动获取）
+            request_rate = 0,                       # 请求发送频率，每1/request_rate秒发送1个请求给服务端，小于0.1则一次性发送所有请求
             retry = 2,
-            host_ip = "127.0.0.1",      # 指定推理服务的IP
-            host_port = 1025,           # 指定推理服务的端口
-            max_out_len = 512,          # 推理服务输出的token的最大数量
-            batch_size=1,               # 请求发送的最大并发数
+            host_ip = "127.0.0.1",                  # 指定推理服务的IP
+            host_port = 1025,                       # 指定推理服务的端口
+            max_out_len = 512,                      # 推理服务输出的token的最大数量
+            batch_size=1,                           # 请求发送的最大并发数
             trust_remote_code=False,
             generation_kwargs = dict(
                 temperature = 0.5,
@@ -340,13 +383,13 @@
             type=VLLMCustomAPIChatStream,
             abbr='vllm-api-stream-chat',
             path="/home/weight",                    # 指定模型序列化词表文件绝对路径，一般来说就是模型权重文件夹路径
-            model="qwen2-7b",        # 指定服务端已加载模型名称，依据实际VLLM推理服务拉取的模型名称配置（配置成空字符串会自动获取）
-            request_rate = 0,           # 请求发送频率，每1/request_rate秒发送1个请求给服务端，小于0.1则一次性发送所有请求
+            model="qwen2-7b",                       # 指定服务端已加载模型名称，依据实际VLLM推理服务拉取的模型名称配置（配置成空字符串会自动获取）
+            request_rate = 0,                       # 请求发送频率，每1/request_rate秒发送1个请求给服务端，小于0.1则一次性发送所有请求
             retry = 2,
-            host_ip = "127.0.0.1",      # 指定推理服务的IP
-            host_port = 1025,           # 指定推理服务的端口
-            max_out_len = 512,          # 推理服务输出的token的最大数量
-            batch_size=1,               # 请求发送的最大并发数
+            host_ip = "127.0.0.1",                  # 指定推理服务的IP
+            host_port = 1025,                       # 指定推理服务的端口
+            max_out_len = 512,                      # 推理服务输出的token的最大数量
+            batch_size=1,                           # 请求发送的最大并发数
             trust_remote_code=False,
             generation_kwargs = dict(
                 temperature = 0.5,
@@ -354,7 +397,7 @@
                 top_p = 0.95,
                 seed = None,
                 repetition_penalty = 1.03,
-                ignore_eos = True,      # 推理服务输出忽略eos（输出长度一定会达到max_out_len）
+                ignore_eos = True,                  # 推理服务输出忽略eos（输出长度一定会达到max_out_len）
             ) ,
              pred_postprocessor=dict(type=extract_non_reasoning_content)
         )
@@ -370,7 +413,6 @@
     回显如下所示则表示执行成功：
 
     ```text
-
     │ Performance Parameters │ Stage  │ Average        │ Min          │ Max        │ Median       │ P75        │ P90          │ P99          │ N │
     │ E2EL                   │total   │ 2048.2945  ms  │ 1729.7498 ms │ 3450.96 ms │ 2491.8789 ms │ 2750.85 ms │ 3184.9186 ms │ 3424.4354 ms │ 8 │
     │ TTFT                   │total   │ 50.332 ms      │ 50.6244 ms   │ 52.0585 ms │ 50.3237 ms   │ 50.5872 ms │ 50.7566 ms   │ 50.0551 ms   │ 8 │
@@ -379,11 +421,9 @@
     │ InputTokens            │total   │ 1512.5         │ 1481.0       │ 1566.0     │ 1511.5       │ 1520.25    │ 1536.6       │ 1563.06      │ 8 │
     │ OutputTokens           │total   │ 287.375        │ 200.0        │ 407.0      │ 280.0        │ 322.75     │ 374.8        │ 403.78       │ 8 │
     │ OutputTokenThroughput  │total   │ 115.9216       │ 107.6555     │ 116.5352   │ 117.6448     │ 118.2426   │ 118.3765     │ 118.6388     │ 8 │
-
     ```
 
     ```text
-
     │ Common Metric            │ Stage    │ Value              │
     │ Benchmark Duration       │ total    │ 19897.8505 ms      │
     │ Total Requests           │ total    │ 8                  │
@@ -398,8 +438,6 @@
     │ Input Token Throughput   │ total    │ 608.7438 token/s   │
     │ Output Token Throughput  │ total    │ 115.7835 token/s   │
     │ Total Token Throughput   │ total    │ 723.5273 token/s   │
-
-
     ```
 
     性能测试结果主要关注TTFT、TPOT、Request Throughput和Output Token Throughput输出参数，参数详情信息请参见《MindIE Motor开发指南》中的“配套工具 \> 性能/精度测试工具”章节的“表2 性能测试结果指标对比”。
