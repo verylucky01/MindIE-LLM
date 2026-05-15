@@ -30,6 +30,7 @@ from mindie_llm.runtime.layers.parameter import BaseParameter
 from mindie_llm.runtime.layers.embedding.rotary_embedding import get_rope
 from mindie_llm.runtime.layers.embedding.rotary_embedding.yarn_scaling_rope import yarn_get_mscale
 from mindie_llm.runtime.config.huggingface_config import HuggingFaceConfig
+from mindie_llm.runtime.ops.triton.muls_add import muls_add_triton
 
 
 class DeepseekV3Moe(nn.Module):
@@ -130,7 +131,7 @@ class DeepseekV3Moe(nn.Module):
         )
 
         final_hidden_states = self.experts(hidden_states, topk_weights, topk_ids)
-        return final_hidden_states * self.config.routed_scaling_factor + shared_expert_out
+        return muls_add_triton(final_hidden_states, shared_expert_out, self.config.routed_scaling_factor)
 
 
 class Indexer(nn.Module):
