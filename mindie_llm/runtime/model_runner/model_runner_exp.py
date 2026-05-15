@@ -45,6 +45,7 @@ from mindie_llm.runtime.config.mindie_llm_config import SpeculativeConfig
 from mindie_llm.runtime.layers.sampling.sampler import Sampler
 from mindie_llm.runtime.model_runner.spec_worker import auto_speculative_method_router, speculative_worker_selector
 from mindie_llm.runtime.utils.npu.device_utils import get_npu_node_info
+from mindie_llm.runtime.ops.triton.triton_utils import init_device_properties_triton
 
 # Allow tensor initialization and casting with internal format(e.g., NZ)
 torch.npu.config.allow_internal_format = True
@@ -215,6 +216,7 @@ class ModelRunnerExp:
         if ENV_utils.async_inference:
             self.sampler = Sampler(sampler_config)
         set_mc2_token_capacity(self._max_batch_size, self.num_speculative_tokens + 1)
+        init_device_properties_triton()
 
     def load_weights(self) -> None:
         """Load model weights and initialize rotary embeddings."""
