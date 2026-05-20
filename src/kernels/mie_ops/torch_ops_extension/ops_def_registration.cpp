@@ -48,6 +48,7 @@ TORCH_LIBRARY(mie_ops, m) {
         "apply_top_k_top_p_custom("
         "Tensor logits, "
         "Tensor? p, "
-        "Tensor? k"
+        "Tensor? k, "
+        "Tensor! out"
         ") -> Tensor");
 }

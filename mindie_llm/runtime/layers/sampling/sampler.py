@@ -323,7 +323,9 @@ class Sampler:
             else:
                 k_tensor = torch.full((logits.shape[0],), logits.size(-1), dtype=torch.int32, device=logits.device)
             try:
-                return torch.ops.mie_ops.apply_top_k_top_p_custom(logits, p_tensor, k_tensor)
+                out = torch.empty_like(logits)
+                torch.ops.mie_ops.apply_top_k_top_p_custom(logits, p_tensor, k_tensor, out)
+                return out
             except Exception as e:
                 logger.warning("apply_top_k_top_p_custom failed, fallback to pytorch impl, error: %s", e)
         probs = logits.softmax(dim=-1)

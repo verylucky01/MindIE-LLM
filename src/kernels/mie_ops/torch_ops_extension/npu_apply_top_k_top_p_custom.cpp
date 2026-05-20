@@ -8,16 +8,14 @@ namespace mie_ops {
 using namespace at_npu::native;
 
 at::Tensor npu_apply_top_k_top_p_custom_npu(const at::Tensor& logits, const c10::optional<at::Tensor>& p,
-                                            const c10::optional<at::Tensor>& k) {
-    at::Tensor out = at::empty_like(logits);
+                                            const c10::optional<at::Tensor>& k, const at::Tensor& out) {
     EXEC_NPU_CMD_V1(aclnnApplyTopKTopPCustom, logits, p, k, out);
-
     return out;
 }
 
 at::Tensor npu_apply_top_k_top_p_custom_meta(const at::Tensor& logits, const c10::optional<at::Tensor>& p,
-                                             const c10::optional<at::Tensor>& k) {
-    return at::empty_like(logits);
+                                             const c10::optional<at::Tensor>& k, const at::Tensor& out) {
+    return out;
 }
 
 }  // namespace mie_ops
