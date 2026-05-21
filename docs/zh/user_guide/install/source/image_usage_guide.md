@@ -11,6 +11,12 @@
 
 - 用户在宿主机自行安装Docker（版本要求大于或等于24.x.x）。Docker的安装可参见[安装Docker](../source/docker_installation.md)。
 - 配置源之前，请确保安装环境能够连接网络。
+> [!NOTE]说明
+> 对于Atlas 200I Pro 加速模块，宿主机与容器镜像的操作系统兼容性要求如下：
+> - Ubuntu 22.04宿主机支持运行Ubuntu 24.04容器镜像
+> - openEuler 22.03宿主机支持运行openEuler 24.03容器镜像
+>
+> 请根据宿主机操作系统选择兼容的容器镜像版本。
 
 ## 获取MindIE镜像
 
