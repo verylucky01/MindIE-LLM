@@ -14,20 +14,41 @@ import time
 import unittest
 from unittest.mock import Mock, MagicMock, patch
 
-from mindie_llm.connector.common.model_execute_data_pb2 import ExecuteRequest, ExecuteType, ForwardType, ExecuteResponse
-from mindie_llm.connector.request_router.layerwise.request_router_cloud import RequestRouterCloud
+from mindie_llm.connector.common.model_execute_data_pb2 import (
+    ExecuteRequest,
+    ExecuteType,
+    ForwardType,
+    ExecuteResponse,
+)
+from mindie_llm.connector.request_router.layerwise.request_router_cloud import (
+    RequestRouterCloud,
+)
 from mindie_llm.utils.layerwise.share_memory import SharedMemoryManager
-from mindie_llm.utils.layerwise.request_metadata import LwdMetadata, lwd_metadata_manager
+from mindie_llm.utils.layerwise.request_metadata import (
+    LwdMetadata,
+    lwd_metadata_manager,
+)
 from mindie_llm.connector.request_router.router_impl import RouterImpl
 from mindie_llm.utils.layerwise.communication import LwdCommunicationManager
-from mindie_llm.connector.request_listener.shared_mem_communication import SharedMemCommunication
-from mindie_llm.connector.request_router.layerwise.request_router_lwd import REQUEST_KEY_DECODE, REQUEST_KEY_PREFILL, DecisionType, LastExecType, ModelType
-from mindie_llm.connector.request_router.layerwise.request_router_lwd import RequestInfo
+from mindie_llm.connector.request_listener.shared_mem_communication import (
+    SharedMemCommunication,
+)
+from mindie_llm.connector.request_router.layerwise.request_router_lwd import (
+    REQUEST_KEY_DECODE,
+    REQUEST_KEY_PREFILL,
+    DecisionType,
+    LastExecType,
+    ModelType,
+)
+from mindie_llm.connector.request_router.layerwise.request_router_lwd import (
+    RequestInfo,
+    ChunkPolicyData,
+)
 
 
 class TestRequestRouterCloud(unittest.TestCase):
     def setUp(self):
-        self.router = RequestRouterCloud('0')
+        self.router = RequestRouterCloud("0")
         self.router.router_impl = Mock(spec=RouterImpl)
         edge_cloud_comm = Mock(spec=LwdCommunicationManager)
         self.router.ctrl_comm = edge_cloud_comm.ctrl_comm
@@ -55,9 +76,9 @@ class TestRequestRouterCloud(unittest.TestCase):
         self.assertIsNone(self.router.enable_dp_distributed)
 
     def get_shared_memery(self):
-        share_mem_manager = SharedMemoryManager('0')
+        share_mem_manager = SharedMemoryManager("0")
         is_producer = True if self.router.rank == 0 else False
-        share_mem_manager.initialize(is_producer, 7)   # 8 cards 1 master
+        share_mem_manager.initialize(is_producer, 7)  # 8 cards 1 master
 
         return share_mem_manager
 
@@ -68,7 +89,7 @@ class TestRequestRouterCloud(unittest.TestCase):
         mock_execute_model_request.forward_type = ForwardType.PREFILL
         mock_request.execute_model_request = mock_execute_model_request
         return mock_request
-    
+
     def mock_decode_request(self) -> ExecuteRequest:
         mock_request = Mock(spec=ExecuteRequest)
         mock_request.execute_type = ExecuteType.MODEL_INFER
@@ -76,13 +97,12 @@ class TestRequestRouterCloud(unittest.TestCase):
         mock_execute_model_request.forward_type = ForwardType.DECODE
         mock_request.execute_model_request = mock_execute_model_request
         return mock_request
-    
+
     def mock_init_request(self) -> ExecuteRequest:
         mock_request = Mock(spec=ExecuteRequest)
         mock_request.execute_type = ExecuteType.MODEL_INIT
         mock_request.config = True
         return mock_request
-    
 
     def mock_finalize_request(self) -> ExecuteRequest:
         mock_request = Mock(spec=ExecuteRequest)
@@ -98,13 +118,11 @@ class TestRequestRouterCloud(unittest.TestCase):
         mock_request = Mock(spec=ExecuteRequest)
         mock_request.execute_type = ExecuteType.EOS_CLEANUP
         return mock_request
-        
 
-    
     def test_adjust_prefill_cut_policy(self):
         self.router.total_layer_num = 64
-        self.router.start_layer_num = 1    
-        self.router.end_layer_num = 1      
+        self.router.start_layer_num = 1
+        self.router.end_layer_num = 1
 
         expect_cut_policy = [
             [31, 31],
@@ -115,7 +133,7 @@ class TestRequestRouterCloud(unittest.TestCase):
             [9, 9, 9, 9, 9, 9, 8],
             [8, 8, 8, 8, 8, 8, 7, 7],
         ]
-        for i, cut_num in enumerate(range(2,9)):
+        for i, cut_num in enumerate(range(2, 9)):
             prefill_layers_divi_policy = self.router.prepare_prefill_cut_policy(cut_num)
             self.assertEqual(prefill_layers_divi_policy, expect_cut_policy[i])
 
@@ -134,23 +152,23 @@ class TestRequestRouterCloud(unittest.TestCase):
         self.assertEqual(self.router.prefill_queue.qsize(), 1)
         self.assertEqual(self.router.decode_queue.qsize(), 1)
         self.assertEqual(self.router.clean_up_queue.qsize(), 1)
-    
+
     def test_get_all_request(self):
         self.router.initialize = Mock()
         self.router.router_impl.seq_ctrl = Mock()
         self.router.ctrl_comm.prefill_comm_finish_tcp_count = 0
         self.router.data_comm.p_shape = [0]
         self.router.data_comm.recv_index = 0
-        
+
         self.router.parse_all_dp_batches_seq_lens = MagicMock(return_value=[0])
         self.router.calc_max_seq_len = MagicMock(return_value=0)
         self.router.calc_curr_dp_seq_len = MagicMock(return_value=0)
         self.router.calc_batch_size = MagicMock(return_value=1)
         self.router.prefill_layers_divi_switch = False
-        
+
         self.router.prefill_chunk_instance = Mock()
         self.router.prefill_chunk_instance.model_type = ModelType.QWEN
-        
+
         self.router.inference_queue.put(self.mock_prefill_request())
         self.router.inference_queue.put(self.mock_decode_request())
         self.router.inference_queue.put(self.mock_init_request())
@@ -185,7 +203,7 @@ class TestRequestRouterCloud(unittest.TestCase):
         self.router.decode_metadata_queue = [(0, mock_decode_metadata, None)]
         self.router.decode_comm_finish = True
         decision_type = self.router.calc_decision_type()
-        self.assertEqual(decision_type, DecisionType.DO_DECODE) 
+        self.assertEqual(decision_type, DecisionType.DO_DECODE)
 
     def test_calc_decision_type_wait_decode(self):
         mock_metadata = Mock()
@@ -245,7 +263,7 @@ class TestRequestRouterCloud(unittest.TestCase):
         self.router.decode_comm_finish = False
         self.router.ctrl_comm.recv_decode = Mock()
         self.router.recv_decode()
-        self.assertTrue(self.router.decode_comm_finish) 
+        self.assertTrue(self.router.decode_comm_finish)
 
     def test_arrange_exec_stage_do_decode(self):
         # 准备测试数据
@@ -256,7 +274,16 @@ class TestRequestRouterCloud(unittest.TestCase):
         self.router.arrange_exec_stage(DecisionType.DO_DECODE)
         metadata_ = lwd_metadata_manager.get_metadata()
         test_cases = [(0, 62, True, 62, False, False, 0, 0)]
-        for (start_exec_layer, end_exec_layer, end_of_generate_token, cloud_total_layer, is_prefill, is_long_seq, long_seq_start_idx, long_seq_end_idx) in test_cases:
+        for (
+            start_exec_layer,
+            end_exec_layer,
+            end_of_generate_token,
+            cloud_total_layer,
+            is_prefill,
+            is_long_seq,
+            long_seq_start_idx,
+            long_seq_end_idx,
+        ) in test_cases:
             self.assertEqual(metadata_.start_exec_layer, start_exec_layer)
             self.assertEqual(metadata_.end_exec_layer, end_exec_layer)
             self.assertEqual(metadata_.end_of_generate_token, end_of_generate_token)
@@ -265,7 +292,6 @@ class TestRequestRouterCloud(unittest.TestCase):
             self.assertEqual(metadata_.is_long_seq, is_long_seq)
             self.assertEqual(metadata_.long_seq_start_idx, long_seq_start_idx)
             self.assertEqual(metadata_.long_seq_end_idx, long_seq_end_idx)
-            
 
     def test_arrange_exec_stage_do_prefille_no_chunk(self):
         self.router.prefill_layers_divi_policy = [13, 13, 12, 12, 12]
@@ -277,30 +303,71 @@ class TestRequestRouterCloud(unittest.TestCase):
             (13, 26, False, 62, True, False, 0, 0),
             (26, 38, False, 62, True, False, 0, 0),
             (38, 50, False, 62, True, False, 0, 0),
-            (50, 62, True, 62, True, False, 0, 0)
+            (50, 62, True, 62, True, False, 0, 0),
         ]
 
         for i, case in enumerate(test_cases):
             self.router.prefill_exec_cnt = i
             # 准备测试数据
             request_key = 0
-            metadata = LwdMetadata(request_key, case[0], case[1], case[2], 
-                                  case[4], False, False, case[3], case[5], 
-                                  case[6], case[7], 0, 0, False)
+            metadata = LwdMetadata(
+                request_key,
+                case[0],
+                case[1],
+                case[2],
+                case[4],
+                False,
+                False,
+                case[3],
+                case[5],
+                case[6],
+                case[7],
+                0,
+                0,
+                False,
+            )
             self.router.prefill_metadata_queue.append((request_key, metadata, None))
             # 调用方法
             self.router.arrange_exec_stage(DecisionType.DO_PREFILL)
             metadata_ = lwd_metadata_manager.get_metadata()
-            (start_exec_layer, end_exec_layer, end_of_generate_token, cloud_total_layer, is_prefill, is_long_seq, long_seq_start_idx, long_seq_end_idx) = test_cases[i]
-            self.assertEqual(metadata_.start_exec_layer, start_exec_layer, f"Failed on test case {i+1}")
-            self.assertEqual(metadata_.end_exec_layer, end_exec_layer, f"Failed on test case {i+1}")
-            self.assertEqual(metadata_.end_of_generate_token, end_of_generate_token, f"Failed on test case {i+1}")
-            self.assertEqual(metadata_.cloud_total_layer, cloud_total_layer, f"Failed on test case {i+1}")
-            self.assertEqual(metadata_.is_prefill, is_prefill, f"Failed on test case {i+1}")
-            self.assertEqual(metadata_.is_long_seq, is_long_seq, f"Failed on test case {i+1}")
-            self.assertEqual(metadata_.long_seq_start_idx, long_seq_start_idx, f"Failed on test case {i+1}")
-            self.assertEqual(metadata_.long_seq_end_idx, long_seq_end_idx, f"Failed on test case {i+1}")
-
+            (
+                start_exec_layer,
+                end_exec_layer,
+                end_of_generate_token,
+                cloud_total_layer,
+                is_prefill,
+                is_long_seq,
+                long_seq_start_idx,
+                long_seq_end_idx,
+            ) = test_cases[i]
+            self.assertEqual(
+                metadata_.start_exec_layer,
+                start_exec_layer,
+                f"Failed on test case {i + 1}",
+            )
+            self.assertEqual(metadata_.end_exec_layer, end_exec_layer, f"Failed on test case {i + 1}")
+            self.assertEqual(
+                metadata_.end_of_generate_token,
+                end_of_generate_token,
+                f"Failed on test case {i + 1}",
+            )
+            self.assertEqual(
+                metadata_.cloud_total_layer,
+                cloud_total_layer,
+                f"Failed on test case {i + 1}",
+            )
+            self.assertEqual(metadata_.is_prefill, is_prefill, f"Failed on test case {i + 1}")
+            self.assertEqual(metadata_.is_long_seq, is_long_seq, f"Failed on test case {i + 1}")
+            self.assertEqual(
+                metadata_.long_seq_start_idx,
+                long_seq_start_idx,
+                f"Failed on test case {i + 1}",
+            )
+            self.assertEqual(
+                metadata_.long_seq_end_idx,
+                long_seq_end_idx,
+                f"Failed on test case {i + 1}",
+            )
 
     def test_arrange_exec_stage_do_prefille_with_chunk(self):
         self.router.prefill_layers_divi_switch = False
@@ -352,23 +419,64 @@ class TestRequestRouterCloud(unittest.TestCase):
         for i, case in enumerate(test_cases):
             # 准备测试数据
             request_key = 0
-            metadata = LwdMetadata(request_key, case[0], case[1], case[2], 
-                                  case[4], False, False, case[3], case[5], 
-                                  case[6], case[7], 0, 0, False)
+            metadata = LwdMetadata(
+                request_key,
+                case[0],
+                case[1],
+                case[2],
+                case[4],
+                False,
+                False,
+                case[3],
+                case[5],
+                case[6],
+                case[7],
+                0,
+                0,
+                False,
+            )
             self.router.prefill_metadata_queue.append((request_key, metadata, None))
             # 调用方法
             self.router.arrange_exec_stage(DecisionType.DO_PREFILL)
             metadata_ = lwd_metadata_manager.get_metadata()
-            (start_exec_layer, end_exec_layer, end_of_generate_token, cloud_total_layer, is_prefill, is_long_seq, long_seq_start_idx, long_seq_end_idx) = test_cases[i]
-            self.assertEqual(metadata_.start_exec_layer, start_exec_layer, f"Failed on test case {i+1}")
-            self.assertEqual(metadata_.end_exec_layer, end_exec_layer, f"Failed on test case {i+1}")
-            self.assertEqual(metadata_.end_of_generate_token, end_of_generate_token, f"Failed on test case {i+1}")
-            self.assertEqual(metadata_.cloud_total_layer, cloud_total_layer, f"Failed on test case {i+1}")
-            self.assertEqual(metadata_.is_prefill, is_prefill, f"Failed on test case {i+1}")
-            self.assertEqual(metadata_.is_long_seq, is_long_seq, f"Failed on test case {i+1}")
-            self.assertEqual(metadata_.long_seq_start_idx, long_seq_start_idx, f"Failed on test case {i+1}")
-            self.assertEqual(metadata_.long_seq_end_idx, long_seq_end_idx, f"Failed on test case {i+1}")
-
+            (
+                start_exec_layer,
+                end_exec_layer,
+                end_of_generate_token,
+                cloud_total_layer,
+                is_prefill,
+                is_long_seq,
+                long_seq_start_idx,
+                long_seq_end_idx,
+            ) = test_cases[i]
+            self.assertEqual(
+                metadata_.start_exec_layer,
+                start_exec_layer,
+                f"Failed on test case {i + 1}",
+            )
+            self.assertEqual(metadata_.end_exec_layer, end_exec_layer, f"Failed on test case {i + 1}")
+            self.assertEqual(
+                metadata_.end_of_generate_token,
+                end_of_generate_token,
+                f"Failed on test case {i + 1}",
+            )
+            self.assertEqual(
+                metadata_.cloud_total_layer,
+                cloud_total_layer,
+                f"Failed on test case {i + 1}",
+            )
+            self.assertEqual(metadata_.is_prefill, is_prefill, f"Failed on test case {i + 1}")
+            self.assertEqual(metadata_.is_long_seq, is_long_seq, f"Failed on test case {i + 1}")
+            self.assertEqual(
+                metadata_.long_seq_start_idx,
+                long_seq_start_idx,
+                f"Failed on test case {i + 1}",
+            )
+            self.assertEqual(
+                metadata_.long_seq_end_idx,
+                long_seq_end_idx,
+                f"Failed on test case {i + 1}",
+            )
 
     def test_shared_memory(self):
         request_key = 0
@@ -376,7 +484,7 @@ class TestRequestRouterCloud(unittest.TestCase):
         self.router.request_map[REQUEST_KEY_DECODE][request_key] = RequestInfo(request=ExecuteRequest())
         self.router.prefill_chunk_instance = Mock()
         self.router.prefill_chunk_instance.model_type = ModelType.QWEN
-        
+
         self.router.rank = 0
         self.router.broadcast_decision_type(DecisionType.DO_PREFILL, request_key)
         for rank in range(1, 8):
@@ -392,14 +500,15 @@ class TestRequestRouterCloud(unittest.TestCase):
             decision_type = self.router.recv_decision_type()
             self.assertEqual(decision_type, DecisionType.DO_DECODE)
 
-    
-    @patch.object(SharedMemoryManager, 'initialize')
-    @patch('mindie_llm.connector.common.send_model_execute_response')
-    @patch('mindie_llm.connector.request_listener.shared_mem_communication.SharedMemCommunication.send_model_execute_response_cls')
-    @patch.object(LwdCommunicationManager, 'initialize')
-    @patch.object(LwdCommunicationManager, 'communication_config_verify', return_value=True)
-    @patch('mindie_llm.connector.request_router.layerwise.request_router_lwd.ExecuteResponseBuilder')
-    @patch('mindie_llm.connector.request_router.request_router.RouterImpl')
+    @patch.object(SharedMemoryManager, "initialize")
+    @patch("mindie_llm.connector.common.send_model_execute_response")
+    @patch(
+        "mindie_llm.connector.request_listener.shared_mem_communication.SharedMemCommunication.send_model_execute_response_cls"
+    )
+    @patch.object(LwdCommunicationManager, "initialize")
+    @patch.object(LwdCommunicationManager, "communication_config_verify", return_value=True)
+    @patch("mindie_llm.connector.request_router.layerwise.request_router_lwd.ExecuteResponseBuilder")
+    @patch("mindie_llm.connector.request_router.request_router.RouterImpl")
     @patch("mindie_llm.connector.request_router.request_router.BaseConfig")
     def test_initialize_standard_mode(self, mock_base_config, mock_router_impl, mock_response_builder, *args):
         mock_config = Mock()
@@ -431,7 +540,7 @@ class TestRequestRouterCloud(unittest.TestCase):
             ("max_prefill_tokens", "136096"),
             ("trust_remote_code", "false"),
             ("backend_type", "atb"),
-            ("models", json.dumps({"startLayerNum": 1}))
+            ("models", json.dumps({"startLayerNum": 1})),
         ]
 
         mock_base_config_instance = Mock()
@@ -535,13 +644,13 @@ class TestRequestRouterCloud(unittest.TestCase):
         process.join(timeout_seconds)
         process.terminate()
 
-        self.router.rank = 1 
+        self.router.rank = 1
         self.router.comm_initialized = True
         process = multiprocessing.Process(target=self.router.do_inference)
         process.start()
         process.join(timeout_seconds)
         process.terminate()
-    
+
     def test_accept(self):
         self.router.calc_seq_len = Mock()
         self.router.calc_seq_len.return_value = 1024
@@ -556,7 +665,7 @@ class TestRequestRouterCloud(unittest.TestCase):
         self.router.data_comm.decode_batch_size_queue = queue.Queue()
         self.router.prefill_chunk_instance = Mock()
         self.router.prefill_chunk_instance.model_type = ModelType.QWEN
-        
+
         self.router.parse_all_dp_batches_seq_lens = MagicMock(return_value=[0])
         self.router.calc_max_seq_len = MagicMock(return_value=0)
         self.router.calc_curr_dp_seq_len = MagicMock(return_value=0)
@@ -565,7 +674,7 @@ class TestRequestRouterCloud(unittest.TestCase):
         self.router.data_comm.p_shape = [0]
         self.router.data_comm.recv_index = 0
         self.router.calc_curr_dp_batch_size = MagicMock(return_value=0)
-        
+
         self.router.accept(self.mock_prefill_request())
         self.router.accept(self.mock_decode_request())
         self.router.accept(self.mock_init_request())
@@ -581,17 +690,17 @@ class TestRequestRouterCloud(unittest.TestCase):
         # 测试prefill_layers_divi_switch为False的情况
         self.router.prefill_layers_divi_switch = False
         self.router.cloud_layer_num = 62
-        
+
         # 模拟request_map
         request_key = 0
         mock_request_info = Mock()
         mock_request_info.request = self.mock_prefill_request()
         self.router.request_map[REQUEST_KEY_PREFILL] = {}
         self.router.request_map[REQUEST_KEY_PREFILL][request_key] = mock_request_info
-        
+
         # 调用方法
         prefill_layers_divi_policy = self.router.update_prefill_layers_divi_num(request_key)
-        
+
         # 验证结果
         expected_policy = [13, 13, 12, 12, 12]  # 62层切5份
         self.assertEqual(prefill_layers_divi_policy, expected_policy)
@@ -600,17 +709,20 @@ class TestRequestRouterCloud(unittest.TestCase):
         # 测试prefill_layers_divi_switch为True的情况
         self.router.prefill_layers_divi_switch = True
         self.router.cloud_layer_num = 62
-        
+
         # 模拟request_map
         request_key = 0
         mock_request_info = Mock()
         mock_request = self.mock_prefill_request()
-        mock_request.execute_model_request.seq_group_metadata_list = [Mock(request_gap=0.1), Mock(request_gap=0.2)]
+        mock_request.execute_model_request.seq_group_metadata_list = [
+            Mock(request_gap=0.1),
+            Mock(request_gap=0.2),
+        ]
         mock_request_info.request = mock_request
         mock_request_info.prefill_dp_max_seq_len = 1024
         self.router.request_map[REQUEST_KEY_PREFILL] = {}
         self.router.request_map[REQUEST_KEY_PREFILL][request_key] = mock_request_info
-        
+
         # 模拟cloud_cut_instance
         mock_time_counter = Mock()
         mock_time_counter.get_cut_num.return_value = 3
@@ -619,10 +731,10 @@ class TestRequestRouterCloud(unittest.TestCase):
         self.router.router_impl.generator.model_wrapper = Mock()
         self.router.router_impl.generator.model_wrapper.model_runner = Mock()
         self.router.router_impl.generator.model_wrapper.model_runner.time_counter = mock_time_counter
-        
+
         # 调用方法
         prefill_layers_divi_policy = self.router.update_prefill_layers_divi_num(request_key)
-        
+
         # 验证结果
         expected_policy = [21, 21, 20]  # 62层切3份
         self.assertEqual(prefill_layers_divi_policy, expected_policy)
@@ -633,46 +745,36 @@ class TestRequestRouterCloud(unittest.TestCase):
         # 测试update_prefill_long_seq_data函数
         request_key = 0
         prefill_dp_seq_len = 10000
-        
+
         # 模拟request_map
         mock_request_info = Mock()
         mock_request_info.layers_divi_num = 4
+        mock_request_info.chunk_data = ChunkPolicyData([2500] * 4, [2000] * 4, [1] * 4)
         self.router.request_map[REQUEST_KEY_PREFILL] = {}
         self.router.request_map[REQUEST_KEY_PREFILL][request_key] = mock_request_info
-        
-        # 模拟prefill_chunk_instance
-        self.router.prefill_chunk_instance = Mock()
-        self.router.prefill_chunk_instance.get_chunk_len_policy.side_effect = [
-            [2500, 2500, 2500, 2500],  # 非边缘设备的分块策略
-            [2000, 2000, 2000, 2000, 2000]  # 边缘设备的分块策略
-        ]
-        
+
         # 模拟get_prefill_exec_metadata
         mock_metadata = Mock()
         self.router.get_prefill_exec_metadata = Mock(return_value=(mock_metadata, 1))
-        
+
         # 模拟cloud_layer_num
         self.router.cloud_layer_num = 62
-        
+
         # 清空prefill_metadata_queue
         self.router.prefill_metadata_queue = []
-        
+
         # 调用方法
         self.router.update_prefill_long_seq_data(request_key, prefill_dp_seq_len)
-        
+
         # 验证结果
         # 验证layers_divi_num被正确更新
         expected_layers_divi_num = round(4 / 4)  # 4层分割 / 4个分块
         self.assertEqual(mock_request_info.layers_divi_num, expected_layers_divi_num)
-        
-        # 验证get_chunk_len_policy被正确调用
-        self.router.prefill_chunk_instance.get_chunk_len_policy.assert_any_call(prefill_dp_seq_len, False)
-        self.router.prefill_chunk_instance.get_chunk_len_policy.assert_any_call(prefill_dp_seq_len, True)
-        
+
         # 验证get_prefill_exec_metadata被调用的次数
         # 分块数 * 层分割数 = 4 * 1 = 4次
         self.assertEqual(self.router.get_prefill_exec_metadata.call_count, 4)
-        
+
         # 验证prefill_metadata_queue被正确填充
         self.assertEqual(len(self.router.prefill_metadata_queue), 4)
 

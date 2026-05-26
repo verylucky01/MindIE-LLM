@@ -28,6 +28,7 @@ from mindie_llm.connector.request_router.layerwise.request_router_lwd import (
     RequestInfo,
     REQUEST_KEY_PREFILL,
     REQUEST_KEY_DECODE,
+    ChunkPolicyData,
 )
 
 sys.path.append(str(Path(__file__).parent / "sync"))
@@ -404,14 +405,10 @@ class RequestRouterEdge(RequestRouterLwd):
             hidden_start_pos += metadata.long_seq_end_idx - metadata.long_seq_start_idx
 
     def prepare_chunk_prefill_metadata_queue(self, curr_dp_seq_len, dp_empty, request_key):
-        chunk_len_policy = self.prefill_chunk_instance.get_chunk_len_policy(curr_dp_seq_len, True)
-        prefill_chunk_policy = [0] + list(accumulate(chunk_len_policy))
-        cloud_chunk_len_policy = self.prefill_chunk_instance.get_chunk_len_policy(curr_dp_seq_len, False)
-        cloud_chunk_policy = [0] + list(accumulate(cloud_chunk_len_policy))
+        chunk_data = self.request_map[REQUEST_KEY_PREFILL][request_key].chunk_data
+        prefill_chunk_policy = [0] + list(accumulate(chunk_data.edge_policy))
+        cloud_chunk_policy = [0] + list(accumulate(chunk_data.cloud_policy))
 
-        cloud_eq_edge_chunk_num_list = self.get_cloud_eq_edge_prefill_chunk_num_list(
-            prefill_chunk_policy, cloud_chunk_policy
-        )
         p_first_metadata_list = self.prepare_chunk_prefill_metadata(
             prefill_chunk_policy, curr_dp_seq_len, dp_empty, True, request_key
         )
@@ -426,19 +423,19 @@ class RequestRouterEdge(RequestRouterLwd):
         # 生成所有metadata并排序
         self.generate_send_metadata_to_queue(
             request_key,
-            cloud_eq_edge_chunk_num_list=cloud_eq_edge_chunk_num_list,
+            cloud_eq_edge_chunk_num_list=chunk_data.eq_num_list,
             p_first_metadata_list=p_first_metadata_list,
             p_last_metadata_list=p_last_metadata_list,
             last_chunk_num_eq_cloud=edge_eq_last_chunk_num,
-            cloud_chunk_len_policy=cloud_chunk_len_policy,
+            cloud_chunk_len_policy=chunk_data.cloud_policy,
         )
 
         logger.info(
             f"[layerwiseDisaggregated] edge_eq_last_chunk_num: {edge_eq_last_chunk_num} curr_dp_seq_len: "
             f"{curr_dp_seq_len} prefill_chunk_policy: {prefill_chunk_policy} "
-            f"chunk_len_policy: {chunk_len_policy} "
-            f"cloud_chunk_len_policy: {cloud_chunk_len_policy} cloud_chunk_policy:{cloud_chunk_policy} "
-            f"cloud_eq_edge_chunk_num_list:{cloud_eq_edge_chunk_num_list} rank {self.rank}"
+            f"chunk_len_policy: {chunk_data.edge_policy} "
+            f"cloud_chunk_len_policy: {chunk_data.cloud_policy} cloud_chunk_policy:{cloud_chunk_policy} "
+            f"cloud_eq_edge_chunk_num_list:{chunk_data.eq_num_list} rank {self.rank}"
         )
 
     def arrange_exec_stage(self, decision_type: DecisionType):
@@ -512,6 +509,11 @@ class RequestRouterEdge(RequestRouterLwd):
         self.request_map[REQUEST_KEY_PREFILL][request_key] = prefill_request_info
 
         if prefill_dp_max_seq_len > self.get_long_seq_len_min():
+            edge_policy, cloud_policy, eq_chunk_num = self.prefill_chunk_instance.get_chunk_len_policy(
+                prefill_dp_seq_len
+            )
+            chunk_data = ChunkPolicyData(edge_policy, cloud_policy, eq_chunk_num)
+            self.request_map[REQUEST_KEY_PREFILL][request_key].chunk_data = chunk_data
             self.prepare_chunk_prefill_metadata_queue(prefill_dp_seq_len, prefill_request_info.dp_empty, request_key)
         else:
             prefill_first_metadata = LwdMetadata(

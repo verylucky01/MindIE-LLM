@@ -20,8 +20,15 @@ from pathlib import Path
 
 from mindie_llm.utils.log.logging import logger
 from mindie_llm.utils.prof.profiler import span_start, span_end
-from mindie_llm.connector.common.model_execute_data_pb2 import ExecuteRequest, ExecuteType, ForwardType
-from mindie_llm.utils.layerwise.request_metadata import LwdMetadata, lwd_metadata_manager
+from mindie_llm.connector.common.model_execute_data_pb2 import (
+    ExecuteRequest,
+    ExecuteType,
+    ForwardType,
+)
+from mindie_llm.utils.layerwise.request_metadata import (
+    LwdMetadata,
+    lwd_metadata_manager,
+)
 from mindie_llm.utils.layerwise.cloud_cut_inputdata import CloudCutInputData
 from mindie_llm.connector.request_router.layerwise.request_router_lwd import (
     DecisionMetadata,
@@ -33,6 +40,7 @@ from mindie_llm.connector.request_router.layerwise.request_router_lwd import (
     REQUEST_KEY_MAX,
     REQUEST_KEY_PREFILL,
     REQUEST_KEY_DECODE,
+    ChunkPolicyData,
 )
 
 sys.path.append(str(Path(__file__).parent / "sync"))
@@ -160,17 +168,16 @@ class RequestRouterCloud(RequestRouterLwd):
         return prefill_layers_divi_policy
 
     def update_prefill_long_seq_data(self, request_key, prefill_dp_seq_len):
-        prefill_chunk_policy = self.prefill_chunk_instance.get_chunk_len_policy(prefill_dp_seq_len, False)
+        chunk_data = self.request_map[REQUEST_KEY_PREFILL][request_key].chunk_data
         prefill_layers_divi_num = self.request_map[REQUEST_KEY_PREFILL][request_key].layers_divi_num
         self.request_map[REQUEST_KEY_PREFILL][request_key].layers_divi_num = round(
-            prefill_layers_divi_num / len(prefill_chunk_policy)
+            prefill_layers_divi_num / len(chunk_data.cloud_policy)
         )
         prefill_layers_divi_policy = self.prepare_prefill_cut_policy(
             self.request_map[REQUEST_KEY_PREFILL][request_key].layers_divi_num
         )
 
-        edge_chunk_len_policy = self.prefill_chunk_instance.get_chunk_len_policy(prefill_dp_seq_len, True)
-        for chunk_idx in range(len(prefill_chunk_policy)):
+        for chunk_idx in range(len(chunk_data.cloud_policy)):
             exec_start_layer = 0
             for layer in prefill_layers_divi_policy:
                 exec_end_layer = exec_start_layer + layer
@@ -178,9 +185,9 @@ class RequestRouterCloud(RequestRouterLwd):
                     exec_start_layer,
                     exec_end_layer,
                     request_key,
-                    chunk_policy=prefill_chunk_policy,
+                    chunk_policy=chunk_data.cloud_policy,
                     chunk_idx=chunk_idx,
-                    edge_chunk_len_policy=edge_chunk_len_policy,
+                    edge_chunk_len_policy=chunk_data.edge_policy,
                     prefill_dp_seq_len=prefill_dp_seq_len,
                 )
                 long_seq_decision_meta = DecisionMetadata(1, 0, need_recv_num, 0)
@@ -210,9 +217,12 @@ class RequestRouterCloud(RequestRouterLwd):
             recv_len = prefill_dp_seq_len
             recv_edge_list = []
             if prefill_dp_max_seq_len > self.get_long_seq_len_min():
-                chunk_len_policy = self.prefill_chunk_instance.get_chunk_len_policy(prefill_dp_seq_len, False)
-                edge_chunk_len_policy = self.prefill_chunk_instance.get_chunk_len_policy(prefill_dp_seq_len, True)
-                recv_edge_list, _ = self.long_seq_get_recv_list(edge_chunk_len_policy, 0, chunk_len_policy[0])
+                edge_policy, cloud_policy, eq_chunk_num = self.prefill_chunk_instance.get_chunk_len_policy(
+                    prefill_dp_seq_len
+                )
+                chunk_data = ChunkPolicyData(edge_policy, cloud_policy, eq_chunk_num)
+                self.request_map[REQUEST_KEY_PREFILL][self.request_map_prefill_key].chunk_data = chunk_data
+                recv_edge_list, _ = self.long_seq_get_recv_list(chunk_data.edge_policy, 0, chunk_data.cloud_policy[0])
                 recv_len = recv_edge_list[0][1]
             p_comm_index = self.request_map_prefill_key % self.batch_p_num
             if len(recv_edge_list) > 1:
@@ -425,11 +435,8 @@ class RequestRouterCloud(RequestRouterLwd):
 
         prefill_dp_seq_len = prefill_request_info.prefill_dp_len if prefill_request_info else -1
         layers_divi_num = prefill_request_info.layers_divi_num if prefill_request_info else -1
-        prefill_dp_max_seq_len = prefill_request_info.prefill_dp_max_seq_len if prefill_request_info else -1
         prefill_chunk_num = (
-            len(self.prefill_chunk_instance.get_chunk_len_policy(prefill_dp_seq_len, False))
-            if decision_type == DecisionType.DO_PREFILL and prefill_dp_max_seq_len > self.get_long_seq_len_min()
-            else 1
+            len(prefill_request_info.chunk_data.cloud_policy) if decision_type == DecisionType.DO_PREFILL else 1
         )
 
         ctrl_tensor = [0] * CtrlTypePos.MAX_NUM
@@ -449,9 +456,8 @@ class RequestRouterCloud(RequestRouterLwd):
         prefill_chunk_num = int(ctrl_tensor[CtrlTypePos.CHUNK_NUM])
         prefill_dp_seq_len = int(ctrl_tensor[CtrlTypePos.PREFILL_DP_SEQ_LEN])
         if prefill_chunk_num > 1:  # is_long_seq
-            prefill_chunk_policy = self.prefill_chunk_instance.get_chunk_len_policy(prefill_dp_seq_len, False)
-            edge_chunk_len_policy = self.prefill_chunk_instance.get_chunk_len_policy(prefill_dp_seq_len, True)
-            for chunk_idx in range(len(prefill_chunk_policy)):
+            chunk_data = self.request_map[REQUEST_KEY_PREFILL][request_key].chunk_data
+            for chunk_idx in range(len(chunk_data.cloud_policy)):
                 exec_start_layer = 0
                 for layer in prefill_layers_divi_policy:
                     exec_end_layer = exec_start_layer + layer
@@ -459,9 +465,9 @@ class RequestRouterCloud(RequestRouterLwd):
                         exec_start_layer,
                         exec_end_layer,
                         request_key,
-                        chunk_policy=prefill_chunk_policy,
+                        chunk_policy=chunk_data.cloud_policy,
                         chunk_idx=chunk_idx,
-                        edge_chunk_len_policy=edge_chunk_len_policy,
+                        edge_chunk_len_policy=chunk_data.edge_policy,
                         prefill_dp_seq_len=prefill_dp_seq_len,
                     )
                     long_seq_decision_meta = DecisionMetadata(1, 0, need_recv_num, 0)

@@ -60,7 +60,7 @@ from mindie_llm.utils.prof.profiler import span_start, span_end, span_req, span_
 from mindie_llm.utils.layerwise.request_metadata import lwd_metadata_manager
 from mindie_llm.utils.layerwise.input_metadata import (
     EdgeCloudInputMetadata,
-    pd_exec_matadata_instance,
+    lwd_metadata_instance,
 )
 from mindie_llm.text_generator.utils.generation_output import GenerationOutput
 from mindie_llm.text_generator.utils.config import ResponseConfig
@@ -572,9 +572,9 @@ class RouterImpl:
             # For P-last, D-last, and non-first blocks of cloud-side P tasks, directly
             # use the result from the previous computation.
             if EdgeCloudInputMetadata.have_input_metadata(layerwise_disaggregated_exe_stage):
-                pd_exec_matadata = pd_exec_matadata_instance
+                lwd_metadata_ins = lwd_metadata_instance
                 input_metadata_composite = copy.deepcopy(
-                    pd_exec_matadata.get_input_metadata(
+                    lwd_metadata_ins.get_input_metadata(
                         layerwise_disaggregated_exe_stage.is_prefill,
                         layerwise_disaggregated_exe_stage,
                     )
@@ -596,15 +596,15 @@ class RouterImpl:
                 # For P-first, D-first, and first-block cloud-side P tasks, back up the computation result to provide
                 # for subsequent P-last, D-last, and non-first-block cloud-side P tasks.
                 if EdgeCloudInputMetadata.need_storage_input_metadata(layerwise_disaggregated_exe_stage):
-                    pd_exec_matadata = pd_exec_matadata_instance
+                    lwd_metadata_ins = lwd_metadata_instance
                     exe_stage = layerwise_disaggregated_exe_stage
                     if exe_stage.is_prefill and exe_stage.is_long_seq:
-                        pd_exec_matadata.set_input_metadata(
+                        lwd_metadata_ins.set_input_metadata(
                             copy.deepcopy(input_metadata_composite),
                             layerwise_disaggregated_exe_stage.is_prefill,
                         )
                     else:
-                        pd_exec_matadata.set_input_metadata(
+                        lwd_metadata_ins.set_input_metadata(
                             input_metadata_composite,
                             layerwise_disaggregated_exe_stage.is_prefill,
                         )
