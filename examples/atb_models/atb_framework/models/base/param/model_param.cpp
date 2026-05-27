@@ -193,6 +193,9 @@ void ModelParam::ParseAttentionParam(const nlohmann::json &paramJson)
     if (paramJson.contains("ropeBackend")) {
         this->ropeBackend = FetchJsonParam<atb_speed::common::OpBackend>(paramJson, "ropeBackend");
     }
+    if (paramJson.contains("blockSize")) {
+ 	    this->blockSize = FetchJsonParam<int32_t>(paramJson, "blockSize");
+ 	}
 }
 
 void ModelParam::ParseMlpParam(const nlohmann::json &paramJson)

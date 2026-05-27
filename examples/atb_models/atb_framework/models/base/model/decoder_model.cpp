@@ -869,6 +869,7 @@ void DecoderModel::SetLayerParam(LayerParam &layerParam, uint32_t layerId)
     layerParam.enableFlashComm = this->param.enableFlashComm;
     layerParam.enableModelConfuscation = this->param.enableModelConfuscation;
     layerParam.modelConfuscationFd = this->param.modelConfuscationFd;
+    layerParam.blockSize = this->param.blockSize;
     if (layerId != 0) { layerParam.enableModelConfuscation = false; }
     if (!this->param.packQuantType.empty()) {
         layerParam.packQuantType = this->param.packQuantType[layerId];

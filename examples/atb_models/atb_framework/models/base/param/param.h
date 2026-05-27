@@ -171,6 +171,7 @@ public:
     std::string mlpTpDomain = "";
     std::string mlpTpRankTableFile = "";
     std::string mlpTpBackend = "";
+    int32_t blockSize = 128;
 
     Param() {};
     virtual ~Param() {};

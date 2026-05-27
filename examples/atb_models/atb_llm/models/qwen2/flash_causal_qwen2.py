@@ -68,6 +68,7 @@ A3_SOCS = (250, 251, 252, 253, 254, 255)
 class FlashQwen2ForCausalLM(FlashForCausalLM):
     def __init__(self, config, weights, **kwargs):
         self.acl_decoder_regression_operation = None
+        self.block_size = kwargs.get('block_size')
         super().__init__(config, weights, **kwargs)
 
         self.enable_rope_quant_kvcache = (
@@ -550,6 +551,8 @@ class FlashQwen2ForCausalLM(FlashForCausalLM):
             acl_param_dict["linearQuantType"] = linear_types
         if pack_quant_configs is not None:
             acl_param_dict["packQuantType"] = pack_quant_configs
+        if self.block_size is not None:
+            acl_param_dict['blockSize'] = self.block_size
         encoder_param = {
             **acl_param_dict,
             "isPrefill": True,

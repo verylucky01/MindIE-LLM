@@ -213,6 +213,7 @@ class ModelRunner:
         self.distributed_enable = kwargs.get("distributed_enable", False)
         self.max_batch_size = kwargs.get("max_batch_size", -1)
         self.model_role = kwargs.get("model_role", "standard")
+        self.block_size = kwargs.get('block_size')
 
         self.process_group, self.device = initialize_distributed(self.rank, self.npu_id, world_size)
 
@@ -595,6 +596,7 @@ class ModelRunner:
             max_batch_size=self.max_batch_size,
             llm_config=self.llm_config,
             model_role=self.model_role,
+            block_size=self.block_size,
             **kwargs,
         )
 

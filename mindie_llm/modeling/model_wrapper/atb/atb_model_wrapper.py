@@ -87,6 +87,7 @@ class ATBModelWrapper(ModelWrapper):
             tls_pk=kwargs.get("interNodeTlsPk", ""),
             tls_crl_path=kwargs.get("interNodeTlsCrlPath", ""),
             tls_crl_files=kwargs.get("interNodeTlsCrlFiles", ""),
+            block_size = kwargs.get('block_size'),
             batch_p_num=2 if kwargs.get("lwdNextPHeadPrior", False) else 1,
             lwd_comm_args=kwargs.get("lwd_comm_args", None),
             mempool_type=kwargs.get("mempool_type", MemPoolType.DISABLED),

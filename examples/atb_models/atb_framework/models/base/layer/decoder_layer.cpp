@@ -480,6 +480,7 @@ void DecoderLayer<NormType>::SetFusionAttentionAclNNIncreAttentionParam(
         fusionAttentionParam.aclnnIncreAttentionParam.inputLayoutPA = "TND";
         fusionAttentionParam.aclnnIncreAttentionParam.innerPrecise = 0;
     }
+    fusionAttentionParam.aclnnIncreAttentionParam.blockSize = this->param.blockSize;
 }
 
 template <>

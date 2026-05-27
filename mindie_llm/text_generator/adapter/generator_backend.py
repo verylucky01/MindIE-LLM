@@ -142,6 +142,7 @@ class GeneratorBackend:
         model_config["max_loras"] = max_loras
         model_config["max_lora_rank"] = max_lora_rank
         model_config["sampler_config"] = sampler_config
+        model_config['block_size'] = self.block_size
         model_config["lwdNextPHeadPrior"] = lwd_next_p_head_prior
         if bool(self.kv_pool_config_path) and bool(self.kv_pool_backend):
             model_config["mempool_type"] = (
