@@ -16,7 +16,7 @@ namespace mie_ops {
 using namespace at_npu::native;
 
 // step2, 为NPU设备实现前向接口
-at::Tensor& npu_dispatch_ffn_combine_npu(
+std::tuple<at::Tensor&, at::Tensor&> npu_dispatch_ffn_combine_npu(
     const at::Tensor& x,
     const at::TensorList& weight1,
     const at::TensorList& weight2,
@@ -26,7 +26,8 @@ at::Tensor& npu_dispatch_ffn_combine_npu(
     const at::Tensor& probs,
     c10::string_view group,
     int64_t max_output_size,
-    at::Tensor& out
+    at::Tensor& out,
+    at::Tensor& expert_token_nums
 ) {
     char *group_ep_ptr = const_cast<char *>(group.data());
     EXEC_NPU_CMD_V1(aclnnDispatchFFNCombine,
@@ -39,12 +40,13 @@ at::Tensor& npu_dispatch_ffn_combine_npu(
                     probs,
                     group_ep_ptr,
                     max_output_size,
-                    out);
-    return out;
+                    out,
+                    expert_token_nums);
+    return {out, expert_token_nums};
 }
 
 // step3, 为META设备实现前向接口
-at::Tensor& npu_dispatch_ffn_combine_meta(
+std::tuple<at::Tensor&, at::Tensor&> npu_dispatch_ffn_combine_meta(
     const at::Tensor& x,
     const at::TensorList& weight1,
     const at::TensorList& weight2,
@@ -54,9 +56,10 @@ at::Tensor& npu_dispatch_ffn_combine_meta(
     const at::Tensor& probs,
     c10::string_view group,
     int64_t max_output_size,
-    at::Tensor& out
+    at::Tensor& out,
+    at::Tensor& expert_token_nums
 ) {
-    return out;
+    return {out, expert_token_nums};
 }
 
 }  // namespace mie_ops
