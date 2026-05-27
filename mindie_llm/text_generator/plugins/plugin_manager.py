@@ -377,6 +377,7 @@ class PluginManager:
             )
 
             postprocess_done = threading.Event()
+
             model_input_wrapper = ModelInputWrapper(
                 cache_ids,
                 input_metadata,
@@ -428,66 +429,70 @@ class PluginManager:
             ):
                 self.prefix_cache.async_put_prefix_kvcache_to_mempool(input_metadata, cache_ids)
 
-            prof = span_start("put_into_input_queue")
-            self.input_queue.put(model_input_wrapper)
-            span_end(prof)
-
-            if not input_metadata.is_prefill and (ENV.model_runner_exp or not self.previous_batch_is_prefill):
-                prof = span_start("wait_to_postprocess")
-                if model_output_wrapper.launch_done is not None:
-                    if not self.is_inference_pause:
-                        if not model_output_wrapper.launch_done.wait(timeout=LAUNCH_DONE_TIMEOUT):
-                            logger.warning("Timeout waiting for launch_done signal.")
-                    else:  # branch for quick recovery
-                        if not model_output_wrapper.launch_done.wait(timeout=1):
-                            is_mock = True
+            try:
+                prof = span_start("put_into_input_queue")
+                self.input_queue.put(model_input_wrapper)
                 span_end(prof)
-            self.previous_batch_is_prefill = input_metadata.is_prefill
 
-            # Maintain backward compatibility with the previous implementation
-            sampling_output = model_output_wrapper.sampling_output
-            if ENV.model_runner_exp:
-                if model_output_wrapper.execution_done is not None:
-                    model_output_wrapper.execution_done.synchronize()
-                sampling_output = self._to_host(model_output_wrapper.sampling_output)
-            self.watcher.watch_npu_mem(
-                self.rank,
-                "In asyn inference mode, before postprocess",
-                trigger_count=self.mem_det_trigger_counter,
-            )
-            prof = span_start("postprocess")
-            if (
-                not is_mock
-                and model_output_wrapper.cache_ids is not None
-                and not model_output_wrapper.input_metadata.is_dummy_batch
-            ):
-                if model_output_wrapper.model_output.hidden_states is None:
-                    model_result = model_output_wrapper.model_output.logits
-                else:
-                    model_result = (
-                        model_output_wrapper.model_output.logits,
-                        model_output_wrapper.model_output.hidden_states,
-                    )
-                generation_output = self.postprocess(
-                    model_output_wrapper.cache_ids,
-                    model_output_wrapper.input_metadata,
-                    model_result,
-                    model_output_wrapper.sampling_metadata,
-                    sampling_output,
+                if not input_metadata.is_prefill and (ENV.model_runner_exp or not self.previous_batch_is_prefill):
+                    prof = span_start("wait_to_postprocess")
+                    if model_output_wrapper.launch_done is not None:
+                        if not self.is_inference_pause:
+                            if not model_output_wrapper.launch_done.wait(timeout=LAUNCH_DONE_TIMEOUT):
+                                logger.warning("Timeout waiting for launch_done signal.")
+                        else:  # branch for quick recovery
+                            if not model_output_wrapper.launch_done.wait(timeout=1):
+                                is_mock = True
+                    span_end(prof)
+                self.previous_batch_is_prefill = input_metadata.is_prefill
+
+                # Maintain backward compatibility with the previous implementation
+                sampling_output = model_output_wrapper.sampling_output
+                if ENV.model_runner_exp:
+                    if model_output_wrapper.execution_done is not None:
+                        model_output_wrapper.execution_done.synchronize()
+                    sampling_output = self._to_host(model_output_wrapper.sampling_output)
+                self.watcher.watch_npu_mem(
+                    self.rank,
+                    "In asyn inference mode, before postprocess",
+                    trigger_count=self.mem_det_trigger_counter,
                 )
-                generation_output.trace_ids = model_output_wrapper.trace_ids
-            else:
-                generation_output = GenerationOutput.make_empty()
-            postprocess_done.set()
-            generation_output.fill_dummy(input_metadata, self.max_generated_tokens)
-            self.last_sequence_ids = input_metadata.all_sequence_ids
-            span_end(prof)
-            self.watcher.watch_npu_mem(
-                self.rank,
-                "In asyn inference mode, after postprocess",
-                trigger_count=self.mem_det_trigger_counter,
-            )
-            self.mem_det_trigger_counter_acc()
+                prof = span_start("postprocess")
+                if (
+                    not is_mock
+                    and model_output_wrapper.cache_ids is not None
+                    and not model_output_wrapper.input_metadata.is_dummy_batch
+                ):
+                    if model_output_wrapper.model_output.hidden_states is None:
+                        model_result = model_output_wrapper.model_output.logits
+                    else:
+                        model_result = (
+                            model_output_wrapper.model_output.logits,
+                            model_output_wrapper.model_output.hidden_states,
+                        )
+                    generation_output = self.postprocess(
+                        model_output_wrapper.cache_ids,
+                        model_output_wrapper.input_metadata,
+                        model_result,
+                        model_output_wrapper.sampling_metadata,
+                        sampling_output,
+                    )
+                    generation_output.trace_ids = model_output_wrapper.trace_ids
+                else:
+                    generation_output = GenerationOutput.make_empty()
+                postprocess_done.set()
+                generation_output.fill_dummy(input_metadata, self.max_generated_tokens)
+                self.last_sequence_ids = input_metadata.all_sequence_ids
+                span_end(prof)
+                self.watcher.watch_npu_mem(
+                    self.rank,
+                    "In asyn inference mode, after postprocess",
+                    trigger_count=self.mem_det_trigger_counter,
+                )
+                self.mem_det_trigger_counter_acc()
+            except Exception:
+                postprocess_done.set()
+                raise
 
         # 将forward loop中捕获到的故障码异常向上层抛出
         if self.error_code_collected_in_async is not None:
@@ -848,6 +853,27 @@ class PluginManager:
                 execution_done.record(torch.npu.current_stream())
                 model_output_wrapper.execution_done = execution_done
             self.output_queue.put(model_output_wrapper)
+
+    def reset_async_pipeline(self) -> None:
+        self.error_code_collected_in_async = None
+        self.previous_batch_is_prefill = False
+        self.mem_det_trigger_counter = 0
+
+        if not self.async_inference:
+            return
+
+        while True:
+            try:
+                self.input_queue.get_nowait()
+            except queue.Empty:
+                break
+        while True:
+            try:
+                self.output_queue.get_nowait()
+            except queue.Empty:
+                break
+
+        self.output_queue.put(ModelOutputWrapper.make_empty())
 
     def _fill_in_model_result_exp(self, model_input_wrapper, model_output_wrapper):
         filling_masks = model_input_wrapper.filling_masks

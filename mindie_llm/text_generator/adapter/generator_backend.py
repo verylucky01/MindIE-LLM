@@ -287,9 +287,8 @@ class GeneratorBackend:
         return output
 
     def _execute_cmd_pause_engine(self):
+        start_time = time.time()
         self.force_stop_exception_occurred.clear()
-        wait_exception_time = 10.0
-        time.sleep(wait_exception_time)
         if torch_npu.npu.stop_device(self.npu_device_id) != 0:
             error_msg = "Stop device failed"
             command_result = 1
@@ -307,6 +306,10 @@ class GeneratorBackend:
             else:
                 command_result = 0
                 error_msg = ""
+        elapsed = time.time() - start_time
+        remaining_time = 10.0 - elapsed
+        if remaining_time > 0:
+            time.sleep(remaining_time)
         return command_result, error_msg
 
     def _execute_cmd_reinit_npu(self):

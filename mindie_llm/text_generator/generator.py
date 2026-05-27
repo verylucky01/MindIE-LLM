@@ -911,7 +911,7 @@ class Generator(PDInterface):
         if command == "CMD_REINIT_NPU":
             try:
                 self.infer_context.reset_all_context()
-                self.plugin_manager.error_code_collected_in_async = None
+                self.generator_backend.is_fault_device = False
                 ret_dict = self.generator_backend.execute_recover_command(command)
             except Exception as e:
                 error_msg = f"Failed to execute recovery command {command!r}: {e}"
@@ -924,17 +924,7 @@ class Generator(PDInterface):
             self.plugin_manager.last_sequence_ids = None
             self.plugin_manager.is_inference_pause = False
             self.is_inference_pause = False
-
-            # If the plugin supports asynchronous inference (indicated by the presence of 'output_queue'),
-            # enqueue an empty ModelOutputWrapper to flush the pipeline when the output_queue is empty.
-            if (
-                hasattr(self.plugin_manager, "output_queue")
-                and self.plugin_manager.output_queue is not None
-                and self.plugin_manager.output_queue.empty()
-            ):
-                from .utils.model_output import ModelOutputWrapper
-
-                self.plugin_manager.output_queue.put(ModelOutputWrapper.make_empty())
+            self.plugin_manager.reset_async_pipeline()
 
             ret_dict[command_res_key] = 0
 
