@@ -44,6 +44,7 @@ from mindie_llm.runtime.layers.attention.sparse_attention_layer import SFA
 from mindie_llm.runtime.config.mindie_llm_config import SpeculativeConfig
 from mindie_llm.runtime.layers.sampling.sampler import Sampler
 from mindie_llm.runtime.model_runner.spec_worker import auto_speculative_method_router, speculative_worker_selector
+from mindie_llm.utils.decorators.exception_handler import exception_handler
 from mindie_llm.runtime.utils.npu.device_utils import get_npu_node_info
 from mindie_llm.runtime.ops.triton.triton_utils import init_device_properties_triton
 
@@ -85,6 +86,7 @@ class KVCacheInfo:
 
 
 @auto_speculative_method_router(selector_fn=speculative_worker_selector)
+@exception_handler
 class ModelRunnerExp:
     """Experimental model runner for inference.
 
