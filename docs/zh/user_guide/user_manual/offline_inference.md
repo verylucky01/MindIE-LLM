@@ -36,7 +36,7 @@
 下面以LLaMA3-8B模型为例，展示对话推理以及性能测试的执行步骤。
 
 1. 配置环境变量。
-   - whl包方式
+    - whl包方式
 
     ```bash
     # 配置CANN环境，默认安装在/usr/local目录下
@@ -230,7 +230,7 @@
 
     服务化配置中默认使用ATB Models作为模型后端。
 
-     - whl包方式
+    - whl包方式
 
     ```bash
     vim /usr/local/lib/python3.11/site-packages/mindie_llm/conf_/config.json
@@ -238,9 +238,9 @@
     "backendType": "atb"
     ```
 
-     - run包方式
+    - run包方式
 
-     ```bash
+    ```bash
     vim /usr/local/Ascend/mindie/latest/mindie-service/conf/config.json
     # ModelDeployConfig.ModelConfig.backendType字段默认值为"atb"
     "backendType": "atb"

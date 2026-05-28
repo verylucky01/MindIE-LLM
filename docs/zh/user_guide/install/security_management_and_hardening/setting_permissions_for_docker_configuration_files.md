@@ -50,7 +50,7 @@
 
         **表 1**  Docker相关目录和文件权限控制
 
-         |目录|文件属主|文件权限|
+        |目录|文件属主|文件权限|
         |--|--|--|
         |/etc/default/docker|root:root|644或更严格|
         |/etc/sysconfig/docker|root:root|644或更严格|

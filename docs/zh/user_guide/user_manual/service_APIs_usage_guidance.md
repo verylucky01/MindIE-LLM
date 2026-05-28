@@ -12,8 +12,8 @@ Server提供EndPoint模块对推理服务化协议和接口封装，兼容Triton
 HTTP/HTTPS请求的URL的IP地址和端口号在config.json中进行配置，详情请参见[ServerConfig参数说明](../user_manual/service_parameter_configuration.md#serverconfig参数说明)。
 
 - 以Linux curl工具发送generate请求，URL请求格式如下：
-    - 操作类型：**POST**
-    - **URL：**http[_s_]:\//\{_ip_\}:\{_port_\}**/generate**
+  - 操作类型：**POST**
+  - **URL：**http[_s_]:\//\{_ip_\}:\{_port_\}**/generate**
 
 - 未开启HTTPS，发送推理请求：
 

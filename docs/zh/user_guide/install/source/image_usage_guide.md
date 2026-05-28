@@ -39,18 +39,18 @@ chmod +x Ascend-hdk-<chip_type>-npu-firmware_<version>.run
 
 1. 执行以下命令启动容器，容器启动命令仅供参考，可根据需求自行修改，命令参数介绍如[表1](#table1)所示。
 
-     ```bash
-     docker run -it -d --net=host --shm-size=1g \  # 对于多模态理解模型，若业务最大并发数较高，--shm-size建议设置不小于100g
-        --name <container-name> \
-        --device=/dev/davinci_manager:rwm \
-        --device=/dev/hisi_hdc:rwm \
-        --device=/dev/devmm_svm:rwm \
-        --device=/dev/davinci0:rwm \
-        -v /usr/local/Ascend/driver:/usr/local/Ascend/driver:ro \
-        -v /usr/local/Ascend/firmware/:/usr/local/Ascend/firmware:ro \
-        -v /usr/local/sbin:/usr/local/sbin:ro \
-        -v /path-to-weights:/path-to-weights:ro \
-        mindie:3.0.0-800I-A2-py311-openeuler24.03-lts bash
+    ```bash
+    docker run -it -d --net=host --shm-size=1g \  # 对于多模态理解模型，若业务最大并发数较高，--shm-size建议设置不小于100g
+       --name <container-name> \
+       --device=/dev/davinci_manager:rwm \
+       --device=/dev/hisi_hdc:rwm \
+       --device=/dev/devmm_svm:rwm \
+       --device=/dev/davinci0:rwm \
+       -v /usr/local/Ascend/driver:/usr/local/Ascend/driver:ro \
+       -v /usr/local/Ascend/firmware/:/usr/local/Ascend/firmware:ro \
+       -v /usr/local/sbin:/usr/local/sbin:ro \
+       -v /path-to-weights:/path-to-weights:ro \
+       mindie:3.0.0-800I-A2-py311-openeuler24.03-lts bash
     ```
 
     > [!NOTE]说明
@@ -122,4 +122,4 @@ chmod +x Ascend-hdk-<chip_type>-npu-firmware_<version>.run
     > “$ATB\_SPEED\_HOME\_PATH”已在“.bashrc”中设置好，无需自行设置。
 
 6. MindIE Motor是面向通用模型场景的推理服务化框架，通过开放，可扩展的推理服务化平台架构提供推理服务化能力，支持对接业界主流推理框架接口，满足大语言模型的高性能推理需求。
-   对接Motor的方法请参见[快速入门](../../quick_start/quick_start.md#模型推理)。
+    对接Motor的方法请参见[快速入门](../../quick_start/quick_start.md#模型推理)。

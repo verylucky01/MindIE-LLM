@@ -58,14 +58,14 @@ Kubernetes需要进行如下加固：
 - 若Kubernetes集群使用的OS kernel内核版本大于等于4.6，安装完Kubernetes后手动开启AppArmor或者SELinux。
 - 为使推理服务Pod的带宽限制生效，需要安装bandwidth插件到CNI bin目录中（默认为/opt/cni/bin），并修改CNI配置文件（默认路径：/etc/cni/net.d），在plugins中加入bandwidth。
 
-     ```json
+    ```json
 
-     {
-     "type": "bandwidth",
-     "capabilities": {"bandwidth": true}
-     }
+    {
+    "type": "bandwidth",
+    "capabilities": {"bandwidth": true}
+    }
 
-     ```
+    ```
 
 - 工作负载安全：
   - 禁止使用特权容器启动Pod。

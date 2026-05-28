@@ -8,21 +8,21 @@
 
 1. 为保证安装后的文件权限安全，请执行如下命令设置权限：
 
-   ```bash
-   old_umask=$(umask)
-   umask 027
-   ```
+    ```bash
+    old_umask=$(umask)
+    umask 027
+    ```
 
 2. 执行如下命令，安装whl包。
 
-   ```bash
-   pip install mindie_llm-{version}-{python_tag}-{platform_tag}.whl --no-deps
-   ```
+    ```bash
+    pip install mindie_llm-{version}-{python_tag}-{platform_tag}.whl --no-deps
+    ```
 
-   > [!NOTE]说明
-   >
-   > - 上方以mindie_llm包为例，如安装MindIE Motor或MindIE SD，请替换为对应的whl包名。
-   > - 如果需要使用源码编译安装，请跳转到对应代码仓里获取编译指导。以MindIE-LLM为例，编译指导请[单击](https://gitcode.com/Ascend/MindIE-LLM/blob/master/docs/zh/developer_guide/build_guide.md)。
+    > [!NOTE]说明
+    >
+    > - 上方以mindie_llm包为例，如安装MindIE Motor或MindIE SD，请替换为对应的whl包名。
+    > - 如果需要使用源码编译安装，请跳转到对应代码仓里获取编译指导。以MindIE-LLM为例，编译指导请[单击](https://gitcode.com/Ascend/MindIE-LLM/blob/master/docs/zh/developer_guide/build_guide.md)。
 
 3. 安装完成后，若打印如下信息，则说明软件安装成功：
 
@@ -30,20 +30,20 @@
     Successfully installed xxx
     ```
 
-   ```xxx``` 表示安装的实际软件包名。
+    ```xxx``` 表示安装的实际软件包名。
 
 4. (可选)执行如下命令，查询安装路径。
 
-   ```bash
-   pip show mindie_llm | grep Location
-   ```
+    ```bash
+    pip show mindie_llm | grep Location
+    ```
 
-   若python版本是3.11，则默认安装路径为：`/usr/local/lib/python3.11/site-packages`
+    若python版本是3.11，则默认安装路径为：`/usr/local/lib/python3.11/site-packages`
 5. 执行如下命令，恢复权限。
 
-   ```bash
-   umask $old_umask
-   ```
+    ```bash
+    umask $old_umask
+    ```
 
 ## run包安装方式
 
@@ -63,7 +63,7 @@
     chmod +x 软件包名.run
     ```
 
-   **软件包名.run**表示开发套件包Ascend-mindie_\<version>\_linux-\<arch>_\<abi>.run，请根据实际包名进行替换。
+    **软件包名.run**表示开发套件包Ascend-mindie_\<version>\_linux-\<arch>_\<abi>.run，请根据实际包名进行替换。
 
 5. 执行以下命令添加ascend-toolkit包的环境变量。（以root用户为例，以下为root用户的默认安装路径。）
 
@@ -104,22 +104,22 @@
     `xxx`表示安装的实际软件包名。
 
 8. 配置环境变量
-   当前提供进程级环境变量设置脚本，供用户在进程中引用，以自动完成环境变量设置。用户进程结束后自动失效。示例如下：
+    当前提供进程级环境变量设置脚本，供用户在进程中引用，以自动完成环境变量设置。用户进程结束后自动失效。示例如下：
 
-   root用户默认安装路径下配置环境变量：
+    root用户默认安装路径下配置环境变量：
 
-   ```bash
-   source /usr/local/Ascend/mindie/set_env.sh
-   ```
+    ```bash
+    source /usr/local/Ascend/mindie/set_env.sh
+    ```
 
-   非root用户默认安装路径下配置环境变量：
+    非root用户默认安装路径下配置环境变量：
 
-   ```bash
-   source /home/{当前用户名}/Ascend/mindie/set_env.sh
-   ```
+    ```bash
+    source /home/{当前用户名}/Ascend/mindie/set_env.sh
+    ```
 
-   用户也可以通过修改\~/.bashrc文件的方式设置永久环境变量，操作如下：
+    用户也可以通过修改\~/.bashrc文件的方式设置永久环境变量，操作如下：
 
-      a. 以运行用户在任意目录下执行`vi \~/.bashrc`命令，打开.bashrc文件，在文件最后一行后面添加上述内容。
-      b. 执行`:wq!`命令保存文件并退出。
-      c. 执行`source \~/.bashrc`命令使其立即生效。
+        a. 以运行用户在任意目录下执行`vi \~/.bashrc`命令，打开.bashrc文件，在文件最后一行后面添加上述内容。
+        b. 执行`:wq!`命令保存文件并退出。
+        c. 执行`source \~/.bashrc`命令使其立即生效。

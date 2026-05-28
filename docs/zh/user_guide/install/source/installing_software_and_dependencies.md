@@ -104,7 +104,7 @@ pip install atb_llm-<version>-cp<xxx>-cp<xxx>-linux_<arch>.whl
     ```
 
 8. 配置环境变量。
-   当前提供进程级环境变量设置脚本，供用户在进程中引用，以自动完成环境变量设置。用户进程结束后自动失效。
+    当前提供进程级环境变量设置脚本，供用户在进程中引用，以自动完成环境变量设置。用户进程结束后自动失效。
 
     ```bash
     source /home/{用户名}/Package/set_env.sh
@@ -112,9 +112,9 @@ pip install atb_llm-<version>-cp<xxx>-cp<xxx>-linux_<arch>.whl
 
     用户也可以通过修改\~/.bashrc文件的方式设置永久环境变量，操作如下：
 
-   a. 以运行用户在任意目录下执行`vi \~/.bashrc`命令，打开**.bashrc**文件，在文件最后一行后面添加上述内容。
-   b. 执行`:wq!`命令保存文件并退出。
-   c. 执行`source \~/.bashrc`命令使其立即生效。
+    a. 以运行用户在任意目录下执行`vi \~/.bashrc`命令，打开**.bashrc**文件，在文件最后一行后面添加上述内容。
+    b. 执行`:wq!`命令保存文件并退出。
+    c. 执行`source \~/.bashrc`命令使其立即生效。
 
 ## 安装依赖
 
