@@ -78,13 +78,13 @@
 
 3. 启动服务。
 
-     - **whl包安装方式：**
+    - **whl包安装方式：**
 
         ```bash
         mindie_llm_server
         ```
 
-     - **run包安装方式：**
+    - **run包安装方式：**
 
         ```bash
         ./bin/mindieservice_daemon

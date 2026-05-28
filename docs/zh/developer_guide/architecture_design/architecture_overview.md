@@ -11,24 +11,24 @@
 - **Server**：推理引擎服务层，提供模型推理的服务化能力。支持 OpenAI/vLLM/Triton 等主流协议，由Endpoint进行协议封装转换，提供对外 RESTful 接口。
 
 - **LLM Manager**：推理引擎调度层，负责请求状态管理与任务调度。通过CB调度，实现用户请求组成 Batch、推理任务下发、推理结果返回、以及提供状态记录与查询接口。
-    - interface：推理引擎接口层，提供模型实例管理、运行相关C++/Python接口，支持与第三方服务化能力进行集成部署。
+  - interface：推理引擎接口层，提供模型实例管理、运行相关C++/Python接口，支持与第三方服务化能力进行集成部署。
 
-    - engine：负责对 scheduler、executor、worker 等组件进行编排与串联。通过组件间的协同，engine 为不同推理场景提供统一的请求处理与执行能力。
-    - scheduler：用于完成请求的入队、等待调度逻辑，通过调度策略，最大化提升host与device计算的协同效率，从而提高系统整体吞吐性能。
-    - block manager：负责kv cache内存的高效分配和管理，提供多种分配策略，以提升内存复用效率。
+  - engine：负责对 scheduler、executor、worker 等组件进行编排与串联。通过组件间的协同，engine 为不同推理场景提供统一的请求处理与执行能力。
+  - scheduler：用于完成请求的入队、等待调度逻辑，通过调度策略，最大化提升host与device计算的协同效率，从而提高系统整体吞吐性能。
+  - block manager：负责kv cache内存的高效分配和管理，提供多种分配策略，以提升内存复用效率。
 
-    - kv connector: 提供跨卡、跨设备间的kv cache的链路、传输功能，支持对接多种池化后端。
+  - kv connector: 提供跨卡、跨设备间的kv cache的链路、传输功能，支持对接多种池化后端。
 
 - **Text Generator**：推理引擎执行层，负责抽象统一的模型前处理、推理、后处理工作流，同时支持SpecDecoding、ChunkPrefill等推理加速特性。
 
-    - preprocess：提供前处理接口，实现原始数据从host到device推理过程中需要的所有数据准备工作。
-    - generate：基于引擎的配置参数，实现推理工作流的业务编排，完成模型forward、sample调用。
-    - postprocess：提供多种stop逻辑以及token校验方式，以及完成推理过程中的上下文状态的更新与清理。
+  - preprocess：提供前处理接口，实现原始数据从host到device推理过程中需要的所有数据准备工作。
+  - generate：基于引擎的配置参数，实现推理工作流的业务编排，完成模型forward、sample调用。
+  - postprocess：提供多种stop逻辑以及token校验方式，以及完成推理过程中的上下文状态的更新与清理。
 
 - **Modeling**：推理引擎后端，专注模型运行时的性能优化。通过CustomLayer形式，提供高效的算子编排、下发、执行接口，支持 ACLGraph 和 ATBGraph 两种图模式后端。
 
-    - Layer：模型通用内置模块，包括 Attention、Embedding、ColumnLinear、RowLinear、MLP、MoE等。
-    - Compilation：图引擎后端，将模型从eager mode转换为graph mode，完成整图下发执行，进而提升推理性能。
+  - Layer：模型通用内置模块，包括 Attention、Embedding、ColumnLinear、RowLinear、MLP、MoE等。
+  - Compilation：图引擎后端，将模型从eager mode转换为graph mode，完成整图下发执行，进而提升推理性能。
 
 ## 目录结构
 

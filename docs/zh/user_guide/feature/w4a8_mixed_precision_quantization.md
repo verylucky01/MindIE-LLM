@@ -4,7 +4,7 @@
 
 混合量化是对模型的不同层级采用不同的量化方式。DeepSeek R1/V3的W4A8混合量化：前三层MLP是W8A8 Dynamic量化，MLA&共享专家层是W8A8量化，路由专家层是W4A8 Dynamic量化。其中W4A8 Dynamic量化采用Per-channel和Per-group对权重进行4bit量化，对激活进行8bit量化。
 
-> [!NOTE]说明 
+> [!NOTE]说明
 >
 >- 仅支持DeepSeek-R1，DeepSeek-V3模型。
 >- 仅支持Anti-Outlier离群值处理、暂不支持KV Cache int8量化配合使用。.
@@ -48,7 +48,7 @@
 
 量化后的MatMul权重新增weight\_scale、weight\_scale\_second和scale\_bias，用于对MatMul的计算结果进行反量化。
 
-**图 1**  量化权重推理时流程<a name="fig132131518185315"></a>  
+**图 1**  量化权重推理时流程<a name="fig132131518185315"></a>
 ![](./figures/w4a8_mixed_precision_quantization.png "量化权重推理时流程-0")
 
 此量化方式支持量化float16或bfloat16类型的原始权重。
@@ -67,5 +67,5 @@
 |dtype|int4|bfloat32|bfloat32|uint64|
 |shape|[n, k]|[n, 1]|[n, group_num]|[n,group_num]|
 
-> [!NOTE]说明 
+> [!NOTE]说明
 > 仅当浮点权重存在bias场景时，量化权重才会有bias。

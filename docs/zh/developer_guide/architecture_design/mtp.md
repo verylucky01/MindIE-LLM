@@ -222,33 +222,33 @@ MTP流程中的主要新增代码承载在以下文件中：
 
 1. [mtp_plugin.py](../../../../mindie_llm/text_generator/plugins/mtp/mtp_plugin.py) & [decoding_policy.py](../../../../mindie_llm/text_generator/plugins/mtp/decoding_policy.py)
 
-   [mtp_plugin.py](../../../../mindie_llm/text_generator/plugins/mtp/mtp_plugin.py)文件由[plugin_manager.py](../../../../mindie_llm/text_generator/plugins/plugin_manager.py)文件调用，在主调度流程中，调用mtp的以下功能：
+    [mtp_plugin.py](../../../../mindie_llm/text_generator/plugins/mtp/mtp_plugin.py)文件由[plugin_manager.py](../../../../mindie_llm/text_generator/plugins/plugin_manager.py)文件调用，在主调度流程中，调用mtp的以下功能：
 
-   ① 基于自回归时的基础模型输入，构造mtp场景下主模型和草稿模型需要的模型输入；
+    ① 基于自回归时的基础模型输入，构造mtp场景下主模型和草稿模型需要的模型输入；
 
-   ② 采样参数构造；
+    ② 采样参数构造；
 
-   ③ mtp场景每轮decode需要缓存的信息管理；
+    ③ mtp场景每轮decode需要缓存的信息管理；
 
-   ④ 对草稿token的校验处理（当前仅支持token比对）；
+    ④ 对草稿token的校验处理（当前仅支持token比对）；
 
-   ⑤ 叠加异步调度时的模型输入参数更新。
+    ⑤ 叠加异步调度时的模型输入参数更新。
 
 2. [flash_causal_deepseekv2.py](../../../../examples/atb_models/atb_llm/models/deepseekv2/flash_causal_deepseekv2.py)
 
-   flash_causal_deepseekv2.py的入口函数是 forward()方法，调用顺序：
+    flash_causal_deepseekv2.py的入口函数是 forward()方法，调用顺序：
 
-   [plugin_manager.py](../../../../mindie_llm/text_generator/plugins/plugin_manager.py)（generate_token() or generate_token_async()）--> [generator_torch.py](../../../../mindie_llm/text_generator/adapter/generator_torch.py)（forward()） --> [atb_model_wrapper.py](../../../../mindie_llm/modeling/model_wrapper/atb/atb_model_wrapper.py) （forward()）--> [flash_causal_deepseekv2.py](../../../../examples/atb_models/atb_llm/models/deepseekv2/flash_causal_deepseekv2.py)（forward()）
+    [plugin_manager.py](../../../../mindie_llm/text_generator/plugins/plugin_manager.py)（generate_token() or generate_token_async()）--> [generator_torch.py](../../../../mindie_llm/text_generator/adapter/generator_torch.py)（forward()） --> [atb_model_wrapper.py](../../../../mindie_llm/modeling/model_wrapper/atb/atb_model_wrapper.py) （forward()）--> [flash_causal_deepseekv2.py](../../../../examples/atb_models/atb_llm/models/deepseekv2/flash_causal_deepseekv2.py)（forward()）
 
-   ① mtp prefill和decode的入口函数；
+    ① mtp prefill和decode的入口函数；
 
-   ② 承载多轮草稿模型之间、草稿模型与主模型之间的模型输入更新。
+    ② 承载多轮草稿模型之间、草稿模型与主模型之间的模型输入更新。
 
-   ③ mtp的权重加载（初始化时调用）
+    ③ mtp的权重加载（初始化时调用）
 
 3. [mtp_decoder_model.cpp](../../../../examples/atb_models/atb_framework/models/deepseekv2/model/mtp_decoder_model.cpp)
 
-   承载草稿模型的组图
+    承载草稿模型的组图
 
 ## MTP适配集中式场景下的dp并行
 
@@ -295,71 +295,71 @@ MTP流程中的主要新增代码承载在以下文件中：
 
 2. lm_head_indice的适配：
 
-   lm_head_indice在集中式场景下包含将陪跑数据剔除的功能。实现函数名：```_partition_data```
+    lm_head_indice在集中式场景下包含将陪跑数据剔除的功能。实现函数名：```_partition_data```
 
-   ① MTP层lm_head_indice：
+    ① MTP层lm_head_indice：
 
-   以MTP=3为例，MTP层的输入是每个seq 4个token，最终需要的logits输出位置与前一轮输出了几个token有关。举例如下：
+    以MTP=3为例，MTP层的输入是每个seq 4个token，最终需要的logits输出位置与前一轮输出了几个token有关。举例如下：
 
-   假设当前4个bs，4个dp组
+    假设当前4个bs，4个dp组
 
-   ```text
-   |-----------------|-------------------|-------------------|-------------------|-------------------|
-   | batch           | bs1               | bs2               | bs3               | bs4               |
-   | input_ids       | A1 | A2 | A3 | A4 | B1 | B2 | B3 | B4 | C1 | C2 | C3 | C4 | D1 | D2 | D3 | D4 |
-   | dp_rank_ids     | 0                 | 0                 | 2                 | 3                 |
-   | last_output_len | 4                 | 2                 | 1                 | 3                 |
-   | total_indice    | 0  | 1  | 2  | 3  | 4  | 5  | 6  | 7  | 8  | 9  | 10 | 11 | 12 | 13 | 14 | 15 |
-   | lm_head_indice  |                3  |      5            | 8                 |           14      |
-   |-----------------|-------------------|-------------------|-------------------|-------------------|
-   ```
+    ```text
+    |-----------------|-------------------|-------------------|-------------------|-------------------|
+    | batch           | bs1               | bs2               | bs3               | bs4               |
+    | input_ids       | A1 | A2 | A3 | A4 | B1 | B2 | B3 | B4 | C1 | C2 | C3 | C4 | D1 | D2 | D3 | D4 |
+    | dp_rank_ids     | 0                 | 0                 | 2                 | 3                 |
+    | last_output_len | 4                 | 2                 | 1                 | 3                 |
+    | total_indice    | 0  | 1  | 2  | 3  | 4  | 5  | 6  | 7  | 8  | 9  | 10 | 11 | 12 | 13 | 14 | 15 |
+    | lm_head_indice  |                3  |      5            | 8                 |           14      |
+    |-----------------|-------------------|-------------------|-------------------|-------------------|
+    ```
 
-   该示例中，缺少dp_rank_id = 1的情况，即dp1上会存在陪跑。目前陪跑只输入1个token，即qlen=1，因此dp组收齐时拿到的结果如下：
+    该示例中，缺少dp_rank_id = 1的情况，即dp1上会存在陪跑。目前陪跑只输入1个token，即qlen=1，因此dp组收齐时拿到的结果如下：
 
-   ```text
-   |-----------------|-------------------|-------------------|-------|-------------------|-------------------|
-   | batch           | bs1               | bs2               | dummy | bs3               | bs4               |
-   | input_ids       | A1 | A2 | A3 | A4 | B1 | B2 | B3 | B4 | 1     | C1 | C2 | C3 | C4 | D1 | D2 | D3 | D4 |
-   | dp_rank_ids     | 0                 | 0                 | 1     | 2                 | 3                 |
-   | last_output_len | 4                 | 2                 | -     | 1                 | 3                 |
-   | total_indice    | 0  | 1  | 2  | 3  | 4  | 5  | 6  | 7  | 8     | 9  | 10 | 11 | 12 | 13 | 14 | 15 | 16 |
-   |-----------------|-------------------|-------------------|-------|-------------------|-------------------|
-   ```
+    ```text
+    |-----------------|-------------------|-------------------|-------|-------------------|-------------------|
+    | batch           | bs1               | bs2               | dummy | bs3               | bs4               |
+    | input_ids       | A1 | A2 | A3 | A4 | B1 | B2 | B3 | B4 | 1     | C1 | C2 | C3 | C4 | D1 | D2 | D3 | D4 |
+    | dp_rank_ids     | 0                 | 0                 | 1     | 2                 | 3                 |
+    | last_output_len | 4                 | 2                 | -     | 1                 | 3                 |
+    | total_indice    | 0  | 1  | 2  | 3  | 4  | 5  | 6  | 7  | 8     | 9  | 10 | 11 | 12 | 13 | 14 | 15 | 16 |
+    |-----------------|-------------------|-------------------|-------|-------------------|-------------------|
+    ```
 
-   在dummy存在的情况下，为了保证抽取的输出位置依旧正确，lm_head_indice需要修改为：```[3, 5, 9, 15]```
+    在dummy存在的情况下，为了保证抽取的输出位置依旧正确，lm_head_indice需要修改为：```[3, 5, 9, 15]```
 
-   ② 主模型lm_head_indice：
-   由于主模型的输出是所有token都需要，所以初始lm_head_indice是全量保留，即```np.arange(len(input_ids))```, 陪跑逻辑与小模型相同，在有dummy时更新即可。
+    ② 主模型lm_head_indice：
+    由于主模型的输出是所有token都需要，所以初始lm_head_indice是全量保留，即```np.arange(len(input_ids))```, 陪跑逻辑与小模型相同，在有dummy时更新即可。
 
-   [注] 当前lm_head_indice的适配支持dp_rank_ids分布乱序，但目前实际不会出现乱序的情况，可做进一步优化。
+    [注] 当前lm_head_indice的适配支持dp_rank_ids分布乱序，但目前实际不会出现乱序的情况，可做进一步优化。
 
 3. lm_head_local_dp的计算：
 
-   功能：由于每一轮小模型MTP层推理前都需要更新input_ids，即roll一次input_ids后再将新的token更新进input_ids中。但此时在forward中的input_ids是仅当前dp组的input_ids,所以需要有一个针对当前dp组input_ids更新token的位置indice。
+    功能：由于每一轮小模型MTP层推理前都需要更新input_ids，即roll一次input_ids后再将新的token更新进input_ids中。但此时在forward中的input_ids是仅当前dp组的input_ids,所以需要有一个针对当前dp组input_ids更新token的位置indice。
 
-   实现函数名：```_lm_head_local_dp_calc```
+    实现函数名：```_lm_head_local_dp_calc```
 
-   继续沿用2中给出的例子，以dp4为例说明：
+    继续沿用2中给出的例子，以dp4为例说明：
 
-   dp0的mtp1输入：
+    dp0的mtp1输入：
 
-      ```json
-      input_ids :  A1  A2  A3  A4  B1  B2  B3  B4
-      lm_head_indice : [3, 5, 9, 15]
-      ```
+        ```json
+        input_ids :  A1  A2  A3  A4  B1  B2  B3  B4
+        lm_head_indice : [3, 5, 9, 15]
+        ```
 
-   dp4的mtp2输入：(根据last_output_len长度替换对应的token)
+    dp4的mtp2输入：(根据last_output_len长度替换对应的token)
 
-      ```json
-      input_ids :  A2  A3  A4  A5  B2  B5  B4  x
-      lm_head_indice : [3, 5, 9, 15]
-      ```
+        ```json
+        input_ids :  A2  A3  A4  A5  B2  B5  B4  x
+        lm_head_indice : [3, 5, 9, 15]
+        ```
 
-   因此dp0上需要的lm_head_local_dp的值为[3, 5]
+    因此dp0上需要的lm_head_local_dp的值为[3, 5]
 
-   同理，dp1是陪跑，lm_head_local_dp的值为[0]，dp2为[0]，dp3为[2]
+    同理，dp1是陪跑，lm_head_local_dp的值为[0]，dp2为[0]，dp3为[2]
 
-   [注] 当前lm_head_local_dp的适配支持dp_rank_ids分布乱序，但目前实际不会出现乱序的情况，可做进一步优化。
+    [注] 当前lm_head_local_dp的适配支持dp_rank_ids分布乱序，但目前实际不会出现乱序的情况，可做进一步优化。
 
 ## MTP适配异步调度
 
@@ -371,12 +371,12 @@ MTP流程中的主要新增代码承载在以下文件中：
 
 1. 适配点1：```hit_mask```计算
 
-   实现函数：prepare_masks_for_filling(文件位置：../../../../mindie_llm/text_generator/plugins/mtp/mtp_plugin.py)
+    实现函数：prepare_masks_for_filling(文件位置：../../../../mindie_llm/text_generator/plugins/mtp/mtp_plugin.py)
 
-   功能：根据当前轮的seq id是否存在和前一轮调度的seq id一致，来挑选出需要更新的请求。
+    功能：根据当前轮的seq id是否存在和前一轮调度的seq id一致，来挑选出需要更新的请求。
 
 2. 适配点2：模型输入参数更新
 
-   实现函数：fill_in_model_result(文件位置：../../../../mindie_llm/text_generator/plugins/mtp/mtp_plugin.py)
+    实现函数：fill_in_model_result(文件位置：../../../../mindie_llm/text_generator/plugins/mtp/mtp_plugin.py)
 
-   功能：由于input_ids、slots、position ids、context_length、lm_head_indice均和上一轮输出的结果有关，因此需要单独更新。
+    功能：由于input_ids、slots、position ids、context_length、lm_head_indice均和上一轮输出的结果有关，因此需要单独更新。
