@@ -5,21 +5,21 @@
 
 ## 特性矩阵
 
-- 此矩阵罗列了各 BLOOM 模型支持的特性：
+* 此矩阵罗列了各 BLOOM 模型支持的特性：
 
-| 模型及参数量 | 800I A2 Tensor Parallelism | 300I DUO Tensor Parallelism | FP16 | BF16 | Flash Attention | Paged Attention | W8A8量化 | W8A16量化 | KV cache量化 | 稀疏量化 | MOE量化 | MindIE Service | TGI |  长序列 |
-|-------------|----------------------------|-----------------------------|------|----------------------|-----------------|-----------------|---------|-----------|--------------|--------------------------|-----|--------|-----|-----|
-| bloom-7b1 | 支持world size 1,2,4,8   | 支持world size 1,2,4 | 是   | 否  | 否              | 是              | 否       | 否       | 否           | 否       | 否     | 否    | 否  | 否  |
+| 模型及参数量 | 800I A2 Tensor Parallelism | 300I DUO Tensor Parallelism | FP16 | BF16 | Flash Attention | Paged Attention | W8A8 量化 | W8A16 量化 | KV cache 量化 | 稀疏量化 | MOE 量化 | MindIE Service | TGI | 长序列 |
+|-------------|----------------------------|-----------------------------|------|------|-----------------|-----------------|-----------|------------|--------------|--------|---------|----------------|-----|--------|
+| bloom-7b1 | 支持 world size 1,2,4,8 | 支持 world size 1,2,4 | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
 
 ## 推理使用说明
 
 ### 路径变量解释
 
-| 变量名        | 含义                                                         |
-| ------------- | ------------------------------------------------------------ |
-| `working_dir` | 加速库及模型库下载后放置的目录                               |
-| `llm_path`    | 模型仓所在路径。若使用编译好的包，则路径为`${working_dir}/MindIE-LLM/`；若使用gitcode下载的代码，则路径为`${working_dir}/MindIE-LLM/examples/atb_models` |
-| `script_path` | 脚本所在路径。BLOOM 系列模型的工作脚本所在路径为`{llm_path}/examples/models/bloom` |
+| 变量名        | 含义                                                                                       |
+| ------------- | ------------------------------------------------------------------------------------------ |
+| `working_dir` | 加速库及模型库下载后放置的目录（仅源码下载场景使用）                                       |
+| `llm_path`    | 模型仓所在路径。若使用镜像，则路径为 `/usr/local/Ascend/atb-models`；若使用 gitcode 下载的代码，则路径为 `${working_dir}/MindIE-LLM/examples/atb_models` |
+| `script_path` | 脚本所在路径。BLOOM 系列模型的工作脚本所在路径为 `${llm_path}/examples/models/bloom` |
 | `weight_path` | HF 原始模型权重路径（`.safetensors` 格式）                   |
 
 权重下载链接：
@@ -59,7 +59,7 @@ python -m pip install dist/*.whl --force-reinstall
 
 在 Hugging Face 上下载模型权重文件（推荐下载 `.safetensors`，`.bin` 需要转换成 `.safetensors`），权重路径为 `weight_path`。
 
-### PagedAttention模型
+### PagedAttention 模型
 
 进入 `modeltest` 路径下：
 
