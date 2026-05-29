@@ -37,7 +37,7 @@
       ```sh
       python3 atb_models/build/download_weights.py
       ```
-  
+
    | 参数名  | 含义                                             |
    |--------|--------------------------------------------------|
    | hub | 可选，str类型参数，hub来源，支持HuggingFace, ModelScope, Modelers  |
@@ -111,122 +111,9 @@ DeepSeek-V3-0324的BF16模型权重链接为：
 
 注意：在本仓实现中，DeepSeek-V3目前沿用DeepSeek_v3代码框架。
 
-- 检查机器网络情况
+多机场景下，需要配置 rank_table_file.json，具体方法请参考 [Rank Table File 配置指南](../../../../../docs/zh/user_guide/user_manual/rank_table_file_configuration.md)。
 
-```bash
-# 1.检查物理链接
-for i in {0..7}; do hccn_tool -i $i -lldp -g | grep Ifname; done 
-```
-
-```bash
-# 2.检查链接情况
-for i in {0..7}; do hccn_tool -i $i -link -g ; done
-```
-
-```bash
-# 3.检查网络健康情况
-for i in {0..7}; do hccn_tool -i $i -net_health -g ; done
-```
-
-```bash
-# 4.查看侦测ip的配置是否正确
-for i in {0..7}; do hccn_tool -i $i -netdetect -g ; done
-```
-
-```bash
-# 5.查看网关是否配置正确
-for i in {0..7}; do hccn_tool -i $i -gateway -g ; done
-```
-
-```bash
-# 6.检查NPU底层tls校验行为一致性，建议统一全部设置为0，避免hccl报错
-for i in {0..7}; do hccn_tool -i $i -tls -g ; done | grep switch
-```
-
-```bash
-# 7.NPU底层tls校验行为置0操作，建议统一全部设置为0，避免hccl报错
-for i in {0..7};do hccn_tool -i $i -tls -s enable 0;done
-```
-
-- 获取每张卡的ip地址
-
-```bash
-for i in {0..7};do hccn_tool -i $i -ip -g; done
-```
-
-- 需要用户自行创建rank_table_file.json，参考如下格式配置
-
-以下是一个双机用例，用户自行添加ip，补全device：
-
-```json
-{
-   "server_count": "2",
-   "server_list": [
-      {
-         "device": [
-            {
-               "device_id": "0",
-               "device_ip": "...",
-               "rank_id": "0"
-            },
-            {
-               "device_id": "1",
-               "device_ip": "...",
-               "rank_id": "1"
-            },
-            ...
-            {
-               "device_id": "7",
-               "device_ip": "...",
-               "rank_id": "7"
-            },
-         ],
-         "server_id": "...",
-         "container_ip": "..."
-      },
-      {
-         "device": [
-            {
-               "device_id": "0",
-               "device_ip": "...",
-               "rank_id": "8"
-            },
-            {
-               "device_id": "1",
-               "device_ip": "...",
-               "rank_id": "9"
-            },
-            ...
-            {
-               "device_id": "7",
-               "device_ip": "...",
-               "rank_id": "15"
-            },
-         ],
-         "server_id": "...",
-         "container_ip": "..."
-      },
-   ],
-   "status": "completed",
-   "version": "1.0"
-}
-```
-
-| 参数          |  说明                                                       |
-|---------------|------------------------------------------------------------|
-|  server_count |  总节点数                                                   |
-|  server_list  |  server_list中第一个server为主节点                           |
-|  device_id    |  当前卡的本机编号，取值范围[0, 本机卡数)                       |
-|  device_ip    |  当前卡的ip地址，可通过hccn_tool命令获取                       |
-|  rank_id      |  当前卡的全局编号，取值范围[0, 总卡数)                         |
-|  server_id    |  当前节点的ip地址                                             |
-|  container_ip |  容器ip地址（服务化部署时需要），若无特殊配置，则与server_id相同 |
-
-rank_table_file.json配置完成后，需要执行命令修改权限为640
-
-```sh
-chmod -R 640 {rank_table_file.json路径}
-```
+- 修改模型文件夹属组为 1001 -HwHiAiUser 属组（容器为 Root 权限可忽视），执行权限为 750：
 
 - 修改模型文件夹属组为1001 -HwHiAiUser属组（容器为Root权限可忽视），执行权限为750：
 
@@ -344,7 +231,7 @@ Step1.主副节点分别先清理残余进程：
 Step2.需在所有机器上同时执行：
 
    ```bash
-   bash run.sh pa_[data_type] [dataset] ([shots]) [batch_size] [model_name] ([is_chat_model]) [weight_dir] [rank_table_file] [world_size] [node_num] [rank_id_start] [master_address] ([parallel_params]) 
+   bash run.sh pa_[data_type] [dataset] ([shots]) [batch_size] [model_name] ([is_chat_model]) [weight_dir] [rank_table_file] [world_size] [node_num] [rank_id_start] [master_address] ([parallel_params])
    ```
 
 参数说明：
@@ -413,7 +300,7 @@ pkill -9 -f 'mindie|python'
 Step2.需在所有机器上同时执行：
 
 ```bash
-bash run.sh pa_[data_type] performance [case_pair] [batch_size] ([prefill_batch_size]) [model_name] ([is_chat_model]) [weight_dir] [rank_table_file] [world_size] [node_num] [rank_id_start] [master_address] ([parallel_params]) 
+bash run.sh pa_[data_type] performance [case_pair] [batch_size] ([prefill_batch_size]) [model_name] ([is_chat_model]) [weight_dir] [rank_table_file] [world_size] [node_num] [rank_id_start] [master_address] ([parallel_params])
 ```
 
 参数说明：
@@ -766,7 +653,7 @@ MTP特性对于较低并发性能提升更为明显，当前版本推荐MTP=1或
     export HCCL_EXEC_TIMEOUT=0
     ```
 
-3. 若出现AttributeError：'IbisTokenizer' object has no atrribute 'cache_path'。
+3. 若出现 AttributeError：'IbisTokenizer' object has no attribute 'cache_path'。
 
    Step1: 进入环境终端后执行。
 
