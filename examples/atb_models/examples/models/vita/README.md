@@ -1,36 +1,35 @@
 # README
 
-- [VITA](https://github.com/VITA-MLLM/VITA)是第一个开源的多模态大模型（MLLM），擅长同时处理和分析视频、图像、文本和音频模态，同时具有先进的多模态交互体验。
-- 此代码仓中实现了一套基于NPU硬件的VITA推理模型。配合加速库使用，旨在NPU上获得极致的推理性能。
+- [VITA](https://github.com/VITA-MLLM/VITA) 是第一个开源的多模态大模型（MLLM），擅长同时处理和分析视频、图像、文本和音频模态，同时具有先进的多模态交互体验。
+- 此代码仓中实现了一套基于 NPU 硬件的 VITA 推理模型。配合加速库使用，旨在 NPU 上获得极致的推理性能。
 
 ## 特性矩阵
 
-| 模型及参数量      | 800I A2 64GB | 300I DUO | FP16 | BF16 | MindIE Service |纯模型支持模态  | 服务化支持模态 |
-|-------------|----------------------------|-----------------------------|------|------------------|-----------------|-----|-----|
-|  vita-1.5(Qwen2)    | 支持world size 1     | 不支持        | x   |  √                   | √              | 文本、图片、音频、视频           | 文本、图片、音频、视频|
+| 模型及参数量 | 800I A2 64GB | 300I DUO | FP16 | BF16 | MindIE Service | 纯模型支持模态 | 服务化支持模态 |
+|-------------|-------------|---------|------|------|----------------|--------------|--------------|
+|  vita-1.5（Qwen2） | 支持 world size 1 | ❌ | ❌ | ✅ | ✅ | 文本、图片、音频、视频 | 文本、图片、音频、视频 |
 
 须知：
 
 1. 当前版本服务化仅支持单个请求单张图片输入
-2. 当前多模态场景，MindIE Service仅支持MindIE Service、TGI、Triton、vLLM Generate、OpenAI 5种服务化请求格式
+2. 当前多模态场景，MindIE Service 仅支持 MindIE Service、TGI、Triton、vLLM Generate、OpenAI 5 种服务化请求格式
 
 ## 路径变量解释
 
-| 变量名      | 含义                                                                                                                                                         |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| working_dir | 加速库及模型库下载后放置的目录                                                                                                                               |
-| llm_path    | 模型仓所在路径。若使用编译好的包，则路径为 `${working_dir}/MindIE-LLM/`；若使用gitcode下载的代码，则路径为 `${working_dir}/MindIE-LLM/examples/atb_models` |
-| script_path | 脚本所在路径；vita的工作脚本所在路径为 `${llm_path}/examples/models/vita`                                                                                           |
-| weight_path | 模型权重路径
-| audio_path  | 音频所在路径                                                                      |
-| image_path  | 图片所在路径                                                                      |
-| video_path  | 视频所在路径                                                                      |
-| max_batch_size  | 最大bacth数                                                                  |
-| max_input_length  | 多模态模型的最大embedding长度，                                             |
-| max_output_length | 生成的最大token数                                                          |
+| 变量名      | 含义                                                                                       |
+| ----------- | ------------------------------------------------------------------------------------------ |
+| working_dir | 加速库及模型库下载后放置的目录（仅源码下载场景使用）                                         |
+| llm_path    | 模型仓所在路径。若使用镜像，则路径为 `/usr/local/Ascend/atb-models`；若使用 gitcode 下载的代码，则路径为 `${working_dir}/MindIE-LLM/examples/atb_models` |
+| script_path | 脚本所在路径；vita 的工作脚本所在路径为 `${llm_path}/examples/models/vita`                    |
+| weight_path | 模型权重路径                                                                                 |
+| audio_path  | 音频所在路径                                                                                 |
+| image_path  | 图片所在路径                                                                                 |
+| video_path  | 视频所在路径                                                                                 |
+| max_batch_size  | 最大 batch 数                                                                                                                                        |
+| max_input_length  | 多模态模型的最大 embedding 长度                                                                                                                      |
+| max_output_length | 生成的最大 token 数                                                                                                                                  |
 
--注意：
-max_input_length长度设置可参考模型权重路径下config.json里的max_position_embeddings参数值
+> **注意**：max_input_length 长度设置可参考模型权重路径下 config.json 里的 max_position_embeddings 参数值。
 
 ## 权重
 
@@ -38,16 +37,16 @@ max_input_length长度设置可参考模型权重路径下config.json里的max_p
 
 - [VITA](https://huggingface.co/VITA-MLLM/VITA-1.5/tree/main)
 - [InternViT-300M-448px](https://huggingface.co/OpenGVLab/InternViT-300M-448px/tree/main)
--权重准备：
-  在weight_path执行：
+- 权重准备：
+  在 weight_path 执行：
 
   ```shell
   cd VITA
   mv ../InternViT-300M-448px ./VITA_ckpt
   ```
 
-  并将VITA权重中config.json的mm_vision_tower字段的参数修改为"InternViT-300M-448px"
-- 在大batch size场景下，需要将VITA权重中config,json的参数tokenizer_model_max_length修改为32768(对应max_position_embeddings)
+  并将 VITA 权重中 config.json 的 mm_vision_tower 字段的参数修改为"InternViT-300M-448px"
+- 在大 batch size 场景下，需要将 VITA 权重中 config.json 的参数 tokenizer_model_max_length 修改为 32768（对应 max_position_embeddings）
 
 **基础环境变量**
 
@@ -59,17 +58,17 @@ max_input_length长度设置可参考模型权重路径下config.json里的max_p
 
 4、安装依赖：
 
-- Python其他第三方库依赖，参考[requirements_vita.txt](../../../requirements/models/requirements_vita.txt)
-- 参考[此README文件](../../../README.md)
+- Python 其他第三方库依赖，参考 [requirements_vita.txt](../../../requirements/models/requirements_vita.txt)
+- 参考[此 README 文件](../../../README.md)
 
 ## 推理
 
 ### 对话测试
 
-**运行Paged Attention FP16**
+**运行 Paged Attention FP16**
 
 - 运行启动脚本
-  - 在\${llm_path}目录下执行以下指令
+  - 在 `${llm_path}` 目录下执行以下指令
 
     ```shell
     bash ${script_path}/run_pa.sh --run ${weight_path} --image_path ${image_path} --audio_path ${audio_path}
@@ -77,15 +76,15 @@ max_input_length长度设置可参考模型权重路径下config.json里的max_p
     ```
 
   - 注意：
-    音频和文本不能同时设置
+    音频和文本不能同时设置。
 - 环境变量说明
   - `export ASCEND_RT_VISIBLE_DEVICES=0`
-    - 指定当前机器上可用的逻辑NPU核心，多个核心间使用逗号相连
-    - 核心ID查阅方式见[此README文件](../../README.md)的【启动脚本相关环境变量】章节
+    - 指定当前机器上可用的逻辑 NPU 核心，多个核心间使用逗号相连
+    - 核心 ID 查阅方式见[此 README 文件](../../README.md)的【启动脚本相关环境变量】章节
     - 各模型支持的核心数参考“特性矩阵”
   - `export MASTER_PORT=20030`
     - 设置卡间通信端口
-    - 默认使用20030端口
+    - 默认使用 20030 端口
     - 目的是为了避免同一台机器同时运行多个多卡模型时出现通信冲突
     - 设置时端口建议范围为：20000-20050
   - 以下环境变量与性能和内存优化相关，通常情况下无需修改
@@ -103,13 +102,13 @@ max_input_length长度设置可参考模型权重路径下config.json里的max_p
   如果要将该模型用于高性能推理服务部署，实现大模型推理性能测试、精度测试和可视化能力，可参考下述参数配置和启动服务方式
 
 - 环境准备
-  修改MindIE-Service配置文件进行参数配置：
+  修改 MindIE-Service 配置文件进行参数配置：
 
   ```shell
   vim /usr/local/Ascend/mindie/latest/mindie-service/conf/config.json
   ```
 
-  在800I A2环境下，推荐使用以下配置，请自行修改"modelWeightPath"为实际权重路径：
+  在 800I A2 环境下，推荐使用以下配置，请自行修改"modelWeightPath"为实际权重路径：
 
   ```json
   {
@@ -131,8 +130,8 @@ max_input_length长度设置可参考模型权重路径下config.json里的max_p
                       "modelName": "vita",
                       "modelWeightPath": "/data/datasets/VITA",
                       "worldSize": 1,
-                      "npuMemSize": -1, #kvcache分配，可自行调整，单位是GB
-                      "trustRemoteCode": false #默认为false，若设为true，则信任本地代码，用户需自行承担风险
+                      "npuMemSize": -1, #kvcache 分配，可自行调整，单位是 GB
+                      "trustRemoteCode": false #默认为 false，若设为 true，则信任本地代码，用户需自行承担风险
                   }
               ]
           },
@@ -157,12 +156,12 @@ max_input_length长度设置可参考模型权重路径下config.json里的max_p
   Daemon start success!
   ```
 
-- 另起一个新的会话并进入同一环境中（docker），发送curl请求完成推理，注意：在发送请求的prompt里，必须image或video在前，audio或text在后，以OpenAI接口与vLLM接口为例
+- 另起一个新的会话并进入同一环境中（docker），发送 curl 请求完成推理，注意：在发送请求的 prompt 里，必须 image 或 video 在前，audio 或 text 在后，以 OpenAI 接口与 vLLM 接口为例
 
-  **OpenAI接口**
+  **OpenAI 接口**
 
   ```shell
-  curl http://localhost:${端口号，与起服务化时config.json中的'port'保持一致}/v1/chat/completions -d '{
+  curl http://localhost:${端口号，与起服务化时 config.json 中的'port'保持一致}/v1/chat/completions -d '{
     "model": "vita",
     "messages": [{
       "role": "user",
@@ -179,10 +178,10 @@ max_input_length长度设置可参考模型权重路径下config.json里的max_p
   }'
   ```
 
-  **vLLM接口**
+  **vLLM 接口**
 
   ```shell
-  curl localhost:${端口号，与起服务化时config.json中的'port'保持一致}/generate -d '{
+  curl localhost:${端口号，与起服务化时 config.json 中的'port'保持一致}/generate -d '{
       "prompt": [
           {
               "type": "image_url",
@@ -199,7 +198,7 @@ max_input_length长度设置可参考模型权重路径下config.json里的max_p
 
 ## 精度与性能测试方案
 
-为了评估模型在处理不同类型数据（如文本、图像、视频等）时的效果与表现，我们为MindIE中的服务化推理场景分别准备了对应的精度与性能测试方案供用户参考，以下是方案的具体实现。
+为了评估模型在处理不同类型数据（如文本、图像、视频等）时的效果与表现，我们为 MindIE 中的服务化推理场景分别准备了对应的精度与性能测试方案供用户参考，以下是方案的具体实现。
 
 ### 纯模型推理场景 性能测试
 
@@ -209,23 +208,23 @@ max_input_length长度设置可参考模型权重路径下config.json里的max_p
   export ATB_LLM_BENCHMARK_ENABLE=1
   ```
 
-- 运行启动脚本，会自动输出batchsize为1-10时的吞吐，并将结果保存在上述修改后的路径中
+- 运行启动脚本，会自动输出 batchsize 为 1-10 时的吞吐，并将结果保存在上述修改后的路径中
 
   ```shell
   bash ${script_path}/run_pa.sh --performance ${weight_path} --image_path ${image_path} --audio_path ${audio_path}
   bash ${script_path}/run_pa.sh --performance ${weight_path} --video_path ${video_path} --question "你是谁？"
   ```
 
-### 服务化推理场景 benchmark精度测试
+### 服务化推理场景 benchmark 精度测试
 
 首先按照[推理服务化部署](#推理服务化部署)，启动服务
 
 #### TextVQA 图片+文本理解场景
 
 - 数据准备
-    - 数据集下载 [textvqa_val](https://huggingface.co/datasets/maoxx241/textvqa_val)
-    - 保证textvqa_val.jsonl和textvqa_val_annotations.json在同一目录下
-    - 将textvqa_val.jsonl文件中所有"image"属性的值改为相应图片的绝对路径
+  - 数据集下载 [textvqa_val](https://huggingface.co/datasets/maoxx241/textvqa_val)
+  - 保证 textvqa_val.jsonl 和 textvqa_val_annotations.json 在同一目录下
+  - 将 textvqa_val.jsonl 文件中所有"image"属性的值改为相应图片的绝对路径
 
   ```json
   ...
@@ -238,21 +237,21 @@ max_input_length长度设置可参考模型权重路径下config.json里的max_p
   ...
   ```
 
-另起一个新的会话并进入同一环境中（docker），使用benchmark工具进行数据集测试，执行如下benchmark命令：
+另起一个新的会话并进入同一环境中（docker），使用 benchmark 工具进行数据集测试，执行如下 benchmark 命令：
 
-- 打开benchmark工具打印开关
+- 打开 benchmark 工具打印开关
 
   ```shell
   export MINDIE_LOG_TO_STDOUT="benchmark:1; client:1"
   ```
 
-- 发送benchmark推理请求（若出现trust_remote_code相关报错，需将--TrustRemoteCode置为True，可能引入文件读取风险，请知悉）
+- 发送 benchmark 推理请求（若出现 trust_remote_code 相关报错，需将--TrustRemoteCode 置为 True，可能引入文件读取风险，请知悉）
 
   ```shell
   benchmark \
   --TestAccuracy True \
-  --DatasetPath ${数据集中textvqa_val.jsonl的绝对路径} \
-  --DatasetType textvqa  \
+  --DatasetPath ${数据集中 textvqa_val.jsonl 的绝对路径} \
+  --DatasetType textvqa \
   --ModelName vita \
   --ModelPath ${模型权重的绝对路径} \
   --TestType client \
@@ -260,22 +259,22 @@ max_input_length长度设置可参考模型权重路径下config.json里的max_p
   --RequestRate 1 \
   --TaskKind stream \
   --Tokenizer True \
-  --MaxOutputLen 20  \
+  --MaxOutputLen 20 \
   --WarmupSize 1 \
   --DoSampling False \
   --TrustRemoteCode False \
-  --Http http://127.0.0.1:${端口号，与参数配置时config.json中的'port'保持一致} \
-  --ManagementHttp http://127.0.0.2:${端口号，与参数配置时的config.json中的'managementPort'保持一致} \
+  --Http http://127.0.0.1:${端口号，与参数配置时 config.json 中的'port'保持一致} \
+  --ManagementHttp http://127.0.0.2:${端口号，与参数配置时的 config.json 中的'managementPort'保持一致} \
   --SavePath ${日志输出路径}
   ```
 
-完成数据集推理后，测试结果将打印展示数据集得分等指标，同时测试结果会保存在--SavePath路径下。
+完成数据集推理后，测试结果将打印展示数据集得分等指标，同时测试结果会保存在--SavePath 路径下。
 
-#### VideoBench视频+文本理解场景
+#### VideoBench 视频+文本理解场景
 
 - 数据准备
   - 数据集下载 [Eval_QA](https://huggingface.co/datasets/maoxx241/videobench_subset) && [Video-Bench](https://huggingface.co/datasets/LanguageBind/Video-Bench/tree/main)
-  - 将Eval_QA/目录下的各json文件中的vid_path改为相应视频的绝对路径
+  - 将 Eval_QA/目录下的各 json 文件中的 vid_path 改为相应视频的绝对路径
 
   ```json
   ...
@@ -285,21 +284,21 @@ max_input_length长度设置可参考模型权重路径下config.json里的max_p
   ...
   ```
 
-另起一个新的session并进入同一环境中（docker），使用benchmark工具进行数据集测试，执行如下benchmark命令：
+另起一个新的 session 并进入同一环境中（docker），使用 benchmark 工具进行数据集测试，执行如下 benchmark 命令：
 
-- 打开benchmark工具打印开关
+- 打开 benchmark 工具打印开关
 
   ```shell
   export MINDIE_LOG_TO_STDOUT="benchmark:1; client:1"
   ```
 
-- 发送benchmark推理请求（若出现trust_remote_code相关报错，需将--TrustRemoteCode置为True，可能引入文件读取风险，请知悉）
+- 发送 benchmark 推理请求（若出现 trust_remote_code 相关报错，需将--TrustRemoteCode 置为 True，可能引入文件读取风险，请知悉）
 
   ```shell
   benchmark \
   --TestAccuracy True \
-  --DatasetPath ${数据集中Eval_QA文件夹的绝对路径} \
-  --DatasetType videobench  \
+  --DatasetPath ${数据集中 Eval_QA 文件夹的绝对路径} \
+  --DatasetType videobench \
   --ModelName vita \
   --ModelPath ${模型权重的绝对路径} \
   --TestType client \
@@ -307,34 +306,34 @@ max_input_length长度设置可参考模型权重路径下config.json里的max_p
   --RequestRate 1 \
   --TaskKind stream \
   --Tokenizer True \
-  --MaxOutputLen 20  \
+  --MaxOutputLen 20 \
   --WarmupSize 1 \
   --DoSampling False \
   --TrustRemoteCode False \
-  --Http http://127.0.0.1:${端口号，与参数配置时config.json中的'port'保持一致} \
-  --ManagementHttp http://127.0.0.2:${端口号，与参数配置时的config.json中的'managementPort'保持一致} \
+  --Http http://127.0.0.1:${端口号，与参数配置时 config.json 中的'port'保持一致} \
+  --ManagementHttp http://127.0.0.2:${端口号，与参数配置时的 config.json 中的'managementPort'保持一致} \
   --SavePath ${日志输出路径}
   ```
 
-完成数据集推理后，测试结果将打印展示数据集得分等指标，同时测试结果会保存在--SavePath路径下。
+完成数据集推理后，测试结果将打印展示数据集得分等指标，同时测试结果会保存在--SavePath 路径下。
 
-### 服务化推理场景 Aisbench精度测试
+### 服务化推理场景 AISBench 精度测试
 
 - 首先按照[推理服务化部署](#推理服务化部署)，启动服务端进程
-- 参考[Aisbench/benchmark](https://github.com/AISBench/benchmark/)安装精度性能评测工具
-- 参考[开源数据集](https://github.com/AISBench/benchmark/blob/master/ais_bench/benchmark/configs/datasets/textvqa/README.md)下载TextVQA数据集
-- 参考[Eval_QA](https://huggingface.co/datasets/maoxx241/videobench_subset) && [Video-Bench](https://huggingface.co/datasets/LanguageBind/Video-Bench/tree/main)下载Videobench数据集
+- 参考 [AISBench/benchmark](https://github.com/AISBench/benchmark/) 安装精度性能评测工具
+- 参考[开源数据集](https://github.com/AISBench/benchmark/blob/master/ais_bench/benchmark/configs/datasets/textvqa/README.md)下载 TextVQA 数据集
+- 参考 [Eval_QA](https://huggingface.co/datasets/maoxx241/videobench_subset) && [Video-Bench](https://huggingface.co/datasets/LanguageBind/Video-Bench/tree/main) 下载 Videobench 数据集
 
 - TextVQA
   - 编辑 `ais_bench/benchmark/configs/datasets/textvqa/textvqa_gen.py`
     - 将其中 `path=` 指向 `textvqa_val.jsonl` 的绝对文件路径
-    - 将 `textvqa_eval_cfg` 字段里`evaluator`改为
+    - 将 `textvqa_eval_cfg` 字段里 `evaluator` 改为
     - `evaluator=dict(type=TEXTEvaluatorForVita)`
   - 建议保证 `textvqa_val.jsonl` 中每条样本的 `image` 字段为图片的绝对文件路径
 - VideoBench
   - 编辑 `ais_bench/benchmark/configs/datasets/videobench/videobench_gen.py`
     - 将其中 `path=` 指向 VideoBench 数据目录（`videobench/`）的绝对路径
-    - 将 `videobench_eval_cfg` 字段里`evaluator`改为
+    - 将 `videobench_eval_cfg` 字段里 `evaluator` 改为
     - `evaluator=dict(type=VideoBenchEvaluatorForVita)`
   - 确保 VideoBench 样本中的视频文件路径对推理服务可访问（权限/路径在服务端侧需成立）
 
@@ -349,12 +348,12 @@ models = [
         type=VITAGenerateAPI,
         abbr="vita-generate-chat",
         path="/mnt/nfs/weight/VITA-MLLM/VITA-1___5", # 自定义本地权重路径
-        model="vita",  # 模型名称配置为vita
+        model="vita", # 模型名称配置为 vita
         stream=False,
         request_rate=0,
         retry=2,
         api_key="",
-        host_ip="127.0.0.1",  # 服务IP地址
+        host_ip="127.0.0.1", # 服务 IP 地址
         host_port=1025, # 服务业务面端口号，与服务化推理配置保持一致
         url="",
         max_out_len=512,
@@ -371,29 +370,29 @@ models = [
 执行命令开始精度测试
 
 ```shell
-ais_bench --models vita_generate_chat --datasets textvqa_gen --debug      # textvqa精度测试
-ais_bench --models vita_generate_chat --datasets videobench_gen --debug      # videobench精度测试
+ais_bench --models vita_generate_chat --datasets textvqa_gen --debug # textvqa 精度测试
+ais_bench --models vita_generate_chat --datasets videobench_gen --debug # videobench 精度测试
 ```
 
 ### 服务化推理场景 性能测试
 
-首先按照[推理服务化部署](#推理服务化部署)，启动服务，并完成[textvqa_val_performance](https://huggingface.co/datasets/maoxx241/textvqa_val_performance)数据集下载
+首先按照[推理服务化部署](#推理服务化部署)，启动服务，并完成 [textvqa_val_performance](https://huggingface.co/datasets/maoxx241/textvqa_val_performance) 数据集下载
 
-另起一个新的session并进入同一环境中（docker），使用benchmark工具进行数据集测试，执行如下benchmark命令：
+另起一个新的 session 并进入同一环境中（docker），使用 benchmark 工具进行数据集测试，执行如下 benchmark 命令：
 
-- 打开benchmark工具打印开关
+- 打开 benchmark 工具打印开关
 
   ```shell
   export MINDIE_LOG_TO_STDOUT="benchmark:1; client:1"
   ```
 
-- 发送benchmark推理请求（若出现trust_remote_code相关报错，需将--TrustRemoteCode置为True，可能引入文件读取风险，请知悉）
+- 发送 benchmark 推理请求（若出现 trust_remote_code 相关报错，需将--TrustRemoteCode 置为 True，可能引入文件读取风险，请知悉）
 
   ```shell
   benchmark \
   --TestAccuracy False \
-  --DatasetPath ${textvqa_val_performance数据集中textvqa_val.jsonl的绝对路径} \
-  --DatasetType textvqa  \
+  --DatasetPath ${textvqa_val_performance 数据集中 textvqa_val.jsonl 的绝对路径} \
+  --DatasetType textvqa \
   --ModelName vita \
   --ModelPath ${模型权重的绝对路径} \
   --TestType client \
@@ -401,19 +400,19 @@ ais_bench --models vita_generate_chat --datasets videobench_gen --debug      # v
   --RequestRate 64 \
   --TaskKind stream \
   --Tokenizer True \
-  --MaxOutputLen 256  \
+  --MaxOutputLen 256 \
   --WarmupSize 1 \
   --DoSampling False \
   --TrustRemoteCode False \
-  --Http http://127.0.0.1:${端口号，与参数配置时config.json中的'port'保持一致} \
-  --ManagementHttp http://127.0.0.2:${端口号，与参数配置时的config.json中的'managementPort'保持一致} \
+  --Http http://127.0.0.1:${端口号，与参数配置时 config.json 中的'port'保持一致} \
+  --ManagementHttp http://127.0.0.2:${端口号，与参数配置时的 config.json 中的'managementPort'保持一致} \
   --SavePath ${日志输出路径}
   ```
 
-完成数据集推理后，测试结果将打印展示吞吐(GenerationSpeed)等性能指标，同时测试结果会保存在--SavePath路径下。
+完成数据集推理后，测试结果将打印展示吞吐(GenerationSpeed)等性能指标，同时测试结果会保存在--SavePath 路径下。
 
 ## FAQ
 
-- 在对话测试或者精度测试时，用户如果需要修改输入input_texts,max_batch_size时，可以修改`${script_path}/vita.py`里的参数，具体可见vita.py
-- 更多环境变量见[此README文件](../../README.md)
+- 在对话测试或者精度测试时，用户如果需要修改输入 input_texts,max_batch_size 时，可以修改`${script_path}/vita.py` 里的参数，具体可见 vita.py
+- 更多环境变量见[此 README 文件](../../README.md)
 - 服务化集成部署更多信息可参考昇腾社区 MindIE 服务化集成部署章节
