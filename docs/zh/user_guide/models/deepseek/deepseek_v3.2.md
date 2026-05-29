@@ -276,6 +276,7 @@ user_config_base_A3.json       # 针对 A3 硬件的服务配置
     "TASK_QUEUE_ENABLE": 0,            # 关闭任务队列，避免多流场景下精度问题
     "NPU_MEMORY_FRACTION": 0.8,
     "HCCL_CONNECT_TIMEOUT": 7200,
+    "HCCL_BUFFSIZE": 1050,
     "HCCL_OP_EXPANSION_MODE": "HOST",  # 使用 HOST 模式，避免通信算子偶发报错
     ...
   }
