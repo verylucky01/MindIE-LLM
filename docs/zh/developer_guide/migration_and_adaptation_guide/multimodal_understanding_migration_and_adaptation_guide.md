@@ -709,7 +709,7 @@ class FlashInternvlForCausalLM(FlashForCausalLM):
 
 ### 非OpenAI接口适配
 
- 1. <a id="step1"></a>tokenize\(\) 函数输入
+1. <a id="step1"></a>tokenize\(\) 函数输入
 
     服务化传递过来的输入一定是List\[Dict\]类型的，其中字典包含的Keys目前有：image、video、audio、text四种。示例如下：
 
@@ -722,7 +722,7 @@ class FlashInternvlForCausalLM(FlashForCausalLM):
     ]
     ```
 
- 2. tokenize\(\) 函数实现
+2. tokenize\(\) 函数实现
 
     ![](./figures/tokenize_function.png)
 
@@ -805,7 +805,7 @@ class FlashInternvlForCausalLM(FlashForCausalLM):
     >            shm_utils.release_shared_memory(args.shm_name_save_path)
     >    ```
 
- 3. forward\(\) 多媒体数据处理
+3. forward\(\) 多媒体数据处理
 
     模型的flashcacusal类的forward\(\)中，实际就是tokenize\(\)的逆变换。
 

@@ -48,6 +48,7 @@ def get_model(model_name_or_path: str,
               enable_edge: bool = False,
               llm_config_path: str = None,
               models_dict: dict = None,
+              block_size: int = None,
               sub_model_path: str = ""):
     model_name_or_path = file_utils.standardize_path(model_name_or_path, check_link=False)
     file_utils.check_path_permission(model_name_or_path)

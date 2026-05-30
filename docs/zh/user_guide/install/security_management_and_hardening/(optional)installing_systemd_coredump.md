@@ -67,25 +67,25 @@ systemd-coredump是由systemd提供的一个核心转储（core dump）处理与
     ```
 
 5. 执行以下命令查看core dump的相关信息与调试。
-   - 查看已保存的coredump：
+    - 查看已保存的coredump：
 
         ```bash
         sudo coredumpctl list
         ```
 
-   - 查看core dump的详细信息：
+    - 查看core dump的详细信息：
 
         ```bash
         sudo coredumpctl info <PID>
         ```
 
-   - 导出core dump到文件：
+    - 导出core dump到文件：
 
         ```bash
         sudo coredumpctl dump <PID> > /tmp/corefile
         ```
 
-   - 分析core dump：
+    - 分析core dump：
 
         ```bash
         gdb /path/to/program /tmp/corefile

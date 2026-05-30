@@ -7,7 +7,7 @@
 
 离群值抑制（Anti-Outlier）主要用于解决模型量化中因激活值分布存在异常值（Outlier）而导致的精度损失问题。在大模型量化过程中，如果激活值中存在数值极大的离群点，会拉大量化区间（Scale），导致大部分正常数值的量化分辨率降低，从而严重影响模型精度。该技术通过对离群值进行平滑或抑制处理，有效改善数据分布，确保量化后的模型仍能保持较高的推理精度。
 
-> [!NOTE]说明 
+> [!NOTE]说明
 > Anti-Outlier可以配合其他量化方式一起使用，如 W4A8、W8A8、W8A8C8 等。
 
 以下展示了W8A8 + Anti-Outlier + PDMIX量化后权重描述文件 `quant_model_description.json` 中的部分内容：
@@ -38,9 +38,9 @@
 在实际的模型权重中，`norm_bias`在Linear层的抵消张量，会根据量化场景的不同，以不同方式融合：
 
 - **Per-tensor场景**：直接融合进Linear层的量化偏置`quant_bias`中。
-    - 例如上文示例中的`model.layers.0.self_attn.q_proj.quant_bias`。
+  - 例如上文示例中的`model.layers.0.self_attn.q_proj.quant_bias`。
 - **Per-token场景**：体现为Linear层的普通偏置`bias`。
-    - 例如上文示例中的`model.layers.0.self_attn.q_proj.bias`。
+  - 例如上文示例中的`model.layers.0.self_attn.q_proj.bias`。
 
 > [!NOTE]说明
 >

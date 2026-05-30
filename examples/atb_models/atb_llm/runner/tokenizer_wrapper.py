@@ -23,7 +23,7 @@ METADATA_KEY = "metadata"
 
 
 class TruncationSide(int, Enum):
-    Disable = 0
+    DISABLE = 0
     LEFT = 1
     RIGHT = -1
 
@@ -103,7 +103,7 @@ class TokenizerWrapper:
             token_ids = self.input_builder.make_context(0, inputs, **kwargs)
         else:
             truncation_method = kwargs.pop(self.truncation, TruncationSide.RIGHT)
-            if truncation_method == TruncationSide.Disable:
+            if truncation_method == TruncationSide.DISABLE:
                 kwargs[self.truncation] = False
             else:
                 kwargs[self.truncation] = True

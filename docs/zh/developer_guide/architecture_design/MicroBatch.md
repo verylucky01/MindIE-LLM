@@ -34,34 +34,34 @@ Micro Batch 即在批处理过程中，将数据切分为更小粒度的多个 b
 
 2. 配置服务化参数。在 Server 的 `config.json` 文件中添加 `"micro_batch"` 字段（如下加粗部分），参数字段说明请参见表 **Micro Batch 特性补充参数：ModelConfig 中的 models 参数**，服务化参数说明请参见 5.2-配置参数说明（服务化）章节，参数配置示例如下：
 
-```json
-"ModelDeployConfig": {
-  "maxSeqLen": 2560,
-  "maxInputTokenLen": 2048,
-  "truncation": 0,
-  "ModelConfig": [
-    {
-      "modelInstanceType": "Standard",
-      "modelName": "Qwen3-14B",
-      "modelWeightPath": "/data/weights/Qwen3-14B",
-      "worldSize": 8,
-      "cpuMemSize": 5,
-      "npuMemSize": -1,
-      "backendType": "atb",
-      "trustRemoteCode": false,
-      "models": {
-        "qwen3": {
-          "ccl": {
-            "enable_mc2": false
-          },
-          "stream_options": {
-            "micro_batch": true
+    ```json
+    "ModelDeployConfig": {
+      "maxSeqLen": 2560,
+      "maxInputTokenLen": 2048,
+      "truncation": 0,
+      "ModelConfig": [
+        {
+          "modelInstanceType": "Standard",
+          "modelName": "Qwen3-14B",
+          "modelWeightPath": "/data/weights/Qwen3-14B",
+          "worldSize": 8,
+          "cpuMemSize": 5,
+          "npuMemSize": -1,
+          "backendType": "atb",
+          "trustRemoteCode": false,
+          "models": {
+            "qwen3": {
+              "ccl": {
+                "enable_mc2": false
+              },
+              "stream_options": {
+                "micro_batch": true
+              }
+            }
           }
         }
+      ]
       }
-    }
-  ]
-  }
     ```
 
 3. 启动服务。

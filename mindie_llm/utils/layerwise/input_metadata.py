@@ -10,9 +10,12 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 
-import queue
+from collections import defaultdict
 from mindie_llm.connector.common.input_metadata_composite import InputMetadataComposite
 from mindie_llm.utils.layerwise.request_metadata import LwdMetadata
+
+REQUEST_KEY_PREFILL = "prefill"
+REQUEST_KEY_DECODE = "decode"
 
 
 class EdgeCloudInputMetadata:
@@ -24,9 +27,10 @@ class EdgeCloudInputMetadata:
         return cls._instance
 
     def __init__(self):
-        self.decode_input_metadata_composite = None
-        self.prefill_input_metadata_composite = None
-        self.prefill_input_metadata_composite_queue = queue.Queue()
+        self.request_metadata_map = {
+            REQUEST_KEY_PREFILL: defaultdict(lambda: None),
+            REQUEST_KEY_DECODE: defaultdict(lambda: None),
+        }
 
     @staticmethod
     def have_input_metadata(exe_stage: LwdMetadata):
@@ -51,22 +55,23 @@ class EdgeCloudInputMetadata:
 
     def get_input_metadata(self, is_prefill, exe_stage: LwdMetadata):
         # prefill的metadata缓存，如当前为None，则从队列中获取一个；当执行到当前P的最后一次，则讲缓存置为None，待下次从队列获取
+        request_key = exe_stage.request_key
         if is_prefill:
-            if self.prefill_input_metadata_composite is None:
-                self.prefill_input_metadata_composite = self.prefill_input_metadata_composite_queue.get(block=False)
-
-            input_metadata_composite = self.prefill_input_metadata_composite
+            input_metadata_composite = self.request_metadata_map[REQUEST_KEY_PREFILL][request_key]
             if exe_stage.end_of_generate_token:
-                self.prefill_input_metadata_composite = None
+                del self.request_metadata_map[REQUEST_KEY_PREFILL][request_key]
             return input_metadata_composite
         else:
-            return self.decode_input_metadata_composite
+            input_metadata_composite = self.request_metadata_map[REQUEST_KEY_DECODE][request_key]
+            del self.request_metadata_map[REQUEST_KEY_DECODE][request_key]
+            return input_metadata_composite
 
     def set_input_metadata(self, input_metadata_composite: InputMetadataComposite, is_prefill):
+        request_key = input_metadata_composite.input_metadata.layerwise_disaggregated_exe_stage.request_key
         if is_prefill:
-            self.prefill_input_metadata_composite_queue.put(input_metadata_composite)
+            self.request_metadata_map[REQUEST_KEY_PREFILL][request_key] = input_metadata_composite
         else:
-            self.decode_input_metadata_composite = input_metadata_composite
+            self.request_metadata_map[REQUEST_KEY_DECODE][request_key] = input_metadata_composite
 
 
-pd_exec_matadata_instance = EdgeCloudInputMetadata()
+lwd_metadata_instance = EdgeCloudInputMetadata()

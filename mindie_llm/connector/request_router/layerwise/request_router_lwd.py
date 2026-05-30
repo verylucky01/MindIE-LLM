@@ -10,7 +10,7 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import json
 import queue
 import sys
@@ -23,9 +23,15 @@ from collections import deque
 import numpy as np
 
 from mindie_llm.connector.common import send_model_execute_response
-from mindie_llm.connector.common.input_metadata_builder import parse_all_dp_batches_seq_lens
+from mindie_llm.connector.common.input_metadata_builder import (
+    parse_all_dp_batches_seq_lens,
+)
 from mindie_llm.connector.common.response_builder import ExecuteResponseBuilder
-from mindie_llm.connector.common.model_execute_data_pb2 import ExecuteRequest, ExecuteType, ForwardType
+from mindie_llm.connector.common.model_execute_data_pb2 import (
+    ExecuteRequest,
+    ExecuteType,
+    ForwardType,
+)
 from mindie_llm.connector.request_router.request_router import RequestRouter
 from mindie_llm.utils.layerwise.communication import LwdCommunicationManager
 from mindie_llm.utils.layerwise.share_memory import SharedMemoryManager
@@ -77,6 +83,13 @@ class DecisionMetadata:  # 兼容长短序列, 短序列就是一个chunk, 一�
 
 
 @dataclass
+class ChunkPolicyData:  # 兼容长短序列
+    edge_policy: list[int] = field(default_factory=list)  # 边侧的chunk policy(每段长度)
+    cloud_policy: list[int] = field(default_factory=list)  # 云侧的chunk policy(每段长度)
+    eq_num_list: list[int] = field(default_factory=list)  # 云侧每个chunk等于边侧的chunk数(每一小段)
+
+
+@dataclass
 class RequestInfo:
     request: ExecuteRequest
     layers_divi_num: int = -1
@@ -84,6 +97,7 @@ class RequestInfo:
     prefill_metadata_ready: bool = False
     prefill_dp_max_seq_len: int = 0  # 多dp中的最大长度, 如果只有一个dp就是本身的长度
     dp_empty: bool = False
+    chunk_data: ChunkPolicyData = field(default_factory=ChunkPolicyData)  # chunk policy数据
 
 
 class RequestRouterLwd(RequestRouter):

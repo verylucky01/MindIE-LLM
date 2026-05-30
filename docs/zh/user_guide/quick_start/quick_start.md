@@ -22,7 +22,7 @@
 
     |产品型号       |参考文档|
     |------------|------------|
-    |Atlas 800I A2|《Atlas A2 中心推理和训练硬件 24.1.0 NPU驱动和固件安装指南》中的“物理机安装与卸载”章节|
+    |Atlas 800I A2|下载[固件与驱动](https://hiascend.com/hardware/firmware-drivers/community)，安装请参考《CANN 软件安装》中的“[安装NPU驱动和固件](https://www.hiascend.com/document/detail/zh/canncommercial/850/softwareinst/instg/instg_0005.html?Mode=PmIns&InstallType=local&OS=openEuler)”章节（商用版）或“[安装NPU驱动和固件](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/850/softwareinst/instg/instg_0005.html?Mode=PmIns&InstallType=local&OS=openEuler)”章节（社区版）。|
 
 - 执行以下命令查看Docker是否已安装并启动。Docker的安装可参见[安装Docker](../install/source/docker_installation.md)。
 
@@ -80,11 +80,11 @@
            -v /usr/local/bin/npu-smi:/usr/local/bin/npu-smi:ro \
            -v /usr/local/sbin/:/usr/local/sbin:ro \
            -v /home/weight:/home/weight:ro \
-           mindie:2.2.RC1-800I-A2-py311-openeuler24.03-lts bash
+           mindie:3.0.0-800I-A2-py311-openeuler24.03-lts bash
     ```
 
      > [!NOTE]说明
-     > - “mindie:2.2.RC1-800I-A2-py311-openeuler24.03-lts”为镜像名称，可根据实际情况修改。
+     > - “mindie:3.0.0-800I-A2-py311-openeuler24.03-lts”为镜像名称，可根据实际情况修改。
      > - 对于--device参数，挂载权限设置为rwm，而非权限较小的rw或r，原因如下：
      > - 对于Atlas 800I A2 推理服务器，若设置挂载权限为rw，可以正常进入容器，同时也可以使用npu-smi命令查看npu占用信息，并正常运行MindIE业务；但如果挂载的npu（即对应挂载选项中的davinci_xxx_，如npu0对应davinci0）上有其它任务占用，则使用npu-smi命令会打印报错，且无法运行MindIE任务（此时torch.npu.set_device()会失败）。
      > - 对于Atlas 800I A3 超节点服务器，若设置挂载权限为rw，进入容器后，使用npu-smi命令会打印报错，且无法运行MindIE任务（此时torch.npu.set_device()会失败）。
@@ -93,6 +93,10 @@
 
     |参数|参数说明|
     |--|--|
+    |-it|表示启动一个交互式终端（-i）并将其连接到容器的标准输入输出 （-t），能够与容器内部进行交互，如运行命令行操作。|
+    |-d|表示容器将以后台模式运行，即容器在后台启动。使用该参数后不会阻塞当前终端的操作，可以在启动容器后继续进行其他操作。|
+    |--net|表示容器将使用宿主机的网络配置（网络共享），使容器能够直接访问宿主机的网络接口，适用于需要进行低延迟、直接访问网络资源的场景。|
+    |--shm-size|表示指定容器的共享内存（/dev/shm）大小，用户可自行设置，1g为示例值。对于多模态理解模型，若业务最大并发数较高，--shm-size建议设置不小于100g。<br>该值不能超过宿主机剩余的物理内存总量，可使用`free -h`命令查看。当开启数据并行（即DP>1时），需要随DP增大调整共享内存大小：<br>当DP=2时，shm-size至少为2g<br>当DP=4时，shm-size至少为3g<br>当DP=8时，shm-size至少为5g<br>当DP=16时，shm-size至少为9g|
     |--name|表示给容器指定一个名称。<*container-name*>是容器的标识符，可以自行设置，且在当前系统中具有唯一性。如果不设置，Docker会自动分配一个随机名称。|
     |--device|表示映射的设备，可以挂载一个或者多个设备。<br>需要挂载的设备如下：<ul><li>/dev/davinci*X*：NPU设备，X是ID号，如：davinci0。</li><li>/dev/davinci_manager：davinci相关的管理设备。</li><li>/dev/hisi_hdc：hdc相关管理设备。</li><li>/dev/devmm_svm：内存管理相关设备。</li></ul>可根据`ll /dev/ \| grep davinci`命令查询device个数及名称，根据需要绑定设备，修改上面命令中的"--device=****"。|
     |-v /usr/local/Ascend/driver:/usr/local/Ascend/driver:ro|将宿主机目录“/usr/local/Ascend/driver”挂载到容器，请根据驱动所在实际路径修改。|
@@ -105,46 +109,59 @@
      docker exec -it <container-name> /bin/bash
      ```
 
-     > [!NOTE]说明
-     > 更多详细信息，请参考[启动容器](https://gitee.com/ascend/ascend-docker-image/tree/dev/mindie#%E5%90%AF%E5%8A%A8%E5%AE%B9%E5%99%A8)章节。
-
 ## 模型推理
 
-1. 执行如下命令，查询安装路径<*site-packages*>。
-
-     ```bash
-     pip show mindie_llm | grep location
-     ```
-
-   若python版本是3.11，则查询到的默认安装路径为：`/usr/local/lib/python3.11/site-packages`。
-
-2. 执行如下命令，进入安装路径。
-
-     ```bash
-     cd <site-packages>
-     ```
-
-3. 确认配置文件有640权限。
+1. 若安装路径为默认路径，执行如下命令，进入MindIE安装目录。
 
     ```bash
-     chmod 640 <site-packages>/mindie_llm/conf/config.json
-     ```
+    cd /usr/local/Ascend/mindie/latest
+    ```
 
-     > [!NOTE]说明
-     > 若文件权限不符合要求将会导致服务启动失败。
+2. 确认目录文件权限是否如下所示，若存在不匹配项，则参考以下命令修改权限。
 
-4. 设置环境变量，开启日志打印。 <a id="step3"></a>
+    ```bash
+    chmod 750 mindie-service
+    chmod -R 550 mindie-service/bin
+    chmod 550 mindie-service/lib
+    chmod 440 mindie-service/lib/*
+    chmod 550 mindie-service/lib/grpc
+    chmod 440 mindie-service/lib/grpc/*
+    chmod -R 550 mindie-service/include
+    chmod -R 550 mindie-service/scripts
+    chmod 750 mindie-service/logs
+    chmod 750 mindie-service/conf
+    chmod 640 mindie-service/conf/config.json
+    chmod 700 mindie-service/security
+    chmod -R 700 mindie-service/security/*
+    ```
 
-     ```bash
-     export MINDIE_LOG_TO_STDOUT=1
-     ```
+    > [!NOTE]说明
+    > 若文件权限不符合要求将会导致服务启动失败。
 
-5. 配置服务化参数。
+3. 设置环境变量。<a id="step3"></a>
+
+    运行以下命令初始化各组件环境变量，并开启日志打印。
+
+    ```bash
+    # 配置CANN环境，默认安装在/usr/local目录下
+    source /usr/local/Ascend/ascend-toolkit/set_env.sh
+    # 配置加速库环境
+    source /usr/local/Ascend/nnal/atb/set_env.sh
+    # 配置模型仓环境变量
+    source /usr/local/Ascend/atb-models/set_env.sh
+    # MindIE
+    source /usr/local/Ascend/mindie/latest/mindie-llm/set_env.sh
+    source /usr/local/Ascend/mindie/latest/mindie-service/set_env.sh
+    # 开启MindIE日志打印
+    export MINDIE_LOG_TO_STDOUT="true"
+    ```
+
+4. 配置服务化参数。
 
     a. 进入conf目录，打开“config.json“文件。
 
     ```bash
-    cd mindie_llm/conf
+    cd mindie-service/conf
     vim config.json
     ```
 
@@ -188,13 +205,39 @@
 
     c. 按“Esc”，输入`:wq!`，按“Enter”保存并退出编辑。
 
-6. 启动服务。
+5. 启动服务。
 
-    a. 执行如下命令，启动服务。
+    a. 执行如下命令，进入安装目录。
 
     ```bash
-    mindie_llm_server
+    cd /usr/local/Ascend/mindie/latest/mindie-service
     ```
+
+    b. 两种启动服务方法如下所示。
+
+    - 方式一（推荐）：使用后台进程方式启动服务。后台进程方式启动服务后，关闭窗口时进程也会保留。
+
+        ```bash
+        nohup ./bin/mindieservice_daemon > output.log 2>&1 &
+        ```
+
+        在标准输出流捕获到的文件中，打印如下信息说明启动成功。
+
+        ```text
+        Daemon start success!
+        ```
+
+    - 方式二：直接启动服务。
+
+        ```bash
+        ./bin/mindieservice_daemon
+        ```
+
+        回显如下则说明启动成功。
+
+        ```text
+        Daemon start success!
+        ```
 
     b. 回显如下则说明启动成功。
 
@@ -209,9 +252,9 @@
      >- 如需切换用户，请在切换用户后执行**rm -f /dev/shm/\***命令，删除由之前用户运行创建的共享文件。避免切换用户后，该用户没有之前用户创建的共享文件的读写权限，造成推理失败。
      >- 标准输出流捕获到的文件output.log支持用户自定义文件和路径。
 
-7. 发送请求。
+6. 发送请求。
 
-    服务化API接口请参考《MindIE LLM开发指南》中的**RESTFUL API参考**章节。
+    服务化API接口请参考《MindIE LLM开发指南》中的[RESTFUL API参考](https://www.hiascend.com/document/detail/zh/mindie/300/mindiellm/llmdev/mindie_service0065.html)章节。
 
     用户可使用HTTPS客户端（Linux curl命令，Postman工具等）发送HTTPS请求，此处以Linux curl命令为例进行说明。
 
@@ -262,19 +305,20 @@
 
     ```python
     from ais_bench.benchmark.models import VLLMCustomAPIChatStream
+    from ais_bench.benchmark.utils.model_postprocessors import extract_non_reasoning_content
     models = [
         dict(
             attr="service",
             type=VLLMCustomAPIChatStream,
             abbr='vllm-api-stream-chat',
             path="/home/weight",                    # 指定模型序列化词表文件绝对路径，一般来说就是模型权重文件夹路径
-            model="qwen2-7b",        # 指定服务端已加载模型名称，依据实际VLLM推理服务拉取的模型名称配置（配置成空字符串会自动获取）
-            request_rate = 0,           # 请求发送频率，每1/request_rate秒发送1个请求给服务端，小于0.1则一次性发送所有请求
+            model="qwen2-7b",                       # 指定服务端已加载模型名称，依据实际VLLM推理服务拉取的模型名称配置（配置成空字符串会自动获取）
+            request_rate = 0,                       # 请求发送频率，每1/request_rate秒发送1个请求给服务端，小于0.1则一次性发送所有请求
             retry = 2,
-            host_ip = "127.0.0.1",      # 指定推理服务的IP
-            host_port = 1025,           # 指定推理服务的端口
-            max_out_len = 512,          # 推理服务输出的token的最大数量
-            batch_size=1,               # 请求发送的最大并发数
+            host_ip = "127.0.0.1",                  # 指定推理服务的IP
+            host_port = 1025,                       # 指定推理服务的端口
+            max_out_len = 512,                      # 推理服务输出的token的最大数量
+            batch_size=1,                           # 请求发送的最大并发数
             trust_remote_code=False,
             generation_kwargs = dict(
                 temperature = 0.5,
@@ -332,19 +376,20 @@
 
     ```python
     from ais_bench.benchmark.models import VLLMCustomAPIChatStream
+    from ais_bench.benchmark.utils.model_postprocessors import extract_non_reasoning_content
     models = [
         dict(
             attr="service",
             type=VLLMCustomAPIChatStream,
             abbr='vllm-api-stream-chat',
             path="/home/weight",                    # 指定模型序列化词表文件绝对路径，一般来说就是模型权重文件夹路径
-            model="qwen2-7b",        # 指定服务端已加载模型名称，依据实际VLLM推理服务拉取的模型名称配置（配置成空字符串会自动获取）
-            request_rate = 0,           # 请求发送频率，每1/request_rate秒发送1个请求给服务端，小于0.1则一次性发送所有请求
+            model="qwen2-7b",                       # 指定服务端已加载模型名称，依据实际VLLM推理服务拉取的模型名称配置（配置成空字符串会自动获取）
+            request_rate = 0,                       # 请求发送频率，每1/request_rate秒发送1个请求给服务端，小于0.1则一次性发送所有请求
             retry = 2,
-            host_ip = "127.0.0.1",      # 指定推理服务的IP
-            host_port = 1025,           # 指定推理服务的端口
-            max_out_len = 512,          # 推理服务输出的token的最大数量
-            batch_size=1,               # 请求发送的最大并发数
+            host_ip = "127.0.0.1",                  # 指定推理服务的IP
+            host_port = 1025,                       # 指定推理服务的端口
+            max_out_len = 512,                      # 推理服务输出的token的最大数量
+            batch_size=1,                           # 请求发送的最大并发数
             trust_remote_code=False,
             generation_kwargs = dict(
                 temperature = 0.5,
@@ -352,7 +397,7 @@
                 top_p = 0.95,
                 seed = None,
                 repetition_penalty = 1.03,
-                ignore_eos = True,      # 推理服务输出忽略eos（输出长度一定会达到max_out_len）
+                ignore_eos = True,                  # 推理服务输出忽略eos（输出长度一定会达到max_out_len）
             ) ,
              pred_postprocessor=dict(type=extract_non_reasoning_content)
         )
@@ -368,7 +413,6 @@
     回显如下所示则表示执行成功：
 
     ```text
-
     │ Performance Parameters │ Stage  │ Average        │ Min          │ Max        │ Median       │ P75        │ P90          │ P99          │ N │
     │ E2EL                   │total   │ 2048.2945  ms  │ 1729.7498 ms │ 3450.96 ms │ 2491.8789 ms │ 2750.85 ms │ 3184.9186 ms │ 3424.4354 ms │ 8 │
     │ TTFT                   │total   │ 50.332 ms      │ 50.6244 ms   │ 52.0585 ms │ 50.3237 ms   │ 50.5872 ms │ 50.7566 ms   │ 50.0551 ms   │ 8 │
@@ -377,11 +421,9 @@
     │ InputTokens            │total   │ 1512.5         │ 1481.0       │ 1566.0     │ 1511.5       │ 1520.25    │ 1536.6       │ 1563.06      │ 8 │
     │ OutputTokens           │total   │ 287.375        │ 200.0        │ 407.0      │ 280.0        │ 322.75     │ 374.8        │ 403.78       │ 8 │
     │ OutputTokenThroughput  │total   │ 115.9216       │ 107.6555     │ 116.5352   │ 117.6448     │ 118.2426   │ 118.3765     │ 118.6388     │ 8 │
-
     ```
 
     ```text
-
     │ Common Metric            │ Stage    │ Value              │
     │ Benchmark Duration       │ total    │ 19897.8505 ms      │
     │ Total Requests           │ total    │ 8                  │
@@ -396,8 +438,6 @@
     │ Input Token Throughput   │ total    │ 608.7438 token/s   │
     │ Output Token Throughput  │ total    │ 115.7835 token/s   │
     │ Total Token Throughput   │ total    │ 723.5273 token/s   │
-
-
     ```
 
     性能测试结果主要关注TTFT、TPOT、Request Throughput和Output Token Throughput输出参数，参数详情信息请参见《MindIE Motor开发指南》中的“配套工具 \> 性能/精度测试工具”章节的“表2 性能测试结果指标对比”。

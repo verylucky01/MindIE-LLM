@@ -12,6 +12,7 @@ if [[ "$SOC_VERSION" =~ ^ascend910b ]]; then
 
     CUSTOM_OPS_ARRAY=(
         "lightning_indexer"
+        "apply_top_k_top_p_custom"
     )
 
     CUSTOM_OPS=$(IFS=';'; echo "${CUSTOM_OPS_ARRAY[*]}")
@@ -23,7 +24,7 @@ elif [[ "$SOC_VERSION" =~ ^ascend910_93 ]]; then
 
     CUSTOM_OPS_ARRAY=(
         "dispatch_ffn_combine"
-        "dispatch_gmm_combine_decode"
+        "apply_top_k_top_p_custom"
     )
     CUSTOM_OPS=$(IFS=';'; echo "${CUSTOM_OPS_ARRAY[*]}")
     SOC_ARG="ascend910_93"

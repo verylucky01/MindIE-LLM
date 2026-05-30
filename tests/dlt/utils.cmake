@@ -143,10 +143,7 @@ function(build_test module type list_libraries list_includes)
         ${PYTORCH_INSTALL_PATH}/lib
         ${PYTORCH_EXTRA_LIB_SO}
     )
-    add_custom_target(${module}_${type} ALL
-        COMMAND env LD_LIBRARY_PATH=${LD_LIBRARY_PATH_STR}
-        bash -c "ctest --verbose" || exit -1
-        COMMENT "Run testing: ${TEST_BINARY}"
+    set_tests_properties(${module}_${type} PROPERTIES
+        ENVIRONMENT "LD_LIBRARY_PATH=${LD_LIBRARY_PATH_STR}"
     )
-    add_dependencies(${module}_${type} ${TEST_BINARY})
 endfunction()

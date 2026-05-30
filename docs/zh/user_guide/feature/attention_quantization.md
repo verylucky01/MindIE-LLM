@@ -4,7 +4,7 @@
 
 此量化方式将q，k，v量化为8bit，通过减少KV Cache的显存占用，优化decode阶段attention算子的速度，提升吞吐。
 
-> [!NOTE]说明 
+> [!NOTE]说明
 >
 >- 仅Atlas 800I A2 推理服务器支持Attention量化。
 >- 仅支持W8A8配合使用。
@@ -58,7 +58,7 @@ Attention量化搭配W8A8量化后权重目录结构：
 
 和W8A8量化权重相比，新增fa\_quant\_type描述字段，新增self\_attn字段及下面包含的内容，input\_scale用于将q，k，v特征量化为int8类型，deq\_scale用于将q，k，v输出反量化成浮点类型。
 
-**图 1**  量化权重推理时流程  
+**图 1**  量化权重推理时流程
 
 ![](./figures/attention_quantization.png)
 

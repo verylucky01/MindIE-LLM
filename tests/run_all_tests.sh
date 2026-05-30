@@ -37,11 +37,32 @@ function export_mindie_llm_env()
 # dt测试build入口
 function fn_build_dt()
 {
+    if [ -e "modify_files.txt" ]; then
+        fn_check_test_ci
+    else
+        fn_check_test
+        if [ -e "$OUTPUT_DIR/result.txt" ]; then
+            rm $OUTPUT_DIR/result.txt
+        fi
+    fi
+
     if [ $CPP_TEST_ENABLE -eq 1 ]; then
         bash ${PROJECT_DIR}/build.sh unittest
     elif [ $PYTHON_TEST_ENABLE -eq 1 ]; then
         bash ${PROJECT_DIR}/build.sh
     fi
+}
+
+function fn_run_dt() {
+    local build_dir="${1:-build}"
+
+    if [[ ! -d "$build_dir" ]]; then
+        echo "Error: Build directory '$build_dir' not found"
+        return 1
+    fi
+
+    echo "Running tests in $build_dir..."
+    ctest --test-dir "$build_dir" --verbose --output-on-failure
 }
 
 # 构建cpp代码覆盖率
@@ -141,7 +162,7 @@ function fn_run_pythontest()
     # 等待所有设备测试完成
  	for pid in "${pids[@]}"; do
  	    wait $pid
- 	done   
+ 	done
 
     # 提取每个文件的行覆盖率
     grep -o '<class name="[^"]*" filename="[^"]*" complexity="[^"]*" line-rate="[^"]*" branch-rate="[^"]*">' coverage.xml |
@@ -224,27 +245,27 @@ function fn_main()
         fi
     fi
 
-    fn_build_dt
+    fn_run_dt
 
     export_mindie_llm_env
-    
+
     pids=()
     task_times=()
-    
+
     if [ $PYTHON_TEST_ENABLE -eq 1 ]; then
-        ( 
+        (
             fn_run_pythontest
         ) &
         pids+=($!)
     fi
 
     if [ $CPP_TEST_ENABLE -eq 1 ]; then
-        ( 
+        (
             fn_build_coverage
         ) &
         pids+=($!)
     fi
-    
+
     for pid in "${pids[@]}"; do
         wait $pid
     done
@@ -257,4 +278,13 @@ function fn_main()
         fn_coverage_gate
     fi
 }
-fn_main "$@"
+
+case "$1" in
+    fn_build_dt)
+        shift  # 移除第一个参数
+        fn_build_dt
+        ;;
+    *)
+        fn_main # 执行原来抽离编译的逻辑
+        ;;
+esac

@@ -14,6 +14,8 @@ from typing import Any, List
 
 import numpy as np
 import torch
+import torch_npu as torch_npu
+from mindie_llm.runtime.ops import mie_ops as mie_ops
 from mindie_llm.text_generator.samplers.logits_handlers.__init__ import get_handler_registry
 from mindie_llm.text_generator.samplers.logits_handlers.logits_handler import LogitsHandlerList
 from mindie_llm.text_generator.samplers.sampler_params import HandlerParams, SelectorParams
@@ -21,6 +23,7 @@ from mindie_llm.text_generator.samplers.token_selectors import get_selector_regi
 from mindie_llm.text_generator.utils.config import SamplerConfig, HandlingBackend
 from mindie_llm.text_generator.utils.sampling_output import SamplingOutput
 from mindie_llm.text_generator.utils.sampling_metadata import SamplingMetadata
+from mindie_llm.utils.log.logging import logger
 
 
 class SelectorType(IntEnum):
@@ -303,10 +306,32 @@ class Sampler:
 
     @staticmethod
     def apply_top_k_top_p(logits: torch.Tensor, metadata: SamplingMetadata):
+        has_top_k = metadata.top_k_idx is not None
+        has_top_p = metadata.top_p is not None
+        if has_top_k or has_top_p:
+            p_tensor = None
+            k_tensor = None
+            if has_top_p:
+                p_tensor = metadata.top_p.squeeze(-1).to(dtype=logits.dtype)
+            else:
+                p_tensor = torch.zeros(logits.shape[0], dtype=logits.dtype, device=logits.device)
+            if has_top_k:
+                k_tensor = (metadata.top_k_idx.squeeze(-1) + 1).to(torch.int32)
+                if metadata.top_k_disabled_mask is not None:
+                    disabled = metadata.top_k_disabled_mask.squeeze(-1).to(torch.bool)
+                    k_tensor.masked_fill_(disabled, logits.size(-1))
+            else:
+                k_tensor = torch.full((logits.shape[0],), logits.size(-1), dtype=torch.int32, device=logits.device)
+            try:
+                out = torch.empty_like(logits)
+                torch.ops.mie_ops.apply_top_k_top_p_custom(logits, p_tensor, k_tensor, out)
+                return out
+            except Exception as e:
+                logger.warning("apply_top_k_top_p_custom failed, fallback to pytorch impl, error: %s", e)
         probs = logits.softmax(dim=-1)
         probs_sort, _ = probs.sort(dim=-1, descending=False)
         masked_value = -float("inf")
-        if metadata.top_k_idx is not None:
+        if has_top_k:
             top_k_indices = probs_sort.size(1) - 1 - metadata.top_k_idx
             if top_k_indices.dim() == 1:
                 top_k_indices = top_k_indices.unsqueeze(-1)
@@ -318,7 +343,7 @@ class Sampler:
 
             indices_to_remove = probs < kth_probs
             logits.masked_fill_(indices_to_remove, masked_value)
-        if metadata.top_p is not None:
+        if has_top_p:
             cumprob = torch.cumsum(probs_sort, dim=-1)
             top_p = 1 - metadata.top_p
             if top_p.dim() == 1:

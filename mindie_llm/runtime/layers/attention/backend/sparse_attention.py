@@ -42,6 +42,10 @@ from mindie_llm.runtime.utils.weight_prefetcher import weight_prefetcher
 from mindie_llm.runtime.model_runner.forward_context_exp import ForwardContext, get_forward_context, AttentionMetadata
 from mindie_llm.runtime.model_runner.input_buffer import input_buffer
 from .abstract import AttentionBackend, AttentionLayer, SelectAttentionImpl
+from mindie_llm.runtime.ops.triton.triton_utils import is_triton_available
+
+if is_triton_available():
+    from mindie_llm.runtime.ops.triton.rope import rope_forward_triton_siso
 
 
 torch.npu.config.allow_internal_format = True
@@ -633,22 +637,34 @@ class SfaBackendImpl(SelectAttentionImpl):
     ):
         q = self.indexer.wq_b(q_c)
         q = q.view(-1, self.indexer.n_heads, self.indexer.head_dim)
-        q_pe, q_nope = torch.split(q, [self.qk_rope_head_dim, self.indexer.head_dim - self.qk_rope_head_dim], dim=-1)
-
-        q_pe = q_pe.unsqueeze(2)
-        q_pe = torch_npu.npu_rotary_mul(q_pe, cos, sin)
-        q_pe = q_pe.squeeze(2)
-        q = torch.cat([q_pe, q_nope], dim=-1)
+        if is_triton_available() and not forward_context.is_prefill:
+            cos = cos.view(-1, self.qk_rope_head_dim)
+            sin = sin.view(-1, self.qk_rope_head_dim)
+            q = rope_forward_triton_siso(q, cos, sin, rope_dim=self.qk_rope_head_dim, is_neox_style=True)
+        else:
+            q_pe, q_nope = torch.split(
+                q, [self.qk_rope_head_dim, self.indexer.head_dim - self.qk_rope_head_dim], dim=-1
+            )
+            q_pe = q_pe.unsqueeze(2)
+            q_pe = torch_npu.npu_rotary_mul(q_pe, cos, sin)
+            q_pe = q_pe.squeeze(2)
+            q = torch.cat([q_pe, q_nope], dim=-1)
 
         k_proj = self.indexer.wk(hidden_state)
         k = self.indexer.k_norm(k_proj).unsqueeze(1)
-        k_pe, k_nope = torch.split(k, [self.qk_rope_head_dim, self.indexer.head_dim - self.qk_rope_head_dim], dim=-1)
-        k_pe = k_pe.unsqueeze(2)
-        k_pe = torch_npu.npu_rotary_mul(
-            k_pe, cos.view(-1, 1, 1, self.qk_rope_head_dim), sin.view(-1, 1, 1, self.qk_rope_head_dim)
-        )
-        k_pe = k_pe.squeeze(2)
-        k = torch.cat([k_pe, k_nope], dim=-1)
+        if is_triton_available() and not forward_context.is_prefill:
+            k = rope_forward_triton_siso(k, cos, sin, rope_dim=self.qk_rope_head_dim, is_neox_style=True)
+        else:
+            k_pe, k_nope = torch.split(
+                k, [self.qk_rope_head_dim, self.indexer.head_dim - self.qk_rope_head_dim], dim=-1
+            )
+            k_pe = k_pe.unsqueeze(2)
+            k_pe = torch_npu.npu_rotary_mul(
+                k_pe, cos.view(-1, 1, 1, self.qk_rope_head_dim), sin.view(-1, 1, 1, self.qk_rope_head_dim)
+            )
+            k_pe = k_pe.squeeze(2)
+            k = torch.cat([k_pe, k_nope], dim=-1)
+
         # cp
         cp_input_dict = attn_metadata.cp_input_dict
         if forward_context.is_prefill and self.cp_size > 1:

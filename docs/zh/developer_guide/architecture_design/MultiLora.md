@@ -83,54 +83,54 @@ torchrun --nproc_per_node 8 --master_port 20030 -m examples.run_pa \
 
 2. 配置服务化参数。在Server的`config.json`文件添加`maxLoras`、`maxLoraRank`以及`LoraModules`字段（以下加粗部分），参数字段说明请参见表 **Multi-LoRA特性补充参数：ModelDeployConfig中的参数**，服务化参数说明请参见5.2-配置参数说明（服务化）章节，参数配置示例如下。
 
-```json
-{
-    "ServerConfig": {
-        "ipAddress": "127.0.0.1",
-        "managementIpAddress": "127.0.0.2",
-        "port": 1025,
-        "managementPort": 1026
-    },
-    "BackendConfig": {
-        "backendName": "mindieservice_llm_engine",
-        "modelInstanceNumber": 1,
-        "npuDeviceIds": [[0,1,2,3,4,5,6,7]],
-        "tokenizerProcessNumber": 8,
-        "multiNodesInferEnabled": false,
-        "multiNodesInferPort": 1120,
-        "interNodeTLSEnabled": true,
-        "interNodeTlsCaPath": "security/grpc/ca/",
-        "interNodeTlsCaFiles": ["ca.pem"],
-        "interNodeTlsCert": "security/grpc/certs/server.pem",
-        "interNodeTlsPk": "security/grpc/keys/server.key.pem",
-        "interNodeTlsCrlPath": "security/grpc/certs/",
-        "interNodeTlsCrlfiles": ["server_crl.pem"],
-        "ModelDeployConfig": {
-            "maxSeqLen": 2560,
-            "maxInputTokenLen": 2048,
-            "truncation": 0,
-            "ModelConfig": [
-                {
-                    "modelInstanceType": "Standard",
-                    "modelName": "llama3.1-70b",
-                    "modelWeightPath": "/data/weights/llama3.1-70b-safetensors",
-                    "worldSize": 8,
-                    "cpuMemSize": 5,
-                    "npuMemSize": -1,
-                    "backendType": "atb",
-                    "trustRemoteCode": false
-                }
-            ],
-            "maxLoras": 4,
-            "maxLoraRank": 296,
-            "LoraModules": [{
-                "name": "adapter1",
-                "path": "/data/lora_model_weights/llama3.1-70b-lora",
-                "baseModelName": "llama3.1-70b"
-            }]
+    ```json
+    {
+        "ServerConfig": {
+            "ipAddress": "127.0.0.1",
+            "managementIpAddress": "127.0.0.2",
+            "port": 1025,
+            "managementPort": 1026
+        },
+        "BackendConfig": {
+            "backendName": "mindieservice_llm_engine",
+            "modelInstanceNumber": 1,
+            "npuDeviceIds": [[0,1,2,3,4,5,6,7]],
+            "tokenizerProcessNumber": 8,
+            "multiNodesInferEnabled": false,
+            "multiNodesInferPort": 1120,
+            "interNodeTLSEnabled": true,
+            "interNodeTlsCaPath": "security/grpc/ca/",
+            "interNodeTlsCaFiles": ["ca.pem"],
+            "interNodeTlsCert": "security/grpc/certs/server.pem",
+            "interNodeTlsPk": "security/grpc/keys/server.key.pem",
+            "interNodeTlsCrlPath": "security/grpc/certs/",
+            "interNodeTlsCrlfiles": ["server_crl.pem"],
+            "ModelDeployConfig": {
+                "maxSeqLen": 2560,
+                "maxInputTokenLen": 2048,
+                "truncation": 0,
+                "ModelConfig": [
+                    {
+                        "modelInstanceType": "Standard",
+                        "modelName": "llama3.1-70b",
+                        "modelWeightPath": "/data/weights/llama3.1-70b-safetensors",
+                        "worldSize": 8,
+                        "cpuMemSize": 5,
+                        "npuMemSize": -1,
+                        "backendType": "atb",
+                        "trustRemoteCode": false
+                    }
+                ],
+                "maxLoras": 4,
+                "maxLoraRank": 296,
+                "LoraModules": [{
+                    "name": "adapter1",
+                    "path": "/data/lora_model_weights/llama3.1-70b-lora",
+                    "baseModelName": "llama3.1-70b"
+                }]
+            }
         }
-    }
-    }
+        }
     ```
 
 3. 启动服务。
@@ -141,31 +141,31 @@ torchrun --nproc_per_node 8 --master_port 20030 -m examples.run_pa \
 
 4. 动态加载、卸载或查询LoRA。
 
-   - **加载请求**：
+    - **加载请求**：
 
-     ```bash
-     curl -X POST http://127.0.0.2:1026/v1/load_lora_adapter \
-       -H "Content-Type: application/json" \
-       -d '{
-             "lora_name": "adapter2",
-             "lora_path": "/data/lora_model_weights/llama3.1-70b-lora"
-           }'
-     ```
+    ```bash
+    curl -X POST http://127.0.0.2:1026/v1/load_lora_adapter \
+      -H "Content-Type: application/json" \
+      -d '{
+            "lora_name": "adapter2",
+            "lora_path": "/data/lora_model_weights/llama3.1-70b-lora"
+          }'
+    ```
 
-   - **卸载请求**：
+    - **卸载请求**：
 
-     ```bash
-     curl -X POST http:127.0.0.2:1026/v1/unload_lora_adapter \
-       -d '{
-             "lora_name": "adapter2"
-           }'
-     ```
+    ```bash
+    curl -X POST http:127.0.0.2:1026/v1/unload_lora_adapter \
+      -d '{
+            "lora_name": "adapter2"
+          }'
+    ```
 
-   - **查询请求**：
+    - **查询请求**：
 
-     ```bash
-     curl http://127.0.0.1:1025/v1/models
-     ```
+    ```bash
+    curl http://127.0.0.1:1025/v1/models
+    ```
 
 5. 使用以下指令发送请求。
 
